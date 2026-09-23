@@ -37,6 +37,7 @@ import { createTsukihimeModal } from './modals/tsukihime.js';
 import { createKikuModal } from './modals/kiku.js';
 import { prepareForKikuFieldGroupingOpen } from './kiku-open.js';
 import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
+import { createAnimeBrowserModal } from './modals/anime-browser.js';
 import { createSessionHelpModal } from './modals/session-help.js';
 import { createChangelogModal } from './modals/changelog.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
@@ -133,6 +134,12 @@ const modalDescriptors = [
     id: 'playlist-browser',
     isOpen: () => ctx.state.playlistBrowserModalOpen,
     close: () => playlistBrowserModal.closePlaylistBrowserModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'anime-browser',
+    isOpen: () => ctx.state.animeBrowserModalOpen,
+    close: () => animeBrowserModal.closeAnimeBrowserModal(),
     suppressesSubtitles: true,
   },
   {
@@ -286,6 +293,11 @@ const playlistBrowserModal = createPlaylistBrowserModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const animeBrowserModal = createAnimeBrowserModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  dismissOtherModals: () => modalRegistry.dismissOpenExcept('anime-browser'),
+  syncSettingsModalSubtitleSuppression,
+});
 const mediaTimingReviewModal = createMediaTimingReviewModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -301,6 +313,7 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleYoutubePickerKeydown: youtubePickerModal.handleYoutubePickerKeydown,
   handleMediaTimingReviewKeydown: mediaTimingReviewModal.handleMediaTimingReviewKeydown,
   handlePlaylistBrowserKeydown: playlistBrowserModal.handlePlaylistBrowserKeydown,
+  handleAnimeBrowserKeydown: animeBrowserModal.handleAnimeBrowserKeydown,
   handleControllerSelectKeydown: controllerSelectModal.handleControllerSelectKeydown,
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
@@ -619,6 +632,16 @@ function registerModalOpenHandlers(): void {
       await playlistBrowserModal.openPlaylistBrowserModal();
     });
   });
+  window.electronAPI.onOpenAnimeBrowser(() => {
+    runGuarded('anime-browser:open', () => {
+      animeBrowserModal.openAnimeBrowserModal();
+    });
+  });
+  window.electronAPI.onCloseAnimeBrowser(() => {
+    runGuarded('anime-browser:close', () => {
+      animeBrowserModal.closeAnimeBrowserModal();
+    });
+  });
   window.electronAPI.onCancelYoutubeTrackPicker(() => {
     runGuarded('youtube:picker-cancel', () => {
       youtubePickerModal.closeYoutubePickerModal();
@@ -847,6 +870,7 @@ async function init(): Promise<void> {
   youtubePickerModal.wireDomEvents();
   mediaTimingReviewModal.wireDomEvents();
   playlistBrowserModal.wireDomEvents();
+  animeBrowserModal.wireDomEvents();
   kikuModal.wireDomEvents();
   runtimeOptionsModal.wireDomEvents();
   subsyncModal.wireDomEvents();
@@ -860,6 +884,7 @@ async function init(): Promise<void> {
   window.addEventListener('beforeunload', () => {
     subtitleGenerationModal.dispose();
     subtitleSidebarModal.disposeDomEvents();
+    animeBrowserModal.disposeDomEvents();
   });
 
   window.electronAPI.onRuntimeOptionsChanged((options: RuntimeOptionState[]) => {

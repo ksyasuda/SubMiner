@@ -228,6 +228,65 @@ test('explicit audio stream and output path are respected without overwriting ex
     );
   }));
 
+test('remote generation forwards HTTP options, restores timestamps, and preserves cached subtitles', () =>
+  fixture(async (directory) => {
+    const input = await generationFixture(directory);
+    const mediaPath = 'https://anime.example/episode.m3u8?token=private';
+    const cacheDirectory = path.join(directory, 'cache');
+    const remote = {
+      cacheDirectory,
+      httpHeaders: { headers: { Referer: 'https://anime.example/' }, userAgent: 'SubMiner test' },
+    };
+    const first = await generateJapaneseSubtitles({ ...input, mediaPath, remote });
+    const second = await generateJapaneseSubtitles({ ...input, mediaPath, remote });
+    assert.equal(path.dirname(first), cacheDirectory);
+    assert.match(path.basename(first), /^[a-f0-9]{24}\.ja\.generated\.srt$/);
+    assert.equal(second, first.replace('.srt', '.1.srt'));
+    assert.match(await readFile(first, 'utf8'), /00:00:03,500 --> 00:00:04,500/);
+    const calls: string[][] = (await readFile(input.callsPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    for (const args of calls.filter((args) => args.includes(mediaPath))) {
+      assert.equal(args[args.indexOf('-user_agent') + 1], 'SubMiner test');
+      assert.equal(args[args.indexOf('-headers') + 1], 'Referer: https://anime.example/\r\n');
+      assert.ok(args.indexOf('-headers') < args.indexOf(mediaPath));
+      assert.equal(args[args.indexOf('-protocol_whitelist') + 1], 'http,https,tcp,tls,crypto');
+    }
+    assert.deepEqual(
+      (await readdir(cacheDirectory)).filter((name) => name.startsWith('.')),
+      [],
+    );
+  }));
+
+test('remote generation refuses live streams and unsupported protocols before extraction', () =>
+  fixture(async (directory) => {
+    const input = await generationFixture(directory);
+    const remote = {
+      cacheDirectory: path.join(directory, 'cache'),
+      httpHeaders: { headers: {}, userAgent: null },
+    };
+    await assert.rejects(
+      generateJapaneseSubtitles({ ...input, mediaPath: 'ftp://anime.example/episode', remote }),
+      /supported HTTP stream/,
+    );
+    const ffprobePath = await executable(
+      directory,
+      'live-probe',
+      "process.stdout.write(JSON.stringify({ streams: [{ index: 0, codec_type: 'audio' }], format: {} }));",
+    );
+    await assert.rejects(
+      generateJapaneseSubtitles({
+        ...input,
+        config: { ...input.config, ffprobePath },
+        mediaPath: 'https://anime.example/live.m3u8',
+        remote,
+      }),
+      /finite episode duration/,
+    );
+    await assert.rejects(readFile(input.callsPath), /ENOENT/);
+  }));
+
 test('dialogue generation isolates Whisper state between passages and preserves media timing', () =>
   fixture(async (directory) => {
     const input = await generationFixture(directory);

@@ -988,7 +988,7 @@ test('auto sync emits building while merged dictionary generation is in flight',
   await syncPromise;
 });
 
-test('auto sync waits for tokenization-ready gate before Yomitan mutations', async () => {
+test('auto sync waits for Yomitan readiness before dictionary mutations', async () => {
   const userDataPath = makeTempDir();
   const gate = (() => {
     let resolve!: () => void;
@@ -1043,7 +1043,7 @@ test('auto sync waits for tokenization-ready gate before Yomitan mutations', asy
   });
 
   const syncPromise = runtime.runSyncNow();
-  await waitUntil(() => calls.includes('wait'), 'the tokenization-ready gate');
+  await waitUntil(() => calls.includes('wait'), 'Yomitan readiness');
 
   assert.deepEqual(calls, ['build', 'wait']);
 
@@ -1051,6 +1051,84 @@ test('auto sync waits for tokenization-ready gate before Yomitan mutations', asy
   await syncPromise;
 
   assert.deepEqual(calls, ['build', 'wait', 'info', 'import', 'settings']);
+});
+
+test('cached dictionary readiness cannot leave checking stuck and can retry after Yomitan becomes ready', async () => {
+  const userDataPath = makeTempDir();
+  const directory = path.join(userDataPath, 'character-dictionaries');
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(
+    path.join(directory, 'auto-sync-state.json'),
+    JSON.stringify({
+      activeMediaIds: ['7054 - Maid-Sama!'],
+      mergedRevision: 'cached-revision',
+      mergedDictionaryTitle: 'SubMiner Character Dictionary',
+    }),
+  );
+  const readiness = createDeferred<void>();
+  const events: string[] = [];
+  const calls: string[] = [];
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({ enabled: true, maxLoaded: 3, profileScope: 'all' }),
+    getOrCreateCurrentSnapshot: async (_target, progress) => {
+      progress?.onChecking?.({ mediaId: 7054, mediaTitle: 'Maid-Sama!' });
+      return {
+        mediaId: 7054,
+        mediaTitle: 'Maid-Sama!',
+        entryCount: 3184,
+        fromCache: true,
+        updatedAt: 1000,
+      };
+    },
+    buildMergedDictionary: async () => {
+      throw new Error('Cached dictionary must not be rebuilt');
+    },
+    waitForYomitanMutationReady: () => readiness.promise,
+    getYomitanDictionaryInfo: async () => {
+      calls.push('info');
+      return [{ title: 'SubMiner Character Dictionary', revision: 'cached-revision' }];
+    },
+    importYomitanDictionary: async () => {
+      throw new Error('Current dictionary must not be imported');
+    },
+    deleteYomitanDictionary: async () => {
+      throw new Error('Current dictionary must not be deleted');
+    },
+    upsertYomitanDictionarySettings: async () => {
+      calls.push('settings');
+      return false;
+    },
+    operationTimeoutMs: 20,
+    now: Date.now,
+    onSyncStatus: (event) => events.push(event.phase),
+  });
+  const result = runtime.runSyncNow().then(
+    () => 'ready',
+    (error: unknown) => error,
+  );
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const outcome = await Promise.race([
+      result,
+      new Promise<string>((resolve) => {
+        watchdog = setTimeout(() => resolve('still checking'), 500);
+      }),
+    ]);
+    assert.ok(outcome instanceof Error, `Expected readiness failure, got ${String(outcome)}`);
+    assert.match(outcome.message, /Yomitan.*timed out/);
+    assert.deepEqual(events, ['checking', 'failed']);
+    assert.deepEqual(calls, []);
+    readiness.resolve();
+    await runtime.runSyncNow();
+    assert.deepEqual(events, ['checking', 'failed', 'checking', 'ready']);
+    assert.deepEqual(calls, ['info', 'settings']);
+  } finally {
+    clearTimeout(watchdog);
+    readiness.resolve();
+    await result;
+    fs.rmSync(userDataPath, { recursive: true, force: true });
+  }
 });
 
 test('auto sync scales the import timeout with the merged dictionary size', async () => {

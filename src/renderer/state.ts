@@ -108,6 +108,7 @@ export type RendererState = {
   changelogModalOpen: boolean;
   changelogSelectedIndex: number;
   playlistBrowserModalOpen: boolean;
+  animeBrowserModalOpen: boolean;
   playlistBrowserSnapshot: PlaylistBrowserSnapshot | null;
   playlistBrowserStatus: string;
   playlistBrowserActivePane: 'directory' | 'playlist';
@@ -242,6 +243,7 @@ export function createRendererState(): RendererState {
     changelogModalOpen: false,
     changelogSelectedIndex: 0,
     playlistBrowserModalOpen: false,
+    animeBrowserModalOpen: false,
     playlistBrowserSnapshot: null,
     playlistBrowserStatus: '',
     playlistBrowserActivePane: 'playlist',

@@ -13,6 +13,7 @@ export function createBuildMpvCommandFromIpcRuntimeMainDepsHandler(
       openTsukihime: () => deps.openTsukihime(),
       openYoutubeTrackPicker: () => deps.openYoutubeTrackPicker(),
       openPlaylistBrowser: () => deps.openPlaylistBrowser(),
+      openAnimeBrowser: () => deps.openAnimeBrowser(),
       cycleRuntimeOption: (id, direction) => deps.cycleRuntimeOption(id, direction),
       showMpvOsd: (text: string) => deps.showMpvOsd(text),
       ...(showRawMpvOsd ? { showRawMpvOsd: (text: string) => showRawMpvOsd(text) } : {}),

@@ -15,6 +15,7 @@ const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
   'logging.rotation',
   'logging.files',
   'youtube.primarySubLanguages',
+  'anime.autoOpenJimaku',
   'ankiConnect.deck',
   'ankiConnect.media.normalizeAudio',
   'ankiConnect.media.mirrorMpvVolume',

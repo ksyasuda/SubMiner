@@ -1,0 +1,6 @@
+type: added
+area: subtitles
+
+- Generate Japanese subtitles from finite HTTP/HTTPS anime episode streams in the existing generation modal. Reuse mpv's supported request headers and the anime proxy, transcribe downloaded audio locally, retain generated SRT files in the application cache, and load them only into the matching stream. Local-file generation and the launcher keep their existing behavior.
+- Prepare plain HLS episodes with up to four concurrent segment downloads, preserving audio order and timing. Show download progress, cancel active requests together, and retain FFmpeg extraction for complex playlists.
+- Reduce anime-stream extraction downloads by preferring separate Japanese audio or lower-resolution video when duration and sampled audio match playback. Sample HLS through short local segment windows, account for timestamp origins, retry empty original samples, and report why candidates are rejected. Selected external HTTP audio tracks are extracted directly with their playback delay preserved. Reuse verified completed audio across transcription retries and model changes within the current app session. Remove downloaded audio and working files on quit, recover abandoned sessions on startup, and preserve saved subtitles.

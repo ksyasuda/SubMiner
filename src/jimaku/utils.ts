@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as childProcess from 'child_process';
 import { createLogger } from '../logger';
+import { splitSeasonFromTitle } from '../anime-bridge/episode-metadata';
 import {
   JimakuApiResponse,
   JimakuConfig,
@@ -163,6 +164,28 @@ function matchEpisodeFromName(name: string): {
     };
   }
 
+  // Spelled-out labels. Streaming sources name episodes this way ("Episode 4"),
+  // and the abbreviated `E04` pattern below cannot see them.
+  const worded = name.match(/(?:^|[\s._-])episode\s*[.#]?\s*(\d{1,3})(?:\D|$)/i);
+  if (worded && worded.index !== undefined) {
+    return {
+      season: null,
+      episode: Number.parseInt(worded[1]!, 10),
+      index: worded.index,
+      confidence: 'medium',
+    };
+  }
+
+  const japanese = name.match(/第\s*(\d{1,3})\s*話/);
+  if (japanese && japanese.index !== undefined) {
+    return {
+      season: null,
+      episode: Number.parseInt(japanese[1]!, 10),
+      index: japanese.index,
+      confidence: 'medium',
+    };
+  }
+
   const epOnly = name.match(/(?:^|[\s._-])E(?:P)?(\d{1,3})(?:\b|[\s._-])/i);
   if (epOnly && epOnly.index !== undefined) {
     return {
@@ -229,12 +252,14 @@ export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
     titlePart = name.slice(0, parsed.index);
   }
 
-  const seasonFromDir = parsed.season ?? detectSeasonFromDir(normalizedMediaPath);
-  const title = cleanupTitle(titlePart || name);
+  // A season named in the title ("… Season 3") belongs in the season field, not
+  // glued to the title — otherwise it is searched for as part of the name.
+  const titleSeason = splitSeasonFromTitle(cleanupTitle(titlePart || name));
+  const season = parsed.season ?? titleSeason.season ?? detectSeasonFromDir(normalizedMediaPath);
 
   return {
-    title,
-    season: seasonFromDir,
+    title: titleSeason.title,
+    season,
     episode: parsed.episode,
     confidence: parsed.confidence,
     filename,

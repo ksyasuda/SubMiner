@@ -77,6 +77,7 @@ export interface CharacterDictionaryAutoSyncRuntimeDeps {
     progress?: CharacterDictionarySnapshotProgressCallbacks,
   ) => Promise<CharacterDictionarySnapshotResult>;
   buildMergedDictionary: (mediaIds: number[]) => Promise<MergedCharacterDictionaryBuildResult>;
+  /** Extension readiness only: dictionary sync must work before any subtitle is tokenized. */
   waitForYomitanMutationReady?: () => Promise<void>;
   getYomitanDictionaryInfo: () => Promise<AutoSyncDictionaryInfo[]>;
   importYomitanDictionary: (zipPath: string) => Promise<boolean>;
@@ -639,7 +640,9 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
         mergedDictionaryTitle: merged?.dictionaryTitle ?? dictionaryTitle,
       });
 
-      await deps.waitForYomitanMutationReady?.();
+      if (deps.waitForYomitanMutationReady) {
+        await withOperationTimeout('Yomitan readiness', deps.waitForYomitanMutationReady());
+      }
 
       const dictionaryInfo = await withOperationTimeout(
         'getYomitanDictionaryInfo',

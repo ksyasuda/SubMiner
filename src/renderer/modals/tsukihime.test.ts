@@ -123,6 +123,7 @@ interface ModalHarness {
 function createModalHarness(
   files: TsukihimeSubtitleFile[],
   options: {
+    getMediaInfo?: ElectronAPI['getJimakuMediaInfo'];
     secondaryLanguages?: string[];
     secondaryLanguagesGate?: Promise<void>;
     downloadFile?: (query: unknown) => Promise<unknown>;
@@ -153,14 +154,16 @@ function createModalHarness(
       options.listFiles ? options.listFiles(entryId) : { ok: true, data: [] },
     tsukihimeSearchEntries: async (query: unknown) =>
       options.searchEntries ? options.searchEntries(query) : { ok: true, data: [] },
-    getJimakuMediaInfo: async () => ({
-      title: '',
-      season: null,
-      episode: null,
-      confidence: 'low',
-      filename: '',
-      rawTitle: '',
-    }),
+    getJimakuMediaInfo:
+      options.getMediaInfo ??
+      (async () => ({
+        title: '',
+        season: null,
+        episode: null,
+        confidence: 'low',
+        filename: '',
+        rawTitle: '',
+      })),
     notifyOverlayModalClosed: (modal: string) => {
       modalCloseNotifications.push(modal);
     },
@@ -198,6 +201,7 @@ function createModalHarness(
         setAttribute: () => {},
       },
       tsukihimeTitleInput: { value: '' },
+      tsukihimeSeasonInput: { value: '' },
       tsukihimeEpisodeInput: { value: '' },
       tsukihimeSearchButton: { addEventListener: () => {} },
       tsukihimeCloseButton: { addEventListener: () => {} },
@@ -822,3 +826,57 @@ test('a search from a prior modal session cannot repopulate a reopened modal', a
     harness.restoreGlobals();
   }
 });
+
+for (const reopen of [false, true]) {
+  for (const outcome of ['success', 'failure']) {
+    test(`stale media info ${outcome} is ignored after the modal is ${reopen ? 'reopened' : 'closed'}`, async () => {
+      type MediaInfo = Awaited<ReturnType<ElectronAPI['getJimakuMediaInfo']>>;
+      let resolveInfo!: (info: MediaInfo) => void;
+      let rejectInfo!: (error: Error) => void;
+      const pendingInfo = new Promise<MediaInfo>((resolve, reject) => {
+        resolveInfo = resolve;
+        rejectInfo = reject;
+      });
+      const currentInfo: MediaInfo = {
+        title: 'Current title',
+        season: null,
+        episode: null,
+        confidence: 'low',
+        filename: '',
+        rawTitle: '',
+      };
+      let mediaInfoCalls = 0;
+      let searchCalls = 0;
+      const harness = createModalHarness([], {
+        getMediaInfo: () => (++mediaInfoCalls === 1 ? pendingInfo : Promise.resolve(currentInfo)),
+        searchEntries: async () => {
+          searchCalls += 1;
+          return { ok: true, data: [] };
+        },
+      });
+      try {
+        harness.state.tsukihimeModalOpen = false;
+        harness.modal.openTsukihimeModal();
+        harness.modal.closeTsukihimeModal();
+        if (reopen) harness.modal.openTsukihimeModal();
+        await flushAsyncWork();
+        if (reopen) assert.equal(harness.titleInput.value, 'Current title');
+        const title = harness.titleInput.value;
+        const status = harness.status.textContent;
+
+        if (outcome === 'success') {
+          resolveInfo({ ...currentInfo, title: 'Stale title', confidence: 'high', episode: 1 });
+        } else {
+          rejectInfo(new Error('Old media info failed'));
+        }
+        await flushAsyncWork();
+
+        assert.equal(harness.titleInput.value, title);
+        assert.equal(harness.status.textContent, status);
+        assert.equal(searchCalls, 0);
+      } finally {
+        harness.restoreGlobals();
+      }
+    });
+  }
+}

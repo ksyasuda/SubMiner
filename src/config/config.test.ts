@@ -167,6 +167,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.mpv.subminerBinaryPath, '');
   assert.equal(config.mpv.aniskipEnabled, true);
   assert.equal(config.mpv.aniskipButtonKey, 'TAB');
+  assert.equal(config.anime.autoOpenJimaku, false);
 });
 
 test('rejects invalid mpv volume mirroring values', () => {

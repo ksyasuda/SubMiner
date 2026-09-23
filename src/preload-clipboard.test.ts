@@ -24,8 +24,8 @@ test('sidebar clipboard bridge writes exact text without renderer focus and reje
         ipcRenderer: { on: () => {} },
         clipboard: { writeText: (text: string) => writes.push(text) },
         contextBridge: {
-          exposeInMainWorld: (_name: string, api: unknown) => {
-            exposed = api;
+          exposeInMainWorld: (name: string, api: unknown) => {
+            if (name === 'electronAPI') exposed = api;
           },
         },
       };

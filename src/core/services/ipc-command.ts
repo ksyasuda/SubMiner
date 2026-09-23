@@ -4,6 +4,9 @@ import {
   SubsyncManualRunRequest,
   SubsyncResult,
 } from '../../types';
+import { createLogger } from '../../logger';
+
+const logger = createLogger('subsync');
 
 export interface HandleMpvCommandFromIpcOptions {
   specialCommands: {
@@ -17,6 +20,7 @@ export interface HandleMpvCommandFromIpcOptions {
     PLAY_NEXT_SUBTITLE: string;
     YOUTUBE_PICKER_OPEN: string;
     PLAYLIST_BROWSER_OPEN: string;
+    ANIME_BROWSER_OPEN: string;
   };
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -24,6 +28,7 @@ export interface HandleMpvCommandFromIpcOptions {
   openTsukihime: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => void | Promise<void>;
+  openAnimeBrowser: () => void | Promise<void>;
   runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
   showRawMpvOsd?: (text: string) => void;
@@ -138,6 +143,16 @@ export function handleMpvCommandFromIpc(
     return;
   }
 
+  if (first === options.specialCommands.ANIME_BROWSER_OPEN) {
+    Promise.resolve()
+      .then(() => options.openAnimeBrowser())
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        options.showMpvOsd(`Anime Browser failed: ${message}`);
+      });
+    return;
+  }
+
   if (first.startsWith(options.specialCommands.RUNTIME_OPTION_CYCLE_PREFIX)) {
     if (!options.hasRuntimeOptionsManager()) return;
     const [, idToken, directionToken] = first.split(':');
@@ -193,6 +208,8 @@ export async function runSubsyncManualFromIpc(
     return result;
   } catch (error) {
     const message = `Subsync failed: ${(error as Error).message}`;
+    // An OSD toast is the only other trace of this, and it is gone in seconds.
+    logger.error(message, error);
     options.showMpvOsd(message);
     return { ok: false, message };
   } finally {

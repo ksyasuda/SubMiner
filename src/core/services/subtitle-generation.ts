@@ -1,5 +1,6 @@
-import { access, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type {
@@ -8,9 +9,11 @@ import type {
 } from '../../shared/subtitle-generation';
 import { isMissingFile, resolveSubtitleGenerationModel } from './subtitle-generation-models';
 import { runSubtitleGenerationProcess } from './subtitle-generation-process';
+import { prepareSubtitleGenerationAudio } from './subtitle-generation-audio';
 import { publishSubtitleGenerationFile } from './subtitle-generation-files';
 import { formatTimestamp } from './subtitle-generation-srt';
 import { transcribeSubtitleDialogue } from './subtitle-generation-dialogue';
+import { type SubtitleGenerationRemoteSource } from './subtitle-generation-source';
 import {
   loadSubtitleGenerationReference,
   type SubtitleGenerationReference,
@@ -25,70 +28,6 @@ export {
   resolveSubtitleGenerationModel,
 } from './subtitle-generation-models';
 export { resolveSubtitleGenerationTools } from './subtitle-generation-tools';
-
-function numericTime(value: unknown): number | undefined {
-  if (typeof value !== 'number' && typeof value !== 'string') return undefined;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : undefined;
-}
-
-function parseAudioProbe(raw: string, selectedIndex: number | undefined) {
-  const value: unknown = JSON.parse(raw);
-  if (
-    typeof value !== 'object' ||
-    value === null ||
-    !('streams' in value) ||
-    !Array.isArray(value.streams)
-  ) {
-    throw new Error('ffprobe did not return media streams.');
-  }
-  const streams = value.streams.flatMap((stream: unknown) => {
-    if (
-      typeof stream !== 'object' ||
-      stream === null ||
-      !('codec_type' in stream) ||
-      stream.codec_type !== 'audio' ||
-      !('index' in stream) ||
-      typeof stream.index !== 'number' ||
-      !Number.isInteger(stream.index) ||
-      stream.index < 0
-    )
-      return [];
-    const tags = 'tags' in stream ? stream.tags : undefined;
-    const language =
-      typeof tags === 'object' && tags !== null && 'language' in tags ? tags.language : undefined;
-    return [
-      {
-        index: stream.index,
-        start: 'start_time' in stream ? numericTime(stream.start_time) : undefined,
-        duration: 'duration' in stream ? numericTime(stream.duration) : undefined,
-        japanese: language === 'ja' || language === 'jpn',
-      },
-    ];
-  });
-  const selected =
-    selectedIndex === undefined
-      ? (streams.find((stream) => stream.japanese) ?? streams[0])
-      : streams.find((stream) => stream.index === selectedIndex);
-  if (!selected)
-    throw new Error(
-      selectedIndex === undefined
-        ? 'No audio track found.'
-        : `Audio stream ${selectedIndex} was not found.`,
-    );
-  const format = 'format' in value ? value.format : undefined;
-  const formatStart =
-    typeof format === 'object' && format !== null && 'start_time' in format
-      ? (numericTime(format.start_time) ?? 0)
-      : 0;
-  const duration =
-    selected.duration ??
-    (typeof format === 'object' && format !== null && 'duration' in format
-      ? numericTime(format.duration)
-      : undefined);
-  // mpv rebases media timestamps to the container start. Extraction rebases the selected audio.
-  return { index: selected.index, offset: (selected.start ?? formatStart) - formatStart, duration };
-}
 
 function shiftSubtitleTimestamps(srt: string, offsetSeconds: number): string {
   let cueCount = 0;
@@ -178,20 +117,33 @@ export async function generateJapaneseSubtitles(input: {
   modelDirectory: string;
   mediaPath: string;
   audioStreamIndex?: number;
+  remote?: SubtitleGenerationRemoteSource;
   references?: readonly SubtitleGenerationReference[];
   outputPath?: string;
   onProgress?: (progress: SubtitleGenerationProgress) => void;
   signal?: AbortSignal;
 }): Promise<string> {
   input.signal?.throwIfAborted();
-  if (/^[a-z][a-z\d+.-]*:\/\//i.test(input.mediaPath))
+  const isRemote = /^[a-z][a-z\d+.-]*:\/\//i.test(input.mediaPath);
+  if (isRemote && (!input.remote || !/^https?:\/\//i.test(input.mediaPath)))
+    throw new Error('Subtitle generation requires a local media file or a supported HTTP stream.');
+  if (!isRemote && input.remote) throw new Error('Expected an HTTP stream for remote generation.');
+  const mediaPath = isRemote ? new URL(input.mediaPath).href : path.resolve(input.mediaPath);
+  if (!isRemote && !(await stat(mediaPath)).isFile())
     throw new Error('Subtitle generation requires a local media file.');
-  const mediaPath = path.resolve(input.mediaPath);
-  if (!(await stat(mediaPath)).isFile())
-    throw new Error('Subtitle generation requires a local media file.');
+  // URLs may contain credentials or expiring tokens. Keep them out of cache filenames.
+  const destinationMediaPath = input.remote
+    ? path.join(
+        input.remote.cacheDirectory,
+        createHash('sha256').update(mediaPath).digest('hex').slice(0, 24),
+      )
+    : mediaPath;
+  if (input.remote) await mkdir(input.remote.cacheDirectory, { recursive: true });
   if (input.outputPath) await ensureAvailableOutput(path.resolve(input.outputPath));
   await ensureWritableDirectory(
-    input.outputPath ? path.dirname(path.resolve(input.outputPath)) : path.dirname(mediaPath),
+    input.outputPath
+      ? path.dirname(path.resolve(input.outputPath))
+      : path.dirname(destinationMediaPath),
   );
   const model = await resolveSubtitleGenerationModel(input.config, input.modelDirectory);
   if (model.kind === 'missing')
@@ -200,63 +152,22 @@ export async function generateJapaneseSubtitles(input: {
     );
   if (model.kind === 'invalid') throw new Error(model.message);
   const tools = requireSubtitleGenerationTools(await resolveSubtitleGenerationTools(input.config));
-  input.onProgress?.({ stage: 'extract', message: 'Inspecting audio tracks...' });
-  const probe = await runSubtitleGenerationProcess({
-    command: tools.ffprobe,
-    args: [
-      '-v',
-      'error',
-      '-show_entries',
-      'stream=index,codec_type,start_time,duration:stream_tags=language:format=start_time,duration',
-      '-of',
-      'json',
-      mediaPath,
-    ],
-    signal: input.signal,
-  });
-  const audio = parseAudioProbe(probe, input.audioStreamIndex);
-  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'subminer-whisper-'));
+  const temporaryDirectory = await mkdtemp(
+    path.join(input.remote?.sessionDirectory ?? tmpdir(), 'subminer-whisper-'),
+  );
   try {
-    const wavPath = path.join(temporaryDirectory, 'audio.wav');
     const subtitleBase = path.join(temporaryDirectory, 'subtitles');
-    input.onProgress?.({ stage: 'extract', percent: 0, message: 'Extracting audio...' });
-    await runSubtitleGenerationProcess({
-      command: tools.ffmpeg,
-      args: [
-        '-nostdin',
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-i',
-        mediaPath,
-        '-map',
-        `0:${audio.index}`,
-        '-vn',
-        '-af',
-        'asetpts=PTS-STARTPTS',
-        '-ac',
-        '1',
-        '-ar',
-        '16000',
-        '-c:a',
-        'pcm_s16le',
-        '-progress',
-        'pipe:1',
-        '-nostats',
-        wavPath,
-      ],
+    const audio = await prepareSubtitleGenerationAudio({
+      mediaPath,
+      audioStreamIndex: input.audioStreamIndex,
+      remote: input.remote,
+      ffprobe: tools.ffprobe,
+      ffmpeg: tools.ffmpeg,
+      directory: temporaryDirectory,
+      onProgress: input.onProgress,
       signal: input.signal,
-      onLine: (line) => {
-        const match = /^out_time_us=(\d+)$/.exec(line);
-        if (match && audio.duration && audio.duration > 0) {
-          input.onProgress?.({
-            stage: 'extract',
-            percent: Math.min(100, Math.floor(Number(match[1]) / 10000 / audio.duration)),
-            message: 'Extracting audio...',
-          });
-        }
-      },
     });
+    const { wavPath } = audio;
     input.onProgress?.({
       stage: 'transcribe',
       percent: 0,
@@ -268,6 +179,7 @@ export async function generateJapaneseSubtitles(input: {
       ffmpegPath: tools.ffmpeg,
       directory: temporaryDirectory,
       audioOffset: audio.offset,
+      httpHeaders: input.remote?.httpHeaders,
       onProgress: input.onProgress,
       signal: input.signal,
     });
@@ -317,7 +229,7 @@ export async function generateJapaneseSubtitles(input: {
     input.onProgress?.({ stage: 'write', message: 'Saving Japanese subtitles...' });
     const contents = shiftSubtitleTimestamps(srt, audio.offset);
     const outputPath = await writeSubtitles({
-      mediaPath,
+      mediaPath: destinationMediaPath,
       outputPath: input.outputPath,
       contents,
       signal: input.signal,

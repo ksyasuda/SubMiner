@@ -268,6 +268,8 @@ function M.create(ctx)
 			return { "--open-controller-debug" }
 		elseif action_id == "openPlaylistBrowser" then
 			return { "--open-playlist-browser" }
+		elseif action_id == "openAnimeBrowser" then
+			return { "--session-action", '{"actionId":"openAnimeBrowser"}' }
 		elseif action_id == "replayCurrentSubtitle" then
 			return { "--replay-current-subtitle" }
 		elseif action_id == "playNextSubtitle" then

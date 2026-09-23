@@ -1008,6 +1008,7 @@ test('default keybindings dispatch through overlay keyboard handling', async () 
   const specialActionIds: Record<string, string> = {
     [SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN]: 'openYoutubePicker',
     [SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN]: 'openPlaylistBrowser',
+    [SPECIAL_COMMANDS.ANIME_BROWSER_OPEN]: 'openAnimeBrowser',
     [SPECIAL_COMMANDS.REPLAY_SUBTITLE]: 'replayCurrentSubtitle',
     [SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE]: 'playNextSubtitle',
   };

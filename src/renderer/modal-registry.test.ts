@@ -53,3 +53,25 @@ test('modal registry dismisses every open descriptor and skips closed descriptor
 
   assert.deepEqual(closed, ['first-open', 'second-open']);
 });
+
+test('modal registry can dismiss stale modals while preserving the requested one', () => {
+  const openIds = new Set(['anime-browser', 'subtitle-sidebar']);
+  const closed: string[] = [];
+  const descriptors: ModalDescriptor<string>[] = ['anime-browser', 'subtitle-sidebar'].map(
+    (id) => ({
+      id,
+      isOpen: () => openIds.has(id),
+      close: () => {
+        openIds.delete(id);
+        closed.push(id);
+      },
+      suppressesSubtitles: true,
+    }),
+  );
+  const registry = createModalRegistry(descriptors);
+
+  registry.dismissOpenExcept('anime-browser');
+
+  assert.deepEqual(closed, ['subtitle-sidebar']);
+  assert.equal(openIds.has('anime-browser'), true);
+});

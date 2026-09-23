@@ -207,6 +207,7 @@ test('app command starts default macOS background app detached from launcher', (
       calls.push('attached');
     },
     launchSyncUiDetached: () => calls.push('sync-ui'),
+    launchAnimeBrowserDetached: () => {},
     launchAppBackgroundDetached: (appPath, logLevel) => {
       calls.push(`detached:${appPath}:${logLevel}`);
     },
@@ -227,6 +228,7 @@ test('app command starts default Linux background app detached from launcher', (
       calls.push('attached');
     },
     launchSyncUiDetached: () => calls.push('sync-ui'),
+    launchAnimeBrowserDetached: () => {},
     launchAppBackgroundDetached: (appPath, logLevel) => {
       calls.push(`detached:${appPath}:${logLevel}`);
     },
@@ -248,6 +250,7 @@ test('app command keeps explicit passthrough args attached', () => {
       forwarded.push(appArgs);
     },
     launchSyncUiDetached: () => detached.push('sync-ui'),
+    launchAnimeBrowserDetached: () => {},
     launchAppBackgroundDetached: () => {
       detached.push('detached');
     },
@@ -266,6 +269,7 @@ test('sync UI command launches the app detached from the terminal', () => {
   const handled = runAppPassthroughCommand(context, {
     runAppCommandWithInherit: () => calls.push('piped'),
     launchSyncUiDetached: (appPath, logLevel) => calls.push(`sync-ui:${appPath}:${logLevel}`),
+    launchAnimeBrowserDetached: () => calls.push('anime'),
     launchAppBackgroundDetached: () => calls.push('detached'),
   });
 

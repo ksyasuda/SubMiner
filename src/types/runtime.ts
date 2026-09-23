@@ -14,6 +14,7 @@ import type {
   MediaTimingReviewWaveformResult,
 } from './anki';
 import type { ChangelogSnapshot } from './changelog';
+import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import type { SubtitleGenerationProgress } from '../shared/subtitle-generation';
 import type { SubtitleGenerationModelId } from '../shared/subtitle-generation-model-catalog';
 import type {
@@ -541,6 +542,8 @@ export interface ElectronAPI {
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenSessionHelp: (callback: () => void) => void;
   onOpenChangelog: (callback: () => void) => void;
+  onOpenAnimeBrowser: (callback: () => void) => void;
+  onCloseAnimeBrowser: (callback: () => void) => void;
   getChangelogSnapshot: (options?: { refresh?: boolean }) => Promise<ChangelogSnapshot>;
   onOpenControllerSelect: (callback: () => void) => void;
   onOpenControllerDebug: (callback: () => void) => void;
@@ -600,42 +603,8 @@ export interface ElectronAPI {
     mediaId: number,
     direction: 1 | -1,
   ) => Promise<CharacterDictionaryManagerMutationResult>;
-  notifyOverlayModalClosed: (
-    modal:
-      | 'runtime-options'
-      | 'subsync'
-      | 'subtitle-generation'
-      | 'jimaku'
-      | 'tsukihime'
-      | 'youtube-track-picker'
-      | 'media-timing-review'
-      | 'playlist-browser'
-      | 'kiku'
-      | 'controller-select'
-      | 'controller-debug'
-      | 'subtitle-sidebar'
-      | 'session-help'
-      | 'character-dictionary'
-      | 'changelog',
-  ) => void;
-  notifyOverlayModalOpened: (
-    modal:
-      | 'runtime-options'
-      | 'subsync'
-      | 'subtitle-generation'
-      | 'jimaku'
-      | 'tsukihime'
-      | 'youtube-track-picker'
-      | 'media-timing-review'
-      | 'playlist-browser'
-      | 'kiku'
-      | 'controller-select'
-      | 'controller-debug'
-      | 'subtitle-sidebar'
-      | 'session-help'
-      | 'character-dictionary'
-      | 'changelog',
-  ) => void;
+  notifyOverlayModalClosed: (modal: OverlayHostedModal) => void;
+  notifyOverlayModalOpened: (modal: OverlayHostedModal) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
 }

@@ -88,7 +88,7 @@ export function createSubtitleGenerationModal(
     const vad = snapshot ? describeGenerationVad(snapshot.vad) : null;
     const tools = snapshot ? describeGenerationTools(snapshot.tools) : null;
     const readyMessage = !snapshot?.mediaPath
-      ? 'Open local media to generate subtitles.'
+      ? 'Open a local file or anime stream to generate subtitles.'
       : !tools?.ready
         ? 'Install the missing tools or set their paths in Settings, then click Check again.'
         : !model?.ready
@@ -96,7 +96,8 @@ export function createSubtitleGenerationModal(
           : !vad?.ready
             ? 'Download the speech detection model or uncheck Focus on spoken dialogue.'
             : 'Ready when you are.';
-    dom.media.textContent = snapshot?.mediaPath ?? 'Open a local media file in the player first.';
+    dom.media.textContent =
+      snapshot?.mediaPath ?? 'Open a local file or anime stream in the player first.';
     dom.tools.textContent = tools?.text ?? 'Checking local tools...';
     dom.model.textContent = model?.text ?? 'Checking local models...';
     dom.modelPicker.classList.toggle('hidden', !snapshot || Boolean(snapshot.externalModelPath));

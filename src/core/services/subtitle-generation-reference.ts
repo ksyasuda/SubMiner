@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import type { SubtitleGenerationProgress } from '../../shared/subtitle-generation';
 import { parseSrtCues } from './subtitle-cue-parser';
 import { runSubtitleGenerationProcess } from './subtitle-generation-process';
+import type { ResolvedMpvHttpHeaders } from './mpv-http-headers';
+import { subtitleGenerationHttpArgs } from './subtitle-generation-source';
 
 export type SubtitleGenerationReference = {
   label: string;
@@ -119,6 +121,7 @@ export async function loadSubtitleGenerationReference(input: {
   ffmpegPath: string;
   directory: string;
   audioOffset: number;
+  httpHeaders?: ResolvedMpvHttpHeaders;
   onProgress?: (progress: SubtitleGenerationProgress) => void;
   signal?: AbortSignal;
 }): Promise<number[]> {
@@ -135,6 +138,7 @@ export async function loadSubtitleGenerationReference(input: {
           '-loglevel',
           'error',
           ...(embedded ? ['-copyts', '-start_at_zero'] : []),
+          ...(embedded && input.httpHeaders ? subtitleGenerationHttpArgs(input.httpHeaders) : []),
           '-i',
           reference.source.kind === 'external' ? reference.source.path : input.mediaPath,
           '-map',

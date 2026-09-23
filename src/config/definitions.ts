@@ -40,6 +40,7 @@ const {
 } = CORE_DEFAULT_CONFIG;
 const {
   ankiConnect,
+  anime,
   jimaku,
   tsukihime,
   tmdb,
@@ -75,6 +76,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   subtitleStyle,
   subtitleSidebar,
   auto_start_overlay,
+  anime,
   jimaku,
   tsukihime,
   tmdb,

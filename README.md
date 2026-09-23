@@ -87,12 +87,16 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
     <td>Browse, launch, and cast media from your Jellyfin server with setup and discovery controls in the app tray</td>
   </tr>
   <tr>
+    <td><b>Anime Browser</b></td>
+    <td>Search anime sources you supply as <a href="https://github.com/aniyomiorg/aniyomi">Aniyomi</a> extension APKs and play an episode in mpv with the overlay attached (<code>subminer anime</code>); SubMiner ships no repositories and bundles no sources</td>
+  </tr>
+  <tr>
     <td><b>Jimaku</b></td>
     <td>Search and download Japanese subtitles</td>
   </tr>
   <tr>
-    <td><b>Local Subtitle Generation</b></td>
-    <td>Generate Japanese subtitles from local audio in a standalone modal (<code>Ctrl+Shift+G</code>), the sidebar button, or launcher, with progress and optional managed model downloads. Requires whisper.cpp and FFmpeg. Optional Silero speech detection prioritizes dialogue in separately timed passages. <a href="https://docs.subminer.moe/main/subtitle-generation">Setup guide</a></td>
+    <td><b>Japanese Subtitle Generation</b></td>
+    <td>Generate Japanese subtitles from local files or finite anime streams in a standalone modal (<code>Ctrl+Shift+G</code>) or the sidebar button. The launcher supports local files. Transcription runs locally with whisper.cpp and FFmpeg, with progress and optional managed model downloads. Stream subtitles are saved in the application cache. Optional Silero speech detection prioritizes dialogue in separately timed passages. <a href="https://docs.subminer.moe/main/subtitle-generation">Setup guide</a></td>
   </tr>
   <tr>
     <td><b>TsukiHime</b></td>
@@ -182,6 +186,8 @@ See the [full requirements list](https://docs.subminer.moe/installation#_1-insta
 
 ```bash
 paru -S subminer-bin
+# optional: the anime browser bridge, shared with Mangatan and updated by pacman
+paru -S mangatan-extension-server
 ```
 
 </details>
@@ -264,22 +270,40 @@ Full guides on configuration, Anki setup, Jellyfin, immersion tracking, and more
 
 SubMiner builds on the work of these open-source projects:
 
-| Project                                                                                     | Role                                                                    |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [ani-skip](https://github.com/synacktraa/ani-skip)                                          | AniSkip API client for anime intro/outro skip timestamps                |
-| [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script)                          | Inspiration for the mining workflow                                     |
-| [asbplayer](https://github.com/killergerbah/asbplayer)                                      | Inspiration for subtitle sidebar and logic for YouTube subtitle parsing |
-| [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary) | Character name recognition in subtitles                                 |
-| [Bun](https://github.com/oven-sh/bun)                                                       | Bundled runtime for the `subminer` command-line launcher                |
-| [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner)                          | Inspiration for Electron overlay with Yomitan integration               |
-| [jellyfin-mpv-shim](https://github.com/jellyfin/jellyfin-mpv-shim)                          | Jellyfin integration                                                    |
-| [Jimaku.cc](https://jimaku.cc)                                                              | Japanese subtitle search and downloads                                  |
-| [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui)                        | Base for the WebSocket texthooker integration                           |
-| [Yomitan](https://github.com/yomidevs/yomitan)                                              | Dictionary engine powering all lookups and the morphological parser     |
-| [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab)                       | JLPT level tags for vocabulary                                          |
+| Project                                                                                     | Role                                                                         |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [ani-skip](https://github.com/synacktraa/ani-skip)                                          | AniSkip API client for anime intro/outro skip timestamps                     |
+| [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script)                          | Inspiration for the mining workflow                                          |
+| [Aniyomi](https://github.com/aniyomiorg/aniyomi)                                            | Anime extension API and data model the anime browser targets                 |
+| [asbplayer](https://github.com/killergerbah/asbplayer)                                      | Inspiration for subtitle sidebar and logic for YouTube subtitle parsing      |
+| [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary) | Character name recognition in subtitles                                      |
+| [Bun](https://github.com/oven-sh/bun)                                                       | Bundled runtime for the `subminer` command-line launcher                     |
+| [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner)                          | Inspiration for Electron overlay with Yomitan integration                    |
+| [jellyfin-mpv-shim](https://github.com/jellyfin/jellyfin-mpv-shim)                          | Jellyfin integration                                                         |
+| [Jimaku.cc](https://jimaku.cc)                                                              | Japanese subtitle search and downloads                                       |
+| [M-Extension-Server](https://github.com/1Selxo/M-Extension-Server)                          | Runs Aniyomi extension APKs off Android; the bridge the anime browser drives |
+| [Mangatan](https://github.com/1Selxo/Mangatan)                                              | Reference client for the bridge protocol the anime browser speaks            |
+| [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui)                        | Base for the WebSocket texthooker integration                                |
+| [Yomitan](https://github.com/yomidevs/yomitan)                                              | Dictionary engine powering all lookups and the morphological parser          |
+| [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab)                       | JLPT level tags for vocabulary                                               |
+
+## Disclaimer
+
+SubMiner is a media player and language-learning tool. The project does not
+host, supply, or link to anime, video streams, or subtitle libraries. The anime
+browser runs Aniyomi extensions that you install yourself from repositories you
+choose; SubMiner bundles none and recommends none. The SubMiner developers are
+not affiliated with any content provider and have no control over what those
+sources offer, whether they stay available, or the quality of what they serve.
 
 ## License
 
-SubMiner is released under the [GNU General Public License v3.0](LICENSE).
+[GNU General Public License v3.0](LICENSE)
+
+The anime browser drives [M-Extension-Server](https://github.com/1Selxo/M-Extension-Server),
+downloaded from its upstream releases at runtime rather than
+bundled or redistributed here; its bundles carry their own dependencies, including a JRE and
+GPL-3.0 NewPipe Extractor. SubMiner includes none of them and talks to the bridge
+over its own HTTP protocol. It ships no extensions or repositories by default.
 
 Release packages also bundle an unmodified copy of [Bun](https://github.com/oven-sh/bun), which is MIT licensed and statically links JavaScriptCore (LGPL 2.0) and TinyCC (LGPL 2.1). Its license texts and third-party notices ship inside the app under `resources/bun/licenses`, and each release publishes `bun-v1.3.5-source.tar.gz` with the corresponding source. See [Bundled Bun runtime](https://docs.subminer.moe/installation#bundled-bun-runtime).

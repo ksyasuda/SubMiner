@@ -14,6 +14,7 @@ import type {
   TsukihimeConfig,
   TmdbConfig,
   JellyfinConfig,
+  AnimeConfig,
   JimakuConfig,
   JimakuLanguagePreference,
   StatsConfig,
@@ -157,6 +158,7 @@ export interface Config {
   subtitleStyle?: SubtitleStyleConfig;
   subtitleSidebar?: SubtitleSidebarConfig;
   auto_start_overlay?: boolean;
+  anime?: AnimeConfig;
   jimaku?: JimakuConfig;
   /** @deprecated Use tsukihime. */
   animetosho?: TsukihimeConfig;
@@ -326,6 +328,14 @@ export interface ResolvedConfig {
   };
   subtitleSidebar: ResolvedSubtitleSidebarConfig;
   auto_start_overlay: boolean;
+  anime: AnimeConfig & {
+    autoOpenJimaku: boolean;
+    extensionsDir: string;
+    repos: string[];
+    preferredQuality: string;
+    defaultSource: string;
+    bridgeDir: string;
+  };
   jimaku: JimakuConfig & {
     apiBaseUrl: string;
     languagePreference: JimakuLanguagePreference;

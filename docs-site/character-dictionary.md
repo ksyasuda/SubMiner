@@ -35,6 +35,8 @@ Character dictionary sync is disabled by default. To turn it on:
 
 ::: tip
 The first sync for a media title takes a few seconds while character data and portraits are fetched from AniList. Subsequent launches reuse the cached media match and snapshot without a fresh AniList lookup.
+
+Dictionary sync does not require a loaded Japanese subtitle track. Once Yomitan is ready, SubMiner can reuse an installed character dictionary even before the first subtitle is processed. If Yomitan readiness times out, the status reports a failure instead of staying on **Checking**.
 :::
 
 ::: info
@@ -168,7 +170,7 @@ These phases are emitted through the configured notification surface. Some phase
 2. **generating** - No cache hit: fetch characters from AniList GraphQL, download portraits (250ms throttle between image requests), save snapshot JSON.
 3. MRU update (no notification) - add the media ID to the most-recently-used list and evict old entries beyond `maxLoaded`.
 4. **building** - Merge active snapshots into a single Yomitan ZIP. A SHA-1 revision hash is computed from the media set - if it matches the previously imported revision, the import is skipped.
-5. **importing** - Push the ZIP into Yomitan. Waits for Yomitan mutation readiness (7-second timeout per operation).
+5. **importing** - Push the ZIP into Yomitan when the installed revision differs. Dictionary checks and settings updates wait for the extension to be ready, independently of subtitle processing. Readiness and quick operations have bounded timeouts; imports have a separate budget that grows with the ZIP size.
 6. **ready** - Dictionary is live. Character names will match on the next subtitle line.
 
 **State tracking** is persisted in `character-dictionaries/auto-sync-state.json`. AniList media matches are cached separately in `character-dictionaries/anilist-resolution-cache.json` so snapshot hits do not need another AniList search.

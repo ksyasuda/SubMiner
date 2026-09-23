@@ -1,6 +1,6 @@
 # Japanese subtitle generation
 
-Generate Japanese SRT subtitles from a local video's audio using [whisper.cpp](https://github.com/ggml-org/whisper.cpp). The launcher and overlay use the same local generation service. Audio stays on your computer. Model downloads require an internet connection; generation with an installed model does not.
+Generate Japanese SRT subtitles from a local video's audio or an anime stream using [whisper.cpp](https://github.com/ggml-org/whisper.cpp). The launcher and overlay use the same local generation service. Transcription runs on your computer without uploading audio. Model downloads and stream audio extraction require an internet connection; local-file generation with an installed model does not.
 
 ## Setup
 
@@ -51,7 +51,7 @@ A configured external Model Path takes precedence and hides the managed model pi
 
 ## From the overlay
 
-1. Open a local video in mpv and select its Japanese audio track.
+1. Open a local video or an anime episode stream in mpv and select its Japanese audio track.
 2. Press **Ctrl+Shift+G** to open the standalone generation modal. When the subtitle sidebar has no subtitle lines loaded, it also offers a **Generate Japanese subtitles** button. Neither an open sidebar nor an existing subtitle track is required for the shortcut.
 3. Choose a model and download it if prompted, or configure your existing model path in Settings and click **Check again**.
 4. Optionally check **Focus on spoken dialogue** and click **Download speech detection model** if prompted.
@@ -62,6 +62,24 @@ The modal adapts to the player window, using a wider layout when space allows an
 **Escape** or **Close** closes the modal using the same focus and overlay restoration as other SubMiner modals. Change or disable its shortcut with `shortcuts.openSubtitleGeneration` in Settings. Ctrl+G remains assigned to field grouping.
 
 SubMiner saves `<video>.ja.generated.srt` beside the media, adding a numeric suffix if that name already exists. It selects the generated Japanese subtitle track and resets the subtitle delay when mpv is still playing the same file. If playback changes, the subtitles remain saved and are not attached to the new video. The result includes the saved path even if mpv cannot load it.
+
+### Generating for anime streams
+
+Start the episode from the [anime browser](/anime-browser), then open the generation modal as usual. HTTP and HTTPS episode streams, including HLS through the anime browser's proxy, can use the same models and dialogue options as local files. The selected audio may be inside the stream or a separately attached HTTP/HTTPS audio track. For a selected external audio stream, SubMiner downloads that track directly and includes mpv's current audio delay in the subtitle timing. Local external audio files remain unsupported.
+
+SubMiner fetches the episode's audio into a temporary WAV before transcription. It reuses mpv's supported request headers, referrer, and user agent. The existing media-fetch policy excludes Cookie and Authorization headers, so sources requiring those directly may fail unless the anime bridge handles authentication. Expired URLs or a stopped bridge can also interrupt extraction; reopen the episode and retry.
+
+For anime-browser episodes, extraction first considers separate Japanese audio tracks returned by the source, then video streams with lower resolution than playback. It checks duration, starting offset, and short audio samples at three points against the selected playback audio. Different dialogue, shifted timing, silence, or failed checks keep the original stream. Checking alternatives has a 20-second budget. For plain HLS, it downloads only the segments covering each sample and aligns their timestamps to playback before comparing audio. Empty original samples are retried once and never reused. Failed checks log the candidate number, phase, reason, and elapsed time without exposing stream URLs or request headers. Progress names the source used for extraction; playback keeps its selected quality. Sources that expose only one combined stream still require downloading its video bytes.
+
+For plain HLS episodes with MPEG-TS segments, SubMiner downloads up to four segments at once, then extracts audio in playback order. Progress shows segment downloading followed by audio extraction. The temporary segments require space for the episode's combined video and audio and are removed after extraction, or when generation fails or is cancelled. Encrypted playlists, variant playlists, byte ranges, and other complex stream formats use the existing FFmpeg extraction path. Download speed still depends on the source and proxy.
+
+Generated SRT files are retained under `cache/generated-subtitles` in SubMiner's application data directory, using a URL hash for the filename and a numeric suffix for repeated generation. The result shows the saved path. Playback can continue during generation; the completed SRT is selected only if the same stream is still playing. Cached SRT results are not automatically loaded on a later visit.
+
+Completed audio extracts can be reused for retries and model changes during the current app session. They live with temporary job files under `cache/generated-subtitles/sessions`, separate from saved SRT files. The cache distinguishes the stream URL, selected audio track, and request headers, verifies contents before reuse, and evicts older audio above 512 MiB. Partial downloads are not cached.
+
+Quitting cancels the active job, waits for its cleanup, and removes the session's downloaded audio and working files. On startup, SubMiner removes abandoned session directories from processes that have exited, plus audio retained by the older persistent cache. Audio is never reused across app restarts. Generated SRT files and installed speech models remain available.
+
+This processes the complete episode, so subtitles appear after extraction and transcription finish. Streams must report a finite duration; live streams are not supported. A stream with combined video and audio segments may require downloading those segments even though only audio is retained.
 
 ## From the launcher
 
@@ -77,4 +95,4 @@ With no file argument, the command uses the current local mpv media and its sele
 
 The SRT includes whisper.cpp's timestamps, adjusted for the audio stream's position on the media timeline and, when speech detection is configured, each passage's original start time. No alass step is required to load it. This version uses native Whisper timing; it does not run WhisperX or another forced aligner. Recognition can repeat or invent lines, and timing can be imperfect, especially with music or overlapping speech. Review generated text and audio boundaries when mining.
 
-Generation supports local files and internal audio tracks. Remote URLs, subtitle translation, and transcription of a separately attached mpv audio track are not supported by the modal. Pass a separate local audio file to the launcher if needed. The destination directory needs writable space for subtitles; temporary storage needs enough space for the extracted mono audio.
+The overlay supports local files and finite HTTP/HTTPS streams with internal or selected external HTTP audio tracks. The launcher remains local-file only. Subtitle translation and separately attached local audio files are not supported by the modal. Pass a separate local audio file to the launcher if needed. The destination directory needs writable space for subtitles; temporary storage needs enough space for the extracted mono audio. Cached local subtitle tracks and embedded text subtitles can guide stream transcription; unreadable references fall back to audio timing.

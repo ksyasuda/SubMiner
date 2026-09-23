@@ -3,7 +3,7 @@
 # Domain Ownership
 
 Status: active
-Last verified: 2026-07-15
+Last verified: 2026-08-02
 Owner: Kyle Yasuda
 Read when: you need to find the owner module for a behavior or test surface
 
@@ -33,6 +33,16 @@ Read when: you need to find the owner module for a behavior or test surface
 - AniList tracking + character dictionary: `src/core/services/anilist/`, `src/main/runtime/composers/anilist-*`, `src/main/character-dictionary-runtime.ts`, `src/main/character-dictionary-runtime/`
 - TMDB live-action metadata: `src/core/services/tmdb/` (client + exact-title resolver), `src/core/services/immersion-tracker/live-action-link.ts` (links an entry to a TMDB title and merges other holders of the same title). The AniList cover-art fetcher calls the resolver as its fallback; `imm_anime.media_kind` marks the result and keeps the entry out of AniList season repair.
 - Jellyfin integration: `src/core/services/jellyfin*.ts`, `src/main/runtime/composers/jellyfin-*`
+- Anime browser: extension bridge client, sidecar, and stream handling in `src/anime-bridge/`;
+  the loopback stream proxy separates request transport/retry from response transformation in
+  `stream-strip-transport.ts` and `stream-strip-response.ts`;
+  browser window UI in `src/animeui/` (preload `src/preload-animeui.ts`); runtime wiring in
+  `src/main/runtime/anime-browser-application-runtime.ts`, `src/main/runtime/anime-browser-runtime.ts`,
+  `src/main/runtime/anime-browser-ipc-handlers.ts`, `src/main/runtime/anime-browser-sessions.ts`,
+  `src/main/runtime/anime-bridge-installer.ts`, and `src/main/runtime/stream-playback-metadata.ts`.
+  The play queue resolves episodes on click and appends them to mpv's real playlist
+  (`src/main/runtime/anime-browser-queue.ts`), then observes media-path changes to
+  attach prepared external tracks and update the browser queue state.
 - Window trackers: `src/window-trackers/`
 - Stats HTTP app: `src/core/services/stats-server.ts`, with route groups and shared route support
   in `src/core/services/stats-server/`
@@ -69,6 +79,7 @@ on Chromium document focus or require activating the overlay window.
 - Settings UI contracts: `src/types/settings.ts`
 - Session-binding contracts: `src/types/session-bindings.ts`
 - Stats HTTP wire contracts: `src/types/stats-wire.ts`, `src/types/stats-http-contract.ts`
+- Anime browser contracts: `src/types/anime-browser.ts`, bridge wire types in `src/anime-bridge/types.ts`
 - Compatibility-only barrel: `src/types.ts`
 
 ## Ownership Heuristics

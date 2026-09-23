@@ -139,6 +139,7 @@ const SECTION_ORDER = new Map<string, number>(
     'Kiku/Lapis/Senren Features',
     'Anki AI',
     'AnkiConnect Proxy',
+    'Aniyomi',
     'Jimaku',
     'TMDB',
     'Subtitle Sync',
@@ -251,6 +252,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'mpv.pauseUntilOverlayReady': 'Pause Until Overlay Ready',
   'mpv.aniskipEnabled': 'Enable AniSkip',
   'mpv.aniskipButtonKey': 'AniSkip Button Key',
+  'anime.autoOpenJimaku': 'Auto-open Jimaku',
   'ankiConnect.media.mirrorMpvVolume': 'Mirror mpv Volume',
   'ankiConnect.media.reviewTiming': 'Review Media Timing',
   'discordPresence.updateIntervalMs': 'Update Interval (ms)',
@@ -451,6 +453,9 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   }
   if (path.startsWith('jimaku.') || path.startsWith('tsukihime.') || path.startsWith('tmdb.')) {
     return { category: 'integrations', section: topSection(path) };
+  }
+  if (path.startsWith('anime.')) {
+    return { category: 'integrations', section: 'Aniyomi' };
   }
   if (path.startsWith('subsync.')) {
     return { category: 'integrations', section: topSection(path) };
