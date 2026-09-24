@@ -79,6 +79,14 @@ export function createArchiveStore(config: DocsArchiveStoreEnv): DocsArchiveStor
 
     upload(version, dir, builtFrom) {
       const target = `s3://${bucket}/${archiveKeyPrefix(version)}`;
+      // Unmark first so a rebuild that fails partway is retried by the next deploy
+      // instead of being skipped as complete. Deleting a missing key succeeds.
+      const unmark = aws(['s3', 'rm', `${target}${ARCHIVE_MARKER}`, '--only-show-errors']);
+      if (unmark.error) throw unmark.error;
+      if (unmark.status !== 0) {
+        throw new Error(`Unable to unmark docs archive ${version}: ${unmark.stderr.trim()}`);
+      }
+
       const sync = aws(['s3', 'sync', dir, target, '--only-show-errors']);
       if (sync.error) throw sync.error;
       if (sync.status !== 0) {

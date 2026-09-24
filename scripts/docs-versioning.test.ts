@@ -53,6 +53,7 @@ describe('docs versioning helpers', () => {
 
     expect(page).toContain('<a href="/" target="_self">Latest stable (v0.14.0)</a>');
     expect(page).toContain('<a href="/main/" target="_self">main</a>');
+    expect(page).toContain('<a href="/v/0.14.0/" target="_self">v0.14.0</a>');
     expect(page.indexOf('/v/0.14.0/')).toBeLessThan(page.indexOf('/v/0.13.0/'));
     expect(page).toContain('<a href="/v/0.13.0/" target="_self">v0.13.0</a>');
   });
