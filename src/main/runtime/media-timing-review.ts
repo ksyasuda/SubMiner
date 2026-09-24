@@ -284,6 +284,8 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
   let currentRequest: ReviewRequestLifecycle | null = null;
   let pendingPauseRestore: ReviewMpvClient | null = null;
   let resumeDeferred = false;
+  /** Set when the overlay pauses during the current request, even before its setup reads the pause state. */
+  let restoreCancelled = false;
 
   function restorePendingPlayback(): void {
     const mpvClient = pendingPauseRestore;
@@ -318,7 +320,9 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
    * not resume it: drops both a held overlay resume and the review's own restore.
    */
   function cancelPlaybackResume(): void {
+    if (!currentRequest) return;
     resumeDeferred = false;
+    restoreCancelled = true;
     if (active) active.restorePlayback = false;
   }
 
@@ -441,7 +445,8 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     const [pauseRaw, durationRaw, audioTrackRaw, volumeRaw, resolvedSource, videoSource] =
       setup.values;
     const pauseState = booleanProperty(pauseRaw);
-    pendingPauseRestore = pauseState === false ? mpvClient : null;
+    // The pause read can predate an overlay pause that arrived during setup.
+    pendingPauseRestore = pauseState === false && !restoreCancelled ? mpvClient : null;
     mpvClient.send({ command: ['set_property', 'pause', 'yes'] });
     if (lifecycle.isCancelled()) {
       restorePendingPlayback();
@@ -559,6 +564,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     }
     const lifecycle = createReviewRequestLifecycle();
     currentRequest = lifecycle;
+    restoreCancelled = false;
     try {
       return await runReview(request, lifecycle);
     } catch {

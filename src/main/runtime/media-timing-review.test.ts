@@ -686,6 +686,64 @@ for (const paused of [true, false]) {
   });
 }
 
+test('media timing review honors an overlay pause that arrives while setup reads the pause state', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const pauseReads: Array<(paused: boolean) => void> = [];
+  let runtime: ReturnType<typeof createMediaTimingReviewRuntime>;
+  runtime = createMediaTimingReviewRuntime({
+    getMpvClient: () => ({
+      connected: true,
+      currentVideoPath: '/video/show.mkv',
+      requestProperty: (name) =>
+        name === 'pause'
+          ? new Promise((resolve) => pauseReads.push(resolve))
+          : Promise.resolve(name === 'duration' ? 100 : null),
+      send: ({ command }) => commands.push(command),
+    }),
+    getCurrentMediaPath: () => '/video/show.mkv',
+    getMpvExecutablePath: () => 'mpv',
+    generateWaveform: async () => [],
+    createPreviewSession: () => ({
+      start: async () => undefined,
+      play: async () => undefined,
+      stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
+      dispose: () => undefined,
+    }),
+    openModal: async (payload) => {
+      queueMicrotask(() => {
+        runtime.resolveReview({ reviewId: payload.reviewId, decision: { action: 'use-original' } });
+      });
+      return true;
+    },
+    showStatus: () => undefined,
+  });
+  const request = {
+    kind: 'sentence' as const,
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0,
+    maxMediaDuration: 30,
+  };
+
+  const first = runtime.requestReview(request);
+  runtime.cancelPlaybackResume();
+  // mpv answered the read before the overlay's pause reached it.
+  pauseReads[0]!(false);
+  await first;
+  assert.deepEqual(commands, [['set_property', 'pause', 'yes']]);
+
+  commands.length = 0;
+  const second = runtime.requestReview(request);
+  pauseReads[1]!(false);
+  await second;
+  assert.deepEqual(commands, [
+    ['set_property', 'pause', 'yes'],
+    ['set_property', 'pause', 'no'],
+  ]);
+});
+
 test('media timing review watchdog falls back when the renderer stops responding', async () => {
   const { pendingDecision } = await startActiveMediaTimingReview({ decisionTimeoutMs: 0 });
 
