@@ -6,12 +6,12 @@
 
 - `claude` (Claude Code CLI) installed, on `PATH`, and authenticated.
   `changelog:build` and `changelog:prerelease-notes` invoke
-  `claude -p --model sonnet` to merge and rewrite `changes/*.md` fragments into
+  `claude -p --model opus --effort medium` to merge and rewrite `changes/*.md` fragments into
   a polished, user-facing release body. Either OAuth login (`claude /login`) or
   `ANTHROPIC_API_KEY` works. Install from <https://claude.com/claude-code> if
   you don't already have it.
 
-## Package contents and size checks
+## Package contents checks
 
 Stable and prerelease workflows share `.github/workflows/package-release.yml`.
 Both callers explicitly pass the five required macOS signing/notarization
@@ -19,11 +19,9 @@ secrets plus the optional `SUBMINER_TMDB_API_KEY` (the project TMDB key that
 `scripts/prepare-build-assets.mjs` stages into `dist/bundled-integration-keys.json`;
 artifacts built without it simply require users to set `tmdb.apiKey`).
 `GITHUB_TOKEN` remains automatically available to the reusable workflow.
-Each platform verifies its ASAR and external resources before signing, then
-measures the signed app and installers before upload. Missing runtime assets,
-foreign SQLite/Koffi binaries, duplicate UI fonts, demo media, source maps,
-TypeScript files, and nested test or fixture directories
-fail the build. Size measurements are informational and do not block releases.
+Each platform verifies its ASAR and external resources before signing. Missing
+runtime assets, foreign SQLite/Koffi binaries, duplicate UI fonts, demo media,
+source maps, TypeScript files, and nested test or fixture directories fail the build.
 Current targets are Linux x64, macOS arm64, and Windows x64.
 
 The runtime allowlist includes `dist/`, `stats/dist/`, and
@@ -33,14 +31,6 @@ pattern in platform `files` lists: electron-builder otherwise treats an
 exclusion-only platform list as a separate include-all matcher. Windows keeps
 only its target Koffi binary; other platforms omit Koffi. Desktop UIs share the
 original M PLUS 1 TTF in `dist/fonts/`.
-
-`release/package-size-<platform>-<arch>.json` reports unpacked bytes, largest
-files inside and outside ASAR, native binaries, and compressed artifact sizes.
-Framework symlinks are not counted twice. Reports are checksummed and published.
-CI downloads the preceding release's reports for comparison; older releases
-without reports skip comparison. Review the inventory and reason for growth
-when comparing releases. An AppImage normally
-runs compressed; its extracted size is a separate measurement.
 
 The shared workflow runs `bun run test:package <resources-directory>` with the
 pinned Electron runtime and temporary user data. On headless Linux, prefix it
@@ -152,7 +142,7 @@ Notes:
 - Tagged release workflow now also attempts to update `subminer-bin` on the AUR after GitHub Release publication.
 - Stable release tags update `https://docs.subminer.moe/` and `https://docs.subminer.moe/v/<version>/` through `.github/workflows/docs-pages.yml`; `/main/` continues to show development docs from `main`.
 - Keep Cloudflare Pages Git auto-deploy disabled for `docs.subminer.moe`. Production docs are direct-uploaded by Wrangler from GitHub Actions with `--branch main`.
-- AUR publish is best-effort: the workflow retries transient SSH clone/push failures, then warns and leaves the GitHub Release green if AUR still fails. Follow up with a manual `git push aur master` from the AUR checkout when needed.
+- AUR publish is best-effort: the workflow downloads the three known assets directly from the tagged release URLs, avoiding GitHub's sometimes-stale release asset listing. Downloads and SSH clone/push operations retry transient failures, then warn and skip AUR publication if retries are exhausted. Follow up with a manual `git push aur master` from the AUR checkout when needed.
 - Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.
 - Release and prerelease workflows upload updater metadata (`latest*.yml`) and blockmaps (`*.blockmap`) alongside platform artifacts. Do not remove those files while `electron-updater` is enabled.
 - Release and prerelease workflows publish `subminer` for POSIX systems and `subminer.cmd` for Windows. Both locate a packaged app and use its private Bun runtime. Keep the corresponding-source archive named `bun-v1.3.5-source.tar.gz`.

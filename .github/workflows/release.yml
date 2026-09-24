@@ -106,7 +106,6 @@ jobs:
         run: |
           shopt -s nullglob
           files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz release/latest*.yml release/*.blockmap dist/launcher/subminer dist/launcher/subminer.cmd)
-          files+=(release/package-size-*.json)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
@@ -171,7 +170,6 @@ jobs:
             release/latest*.yml
             release/*.blockmap
             release/SHA256SUMS.txt
-            release/package-size-*.json
             dist/launcher/subminer
             dist/launcher/subminer.cmd
           )
@@ -255,22 +253,31 @@ jobs:
           echo "skip=true" >> "$GITHUB_OUTPUT"
 
       - name: Download release assets for AUR
+        id: aur_assets
         if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
           version="$RELEASE_VERSION"
           install -dm755 .tmp/aur-release-assets
-          gh release download "$version" \
-            --dir .tmp/aur-release-assets \
-            --pattern "SubMiner-${version#v}.AppImage" \
-            --pattern "subminer" \
-            --pattern "subminer-assets.tar.gz"
+          for asset in "SubMiner-${version#v}.AppImage" subminer subminer-assets.tar.gz; do
+            destination=".tmp/aur-release-assets/$asset"
+            if ! curl --fail --silent --show-error --location \
+              --retry 3 --retry-delay 1 --retry-all-errors \
+              --connect-timeout 30 --max-time 600 \
+              --output "$destination.partial" \
+              "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$version/$asset"; then
+              echo "::warning::Unable to download $asset after retries; skipping automated AUR publish."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            mv "$destination.partial" "$destination"
+          done
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Update AUR packaging metadata
-        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
+        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true' && steps.aur_assets.outputs.skip != 'true'
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
@@ -287,7 +294,7 @@ jobs:
             --assets ".tmp/aur-release-assets/subminer-assets.tar.gz"
 
       - name: Commit and push AUR update
-        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
+        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true' && steps.aur_assets.outputs.skip != 'true'
         working-directory: aur-subminer-bin
         env:
           GIT_SSH_COMMAND: ssh -i ~/.ssh/aur -o IdentitiesOnly=yes

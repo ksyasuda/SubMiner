@@ -436,7 +436,9 @@ function readChangeFragments(cwd: string, deps?: ChangelogFsDeps): ChangeFragmen
 const CLAUDE_CLI_ARGS = [
   '-p',
   '--model',
-  'sonnet',
+  'opus',
+  '--effort',
+  'medium',
   '--permission-mode',
   'bypassPermissions',
   '--output-format',

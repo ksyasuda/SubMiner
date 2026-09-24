@@ -2,7 +2,7 @@
   "name": "subminer",
   "productName": "SubMiner",
   "desktopName": "SubMiner.desktop",
-  "version": "0.20.0-beta.1",
+  "version": "0.20.0",
   "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "packageManager": "bun@1.3.5",
   "main": "dist/main-entry.js",
@@ -275,8 +275,7 @@
         "from": "CHANGELOG.md",
         "to": "CHANGELOG.md"
       }
-    ],
-    "afterAllArtifactBuild": "scripts/package-audit.cjs"
+    ]
   },
   "patchedDependencies": {
     "@discordjs/rest@2.6.1": "patches/@discordjs%2Frest@2.6.1.patch"

@@ -1,8 +1,16 @@
 > This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.
 
-<!-- prerelease-version: 0.20.0-beta.1 -->
+<!-- prerelease-version: 0.20.0-beta.2; since: v0.20.0-beta.1 -->
+
+## Changes since v0.20.0-beta.1
+
+- Added an optional subtitle selection modal for primary and secondary mpv subtitle tracks. Enable it in Settings > Behavior, then press `g` followed by `s`. Disabling it restores mpv's subtitle selection binding.
+  - Single-key shortcut actions now take priority over configured multi-key sequence prefixes, conflicting sequences are disabled with a warning, and existing `y` commands remain reserved.
+- Jellyfin casting and playback now honor a configured mpv executable path, allowing playback when mpv is installed outside the system PATH, and portable plugins located beside that executable are now detected.
+- Fixed word-card sentence furigana falling out of sync with full stats-search context and expanded timing-review selections; stale furigana is now cleared if regeneration fails.
 
 ## Highlights
+
 ### Added
 
 - **Japanese Subtitle Generation**:
@@ -16,6 +24,11 @@
   - Works for local video and for seekable remote streams like Jellyfin.
 
 - **Overlay Keybinding Pickup**: The overlay now recognizes your mpv keybindings (from mpv's defaults, `input.conf`, and loaded scripts) as long as they don't conflict with SubMiner's own controls. Picked-up bindings work for the session but won't show up in the help menu.
+
+- **Subtitle Selection Modal**:
+  - An optional subtitle selection modal lets you pick primary and secondary mpv subtitle tracks without leaving the overlay.
+  - Enable it in Settings under Behavior, then trigger it with `g` followed by `s`; turning it off restores mpv's normal subtitle selection binding.
+  - Single-key shortcuts always take priority over multi-key sequences, and any conflicting sequence is disabled with a warning instead of misbehaving.
 
 - **Subtitle Sidebar Selection & Copy**: You can now select dialogue across multiple subtitle sidebar rows and copy it, without timestamps, using Ctrl/Cmd+C or the Copy button, without seeking or mining a card.
 
@@ -47,6 +60,7 @@
 - **Jellyfin**:
   - Playback, subtitles, artwork, and remote control now authenticate with an `ApiKey` parameter instead of legacy headers, so Jellyfin 12 works correctly even with legacy authorization disabled.
   - "Play on SubMiner" no longer silently drops the connection after about a minute on Jellyfin 12.
+  - Casting now honors your configured mpv executable path, so playback works and portable plugins are detected correctly when mpv isn't on PATH.
   - The "now playing" bar clears when you close or finish a cast video instead of running to the end of the episode.
   - Anki cards mined from Jellyfin now get the real episode title in the misc info field instead of "Unknown media".
   - Jellyfin streams no longer leak URL-derived titles or credential-bearing URLs into metadata, Anki fields, Discord presence, stats, or AniList lookups; previously cached data that had credentials in it is cleaned up automatically.
@@ -55,6 +69,7 @@
   - Word audio now reads from its own configured field (`ankiConnect.fields.wordAudio`) instead of the sentence-audio field, fixing animated word images that started moving immediately instead of on demand.
   - Setting `ankiConnect.media.maxMediaDuration` to `0` for unlimited duration now also applies when mining from the stats dashboard, matching overlay mining.
   - Closing the overlay while a media timing review is still loading now properly cancels setup, restores playback if the review had paused it, and cleans up the hidden preview player.
+  - Word-card sentence furigana now stays in sync with the full stats-search context and expanded timing-review selections, and clears stale readings automatically if regeneration fails.
 
 - **Settings**:
   - AnkiConnect, Kiku, and Senren settings are now validated before use, with a warning and a safe default for anything invalid instead of a bad value reaching runtime.
@@ -98,6 +113,9 @@
 - fix(overlay): cancel pending window transitions and timing reviews by @ksyasuda in #262
 - fix(stats): restrict local requests and serve the dashboard over HTTP by @ksyasuda in #263
 - fix(jellyfin): support modern authentication by @ksyasuda in #264
+- feat(overlay): add optional subtitle selection modal by @ksyasuda in #265
+- fix(jellyfin): respect Windows mpv configuration when casting by @aalhendi in #267
+- fix(anki): regenerate sentence furigana from the final sentence by @ksyasuda in #268
 
 ## New Contributors
 

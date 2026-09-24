@@ -6,7 +6,7 @@ import test from 'node:test';
 import { createPackageFromStreams } from '@electron/asar';
 import { FileMatcher, getFileMatchers } from 'app-builder-lib/out/fileMatcher';
 import config from '../package.json';
-import { listAppFiles, listFiles, compareSizes, verifyAppPath } from './package-audit.cjs';
+import { listAppFiles, listFiles, verifyAppPath } from './package-audit.cjs';
 
 test('platform packaging preserves the runtime allowlist after builder normalizes global filters', () => {
   const root = process.cwd();
@@ -125,7 +125,7 @@ test('content audit rejects development files beneath approved roots', () => {
   }
 });
 
-test('archive inventory handles native files without counting them twice on disk', async () => {
+test('content inventory includes packed and unpacked native files', async () => {
   const root = mkdtempSync(path.join(tmpdir(), 'subminer-audit-'));
   try {
     const input = path.join(root, 'input');
@@ -147,35 +147,9 @@ test('archive inventory handles native files without counting them twice on disk
         streamGenerator: () => createReadStream(path.join(input, name)),
       })),
     );
-    assert.deepEqual(listAppFiles(archive), [
-      { path: 'main.js', bytes: 5 },
-      { path: 'native.node', bytes: 6 },
-      { path: 'dist/ai/client.js', bytes: 6 },
-    ]);
-    assert.equal(
-      listFiles(output).reduce((sum: number, entry: { bytes: number }) => sum + entry.bytes, 0),
-      statSync(archive).size + 6,
-    );
+    assert.deepEqual(listAppFiles(archive), ['main.js', 'native.node', 'dist/ai/client.js']);
+    assert.deepEqual(listFiles(output).sort(), ['app.asar', 'app.asar.unpacked/native.node']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
-});
-
-test('size comparison tolerates older reports without artifact measurements', () => {
-  const previous = { version: '0.19.6', platform: 'linux', arch: 'x64', unpackedBytes: 100 };
-  const current = { ...previous, unpackedBytes: 80, artifacts: [{ kind: 'AppImage', bytes: 40 }] };
-  assert.deepEqual(compareSizes(current, previous), {
-    version: '0.19.6',
-    unpackedDeltaBytes: -20,
-    artifacts: [],
-  });
-  assert.deepEqual(
-    compareSizes(current, { ...previous, artifacts: [null, { kind: 'AppImage', bytes: 50 }] })
-      .artifacts,
-    [{ kind: 'AppImage', deltaBytes: -10 }],
-  );
-  assert.throws(
-    () => compareSizes(current, { ...previous, unpackedBytes: 'unknown' }),
-    /Invalid previous size report/,
-  );
 });

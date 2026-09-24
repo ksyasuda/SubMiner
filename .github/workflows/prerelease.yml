@@ -105,7 +105,6 @@ jobs:
         run: |
           shopt -s nullglob
           files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz release/latest*.yml release/*.blockmap dist/launcher/subminer dist/launcher/subminer.cmd)
-          files+=(release/package-size-*.json)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
@@ -152,7 +151,6 @@ jobs:
             release/latest*.yml
             release/*.blockmap
             release/SHA256SUMS.txt
-            release/package-size-*.json
             dist/launcher/subminer
             dist/launcher/subminer.cmd
           )
