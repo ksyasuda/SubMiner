@@ -2,10 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildVersionManifest,
   compareStableVersionsDesc,
-  versionArchiveCacheKey,
   isStableReleaseTag,
+  renderVersionsPage,
   stableTagsWithDocs,
-  versionArchiveCacheName,
   versionOutputPath,
   versionPath,
 } from './docs-versioning';
@@ -47,21 +46,15 @@ describe('docs versioning helpers', () => {
     });
   });
 
-  test('archive cache names are normalized by version and shared internals hash', () => {
-    expect(versionArchiveCacheName('v0.14.0', 'abcdef1234567890')).toBe('abcdef123456-v0.14.0');
-  });
+  test('versions page links every build with full page loads', () => {
+    const page = renderVersionsPage(
+      buildVersionManifest({ latestStable: 'v0.14.0', stableVersions: ['v0.14.0', 'v0.13.0'] }),
+    );
 
-  test('archive cache keys change when manifest contents change', () => {
-    const firstKey = versionArchiveCacheKey({
-      sharedInternalsHash: 'abcdef1234567890',
-      manifestJson: '{"latestStable":"v0.14.0"}',
-    });
-    const secondKey = versionArchiveCacheKey({
-      sharedInternalsHash: 'abcdef1234567890',
-      manifestJson: '{"latestStable":"v0.15.0"}',
-    });
-
-    expect(firstKey).not.toBe(secondKey);
+    expect(page).toContain('<a href="/" target="_self">Latest stable (v0.14.0)</a>');
+    expect(page).toContain('<a href="/main/" target="_self">main</a>');
+    expect(page.indexOf('/v/0.14.0/')).toBeLessThan(page.indexOf('/v/0.13.0/'));
+    expect(page).toContain('<a href="/v/0.13.0/" target="_self">v0.13.0</a>');
   });
 
   test('archive output paths stay relative for filesystem joins', () => {

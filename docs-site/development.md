@@ -127,7 +127,7 @@ For production docs routing, run the versioned build:
 bun run docs:build:versioned
 ```
 
-The versioned build writes `.tmp/docs-versioned-site` with latest stable docs at `/`, development docs at `/main/`, and stable archives under `/v/<version>/`. Prerelease tags are skipped. Public assets from `docs-site/public/assets` are shared from root `/assets/` so large demo media is not duplicated into every version archive; generated VitePress CSS and JS assets stay under each version route. Stale `.tmp/docs-versioned-archive-cache` generations are pruned after a successful build, and intermediate `.tmp/docs-versioned-build` workspaces are removed.
+The versioned build writes `.tmp/docs-versioned-site` with latest stable docs at `/` (plus a generated `/versions` page) and development docs at `/main/`. Prerelease tags are skipped. `/main/` shares public assets from root `/assets/` instead of duplicating them. Stable archives under `/v/<version>/` are built once and stored in R2 (see `docs-site/README.md`); without R2 credentials the build skips archive sync, so local runs only produce the root and `/main/` trees.
 
 Focused commands:
 
@@ -192,7 +192,7 @@ From the SubMiner app repo:
 
 ```bash
 bun --cwd docs-site install
-bun run docs:dev     # Dev server at http://localhost:5173
+bun run docs:dev     # Dev server at http://localhost:5173 (version links go to production)
 bun run docs:build   # Production build into docs-site/.vitepress/dist
 bun run docs:preview # Preview built site at http://localhost:4173
 bun run docs:test    # Docs regression tests

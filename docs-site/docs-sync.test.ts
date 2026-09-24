@@ -8,7 +8,6 @@ const installationContents = readFileSync(new URL('./installation.md', import.me
 const mpvPluginContents = readFileSync(new URL('./mpv-plugin.md', import.meta.url), 'utf8');
 const developmentContents = readFileSync(new URL('./development.md', import.meta.url), 'utf8');
 const changelogContents = readFileSync(new URL('./changelog.md', import.meta.url), 'utf8');
-const docsPackageContents = readFileSync(new URL('./package.json', import.meta.url), 'utf8');
 const ankiIntegrationContents = readFileSync(
   new URL('./anki-integration.md', import.meta.url),
   'utf8',
@@ -99,15 +98,6 @@ test('docs state the real secondary-subtitle and Anki field-matching behavior', 
   expect(usageContents).not.toContain('exactly (case-sensitive)');
   expect(troubleshootingContents).not.toContain('exactly (case-sensitive)');
   expect(ankiIntegrationContents).toContain('case-insensitively');
-});
-
-test('docs dev server links version navigation to local dev routes', () => {
-  expect(docsPackageContents).toContain('scripts/build-versioned-docs.ts');
-  expect(docsPackageContents).toContain(
-    'SUBMINER_DOCS_VERSION_LINK_ORIGIN=local bun run ../scripts/build-versioned-docs.ts',
-  );
-  expect(docsPackageContents).toContain('SUBMINER_DOCS_VERSION_LINK_ORIGIN=local');
-  expect(docsPackageContents).toContain('SUBMINER_DOCS_VERSION_MANIFEST');
 });
 
 test('docs changelog keeps the current minor release headings aligned with the root changelog', () => {
