@@ -1,80 +1,85 @@
 # Japanese subtitle generation
 
-Generate Japanese SRT subtitles from a local video's audio using [whisper.cpp](https://github.com/ggml-org/whisper.cpp). The launcher and overlay use the same local generation service. Audio stays on your computer. Model downloads require an internet connection; generation with an installed model does not.
+When a video has no Japanese subtitles, SubMiner can transcribe its audio into a Japanese SRT with [whisper.cpp](https://github.com/ggml-org/whisper.cpp). Everything runs on your computer. You only need internet access to download a model.
 
 ## Setup
 
-Install whisper.cpp's `whisper-cli` executable and FFmpeg, including `ffprobe`. SubMiner downloads models, not these executables. Leave `whisperPath`, `ffmpegPath`, and `ffprobePath` empty to find the executables on `PATH`. To use a specific installation, set a path override under **Settings → Integrations → Japanese Subtitle Generation**.
+1. Install whisper.cpp's `whisper-cli` and FFmpeg (including `ffprobe`). SubMiner downloads models but not these programs.
+2. Make sure they are on your `PATH`, or set their paths under **Settings > Integrations > Japanese Subtitle Generation** (`whisperPath`, `ffmpegPath`, `ffprobePath`).
+3. Pick a model. Either choose one in the generation modal and click **Download model**, or set `subtitleGeneration.modelPath` to a multilingual whisper.cpp GGML `.bin` file you already have. English-only models and Python Whisper checkpoints do not work.
 
-The generation modal checks for these executables under **Local tools** and keeps **Generate subtitles** disabled until every required one is found, naming the missing executable and its setting. Model downloads stay available in the meantime. After installing a tool or changing a path, click **Check again**. The launcher runs the same check before any model download. Generation also confirms the destination directory grants write and search permissions before extracting audio.
+Downloaded models go to `models/whisper/` next to your SubMiner config file. A configured `modelPath` always wins over the modal's choice.
 
-Choose one model source:
+The modal's **Local tools** section lists anything missing. After you install a tool or change a path, click **Check again**.
 
-- Set `subtitleGeneration.modelPath` to an existing **multilingual whisper.cpp GGML `.bin` model**. Python Whisper checkpoints and English-only models are not suitable for Japanese transcription.
-- Leave that path empty and choose a model directly in the generation modal. Each option shows its download size; the selected model has speed and accuracy guidance. The modal offers **Download model** when that model is missing. Your choice lasts for the current SubMiner session, including closing and reopening the modal. Set `subtitleGeneration.managedModel` in Settings to change the default for future sessions.
+## Generating from the overlay
 
-Managed models are stored in `models/whisper/` beside your SubMiner configuration file. Downloads show progress, verify the expected file size and SHA256, and publish the model only after verification. Cancelling or failing a download removes its temporary files. A configured external path always takes precedence; an unreadable path displays an error instead of silently downloading another model.
+1. Open a local video in mpv and select its Japanese audio track.
+2. Press `Ctrl+Shift+G`. If the subtitle sidebar is empty, its **Generate Japanese subtitles** button opens the same modal.
+3. Pick a model and download it if needed.
+4. Optionally check **Focus on spoken dialogue** (see below).
+5. Click **Generate subtitles**.
 
-See the [generated configuration example](/config.example.jsonc) for current defaults. Changes apply to the next operation.
+The modal shows progress. **Cancel** stops the job. Closing the modal lets the job keep running, and reopening it shows the progress.
 
-## Prioritizing spoken dialogue
+SubMiner saves `<video>.ja.generated.srt` next to the video and adds a number if that name is taken. If the same file is still playing, it loads the subtitles and resets the subtitle delay.
 
-To focus on dialogue, check the optional **Focus on spoken dialogue** box in the generation modal. If the speech detection model is missing, click **Download speech detection model** to install it. This separate download uses the same progress, cancellation, and integrity checks as Whisper downloads. Checking the box never downloads automatically, and leaving it unchecked lets you generate without the Silero model.
+Change the shortcut with `shortcuts.openSubtitleGeneration`.
 
-You also need whisper.cpp's [speech segment detector](https://github.com/ggml-org/whisper.cpp/tree/master/examples/vad-speech-segments). SubMiner downloads the model, not this executable. The detector is found as `whisper-vad-speech-segments` or, for builds from the upstream source, `vad-speech-segments` on `PATH`. Set `vadPath` in **Settings → Integrations → Japanese Subtitle Generation** for any other location. With **Focus on spoken dialogue** checked, the modal's **Local tools** check requires the detector too.
+## Generating from the launcher
 
-The checkbox choice lasts for the current SubMiner session, including closing and reopening the modal. To make dialogue mode your default, set `vadModelPath` in Settings to a [Silero GGML VAD model](https://huggingface.co/ggml-org/whisper-vad/tree/main). The modal downloads `ggml-silero-v6.2.0.bin` into the same `models/whisper/` directory as managed Whisper models. An existing configured VAD path takes precedence and checks the box initially. Unchecking it temporarily disables dialogue mode without changing that path. Downloading the model alone does not enable dialogue mode.
+```bash
+subminer generate-subs                                  # current mpv file and audio track
+subminer generate-subs episode.mkv --download-model
+subminer generate-subs episode.mkv --model-path /path/to/ggml-small.bin
+```
 
-With speech detection configured, SubMiner keeps detected speech and other audible sections for Whisper to evaluate. A low speech score alone does not discard audio, which helps retain dialogue mixed with music. Only confidently silent gaps outside detected speech are omitted, with extra audio retained around each passage to reduce clipped syllables.
+| Flag                     | What it does                                                  |
+| ------------------------ | ------------------------------------------------------------- |
+| `--model <name>`         | Use this managed model, such as `small` or `large-v3-turbo`   |
+| `--download-model`       | Download the managed model if it is missing                   |
+| `--model-path <path>`    | Use an existing model file                                    |
+| `--audio-stream <index>` | Pick an audio stream by its absolute FFmpeg index             |
+| `--output <path>`        | Write to this SRT path. Existing files are never overwritten. |
 
-Passages that fit within Whisper's 30-second audio window stay intact. Longer passages prefer nearby detected speech starts when choosing cuts, falling back to quiet pauses, with a small overlap to provide context. This reduces early subtitles caused by starting a clip well before its dialogue, while keeping all retained audio covered. Matching overlapping cues are combined even when punctuation differs; repeated dialogue at separate times remains separate. SubMiner runs each passage in a fresh Whisper process so decoder state from earlier audio cannot affect later passages. This reloads the model for each passage and can increase generation time. Subtitle cues stay within the supplied audio and retain each passage's position on the original timeline. Progress reports the current passage.
-
-This mode favors retaining dialogue over excluding music, so songs and background sounds may also produce subtitles. It can take longer than transcribing only VAD-approved speech. Whisper can still miss or misrecognize dialogue, and its timestamps remain estimates. Uncheck **Focus on spoken dialogue** to disable VAD for the session, or clear `vadModelPath` to change the default. Without a usable subtitle reference, disabling VAD returns to full-audio transcription. A selected detector or model that fails stops generation with an error. Existing subtitles are preserved.
-
-## Using loaded subtitles as timing references
-
-When generating for the video currently open in mpv, SubMiner automatically looks for a dialogue subtitle track among its embedded subtitles and loaded external SRT, ASS/SSA, or WebVTT files. It prefers English, then tracks labeled full or dialogue. Forced tracks, image subtitles, generated subtitles, and tracks whose titles or filenames identify signs, songs, lyrics, karaoke, or opening/ending subtitles are skipped. These checks rely on metadata; an unlabeled signs-only file cannot always be identified.
-
-The selected reference appears in generation progress. SubMiner reads its timestamps, including the active primary or secondary track's subtitle delay, and uses nearby cue starts to guide cuts in long audio passages. Short passages stay intact. The reference works with or without **Focus on spoken dialogue**. With that option enabled, reference starts take priority over VAD starts when choosing a nearby cut; VAD still helps identify speech. Audio outside reference cues remains eligible for transcription, and Whisper still supplies the Japanese text and final timestamps. The reference is assumed to be timed for the playing video; this does not automatically sync a mistimed reference.
-
-Unreadable or empty references are skipped in favor of another eligible loaded track. If none can be read, generation uses its normal audio timing. The launcher uses loaded references only when its input matches the video currently open in mpv; standalone generation keeps its existing behavior. It captures reference tracks and delays together with the initial audio selection, before checking or downloading a model. When relying on mpv's selected audio, it stops and asks you to retry if the media changes or cannot be verified during capture.
+With a file argument, SubMiner uses the audio stream tagged Japanese, or the first stream. `Ctrl+C` cancels.
 
 ## Choosing a model
 
-The modal recommends **large-v3-turbo** when it detects an NVIDIA GPU through `nvidia-smi` and the selected `whisper-cli` discovers an available CUDA device. Otherwise it recommends **small** for a balance of Japanese recognition quality and CPU time. The check works before downloading a model and falls back to small if a tool is missing, fails, times out, or reports an unrecognized result. Vulkan, AMD, and Apple GPU support do not qualify for the turbo recommendation. Checks are cached for up to 30 seconds; changing the Whisper executable path triggers a new check.
+The modal recommends **large-v3-turbo** if it finds an NVIDIA GPU (`nvidia-smi`) and your `whisper-cli` can use CUDA. Otherwise it recommends **small**. AMD, Vulkan, and Apple GPUs do not trigger the turbo recommendation. The recommendation does not change your settings.
 
-The recommendation labels the model picker and explains the detected support. It does not change your configured model, current selection, external model path, or launcher's model choice. It also does not force a GPU backend during transcription. These are starting recommendations, not hardware benchmarks or guarantees that every model fits in available GPU memory. Tiny and base need less memory and usually finish sooner, with more recognition errors. Medium and large models favor accuracy but need more resources. Large-v3-turbo is optimized for speed compared with large-v3, with some accuracy tradeoff; actual performance depends on your CPU, GPU, whisper.cpp build, and audio.
+| Model                  | Tradeoff                                        |
+| ---------------------- | ----------------------------------------------- |
+| tiny, base             | Fast and small, more recognition errors         |
+| small                  | Balanced quality and CPU time                   |
+| medium, large-v1/v2/v3 | More accurate, needs more memory and time       |
+| large-v3-turbo         | Faster than large-v3 with a small accuracy loss |
 
-The picker includes whisper.cpp's official multilingual tiny, base, small, medium, large-v1, large-v2, large-v3, and large-v3-turbo downloads, including their available quantized variants. Quantized models use less disk space and memory, with possible accuracy loss. English-only `.en` models are excluded. See the [upstream model list](https://github.com/ggml-org/whisper.cpp/blob/master/models/download-ggml-model.sh) and [Whisper's model guidance](https://github.com/openai/whisper#available-models-and-languages).
+Quantized variants (`-q5_0`, `-q5_1`, `-q8_0`) use less disk and memory, with some accuracy loss. Your pick in the modal lasts for the session. Set `subtitleGeneration.managedModel` to change the default.
 
-A configured external Model Path takes precedence and hides the managed model picker. Clear it in Settings to choose a managed model. Changing the picker never downloads automatically, and it cannot change the model during an active download or generation.
+## Prioritizing spoken dialogue
 
-## From the overlay
+**Focus on spoken dialogue** uses a speech detection (VAD) model to drop silent stretches before transcription. Long passages are split near detected speech, which reduces subtitles that appear before the line is spoken.
 
-1. Open a local video in mpv and select its Japanese audio track.
-2. Press **Ctrl+Shift+G** to open the standalone generation modal. When the subtitle sidebar has no subtitle lines loaded, it also offers a **Generate Japanese subtitles** button. Neither an open sidebar nor an existing subtitle track is required for the shortcut.
-3. Choose a model and download it if prompted, or configure your existing model path in Settings and click **Check again**.
-4. Optionally check **Focus on spoken dialogue** and click **Download speech detection model** if prompted.
-5. Click **Generate subtitles**.
+It needs two extra pieces:
 
-The modal adapts to the player window, using a wider layout when space allows and scrolling in smaller windows. It shows audio preparation, transcription, and saving progress. Percentages appear when the underlying tool reports them. **Cancel** stops the current operation. Closing the modal lets the job continue; reopening it shows the current progress or result.
+- The Silero VAD model. Click **Download speech detection model** in the modal, or set `vadModelPath` to your own [Silero GGML model](https://huggingface.co/ggml-org/whisper-vad/tree/main).
+- whisper.cpp's [speech segment detector](https://github.com/ggml-org/whisper.cpp/tree/master/examples/vad-speech-segments), found as `whisper-vad-speech-segments` or `vad-speech-segments` on `PATH`. Set `vadPath` for any other location.
 
-**Escape** or **Close** closes the modal using the same focus and overlay restoration as other SubMiner modals. Change or disable its shortcut with `shortcuts.openSubtitleGeneration` in Settings. Ctrl+G remains assigned to field grouping.
+The checkbox lasts for the session. Setting `vadModelPath` turns it on by default.
 
-SubMiner saves `<video>.ja.generated.srt` beside the media, adding a numeric suffix if that name already exists. It selects the generated Japanese subtitle track and resets the subtitle delay when mpv is still playing the same file. If playback changes, the subtitles remain saved and are not attached to the new video. The result includes the saved path even if mpv cannot load it.
+Dialogue mode keeps music and background sound that might contain speech, so songs can still produce subtitles. It can also take longer than a plain run, because each passage is transcribed separately.
 
-## From the launcher
+## Using loaded subtitles as timing references
 
-```bash
-subminer generate-subs episode.mkv --download-model
-subminer generate-subs episode.mkv --model-path /path/to/ggml-small.bin
-subminer generate-subs
-```
+If the video playing in mpv already has a dialogue subtitle track loaded, SubMiner uses its cue times to decide where to split long audio. This works with or without dialogue mode. Whisper still writes the Japanese text and final timestamps. The launcher uses a reference only when its input is the file open in mpv.
 
-With no file argument, the command uses the current local mpv media and its selected audio track. With an explicit file, it prefers an audio stream tagged Japanese, otherwise the first audio stream. Use `--audio-stream` to choose an absolute FFmpeg stream index. `--output` specifies a new destination SRT; existing output files are never overwritten. See [launcher usage](/usage) for all flags. Ctrl+C cancels the operation.
+SubMiner prefers English tracks and tracks labeled full or dialogue. It skips forced, image-based, generated, and signs or songs tracks, based on their titles and file names. An unlabeled signs-only file can slip through.
 
-## Timing and limitations
+The reference must be timed correctly for the video. SubMiner does not fix a mistimed reference.
 
-The SRT includes whisper.cpp's timestamps, adjusted for the audio stream's position on the media timeline and, when speech detection is configured, each passage's original start time. No alass step is required to load it. This version uses native Whisper timing; it does not run WhisperX or another forced aligner. Recognition can repeat or invent lines, and timing can be imperfect, especially with music or overlapping speech. Review generated text and audio boundaries when mining.
+## Limitations
 
-Generation supports local files and internal audio tracks. Remote URLs, subtitle translation, and transcription of a separately attached mpv audio track are not supported by the modal. Pass a separate local audio file to the launcher if needed. The destination directory needs writable space for subtitles; temporary storage needs enough space for the extracted mono audio.
+- Only local files and their internal audio tracks are supported. Not URLs, and not a separate audio file loaded in mpv. Pass a separate local audio file to the launcher instead.
+- Whisper can miss, repeat, or invent lines, and its timing is approximate, especially over music or overlapping speech. Check the text and audio when you mine.
+- SubMiner does not translate subtitles.

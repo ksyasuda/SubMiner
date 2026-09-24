@@ -1,148 +1,55 @@
 # Architecture
 
-This page is a contributor-facing architecture summary. Canonical internal architecture guidance lives in `docs/architecture/README.md` at the repo root.
+A contributor-facing map of how SubMiner is put together. The canonical internal guidance, including domain ownership and layering rules, is [`docs/architecture/README.md`](https://github.com/ksyasuda/SubMiner/blob/main/docs/architecture/README.md) in the repo.
 
-SubMiner is split into three cooperating runtimes:
+SubMiner runs as three cooperating runtimes:
 
-- Electron desktop app (`src/`) for overlay/UI/runtime orchestration.
-- Launcher CLI (`launcher/`) for mpv/app command workflows.
-- mpv Lua plugin (`plugin/subminer/main.lua` + module files) for player-side controls and IPC handoff.
+- the Electron desktop app (`src/`): overlay, UI, and runtime orchestration
+- the launcher CLI (`launcher/`): mpv and app command workflows
+- the mpv Lua plugin (`plugin/subminer/`): player-side controls and handoff to the app
 
-Within the desktop app, `src/main.ts` is a composition root that wires small runtime/domain modules plus core services.
+Inside the app, `src/main.ts` is a composition root. It owns wiring and state, and delegates behavior to small runtime and domain modules that can be tested without Electron or mpv.
 
-## Goals
-
-- Keep behavior stable while reducing coupling.
-- Prefer small, single-purpose units that can be tested in isolation.
-- Keep `main.ts` focused on wiring and state ownership, not implementation detail.
-- Follow Unix-style composability:
-  - each service does one job
-  - services compose through explicit inputs/outputs
-  - orchestration is separate from implementation
-
-## Project structure
+## Project layout
 
 ```text
-launcher/                 # Standalone CLI launcher wrapper and mpv helpers
-  commands/               # Command modules (doctor/config/mpv/jellyfin/playback/app passthrough/
-                          #   dictionary/history/logs/stats/update)
-  config/                 # Launcher config parsers + CLI parser builder
-  main.ts                 # Launcher entrypoint and command dispatch
-plugin/
-  subminer/               # Modular mpv plugin (main · init · bootstrap · lifecycle · process
-                          #   state · messages · hover · ui · options · environment · log
-                          #   binary · session_bindings · version)
+launcher/
+  main.ts                 # entrypoint and command dispatch
+  commands/               # one module per subcommand (playback, jellyfin, stats, sync, ...)
+  config/                 # launcher config readers and CLI parser
+plugin/subminer/          # mpv plugin; main.lua loads init.lua, which boots the other modules
 src/
-  main-entry.ts           # Background-mode bootstrap wrapper before loading main.js
-  main.ts                  # Entry point - delegates to runtime composers/domain modules
-  preload.ts               # Electron preload bridge
-  types.ts                 # Shared type definitions
-  main/                    # Main-process composition/runtime adapters
-    boot/                  # Pre-ready boot helpers
-    app-lifecycle.ts       # App lifecycle + app-ready runtime runner factories
-    character-dictionary-runtime.ts # Character-dictionary orchestration/public runtime API
-    cli-runtime.ts         # CLI command runtime service adapters
-    config-validation.ts   # Startup/hot-reload config error formatting and fail-fast helpers
-    dependencies.ts        # Shared dependency builders for IPC/runtime services
-    ipc-runtime.ts         # IPC runtime registration wrappers
-    overlay-runtime.ts     # Overlay modal routing + active-window selection
-    overlay-shortcuts-runtime.ts # Overlay keyboard shortcut handling
-    overlay-visibility-runtime.ts # Overlay visibility + tracker-driven bounds service
-    frequency-dictionary-runtime.ts # Frequency dictionary runtime adapter
-    jlpt-runtime.ts         # JLPT dictionary runtime adapter
-    media-runtime.ts        # Media path/title/subtitle-position runtime service
-    startup.ts              # Startup bootstrap dependency builder
-    startup-lifecycle.ts    # Lifecycle runtime runner adapter
-    state.ts                # Application runtime state container + reducer transitions
-    subsync-runtime.ts      # Subsync command runtime adapter
-    character-dictionary-runtime/ # Character-dictionary fetch/build/cache modules + focused tests
-    runtime/
-      composers/            # High-level composition clusters used by main.ts
-      domains/              # Domain barrel exports (startup/overlay/mpv/jellyfin/...)
-      registry.ts           # Domain registry consumed by main.ts
-  core/
-    services/              # Focused runtime services (Electron adapters + pure logic)
-      anilist/             # AniList token store/update queue/update helpers
-      immersion-tracker/   # Immersion persistence/session/metadata modules
-      tokenizer/           # Tokenizer stage modules (selection/enrichment/annotation)
-    utils/                 # Pure helpers and coercion/config utilities
-  cli/                     # CLI parsing and help output
-  config/                  # Config defaults/definitions, loading, parse, resolution pipeline
-    definitions/           # Domain-specific defaults + option registries
-    resolve/               # Domain-specific config resolution pipeline stages
-  shared/ipc/              # Cross-process IPC channel constants + payload validators
-  renderer/                # Overlay renderer (modularized UI/runtime)
-    handlers/              # Keyboard/mouse/gamepad interaction modules
-    modals/                # Modal flows (Jimaku, Kiku, subsync, runtime options, session help,
-                           #   changelog, character dictionary, playlist browser, subtitle
-                           #   sidebar, YouTube track picker, controller config/debug/select)
-    positioning/           # Subtitle position controller (drag-to-reposition)
-  settings/                # Settings window UI (model, controls, markup)
-  types/                   # Domain type modules (anki, config, integrations, ...)
-  window-trackers/         # Backend-specific tracker implementations (Hyprland, Sway, X11, macOS, Windows)
-  jimaku/                  # Jimaku API integration helpers
-  subsync/                 # Subtitle sync (alass/ffsubsync) helpers
-  anki-integration/        # AnkiConnect proxy server + note-update enrichment workflow
+  main-entry.ts           # bootstrap wrapper that runs before main.js
+  main.ts                 # composition root
+  preload*.ts             # preload bridges (overlay, settings, stats, sync, Jellyfin setup)
+  main/                   # main-process runtime modules and IPC/CLI wiring
+    boot/                 # pre-ready boot helpers
+    runtime/composers/    # larger runtime clusters assembled for main.ts
+    runtime/domains/      # domain barrels (startup, overlay, mpv, ipc, shortcuts, anilist, jellyfin, mining)
+  core/services/          # focused services: mpv client, overlay, tokenizer, mining, integrations, stats
+  core/utils/             # pure helpers
+  shared/ipc/             # IPC channel constants and payload validators
+  renderer/               # overlay renderer: subtitle rendering, input handlers, modals
+  config/                 # definitions/ (defaults + option registries) and resolve/ (resolution pipeline)
+  cli/                    # app CLI parsing and help output
+  settings/, syncui/      # settings and sync windows
+  window-trackers/        # Hyprland, Sway, X11, macOS, and Windows trackers
+  anki-integration/       # AnkiConnect proxy and note-update workflow
+  jimaku/, subsync/, tsukihime/  # integration helpers
+  types/                  # shared domain types
+stats/                    # stats dashboard UI (Vite)
+vendor/                   # Yomitan fork, texthooker-ui, JLPT vocab
 ```
 
-### Service layer (`src/core/services/`)
+A few ownership notes that are hard to guess from file names:
 
-- **Overlay/window runtime:** `overlay-manager.ts`, `overlay-window.ts`, `overlay-visibility.ts`, `overlay-bridge.ts`, `overlay-runtime-init.ts`, `overlay-content-measurement.ts`
-- **Shortcuts/input:** `shortcut.ts`, `overlay-shortcut.ts`, `overlay-shortcut-handler.ts`, `shortcut-fallback.ts`, `numeric-shortcut.ts`
-- **MPV runtime:** `mpv.ts`, `mpv-transport.ts`, `mpv-protocol.ts`, `mpv-properties.ts`, `mpv-render-metrics.ts`
-- **Mining + Anki/Jimaku runtime:** `mining.ts`, `field-grouping.ts`, `field-grouping-overlay.ts`, `anki-jimaku.ts`, `anki-jimaku-ipc.ts`
-- **Subtitle/token pipeline:** `subtitle-processing-controller.ts`, `subtitle-position.ts`, `subtitle-ws.ts`, `tokenizer.ts` + `tokenizer/*` stage modules (including `parser-enrichment-worker-runtime.ts` for async MeCab enrichment and `yomitan-parser-runtime.ts`)
-- **Integrations:** `jimaku.ts`, `subsync.ts`, `subsync-runner.ts`, `texthooker.ts`, `jellyfin.ts`, `jellyfin-remote.ts`, `discord-presence.ts`, `yomitan-extension-loader.ts`, `yomitan-settings.ts`
-- **Anki integration (repo `src/` root, not under `core/services/`):** `src/anki-integration.ts`, `src/anki-integration/anki-connect-proxy.ts` (local proxy for push-based auto-enrichment), `src/anki-integration/note-update-workflow.ts`
-- **Config/runtime controls:** `config-hot-reload.ts`, `runtime-options-ipc.ts`, `cli-command.ts`, `startup.ts`
-- **Domain submodules:** `anilist/*` (token/update queue/updater), `immersion-tracker/*` (storage/session/metadata/query/reducer)
+- mpv access is split into transport (`mpv-transport.ts`), protocol (`mpv-protocol.ts`), and property modules under `src/core/services/`.
+- The renderer keeps `renderer.ts` to orchestration. Keyboard, mouse, and gamepad input live in `renderer/handlers/`, and each modal flow has its own file in `renderer/modals/`.
+- AniSkip intro detection runs in the app (`src/main/runtime/aniskip-runtime.ts`), which drives mpv chapters and the skip key over the mpv IPC socket. The plugin does not handle it.
 
-### Renderer layer (`src/renderer/`)
+## Component diagram
 
-The renderer keeps `renderer.ts` focused on orchestration. UI behavior is delegated to per-concern modules.
-
-```text
-src/renderer/
-  renderer.ts              # Entrypoint/orchestration only
-  context.ts               # Shared runtime context contract
-  state.ts                 # Centralized renderer mutable state (visible overlay only)
-  error-recovery.ts        # Global renderer error boundary + recovery actions
-  overlay-content-measurement.ts # Reports rendered bounds to main process
-  subtitle-render.ts       # Primary/secondary subtitle rendering + style application
-  positioning.ts           # Facade export for positioning controller
-  yomitan-popup.ts         # Yomitan popup iframe detection utilities
-  positioning/
-    controller.ts          # Subtitle drag-position controller
-    position-state.ts      # Position state helpers (yPercent)
-  handlers/
-    keyboard.ts            # Keybindings, chord handling, modal key routing
-    mouse.ts               # Hover/drag behavior, selection + observer wiring
-    gamepad-controller.ts  # Gamepad/controller input handling
-    controller-binding-capture.ts # Controller binding capture flow
-  modals/
-    jimaku.ts              # Jimaku modal flow
-    kiku.ts                # Kiku field-grouping modal flow
-    runtime-options.ts     # Runtime options modal flow
-    session-help.ts        # Keyboard shortcuts/help modal flow
-    subsync.ts             # Manual subsync modal flow
-    character-dictionary.ts # Character dictionary modal flow
-    playlist-browser.ts    # Playlist browser modal flow
-    subtitle-sidebar.ts    # Subtitle sidebar modal flow
-    youtube-track-picker.ts # YouTube subtitle track picker
-    controller-*.ts        # Controller config/debug/select modals
-  utils/
-    dom.ts                 # Required DOM lookups + typed handles
-    platform.ts            # Layer/platform capability detection
-```
-
-### Launcher + plugin runtimes
-
-- `launcher/main.ts` dispatches commands through `launcher/commands/*` and shared config readers in `launcher/config/*`. It handles mpv startup, app passthrough, Jellyfin helper commands, and playback handoff.
-- `plugin/subminer/main.lua` is the mpv entrypoint: it sets up the module path and loads `init.lua`, a thin shim that boots the modular Lua files: `bootstrap.lua` (startup), `lifecycle.lua` (connect/disconnect), `process.lua` (process management), `state.lua` (shared state), `messages.lua` (IPC), `hover.lua` (hover-token highlight rendering), `ui.lua` (OSD rendering), `options.lua` (config), `environment.lua` (detection), `log.lua` (logging), `binary.lua` (path resolution), `session_bindings.lua` (configurable session keybindings), `version.lua` (version metadata). AniSkip intro detection lives in the SubMiner app (`src/main/runtime/aniskip-runtime.ts`), which drives mpv chapters and the skip key over the IPC socket.
-
-## Flow diagram
-
-The main process orchestrates a single primary overlay window plus modal surfaces: `main.ts` delegates to composition modules that wire together domain services. Subtitle layers (primary + secondary bar) are rendered in the same overlay renderer process, connected through `preload.ts`. External runtimes (launcher CLI and mpv plugin) operate independently and communicate via IPC socket or CLI passthrough.
+The main process drives one primary overlay window plus modal surfaces. Primary and secondary subtitle layers render in the same overlay renderer, connected to the main process through `preload.ts`. The launcher and mpv plugin run as separate processes and talk to the app through sockets or CLI passthrough.
 
 ```mermaid
 flowchart TB
@@ -225,63 +132,39 @@ flowchart TB
 
 ## Composition pattern
 
-Most runtime code follows a dependency-injection pattern:
+Runtime code uses dependency injection:
 
-1. Define a service interface in `src/core/services/*`.
-2. Keep core logic in pure or side-effect-bounded functions.
-3. Build runtime deps in `src/main/` composition modules; extract an adapter/helper only when it adds meaningful behavior or reuse.
-4. Call the service from lifecycle/command wiring points.
+1. Put the logic in a service under `src/core/services/`, as pure or side-effect-bounded functions.
+2. Build its runtime dependencies in a `src/main/` module. Pass simple dependencies inline; extract an adapter only when it adds behavior or gets reused.
+3. Call the service from lifecycle or command wiring.
 
-The composition root (`src/main.ts`) delegates to focused modules in `src/main/` and `src/main/runtime/composers/`:
+`main.ts` gets domain handlers through `createMainRuntimeRegistry()` (`src/main/runtime/registry.ts`), which exposes the barrels in `src/main/runtime/domains/`. Larger clusters, such as app-ready startup, mpv, Jellyfin, AniList tracking, shortcuts, and IPC, are assembled by composers in `src/main/runtime/composers/`. Many handlers take a `*MainDeps` object built by a `createBuild*MainDepsHandler` builder, which keeps side effects out of the unit under test.
 
-- `startup.ts` - argv/env processing and bootstrap flow
-- `app-lifecycle.ts` - Electron lifecycle event registration
-- `startup-lifecycle.ts` - app-ready initialization sequence
-- `state.ts` - centralized application runtime state container
-- `ipc-runtime.ts` - IPC channel registration and handler wiring
-- `cli-runtime.ts` - CLI command parsing and dispatch
-- `overlay-runtime.ts` - overlay window selection and modal state management
-- `subsync-runtime.ts` - subsync command orchestration
-- `runtime/composers/anilist-tracking-composer.ts` - AniList media tracking/probe/retry wiring
-- `runtime/composers/jellyfin-runtime-composer.ts` - Jellyfin config/client/playback/command/setup composition wiring
-- `runtime/composers/mpv-runtime-composer.ts` - MPV event/factory/tokenizer/warmup wiring
+Composers declare their inputs with `ComposerInputs<T>` and results with `ComposerOutputs<T>` from `src/main/runtime/composers/contracts.ts`. A missing dependency then fails at compile time.
 
-Composer modules share contract conventions via `src/main/runtime/composers/contracts.ts`:
+### IPC boundary
 
-- composer input surfaces are declared with `ComposerInputs<T>` so required dependencies cannot be omitted at compile time
-- composer outputs are declared with `ComposerOutputs<T>` to keep result contracts explicit and stable
-- builder return payload extraction should use shared type helpers instead of inline ad-hoc inference
+Channel names live in `src/shared/ipc/contracts.ts` and payload validators in `src/shared/ipc/validators.ts`. Renderer payloads are validated at the IPC entry points (`src/core/services/ipc.ts`, `src/core/services/anki-jimaku-ipc.ts`) before any domain handler runs. See [IPC + runtime contracts](/ipc-contracts) for the full rules.
 
-This keeps side effects explicit and makes behavior easy to unit-test with fakes.
+### Runtime state ownership
 
-Additional conventions in the current code:
+Some domains, such as AniList token, queue, and media-guess state, use reducer-style transitions:
 
-- `main.ts` uses `createMainRuntimeRegistry()` (`src/main/runtime/registry.ts`) to access domain handlers (`startup`, `overlay`, `mpv`, `ipc`, `shortcuts`, `anilist`, `jellyfin`, `mining`) without importing every runtime module directly.
-- Domain barrels in `src/main/runtime/domains/*` re-export runtime handlers + main-deps builders, while composers in `src/main/runtime/composers/*` assemble larger runtime clusters.
-- Many runtime handlers accept `*MainDeps` objects generated by `createBuild*MainDepsHandler` builders to isolate side effects and keep units testable.
-
-### IPC contract + validation boundary
-
-- Central channel constants live in `src/shared/ipc/contracts.ts` and are consumed by both main (`ipcMain`) and renderer preload (`ipcRenderer`) wiring.
-- Runtime payload parsers/type guards live in `src/shared/ipc/validators.ts`.
-- Rule: renderer-supplied payloads must be validated at IPC entry points (`src/core/services/ipc.ts`, `src/core/services/anki-jimaku-ipc.ts`) before calling domain handlers.
-- Malformed invoke payloads return explicit structured errors (for example `{ ok: false, error: ... }`) and malformed fire-and-forget payloads are ignored safely.
-
-### Runtime state ownership (migrated domains)
-
-For domains migrated to reducer-style transitions (for example AniList token/queue/media-guess runtime state), follow these rules:
-
-- Composition/runtime modules own mutable state cells and expose narrow `get*`/`set*` accessors.
-- Domain handlers do not mutate foreign state directly; they call explicit transition helpers that encode invariants.
-- Transition helpers may sync derived counters/snapshots, but must preserve non-owned metadata unless the transition explicitly owns that metadata.
-- Reducer boundary: when a domain has transition helpers in `src/main/state.ts`, new callsites should route updates through those helpers instead of ad-hoc object mutation in `main.ts` or composers.
-- Tests for migrated domains should assert both the intended field changes and non-targeted field invariants.
+- Composition modules own the mutable state and expose narrow `get*`/`set*` accessors.
+- Handlers change another domain's state only through its transition helpers in `src/main/state.ts`, never by mutating the object directly.
+- A transition may update derived counters or snapshots, but must leave metadata it does not own untouched.
+- Tests for these domains check both the fields that should change and the ones that should not.
 
 ## Playback startup flow
 
-Before the app boots, something has to launch mpv, inject the plugin, and bring the overlay up. SubMiner-managed launches own this step - the `subminer` launcher, the app's own playback, and the packaged Windows shortcut all follow the same path. The launcher reads `config.jsonc`, spawns mpv with the IPC socket and the bundled plugin, and passes runtime settings as `--script-opts`. The plugin never reads a config file: the shipped `subminer.conf` is intentionally empty so command-line opts always win.
+A SubMiner-managed launch (the `subminer` launcher, the app's own playback, or the packaged Windows shortcut) starts mpv, injects the plugin, and brings up the overlay. The launcher reads `config.jsonc`, spawns mpv with the IPC socket and the bundled plugin, and passes runtime settings as `--script-opts`. The plugin never reads a config file: the shipped `subminer.conf` has no settings, so command-line options always win.
 
-Once mpv is up, exactly one of two triggers brings up the overlay. On a first launch the plugin's `file-loaded` hook self-starts the app once the socket is ready (because the launcher injected `auto_start=yes`). When the app is already running - or for explicit `--start-overlay` and YouTube flows - the launcher instead attaches over the control socket and suppresses the plugin's auto-start, so the two never fire together. Both converge on the same app bring-up, which then runs the Program Lifecycle below.
+Once mpv is up, exactly one of two triggers starts the overlay:
+
+- On a first launch, the launcher sets `auto_start=yes` and the plugin's `file-loaded` hook starts the app once the socket is ready.
+- When the app is already running, or for `--start-overlay` and YouTube flows, the launcher attaches over the app control socket and suppresses the plugin's auto-start.
+
+Both paths end in the same app bring-up, which then runs the program lifecycle below.
 
 ```mermaid
 flowchart TB
@@ -312,17 +195,17 @@ flowchart TB
   Conn --> Show["Transparent overlay over mpv<br/>Yomitan lookup · mine"]:::overlay
 ```
 
-The runtime sockets in this flow are detailed in [IPC + Runtime Contracts](./ipc-contracts#runtime-sockets).
+The sockets in this flow are described in [IPC + runtime contracts](./ipc-contracts#runtime-sockets).
 
 ## Program lifecycle
 
-- **Module-level init:** Before `app.ready`, the composition root registers protocols, sets platform flags, constructs all services, and wires dependency injection. `runAndApplyStartupState()` parses CLI args and detects the compositor backend.
-- **Startup:** If `--generate-config` is passed, it writes the template and exits. Otherwise `app-lifecycle.ts` acquires the single-instance lock and registers Electron lifecycle hooks.
-- **Critical-path init:** Once `app.whenReady()` fires, `composeAppReadyRuntime()` runs strict config reload, resolves keybindings, creates the `MpvIpcClient` (which immediately connects and subscribes to mpv subtitle/playback properties via `observe_property`), and initializes the `RuntimeOptionsManager`, `SubtitleTimingTracker`, and `ImmersionTrackerService`.
-- **Overlay runtime:** `initializeOverlayRuntime()` creates the primary overlay window (interactive Yomitan lookups and subtitle rendering), registers global shortcuts, and sets up bounds tracking via the active window tracker. mpv subtitle suppression is handled by a dedicated `overlay-mpv-sub-visibility` service.
-- **Background warmups:** Non-critical services are launched asynchronously: MeCab tokenizer check (with async worker thread), Yomitan extension load, JLPT + frequency dictionary prewarm, optional Jellyfin remote session, Discord presence service, AniList token refresh, and optional AnkiConnect proxy server. Warmup coverage is configurable through `startupWarmups` (including low-power mode that defers all but Yomitan).
-- **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, overlay shortcuts, and hot-reload notifications route through runtime handlers/composers. Subtitle text flows through the `SubtitleProcessingController` (normalize → tokenize → merge), and results are sent to the main overlay renderer and modal surfaces.
-- **Shutdown:** `onWillQuitCleanup` destroys tray + config watcher, unregisters shortcuts, stops WebSocket + texthooker servers, closes the mpv socket + flushes OSD log, stops the window tracker, closes the Yomitan parser window, flushes the immersion tracker (SQLite), stops Jellyfin/Discord services, stops the AnkiConnect proxy server, and cleans Anki/AniList state.
+1. **Module init.** Before `app.ready`, the composition root registers protocols, sets platform flags, constructs services, and wires dependencies. `runAndApplyStartupState()` parses CLI args and detects the compositor backend.
+2. **Startup.** `--generate-config` writes the template and exits. Otherwise `app-lifecycle.ts` takes the single-instance lock and registers Electron lifecycle hooks.
+3. **App ready.** `composeAppReadyRuntime()` reloads config strictly, resolves keybindings, creates the `MpvIpcClient` (which connects and observes subtitle and playback properties), and starts the runtime options manager, subtitle timing tracker, and immersion tracker.
+4. **Overlay.** `initializeOverlayRuntime()` creates the overlay window, registers global shortcuts, and tracks mpv's window bounds through the active window tracker. `src/main/runtime/overlay-mpv-sub-visibility.ts` hides mpv's own subtitles while the overlay shows them.
+5. **Background warmups.** MeCab, Yomitan, JLPT and frequency dictionaries, the optional Jellyfin remote session, Discord presence, AniList token refresh, and the optional AnkiConnect proxy start asynchronously. `startupWarmups` controls which run; its low-power mode defers everything except Yomitan.
+6. **Runtime.** Event-driven. mpv property changes, IPC messages, CLI commands, shortcuts, and config hot-reloads route through handlers and composers. Subtitle text goes through `SubtitleProcessingController` (normalize, tokenize, merge) and out to the overlay renderer and modals.
+7. **Shutdown.** `onWillQuitCleanup` tears down the tray, config watcher, shortcuts, WebSocket and texthooker servers, mpv socket, window tracker, and Yomitan parser window. It flushes the immersion tracker to SQLite and stops Jellyfin, Discord, and the AnkiConnect proxy.
 
 ```mermaid
 flowchart TB
@@ -386,11 +269,11 @@ flowchart TB
   style Loop fill:#363a4f,stroke:#494d64,color:#cad3f5
 ```
 
-## Subtitle prefetch pipeline
+## Subtitle prefetch
 
-SubMiner can pre-tokenize upcoming subtitle lines before they appear on screen. When an external subtitle file (SRT, VTT, or ASS) is detected on the active track, the `SubtitlePrefetchService` parses all cues via the subtitle cue parser (`subtitle-cue-parser.ts`), identifies a priority window of upcoming lines based on the current playback position, and tokenizes them in the background through the same pipeline used for live subtitles. Results are stored directly into the `SubtitleProcessingController` cache, so when a subtitle actually appears during playback, it hits a warm cache and renders in ~30-50ms instead of ~200-320ms.
+SubMiner tokenizes upcoming subtitle lines before they appear, so they render from a warm cache. `SubtitlePrefetchService` (`src/core/services/subtitle-prefetch.ts`) gets the cue list from the active track: an external subtitle file, or for local media an embedded text track extracted with ffmpeg. It parses the cues with `subtitle-cue-parser.ts`, picks a window of upcoming lines from the playback position, and tokenizes them through the live pipeline, storing results in the `SubtitleProcessingController` cache.
 
-The prefetcher yields to live subtitle processing (which always takes priority over background work) and re-computes its priority window on seek. Cache invalidation events (e.g. marking a word as known) trigger re-prefetching of the current window to keep results fresh.
+Live subtitle processing always takes priority; the prefetcher pauses while the on-screen line is being processed. It recomputes its window on seek and re-prefetches when the cache is invalidated, for example after a word is marked known.
 
 ```mermaid
 flowchart TB
@@ -399,7 +282,7 @@ flowchart TB
   classDef runtime fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef warmup fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px
 
-  SubFile["External Sub File"]:::init
+  SubFile["Subtitle Track"]:::init
   Parse["Cue Parser"]:::phase
   Window["Upcoming Lines"]:::phase
   Tokenize["Pre-tokenize"]:::warmup
@@ -416,22 +299,11 @@ flowchart TB
   style Render stroke-width:2px
 ```
 
-## Why this design
-
-- **Smaller blast radius:** changing one feature usually touches one service.
-- **Better testability:** most behavior can be tested without Electron windows/mpv.
-- **Better reviewability:** PRs can be scoped to one subsystem.
-- **Backward compatibility:** CLI flags and IPC channels can remain stable while internals evolve.
-- **Runtime registry + domain barrels:** `src/main/runtime/registry.ts` and `src/main/runtime/domains/*` reduce direct fan-in inside `main.ts` while keeping domain ownership explicit.
-- **Extracted composition root:** `main.ts` delegates to focused modules under `src/main/` and `src/main/runtime/composers/` for lifecycle, IPC, overlay, mpv, shortcut, and integration wiring.
-- **Split MPV service layers:** MPV internals are separated into transport (`mpv-transport.ts`), protocol (`mpv-protocol.ts`), and properties/render metrics modules for maintainability.
-- **Config by domain:** defaults, option registries, and resolution are split by domain under `src/config/definitions/*` and `src/config/resolve/*`, keeping config evolution localized.
-
 ## Extension rules
 
-- Add behavior to an existing service in `src/core/services/*` or create a focused runtime module under `src/main/runtime/*`; avoid ad-hoc logic in `main.ts`.
-- Add new cross-process channels in `src/shared/ipc/contracts.ts` first, validate payloads in `src/shared/ipc/validators.ts`, then wire handlers in IPC runtime modules.
-- See also the contributor IPC onboarding page: [IPC + Runtime Contracts](/ipc-contracts).
-- If change spans startup/overlay/mpv/integration wiring, prefer composing through `src/main/runtime/domains/*` + `src/main/runtime/composers/*` rather than direct wiring in `main.ts`.
-- Keep service APIs explicit and narrowly scoped, and preserve existing CLI flag / IPC channel behavior unless the change is intentionally breaking.
-- Add or update focused tests (including malformed-payload IPC tests) when runtime boundaries or contracts change.
+- Add behavior to a service in `src/core/services/` or a focused module under `src/main/runtime/`. Keep new logic out of `main.ts`.
+- For changes that span startup, overlay, mpv, or integration wiring, compose through `src/main/runtime/domains/` and `src/main/runtime/composers/` instead of wiring directly in `main.ts`.
+- Add a cross-process channel in `src/shared/ipc/contracts.ts` first, validate it in `src/shared/ipc/validators.ts`, then wire the handler. See [IPC + runtime contracts](/ipc-contracts#add-a-new-ipc-action).
+- Config is split by domain under `src/config/definitions/` and `src/config/resolve/`. Keep config changes in the matching domain file.
+- Keep CLI flags and IPC channels stable unless a change is meant to break them.
+- Add or update focused tests when a runtime boundary or contract changes, including malformed-payload tests for IPC.

@@ -1,137 +1,68 @@
 # AniList integration
 
-SubMiner syncs your watch progress to [AniList](https://anilist.co). Finish an episode and it reads the title and episode number off the filename, finds the matching AniList entry, and updates your progress through the GraphQL API. A failed update retries in the background with exponential backoff.
-
-The same AniList data feeds [cover art](#cover-art) in the stats dashboard and the [Character Dictionary](/character-dictionary) for in-overlay name lookup.
-
-[AniList](https://anilist.co) is a free anime tracking site. The **access token** is a private key SubMiner keeps so it can update your list for you. You approve it once during setup, and your AniList password never touches SubMiner.
+SubMiner updates your [AniList](https://anilist.co) watch progress when you finish an episode. The same connection supplies cover art for the stats dashboard and names for the [character dictionary](/character-dictionary).
 
 ## Setup
 
-AniList integration is opt-in. To enable it:
+1. Set `anilist.enabled` to `true`:
 
-1. Set `anilist.enabled` to `true` in your config.
-2. Leave `anilist.accessToken` empty and restart SubMiner (or run `--anilist-setup`).
-3. Approve access in the AniList authorization page.
-4. The callback returns to SubMiner via the `subminer://anilist-setup?...` protocol URL, and SubMiner stores the token automatically.
+   ```jsonc
+   {
+     "anilist": {
+       "enabled": true,
+     },
+   }
+   ```
 
-```jsonc
-{
-  "anilist": {
-    "enabled": true,
-    "accessToken": "",
-  },
-}
-```
+2. Restart SubMiner. With no token stored, it opens the AniList setup window. You can also open it from the tray (**Configure AniList**) or with `subminer app --anilist-setup`.
+3. Approve access on the AniList page. SubMiner receives the token through a `subminer://` link and stores it encrypted.
 
-The access token is encrypted at rest using Electron's `safeStorage` API. On Linux this defaults to `gnome-libsecret`; override the backend with `--password-store=<backend>` (for example `--password-store=basic_text`).
+If the setup window does not render, SubMiner opens the authorization page in your browser instead. To skip the flow entirely, paste a token into `anilist.accessToken`.
 
-If the embedded auth UI fails to render, SubMiner opens the authorize URL in your default browser and shows fallback instructions in-app.
+On Linux, the token is stored with `gnome-libsecret` by default. If your keyring is unavailable, start it (gnome-keyring or KWallet) or launch SubMiner with `--password-store=basic_text`.
 
-::: tip
-You can also set `anilist.accessToken` directly in config to skip the setup flow entirely. When blank, SubMiner uses the locally stored encrypted token.
-:::
+## How updates work
 
-## How tracking works
+An episode counts as watched after 85% of its length and at least 10 minutes of playback. SubMiner then:
 
-SubMiner watches playback and pushes an AniList progress update once an episode counts as watched. That means at least 85% of its duration, and at least 10 minutes either way.
+1. Reads the title, season, and episode from the file name and folder. Install [guessit](https://github.com/guessit-io/guessit) for better parsing. A folder named `Season 2` is a strong season hint.
+2. Finds the matching AniList entry. For season 2 and later, it follows the show's sequels.
+3. Sets your progress to that episode and marks the entry Watching, or Completed on the final episode.
 
-The update flow:
+The show must already be on your Planning or Watching list. SubMiner does not add new entries, and it never lowers your progress.
 
-1. **Title detection** - SubMiner extracts the anime title, season, and episode number from the media filename and path. Season folders such as `Season 2` are treated as a strong season signal. SubMiner tries [`guessit`](https://github.com/guessit-io/guessit) first for accurate parsing, then falls back to an internal filename parser if guessit is unavailable.
-2. **AniList search** - The base title (with any `Season N` / `SN` marker stripped) is searched against the AniList GraphQL API, and SubMiner picks the best match by comparing titles (romaji, English, native, synonyms) and filtering by episode count. AniList has no notion of numbered seasons - sequels are separate entries with their own titles (`Zoku`, `Kan`, `2nd Season`), so searching `<title> Season 3` finds nothing. For season 2 and later, SubMiner instead walks `SEQUEL` relations from the season 1 entry, preferring the TV line, and falls back to ordering the franchise's TV entries by air date when the relation chain is incomplete. If neither locates the season, SubMiner **skips the update** rather than writing progress to the season 1 entry, and tells you to pin the right entry with a [character dictionary override](/character-dictionary#correcting-anilist-matches).
-3. **Progress check** - SubMiner fetches your current list entry for the matched media. The media must already be in Planning or Watching; otherwise SubMiner shows an MPV message explaining that the update is not possible. If your recorded progress already meets or exceeds the detected episode, the update is skipped.
-4. **Mutation** - A `SaveMediaListEntry` mutation sets the new progress and marks the entry as `CURRENT`, or `COMPLETED` when the watched episode is the final episode of the season (the "already at this progress" skip is bypassed for the final episode so completion still lands).
+Failed updates are saved and retried in the background, up to 8 times with growing delays. The queue survives restarts.
 
-## Update queue and retry
+## Fixing a wrong match
 
-Failed AniList updates are persisted to a retry queue on disk and retried with exponential backoff.
+If a cover or title in the stats Library is wrong, open the title and use **Change AniList Entry**.
 
-Updates are skipped if the media path cannot produce a safe, nonempty identity. Invalid entries are discarded when loading or adding to the retry queue.
+If SubMiner cannot find a later season, it skips the update rather than writing progress to season 1. Pin the right entry with the character dictionary's AniList override. See [Character dictionary](/character-dictionary).
 
-| Parameter        | Value      |
-| ---------------- | ---------- |
-| Initial backoff  | 30 seconds |
-| Maximum backoff  | 6 hours    |
-| Maximum attempts | 8          |
-| Queue capacity   | 500 items  |
+## Commands
 
-After 8 failed attempts, the update is moved to a dead-letter queue and no longer retried automatically. The queue is persisted across restarts so no updates are lost if SubMiner exits before a retry succeeds.
+| Command                              | What it does                            |
+| ------------------------------------ | --------------------------------------- |
+| `subminer app --anilist-setup`       | Open the AniList setup window           |
+| `subminer app --anilist-status`      | Show token state and retry queue counts |
+| `subminer app --anilist-logout`      | Remove the stored token                 |
+| `subminer app --anilist-retry-queue` | Retry one queued update now             |
 
-Use `--anilist-retry-queue` to manually process one ready item from the queue.
+## Options
 
-## Cover art
+| Key                   | What it does                                                  |
+| --------------------- | ------------------------------------------------------------- |
+| `anilist.enabled`     | Turns on progress updates.                                    |
+| `anilist.accessToken` | Token override. Leave empty to use the token stored by setup. |
 
-SubMiner fetches cover art from AniList for display in the stats dashboard. When a new video starts playing, the cover art fetcher:
-
-1. Checks the local database for cached art.
-2. If missing, parses the media title (guessit then fallback) and searches the AniList API.
-3. Downloads the cover image from the AniList CDN and caches it locally (both URL and blob).
-4. Stores AniList metadata (romaji/English titles, total episodes) alongside the cover for dashboard display.
-
-A no-match result is cached for 5 minutes before SubMiner retries, preventing repeated API calls for unrecognized media.
-
-When AniList has no match, SubMiner tries [TMDB](/configuration#tmdb) next so live-action dramas and movies get a poster and synopsis too. See [Immersion tracking](/immersion-tracking#library) for how live-action entries are grouped.
-
-If the automatic match is wrong, use **Change AniList Entry** on a title in the stats Library. Relinking rewrites the cached art for every episode of that title, and both the detail view and the Library grid pick up the new cover right away: the grid refetches after a relink, and cover responses carry an ETag and are revalidated on each request instead of being cached for a day.
-
-## Rate limiting
-
-All AniList API calls go through a shared rate limiter that enforces a sliding window of 20 requests per minute. The limiter also reads AniList's `X-RateLimit-Remaining` and `Retry-After` response headers and pauses requests when the server signals throttling. This applies to both episode tracking and cover art fetching.
-
-## Configuration reference
-
-```jsonc
-{
-  "anilist": {
-    "enabled": true,
-    "accessToken": "",
-    "characterDictionary": {
-      "maxLoaded": 3,
-      "profileScope": "all",
-      "collapsibleSections": {
-        "description": false,
-        "characterInformation": false,
-        "voicedBy": false,
-      },
-    },
-  },
-}
-```
-
-| Option                                      | Values                  | Description                                                                                                  |
-| ------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `enabled`                                   | `true`, `false`         | Enable AniList post-watch progress updates (default: `false`)                                                |
-| `accessToken`                               | string                  | Explicit AniList access token override; when blank, SubMiner uses the stored encrypted token (default: `""`) |
-| `characterDictionary.maxLoaded`             | number                  | Number of recent media snapshots kept in the merged dictionary (default: `3`)                                |
-| `characterDictionary.refreshTtlHours`       | number                  | Hours before a cached media snapshot is refreshed (default: `168`, clamped to 1–8760)                        |
-| `characterDictionary.evictionPolicy`        | `"delete"`, `"disable"` | What happens to snapshots evicted beyond `maxLoaded` (default: `"delete"`)                                   |
-| `characterDictionary.profileScope`          | `"all"`, `"active"`     | Apply dictionary to all Yomitan profiles or only the active one                                              |
-| `characterDictionary.collapsibleSections.*` | `true`, `false`         | Control which dictionary entry sections start expanded                                                       |
-
-There is no `characterDictionary.enabled` key: character dictionary sync is enabled by `subtitleStyle.nameMatchEnabled`. See the [Character Dictionary](/character-dictionary) page for full details on the character dictionary feature, including name generation, matching, auto-sync lifecycle, and dictionary entry format.
-
-## CLI commands
-
-| Command                 | Description                                                   |
-| ----------------------- | ------------------------------------------------------------- |
-| `--anilist-setup`       | Open AniList setup/auth flow helper window                    |
-| `--anilist-status`      | Print current token resolution state and retry queue counters |
-| `--anilist-logout`      | Clear stored AniList token from local persisted state         |
-| `--anilist-retry-queue` | Process one ready retry queue item immediately                |
+Character dictionary settings live under `anilist.characterDictionary` and are covered on the [Character dictionary](/character-dictionary) page. See [Configuration](/configuration#anilist) for defaults.
 
 ## Troubleshooting
 
-- **Updates not triggering:** Confirm `anilist.enabled` is `true`. SubMiner requires at least 85% of the episode watched and a minimum of 10 minutes. Short episodes or partial watches will not trigger an update.
-- **Update not possible:** Add the season to your AniList Planning or Watching list first. SubMiner will not create new AniList list entries automatically.
-- **Wrong episode or title matched:** Detection quality is best when `guessit` is installed and on your `PATH`. Without it, SubMiner falls back to internal filename parsing which can be less accurate with unusual naming conventions.
-- **Token issues:** Run `--anilist-status` to check token state. If the token is invalid or expired, run `--anilist-setup` or `--anilist-logout` and re-authenticate.
-- **Updates failing repeatedly:** Run `--anilist-status` to see retry queue counters. Items that fail 8 times are moved to the dead-letter queue. Check network connectivity and AniList API status.
-- **Cover art missing:** Cover art is fetched on a best-effort basis using title matching. If the filename is hard to parse, the search may return no results. The fetcher retries after 5 minutes.
-- **Encryption unavailable on Linux:** If you see warnings about safeStorage, try `--password-store=basic_text` as a workaround, or start your desktop keyring (gnome-keyring, KWallet).
+**No update after an episode.** Check that `anilist.enabled` is `true` and that you watched at least 85% of the episode.
 
-## Related
+**"AniList update not possible."** Add the show to your Planning or Watching list, then mark the episode watched again.
 
-- [Character Dictionary](/character-dictionary) - AniList-powered character name dictionary for Yomitan
-- [Configuration Reference](/configuration) - full config options
-- [Jellyfin Integration](/jellyfin-integration) - media server integration
+**Wrong show or episode.** Install guessit and make sure it is on your `PATH`. Unusual file names parse poorly without it.
+
+**Token errors.** Run `subminer app --anilist-status`. If the token is invalid, run `--anilist-logout`, then `--anilist-setup`.

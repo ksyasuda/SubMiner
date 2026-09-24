@@ -1,98 +1,70 @@
 # Subtitle sidebar
 
-The subtitle sidebar puts the whole parsed cue list for the active subtitle file in a scrollable panel next to mpv. Scroll back through lines you already passed, look ahead at what is coming, and click any cue to seek straight to it. The overlay only ever shows the current line; the sidebar shows the rest.
+The subtitle sidebar lists every line of the current subtitle file in a scrollable panel next to mpv. Use it to reread lines you missed, look ahead, jump to any line, or copy a stretch of dialogue.
 
-The sidebar is enabled by default. Set `subtitleSidebar.enabled` to `false` if you want to turn it off.
+## Using the sidebar
 
-## How it works
+Press `\` to open or close it. The sidebar is on by default. Set `subtitleSidebar.enabled` to `false` to turn it off, or `subtitleSidebar.autoOpen` to `true` to open it at startup.
 
-When the sidebar has no subtitle lines loaded, the **Generate Japanese subtitles** button opens [local subtitle generation](/subtitle-generation). The button hides once subtitle lines are loaded and stays hidden between lines. Press **Ctrl+Shift+G** to open generation at any time.
+- Click a line to seek to it. With a line focused from the keyboard, `Enter` seeks to it.
+- The current line is highlighted and kept in view as playback moves (`autoScroll`).
+- Hovering the list pauses playback (`pauseVideoOnHover`).
+- Switching media or subtitle track updates the list.
 
-When SubMiner parses the active subtitle source into a cue list, the sidebar becomes available. Toggle it with the `\` key (configurable via `subtitleSidebar.toggleKey`). While open:
+The sidebar needs a subtitle file SubMiner can parse. Tracks that mpv renders itself, such as embedded ASS tracks, leave it empty. With no lines loaded, the sidebar shows a **Generate Japanese subtitles** button that opens [subtitle generation](/subtitle-generation). You can also open generation any time with `Ctrl+Shift+G`.
 
-- The active cue is highlighted and kept in view as playback advances (when `autoScroll` is `true`).
-- Between subtitle lines, the sidebar follows playback to the next cue without jumping back to a cue at the start of the file.
-- Clicking any cue seeks mpv into that line. For overlapping ASS karaoke, SubMiner moves past the previous line's exit animation when the selected cue has enough time remaining.
-- Clicking to seek releases row focus. `Enter` seeks a keyboard-focused cue; `Space` keeps its configured playback action, normally pause/resume, without seeking back to a row.
-- The sidebar and the overlay share one cue list, so a media change or subtitle source switch updates both at once.
+For karaoke and animated ASS subtitles, SubMiner merges the per-frame effect lines into one clean line per cue.
 
-For typeset ASS karaoke and animated signs, SubMiner collapses generated animation frames and repeated full-line color phases before they reach the sidebar. It recovers a clean complete line from a matching timed authoring comment or from full-line events surrounding generated fragments. Ordinary ASS comments, editor notes, alternate lines, repeated dialogue, and separately positioned signs remain distinct.
+## Copying dialogue {#selecting-and-copying-dialogue}
 
-The sidebar only opens when a parsed cue list exists. Subtitle sources SubMiner cannot parse, such as embedded ASS tracks that mpv renders itself, leave it empty.
+1. Drag across the text to select it. The selection can span several lines, and you can scroll to extend it.
+2. Press `Ctrl/Cmd+C` or click **Copy**.
 
-## Selecting and copying dialogue
+SubMiner copies the text in subtitle order, without timestamps, with a blank line between cues. Dragging does not seek, and auto-scroll pauses while you have a selection. Press `Escape` to clear it. Changing media or subtitle track, or closing the sidebar, also clears it.
 
-Drag across subtitle text to select an excerpt, including across multiple rows. Scroll to extend a selection through a longer conversation. `Ctrl/Cmd+C` or the **Copy** button copies the highlighted text in subtitle order, without timestamps. Partial first and last lines are preserved, with a blank line between subtitle cues.
+## Layout
 
-Dragging to select does not seek playback. Playback-following auto-scroll stops while you drag or have a selection, so the excerpt stays in view. Press `Escape` to clear the selection. An ordinary click with no selection still seeks to that cue.
+`subtitleSidebar.layout` has two modes:
 
-Selection survives playback updates and Yomitan popup dismissal. Changing media or subtitle sources, refreshing the cue list, or closing the sidebar clears it. Copying an excerpt does not require creating an Anki card.
-
-## Layout modes
-
-Two layout modes are available via `subtitleSidebar.layout`:
-
-**`overlay`** (default) - The sidebar floats over mpv as a panel. It does not affect the player window size or position.
-
-**`embedded`** - Reserves space on the right side of the player and shifts the video area over, giving you a split pane. Use this when you want the cue list up without it covering the video. Positioning depends on the compositor, so switch back to `overlay` if the geometry comes out wrong.
+- `overlay`: the sidebar floats over mpv and does not change the player window.
+- `embedded`: reserves space on the right of the player and moves the video over, so the list doesn't cover it. Placement depends on your compositor. If the geometry comes out wrong, switch back to `overlay`.
 
 ## Configuration
 
-Enable and configure the sidebar under `subtitleSidebar` in your config file:
+All keys live under `subtitleSidebar`. Defaults are in the [configuration reference](/configuration).
 
-```json
+| Key                 | What it does                                                    |
+| ------------------- | --------------------------------------------------------------- |
+| `enabled`           | Turn the sidebar on or off                                      |
+| `autoOpen`          | Open the sidebar when the overlay starts                        |
+| `layout`            | `overlay` or `embedded`                                         |
+| `toggleKey`         | Toggle key, as a `KeyboardEvent.code` value such as `Backslash` |
+| `pauseVideoOnHover` | Pause playback while the pointer is over the list               |
+| `autoScroll`        | Keep the current line in view                                   |
+| `css`               | Styling, see below                                              |
+
+`css` takes CSS properties (`font-family`, `font-size`, `color`, `background-color`, `opacity`) and these custom properties:
+
+| Property                                     | Styles                         |
+| -------------------------------------------- | ------------------------------ |
+| `--subtitle-sidebar-max-width`               | Maximum sidebar width          |
+| `--subtitle-sidebar-timestamp-color`         | Timestamp text                 |
+| `--subtitle-sidebar-active-line-color`       | Current line text              |
+| `--subtitle-sidebar-active-background-color` | Current line background        |
+| `--subtitle-sidebar-hover-background-color`  | Background of the hovered line |
+
+```jsonc
 {
   "subtitleSidebar": {
-    "enabled": true,
-    "autoOpen": false,
-    "layout": "overlay",
-    "toggleKey": "Backslash",
-    "pauseVideoOnHover": true,
-    "autoScroll": true,
+    "layout": "embedded",
     "css": {
-      "font-family": "Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP",
-      "color": "#cad3f5",
-      "background-color": "rgba(73, 77, 100, 0.9)",
-      "font-size": "16px",
-      "opacity": "0.95",
-      "--subtitle-sidebar-max-width": "420px",
-      "--subtitle-sidebar-timestamp-color": "#a5adcb",
-      "--subtitle-sidebar-active-line-color": "#f5bde6",
-      "--subtitle-sidebar-active-background-color": "rgba(138, 173, 244, 0.22)",
-      "--subtitle-sidebar-hover-background-color": "rgba(54, 58, 79, 0.84)"
-    }
-  }
+      "font-size": "18px",
+      "--subtitle-sidebar-max-width": "480px",
+    },
+  },
 }
 ```
 
-Styling lives under the `css` object, using CSS property names and CSS custom properties (the same pattern as `subtitleStyle.css`).
+Your `css` object replaces the default one as a whole. To keep a default value, copy it from the configuration reference into your object.
 
-| Option              | Type    | Default       | Description                                                                |
-| ------------------- | ------- | ------------- | -------------------------------------------------------------------------- |
-| `enabled`           | boolean | `true`        | Enable subtitle sidebar support                                            |
-| `autoOpen`          | boolean | `false`       | Open the sidebar automatically on overlay startup                          |
-| `layout`            | string  | `"overlay"`   | `"overlay"` floats over mpv; `"embedded"` reserves right-side player space |
-| `toggleKey`         | string  | `"Backslash"` | `KeyboardEvent.code` for the toggle shortcut                               |
-| `pauseVideoOnHover` | boolean | `true`        | Pause playback while hovering the cue list                                 |
-| `autoScroll`        | boolean | `true`        | Keep the active cue in view during playback                                |
-
-| `css` property                              | Default                     | Description                  |
-| ------------------------------------------- | --------------------------- | ---------------------------- |
-| `font-family`                               | `Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP` | Cue text font family |
-| `color`                                     | `#cad3f5`                   | Default cue text color       |
-| `background-color`                          | `rgba(73, 77, 100, 0.9)`    | Sidebar shell background color |
-| `font-size`                                 | `16px`                      | Base cue font size           |
-| `opacity`                                   | `0.95`                      | Sidebar opacity between `0` and `1` |
-| `--subtitle-sidebar-max-width`              | `420px`                     | Maximum sidebar width        |
-| `--subtitle-sidebar-timestamp-color`        | `#a5adcb`                   | Cue timestamp color          |
-| `--subtitle-sidebar-active-line-color`      | `#f5bde6`                   | Active cue text color        |
-| `--subtitle-sidebar-active-background-color`| `rgba(138, 173, 244, 0.22)` | Active cue background color  |
-| `--subtitle-sidebar-hover-background-color` | `rgba(54, 58, 79, 0.84)`    | Hovered cue background color |
-
-## Keyboard shortcut
-
-| Key | Action                  | Config key                     |
-| --- | ----------------------- | ------------------------------ |
-| `\` | Toggle subtitle sidebar | `subtitleSidebar.toggleKey`    |
-
-The toggle is overlay-local and only opens when SubMiner has a parsed cue list for the active subtitle source. See [Keyboard Shortcuts](/shortcuts) for the full shortcut reference.
+See [keyboard shortcuts](/shortcuts) for all overlay keys.

@@ -1,122 +1,60 @@
 # Jellyfin integration
 
-[Jellyfin](https://jellyfin.org) is a free, self-hosted media server, a private streaming service for video you already own. If your anime lives on a Jellyfin server, SubMiner plays episodes from it through mpv with the mining overlay attached.
+If your anime lives on a [Jellyfin](https://jellyfin.org) server, SubMiner can appear as a cast target in any Jellyfin client. Cast an episode and it plays in SubMiner's mpv with the overlay and Yomitan lookup attached.
 
-::: tip Who needs this?
-This page only matters if you already run a Jellyfin server or have access to one. Watching local files or YouTube? Skip it. Otherwise start with the in-app setup window (`subminer jellyfin`).
-:::
+## Setup
 
-SubMiner can register itself as a **cast-to-device target**, the way jellyfin-mpv-shim does. Sign in once, turn on discovery, and SubMiner appears in the "Play on" menu of any Jellyfin client, whether that is the web app, your phone, or a TV. Cast an episode and it opens in SubMiner's mpv window with the overlay and Yomitan lookup live.
+You need a Jellyfin server (Jellyfin 12 is supported) and your username and password.
 
-This is the recommended way to use Jellyfin with SubMiner. A terminal-only option is covered in [Launcher playback](#launcher-playback) at the end.
+1. Start SubMiner and leave it in the system tray.
+2. Open the tray menu and click **Configure Jellyfin**. You can also run `subminer jellyfin`.
+3. Enter the **Server URL** (for example `http://127.0.0.1:8096`), **Username**, and **Password**, then click **Login**.
 
-## Requirements
+SubMiner stores an encrypted session token, not your password, and turns the integration on. Reopen the same window to switch servers or log out.
 
-- A Jellyfin server plus your username and password (Jellyfin 12, which disables legacy authorization by default, is supported)
-- SubMiner installed and running (see [Installation](/installation))
-- On Linux, the session token is stored with `gnome-libsecret` by default
+## Casting from Jellyfin
 
-## Quick start
+After you sign in, SubMiner connects to Jellyfin at startup and shows up in the cast ("Play on") menu under your computer's hostname. To connect for the current session only, tick **Jellyfin Discovery** in the tray menu.
 
-### 1. start SubMiner
+1. In the Jellyfin web or mobile app, start playing an episode.
+2. Open the cast menu and pick your computer.
 
-Launch SubMiner and leave it in the system tray.
+SubMiner starts mpv if it is not already running. Pause, seek, stop, and track changes in the Jellyfin app are mirrored in mpv, and watch progress syncs back to Jellyfin. Playback resumes from Jellyfin's saved position.
 
-### 2. sign in to your server
+SubMiner selects a Japanese subtitle track automatically and resets mpv's subtitle delay to zero. It direct-plays files when it can and asks Jellyfin to transcode the rest.
 
-Open the tray menu and click **Configure Jellyfin**. In the window that opens, enter your **Server URL** (for example `http://127.0.0.1:8096`), **Username**, and **Password**, then click **Login**.
+On Windows, casting finds mpv through `mpv.executablePath`, then `SUBMINER_MPV_PATH`, then `PATH`. An invalid `mpv.executablePath` stops mpv from starting.
 
-On success, SubMiner:
+## Playing from the terminal
 
-- saves an encrypted session token - your password is never stored,
-- turns the Jellyfin integration on, and
-- remembers the server and username for next time.
+The launcher can browse your libraries and play an item without a Jellyfin client:
 
-Reopen this window any time to switch servers or **Logout**.
-
-### 3. turn on discovery
-
-Discovery is what makes SubMiner appear as a cast target. Two ways to enable it:
-
-- **For the current session** - open the tray menu and tick **Jellyfin Discovery**. (This item appears once you've signed in.)
-- **Automatically on every launch** - already on by default. After your first sign-in, SubMiner auto-connects to Jellyfin at startup, so the cast target is ready without touching the tray. You can change this under [Settings](#settings).
-
-### 4. cast from any Jellyfin app
-
-In the Jellyfin web UI or mobile app, start playing something, open the **cast / "Play on"** menu, and pick your device - SubMiner appears there named after your computer's hostname. Playback opens in SubMiner.
-
-From then on, pause / resume / seek / stop and audio or subtitle track changes you make in the Jellyfin app are mirrored in SubMiner, and your watch progress syncs back to Jellyfin (now-playing and resume position).
-
-## What happens during playback
-
-- **mpv launches automatically.** If mpv isn't already running when you cast, SubMiner starts it with SubMiner defaults and the bundled mpv plugin, so keybindings work right away.
-- **Windows respects your mpv settings.** Casting checks `mpv.executablePath`, then `SUBMINER_MPV_PATH`, then `PATH`. An invalid configured path prevents automatic startup.
-- **The overlay is managed by SubMiner,** so your configured `subtitleStyle` controls how subtitles look. Use the [overlay-toggle shortcut](/shortcuts) to hide it for a session.
-- **Resume works.** If Jellyfin has a saved position for the item, SubMiner seeks there on load.
-- **Titles and credentials stay separate.** AniList, character dictionaries, Anki source fields, and Discord presence use media titles, never authenticated stream URLs. If a usable title is unavailable, lookups are skipped and source fields show an unknown-media label. Stats identifies Jellyfin videos by server and item ID without the stream URL or API key.
-- **Direct play first.** When the source allows it and the container is in your direct-play allowlist, SubMiner streams the original file; otherwise it requests a transcoded stream from Jellyfin.
-- **Japanese subtitles are auto-selected,** preferring Jellyfin's default and embedded tracks over external sidecar files when several match.
-- **Downloaded subtitles keep their original timing.** SubMiner removes Jellyfin's server-selected subtitle stream from the mpv load URL, suppresses the mpv plugin's one-shot subtitle auto-selection and overlay auto-start for managed Jellyfin loads, stages the subtitle files exposed by Jellyfin without letting mpv auto-switch between tracks, resets mpv's subtitle delay to zero, then selects the Japanese track. SubMiner does not compare Japanese and English cue timelines or save an inferred delay.
-
-On startup, SubMiner clears cached anime parser metadata containing both API-key text and Jellyfin stream markers. Metadata containing only one of these is preserved.
-
-## Settings
-
-All Jellyfin options live under **Settings → Integrations → Jellyfin** (open settings from the tray's **Open SubMiner Settings**). The ones that matter for casting:
-
-| Setting                         | Default | What it does                                                                                                          |
-| ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
-| **Enabled**                     | Off     | Turns the Jellyfin integration on. Switched on for you when you sign in.                                              |
-| **Server Url**                  | -       | Your Jellyfin server. Filled in when you sign in.                                                                     |
-| **Remote Control Enabled**      | On      | Lets SubMiner act as a cast target.                                                                                   |
-| **Remote Control Auto Connect** | On      | Connects to Jellyfin at startup so discovery is automatic. Turn off if you'd rather start it from the tray each time. |
-| **Auto Announce**               | Off     | Re-broadcasts visibility on connect. Enable if your device is slow to appear in the cast menu.                        |
-
-Prefer editing the config file? The same keys live under `jellyfin` in `config.jsonc`:
-
-```jsonc
-{
-  "jellyfin": {
-    "enabled": true,
-    "serverUrl": "http://127.0.0.1:8096",
-    "remoteControlEnabled": true,
-    "remoteControlAutoConnect": true,
-  },
-}
+```bash
+subminer jellyfin -p       # fzf picker; `jf` is an alias for `jellyfin`
+subminer -R jellyfin -p    # rofi picker
 ```
 
-See [Configuration](/configuration) for the full list (transcode codec, direct-play containers, default library, and more).
+Sign in first. See [Launcher script](/launcher-script) for the other `jellyfin` subcommands.
+
+## Options
+
+All options are under **Settings > Integrations > Jellyfin**, or `jellyfin` in `config.jsonc`. See [Configuration](/configuration#jellyfin) for the full list and defaults.
+
+| Key                        | What it does                                                         |
+| -------------------------- | -------------------------------------------------------------------- |
+| `enabled`                  | Turns the integration on. Set for you when you sign in.              |
+| `serverUrl`                | Your Jellyfin server. Filled in when you sign in.                    |
+| `remoteControlEnabled`     | Lets SubMiner act as a cast target.                                  |
+| `remoteControlAutoConnect` | Connects at startup. Turn off to start discovery from the tray.      |
+| `autoAnnounce`             | Re-announces the device on connect. Try it if SubMiner appears late. |
+| `transcodeVideoCodec`      | Video codec requested when Jellyfin transcodes.                      |
+
+For headless setups, `SUBMINER_JELLYFIN_ACCESS_TOKEN` and `SUBMINER_JELLYFIN_USER_ID` supply a session without the sign-in window. Treat the token store and `config.jsonc` as secrets.
 
 ## Troubleshooting
 
-**SubMiner doesn't appear in the cast menu**
+**SubMiner is missing from the cast menu.** Check that SubMiner is running, that you are signed in (log in again if the token expired), and that discovery is on. The Jellyfin client and SubMiner must use the same server.
 
-- Make sure SubMiner is running.
-- Make sure you're signed in - reopen **Configure Jellyfin** and log in again if your token expired.
-- Make sure discovery is on (tray **Jellyfin Discovery**, or **Remote Control Auto Connect** in settings).
-- Make sure SubMiner and the Jellyfin client point at the same server.
+**Casting starts but nothing plays.** Confirm the item plays in another Jellyfin client. If mpv was closed, give SubMiner a few seconds to start it.
 
-**Casting starts but nothing plays**
-
-- Confirm the item plays normally in another Jellyfin client.
-- If mpv was closed, give it a moment - SubMiner launches it on demand and retries.
-
-**SubMiner keeps disconnecting**
-
-- Check server/network stability and whether the session token has expired.
-
-## Security notes
-
-- The Jellyfin session (access token + user ID) is kept in SubMiner's local encrypted token storage. Your password is used only to log in and is never saved.
-- Treat the token storage and your `config.jsonc` as secrets - don't commit them.
-- Advanced/headless: the `SUBMINER_JELLYFIN_ACCESS_TOKEN` and `SUBMINER_JELLYFIN_USER_ID` environment variables can supply a session without the sign-in window.
-
-## Launcher playback
-
-If you'd rather stay in the terminal, the `subminer` launcher can browse and play Jellyfin media directly, without casting from a Jellyfin app:
-
-```bash
-subminer jellyfin -p      # alias: subminer jf -p
-```
-
-This opens an fzf picker (add `-R` for rofi) to browse your libraries and episodes, then plays the selected item in SubMiner's mpv with the same overlay, resume, and subtitle behavior described above. Sign in first (step 2) so the launcher can reach your server. See [Launcher Script](/launcher-script) for the rest of the launcher's features.
+**Linux token storage fails.** SubMiner stores the token with `gnome-libsecret` by default. Start your keyring, or pass `--password-store=basic_text`.

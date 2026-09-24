@@ -1,82 +1,48 @@
 # TsukiHime integration
 
-[TsukiHime](https://tsukihime.org) indexes anime torrent releases and pulls every attachment out of the release files, embedded subtitle tracks included, then hosts them for direct download. SubMiner talks to the TsukiHime API, so you can grab subtitles for the episode you are watching from the overlay without a torrent client. The download is decompressed, saved next to the video, and loaded into mpv straight away.
+[TsukiHime](https://tsukihime.org) extracts the subtitle tracks from anime torrent releases and hosts them for download. SubMiner searches it from the overlay, so you can grab Japanese or secondary-language subtitles for the current episode without a torrent client. Most releases carry only English subtitles, so [Jimaku](/jimaku-integration) is usually the better source for Japanese.
 
-This is the multi-language companion to the [Jimaku integration](/jimaku-integration). Releases that ship multiple languages (e.g. Netflix `[MultiSub]` rips) expose them all; the modal's tabs pick which ones you see, and each download is saved with its own language suffix.
+## Setup
 
-::: tip Successor to Animetosho
-TsukiHime replaces [Animetosho](https://animetosho.org), which stops processing new releases in May 2026. TsukiHime imported the Animetosho index and mirrors its attachment storage, so older releases stay reachable alongside new ones.
-:::
+TsukiHime needs no account or API key. SubMiner needs the `xz` binary on your `PATH` to unpack downloads. Most Linux distributions ship it (package `xz` or `xz-utils`).
 
-::: tip No API key required
-Unlike Jimaku, TsukiHime needs no account or API key. The only requirement is the `xz` binary on your `PATH` - TsukiHime serves extracted subtitles xz-compressed, and SubMiner shells out to `xz` to decompress them. Most Linux distributions ship it by default (package `xz` or `xz-utils`).
-:::
+## Usage
 
-## How it works
+1. Press `Ctrl+Shift+T` during playback.
+2. SubMiner fills in the title and episode from the file name and searches right away when it finds both. Otherwise, fix the fields and press `Enter`.
+3. Pick a tab. The first tab shows your secondary language (`secondarySub.secondarySubLanguages`, or English if unset). The second tab shows Japanese. Each tab lists only releases that carry that language.
+4. Select a release, then a subtitle track.
 
-The integration runs through an in-overlay modal opened with `Ctrl+Shift+T` by default. The modal has two tabs that filter both the release list and the subtitle tracks of the selected release by role: the first follows `secondarySub.secondarySubLanguages` (English when unset), and the second is always **Japanese**, the currently supported primary subtitle language. Each tab lists only the releases whose reported subtitle languages include the tab's language, so the Japanese tab hides the many releases that ship English subtitles only. Releases and tracks with no language tag stay visible on the secondary tab. If nothing on the active tab qualifies, the status line says so and points at the other tab.
+The track is saved next to the video with a language suffix, such as `<video>.ja.ass` or `<video>.en.ass` (a temp directory is used for streams). A Japanese track becomes mpv's primary subtitle. A track from the secondary tab loads as the secondary subtitle and leaves the primary alone.
 
-When you open the modal, SubMiner parses the current video filename to extract a title and episode number (same parser as Jimaku - `S01E03`, `1x03`, `E03`, and dash-separated numbers all work). If the filename yields a high-confidence match, SubMiner auto-searches immediately.
+Pick the release that matches your video file, same group and same version, and the timing will line up. With any other release, fix the offset with subtitle sync (`Ctrl+Alt+S`).
 
-From there:
+| Key              | Action                                 |
+| ---------------- | -------------------------------------- |
+| `Enter`          | Search, or select the highlighted item |
+| `Up` / `Down`    | Move through releases or tracks        |
+| `Left` / `Right` | Switch tabs                            |
+| `Escape`         | Close                                  |
 
-1. **Search** - SubMiner queries TsukiHime with `<title> <episode>`. Results appear as a list of releases (e.g. `[SubsPlease] ... - 28 (1080p)`), each showing size, file count, and the subtitle languages the release carries.
-2. **Browse releases** - Select a release to list the text subtitle tracks extracted from its files. English tracks sort first; image-based tracks (PGS/VobSub) are filtered out.
-3. **Download** - Selecting a track downloads the xz-compressed subtitle from TsukiHime's storage, decompresses it, saves it next to the video (or a temp directory for remote/streamed media), and loads it into mpv. Japanese tracks are selected as mpv's **primary** subtitle. Tracks from the configured secondary tab are assigned to mpv's **secondary** subtitle slot without replacing the primary. The filename carries the track's language - `<video basename>.en.<ext>` for English, `.ja` for Japanese, and so on - so mpv and media servers detect the language correctly.
+You can also open the modal with `subminer app --open-tsukihime`, bind a key to `["__tsukihime-open"]` in `keybindings`, or change the shortcut with `shortcuts.openTsukihime`.
 
-TsukiHime's releases are the same files that circulate as torrents. Pick the release matching your local file, same group and same version, and the timing lines up exactly with no resync. For a raw or a different group's encode, take any release of the episode and fix the offset with the [subtitle sync tools](/troubleshooting#subtitle-sync-subsync) (`Ctrl+Alt+S`).
+## Options
 
-### Modal keyboard shortcuts
+| Key                          | What it does                                           |
+| ---------------------------- | ------------------------------------------------------ |
+| `tsukihime.maxSearchResults` | Maximum releases per search. The API caps this at 100. |
+| `tsukihime.apiBaseUrl`       | API address. Change only for a mirror.                 |
 
-| Key                          | Action                          |
-| ---------------------------- | ------------------------------- |
-| `Enter` (in text field)      | Search                          |
-| `Enter` (in list)            | Select release / download track |
-| `Arrow Up` / `Arrow Down`    | Navigate releases or tracks     |
-| `Arrow Left` / `Arrow Right` | Switch English / Japanese tab   |
-| `Escape`                     | Close modal                     |
-
-## Configuration
-
-There is nothing to configure to get started. An optional `tsukihime` section in `config.jsonc` tunes it:
-
-```jsonc
-{
-  "tsukihime": {
-    "apiBaseUrl": "https://api.tsukihime.org/v1",
-    "maxSearchResults": 10,
-  },
-}
-```
-
-| Option                       | Type     | Default                          | Description                                                                |
-| ---------------------------- | -------- | -------------------------------- | -------------------------------------------------------------------------- |
-| `tsukihime.apiBaseUrl`       | `string` | `"https://api.tsukihime.org/v1"` | Base URL of the TsukiHime API. Only change this if using a mirror.         |
-| `tsukihime.maxSearchResults` | `number` | `10`                             | Maximum number of releases returned per search (the API caps this at 100). |
-
-The keyboard shortcut is configured separately under `shortcuts`:
-
-```jsonc
-{
-  "shortcuts": {
-    "openTsukihime": "Ctrl+Shift+T", // default; set to null to disable
-  },
-}
-```
-
-Existing Animetosho configuration remains compatible. SubMiner treats the old `animetosho` section and `shortcuts.openAnimetosho` setting as deprecated aliases. When old and current names are both present, `tsukihime` and `shortcuts.openTsukihime` take precedence.
-
-## Other ways to open it
-
-- CLI: `subminer --open-tsukihime`
-- Keybinding command: bind any key to `["__tsukihime-open"]` in the `keybindings` array
-
-The previous `--open-animetosho` flag and `__animetosho-open` keybinding command remain accepted as deprecated aliases.
+See [Configuration](/configuration#tsukihime) for defaults.
 
 ## Troubleshooting
 
-- **"xz binary not found"** - install `xz`/`xz-utils` with your package manager.
-- **"No releases with Japanese subtitles"** - none of the search results carry a Japanese track. Most releases only ship English subtitles; try another search, or use the [Jimaku integration](/jimaku-integration) for Japanese subtitles.
-- **"Batch releases are not supported"** - TsukiHime only exposes extracted attachments for single-file torrents. Pick the single-episode release for your episode instead of a season batch.
-- **"No text subtitle tracks in this release"** - the release only carries image-based subtitles (PGS/VobSub) or none at all; try a different release (fansub and SubsPlease-style releases almost always carry ASS tracks).
-- **Timing is off** - the subtitle came from a different release than your video file. Use the subtitle sync modal (`Ctrl+Alt+S`) or pick the release matching your file exactly.
+**"xz binary not found."** Install `xz` or `xz-utils` with your package manager.
+
+**"No releases with Japanese subtitles."** None of the results carry a Japanese track. Try another search, or use Jimaku.
+
+**"Batch releases are not supported."** TsukiHime only has extracted tracks for single-file torrents. Pick the single-episode release.
+
+**"No text subtitle tracks in this release."** The release has only image-based subtitles (PGS or VobSub) or none. Try another release.
+
+**Timing is off.** The subtitle came from a different release than your video. Use subtitle sync (`Ctrl+Alt+S`) or pick the matching release.

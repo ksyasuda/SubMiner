@@ -2,7 +2,7 @@
 
 Short recordings from real playback sessions.
 
-Some vocabulary for what follows. _Yomitan_ is the pop-up dictionary. _Jimaku_ is a community subtitle database. _alass_ and _ffsubsync_ retime subtitles against the audio. _Jellyfin_ is a self-hosted media server. A _texthooker_ is a web page that mirrors the current subtitle as selectable text so browser tools can read it.
+_Yomitan_ is the pop-up dictionary. _Jimaku_ is a community subtitle database. _alass_ and _ffsubsync_ retime subtitles against the audio. _Jellyfin_ is a self-hosted media server. A _texthooker_ is a web page that mirrors the current subtitle as selectable text.
 
 <script setup>
 import { withBase } from 'vitepress';
@@ -18,7 +18,7 @@ Mine a card from Yomitan or straight from a subtitle line. SubMiner attaches the
   <source :src="withBase(`/assets/minecard.webm?v=${v}`)" type="video/webm" />
   <source :src="withBase(`/assets/minecard.mp4?v=${v}`)" type="video/mp4" />
   <a :href="withBase(`/assets/minecard.webm?v=${v}`)" target="_blank" rel="noreferrer">
-    <img :src="withBase(`/assets/minecard.webp?v=${v}`)" alt="SubMiner demo Animated fallback" style="width: 100%; height: auto;" />
+    <img :src="withBase(`/assets/minecard.webp?v=${v}`)" alt="Animated demo of mining a card" style="width: 100%; height: auto;" />
   </a>
 </video>
 
@@ -36,7 +36,7 @@ Search Jimaku, download a track, then retime it with alass or ffsubsync without 
 
 ## Jellyfin integration
 
-Browse your Jellyfin library, cast to a device, and start playback from SubMiner. Watch progress goes back to the Jellyfin server.
+Browse your Jellyfin library and play from SubMiner, or cast to SubMiner from another Jellyfin client. Watch progress syncs back to the server.
 
 <!-- <video controls playsinline preload="metadata" :poster="withBase(`/assets/demos/jellyfin-poster.jpg?v=${v}`)">
   <source :src="withBase(`/assets/demos/jellyfin.webm?v=${v}`)" type="video/webm" />
