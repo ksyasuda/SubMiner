@@ -1,6 +1,6 @@
 # Building and testing
 
-Build, run, and test SubMiner from source. Architecture and workflow rules live in the repo's internal docs, starting at [`docs/README.md`](https://github.com/ksyasuda/SubMiner/blob/main/docs/README.md). The lane-by-lane test guide is [`docs/workflow/verification.md`](https://github.com/ksyasuda/SubMiner/blob/main/docs/workflow/verification.md).
+Build, run, and test SubMiner from source. Architecture and workflow rules live in the repo's internal docs, starting at [`docs/README.md`](https://github.com/ksyasuda/SubMiner/blob/main/docs/README.md). Module boundaries and layering rules are in [`docs/architecture/README.md`](https://github.com/ksyasuda/SubMiner/blob/main/docs/architecture/README.md). The lane-by-lane test guide is [`docs/workflow/verification.md`](https://github.com/ksyasuda/SubMiner/blob/main/docs/workflow/verification.md).
 
 ## Prerequisites
 
