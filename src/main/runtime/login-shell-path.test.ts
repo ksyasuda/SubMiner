@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
 import { applyLoginShellPath, mergePathValues, readLoginShellPath } from './login-shell-path';
 
 const wrap = (value: string) =>
@@ -22,6 +23,51 @@ test('readLoginShellPath extracts PATH between markers, ignoring rc-file output'
 test('readLoginShellPath returns null when markers are missing', async () => {
   const value = await readLoginShellPath({ env: {}, shell: '/bin/sh', runShell: async () => '' });
   assert.equal(value, null);
+});
+
+test('readLoginShellPath rejects relative explicit shells before execution', async () => {
+  for (const shell of ['zsh', './zsh', '']) {
+    await assert.rejects(
+      readLoginShellPath({
+        env: { SHELL: '/bin/zsh' },
+        shell,
+        runShell: async () => assert.fail('Invalid shell must not execute'),
+      }),
+      /Login shell must be an absolute path/,
+    );
+  }
+});
+
+test('readLoginShellPath falls back through absolute default shells', async () => {
+  const originalUserInfo = os.userInfo;
+  try {
+    for (const shell of ['/bin/bash', 'bash', '', null]) {
+      Object.defineProperty(os, 'userInfo', {
+        value: () => ({ shell, username: 'test', uid: 1000, gid: 1000, homedir: '/Users/test' }),
+      });
+      await readLoginShellPath({
+        env: { SHELL: './zsh' },
+        runShell: async (selectedShell) => {
+          assert.equal(selectedShell, shell === '/bin/bash' ? '/bin/bash' : '/bin/zsh');
+          return wrap('/usr/bin');
+        },
+      });
+    }
+    Object.defineProperty(os, 'userInfo', {
+      value: () => {
+        throw new Error('User lookup failed');
+      },
+    });
+    await readLoginShellPath({
+      env: { SHELL: 'zsh' },
+      runShell: async (shell) => {
+        assert.equal(shell, '/bin/zsh');
+        return wrap('/usr/bin');
+      },
+    });
+  } finally {
+    os.userInfo = originalUserInfo;
+  }
 });
 
 test('mergePathValues puts login entries first and keeps process-only entries', () => {

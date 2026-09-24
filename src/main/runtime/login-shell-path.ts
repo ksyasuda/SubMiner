@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import os from 'node:os';
+import { isAbsolute } from 'node:path';
 
 const MARKER = '__SUBMINER_LOGIN_PATH__';
 const DEFAULT_TIMEOUT_MS = 5000;
@@ -29,9 +30,10 @@ const runShellDefault: RunShell = (shell, args, timeoutMs) =>
   });
 
 function defaultShell(env: NodeJS.ProcessEnv): string {
-  if (env.SHELL) return env.SHELL;
+  if (env.SHELL && isAbsolute(env.SHELL)) return env.SHELL;
   try {
-    return os.userInfo().shell || '/bin/zsh';
+    const shell = os.userInfo().shell;
+    return shell && isAbsolute(shell) ? shell : '/bin/zsh';
   } catch {
     return '/bin/zsh';
   }
@@ -43,6 +45,7 @@ function defaultShell(env: NodeJS.ProcessEnv): string {
  */
 export async function readLoginShellPath(options: LoginShellPathOptions): Promise<string | null> {
   const shell = options.shell ?? defaultShell(options.env);
+  if (!isAbsolute(shell)) throw new Error('Login shell must be an absolute path');
   const run = options.runShell ?? runShellDefault;
   // printenv keeps this shell-agnostic (fish exposes $PATH as a list).
   const command = `printf '%s' '${MARKER}'; /usr/bin/printenv PATH; printf '%s' '${MARKER}'`;
