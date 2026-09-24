@@ -448,7 +448,7 @@ export function createFirstRunSetupService(deps: {
         getSetupStateDictionaryBackend(stored) === getDictionaryBackend()
           ? stored
           : writeState(projectState(stored));
-      const { configReady, dictionaryCount, externalYomitanConfigured } =
+      const { configReady, dictionaryCount, externalYomitanConfigured, hachidoriHost } =
         await resolveYomitanSetupStatus({
           configFilePaths,
           getYomitanDictionaryCount: deps.getYomitanDictionaryCount,
@@ -461,7 +461,11 @@ export function createFirstRunSetupService(deps: {
         dictionaryCount,
         externalYomitanConfigured,
       });
-      if (isSetupCompleted(state) && canFinish) {
+      // A linked host is usually still connecting at startup, so an unreachable host
+      // says nothing about its dictionaries; only a reachable empty host reopens setup.
+      const hostUnreachable =
+        hachidoriHost?.kind === 'disconnected' || hachidoriHost?.kind === 'unavailable';
+      if (isSetupCompleted(state) && (canFinish || (configReady && hostUnreachable))) {
         completed = true;
         return refreshWithState(state);
       }

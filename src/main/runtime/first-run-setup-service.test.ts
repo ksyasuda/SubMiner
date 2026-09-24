@@ -892,12 +892,13 @@ test('Hachidori setup gates on the linked host instead of local dictionaries', a
     assert.equal(snapshot.dictionaryCount, 2);
     assert.equal(snapshot.canFinish, true);
     assert.equal((await service.markSetupCompleted()).state.status, 'completed');
-    host = { kind: 'disconnected', address: 'ws://127.0.0.1:8771/link', message: 'Host offline' };
+    // The link is still connecting at startup; that must not undo a finished setup.
+    host = { kind: 'disconnected', address: 'ws://127.0.0.1:8771/link', message: 'Connecting' };
     snapshot = await service.ensureSetupStateInitialized();
     assert.equal(snapshot.canFinish, false);
     assert.equal(snapshot.dictionaryCount, 0);
-    assert.equal(snapshot.state.status, 'incomplete');
-    assert.notEqual((await service.markSetupCompleted()).state.status, 'completed');
+    assert.equal(snapshot.state.status, 'completed');
+    assert.equal(service.isSetupCompleted(), true);
     host = {
       kind: 'connected',
       address: 'ws://127.0.0.1:8771/link',
@@ -905,6 +906,9 @@ test('Hachidori setup gates on the linked host instead of local dictionaries', a
       dictionaryCount: 0,
     };
     assert.equal((await service.getSetupStatus()).canFinish, false);
+    // A reachable host with no dictionaries does reopen setup.
+    assert.equal((await service.ensureSetupStateInitialized()).state.status, 'incomplete');
+    assert.notEqual((await service.markSetupCompleted()).state.status, 'completed');
     host = { kind: 'local' };
     assert.equal((await service.getSetupStatus()).dictionaryCount, 7);
     assert.equal((await service.getSetupStatus()).canFinish, true);
