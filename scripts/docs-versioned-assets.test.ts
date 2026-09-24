@@ -3,11 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  dedupeVersionedPublicAssets,
-  pruneArchiveCacheGenerations,
-  rewriteSharedAssetReferences,
-} from './docs-versioned-assets';
+import { dedupeVersionedPublicAssets, rewriteSharedAssetReferences } from './docs-versioned-assets';
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'subminer-docs-versioned-assets-'));
@@ -92,31 +88,6 @@ describe('docs versioned asset dedupe', () => {
 
       expect(result.removedAssetsDir).toBe(false);
       expect(existsSync(join(dir, 'assets'))).toBe(true);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-});
-
-describe('docs archive cache pruning', () => {
-  test('removes stale cache generations while keeping the active generation', async () => {
-    const dir = tempDir();
-    try {
-      mkdirSync(join(dir, 'active123456-v0.14.0'), { recursive: true });
-      mkdirSync(join(dir, 'stale654321-v0.14.0'), { recursive: true });
-      mkdirSync(join(dir, 'stale654321-v0.13.0'), { recursive: true });
-
-      const removed = pruneArchiveCacheGenerations({
-        cacheRoot: dir,
-        activeCacheKey: 'active123456abcdef',
-      });
-
-      expect(removed.sort()).toEqual([
-        join(dir, 'stale654321-v0.13.0'),
-        join(dir, 'stale654321-v0.14.0'),
-      ]);
-      expect(existsSync(join(dir, 'active123456-v0.14.0'))).toBe(true);
-      expect(existsSync(join(dir, 'stale654321-v0.14.0'))).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

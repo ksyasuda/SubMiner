@@ -72,7 +72,7 @@ test('stable release tags publish docs and prereleases do not update stable docs
   assert.match(docsPagesWorkflow, /tags:\s*\n\s*-\s*'v\*'/);
   assert.match(docsPagesWorkflow, /github\.ref_name/);
   assert.match(docsPagesWorkflow, /\^v\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+\$/);
-  assert.match(docsPagesWorkflow, /bun run docs:build:versioned/);
+  assert.match(docsPagesWorkflow, /bun run scripts\/build-versioned-docs\.ts/);
   assert.doesNotMatch(docsPagesWorkflow, /beta/);
 });
 

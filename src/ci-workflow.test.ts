@@ -53,15 +53,17 @@ test('main docs deploy exists, serializes deploys, and uses Cloudflare credentia
   assert.match(docsPagesWorkflow, /CLOUDFLARE_API_TOKEN/);
   assert.match(docsPagesWorkflow, /CLOUDFLARE_ACCOUNT_ID/);
   assert.match(docsPagesWorkflow, /CLOUDFLARE_PAGES_PROJECT_NAME/);
-  assert.match(docsPagesWorkflow, /pages deploy \.tmp\/docs-versioned-site/);
+  assert.match(docsPagesWorkflow, /pages deploy \.\.\/\.tmp\/docs-versioned-site/);
   assert.match(docsPagesWorkflow, /--branch main/);
 });
 
-test('docs deploy caches stable archive builds between runs', () => {
-  assert.match(docsPagesWorkflow, /actions\/cache@v4/);
-  assert.match(docsPagesWorkflow, /\.tmp\/docs-versioned-archive-cache/);
-  assert.match(docsPagesWorkflow, /docs-versioned-archives-/);
-  assert.match(docsPagesWorkflow, /docs-site\/\.vitepress\/\*\*/);
+test('docs deploy syncs frozen archives to R2 and ships the archive Pages Function', () => {
+  assert.doesNotMatch(docsPagesWorkflow, /actions\/cache@/);
+  assert.match(docsPagesWorkflow, /DOCS_ARCHIVE_R2_ACCESS_KEY_ID/);
+  assert.match(docsPagesWorkflow, /DOCS_ARCHIVE_R2_SECRET_ACCESS_KEY/);
+  assert.match(docsPagesWorkflow, /--require-archives/);
+  assert.match(docsPagesWorkflow, /--rebuild-archives=\$\{REBUILD_ARCHIVES\}/);
+  assert.match(docsPagesWorkflow, /workingDirectory: docs-site/);
 });
 
 test('docs deploy skips invalid release tags without failing the workflow', () => {
