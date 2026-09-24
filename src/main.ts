@@ -392,6 +392,7 @@ import {
   installLauncher as installCommandLineLauncher,
   refreshManagedCommandLineLauncher,
 } from './main/runtime/command-line-launcher';
+import { applyLoginShellPath } from './main/runtime/login-shell-path';
 import {
   createWindowsMpvLaunchDeps,
   getConfiguredWindowsMpvPathStatus,
@@ -1456,20 +1457,35 @@ const resolveWindowsMpvShortcutRuntimePaths = () =>
     appDataDir: app.getPath('appData'),
     desktopDir: app.getPath('desktop'),
   });
-const createCommandLineLauncherRuntimeOptions = () => ({
-  platform: process.platform,
-  env: process.env,
-  homeDir: os.homedir(),
-  localAppData: process.env.LOCALAPPDATA,
-  userProfile: process.env.USERPROFILE,
-  cwd: process.cwd(),
-  resourcesPath: process.resourcesPath,
-  appExePath: process.execPath,
-  appVersion: app.getVersion(),
-  bundledBunPath: app.isPackaged
-    ? path.join(process.resourcesPath, 'bun', process.platform === 'win32' ? 'bun.exe' : 'bun')
-    : undefined,
-});
+// Finder/Dock launches inherit launchd's minimal PATH; pick up the user's shell PATH so
+// launcher/Bun detection and spawned tools match what their terminal sees.
+const loginShellPathReady: Promise<void> =
+  process.platform === 'darwin'
+    ? applyLoginShellPath({ env: process.env })
+        .then((applied) => {
+          if (!applied) logger.warn('Login shell PATH was empty; using inherited PATH');
+        })
+        .catch((error) => {
+          logger.warn('Failed to read login shell PATH; using inherited PATH', error);
+        })
+    : Promise.resolve();
+const createCommandLineLauncherRuntimeOptions = async () => {
+  await loginShellPathReady;
+  return {
+    platform: process.platform,
+    env: process.env,
+    homeDir: os.homedir(),
+    localAppData: process.env.LOCALAPPDATA,
+    userProfile: process.env.USERPROFILE,
+    cwd: process.cwd(),
+    resourcesPath: process.resourcesPath,
+    appExePath: process.execPath,
+    appVersion: app.getVersion(),
+    bundledBunPath: app.isPackaged
+      ? path.join(process.resourcesPath, 'bun', process.platform === 'win32' ? 'bun.exe' : 'bun')
+      : undefined,
+  };
+};
 const firstRunSetupService = createFirstRunSetupService({
   getDictionaryBackend: () => activeDictionaryBackend,
   getHachidoriHostStatus: async () => {
@@ -1548,10 +1564,10 @@ const firstRunSetupService = createFirstRunSetupService({
         shell.writeShortcutLink(shortcutPath, operation, details),
     });
   },
-  detectCommandLineLauncher: () =>
-    detectCommandLineLauncher(createCommandLineLauncherRuntimeOptions()),
+  detectCommandLineLauncher: async () =>
+    detectCommandLineLauncher(await createCommandLineLauncherRuntimeOptions()),
   installBun: async () => {
-    const snapshot = await installCommandLineBun(createCommandLineLauncherRuntimeOptions());
+    const snapshot = await installCommandLineBun(await createCommandLineLauncherRuntimeOptions());
     return {
       ok: snapshot.status === 'ready',
       message:
@@ -1562,7 +1578,9 @@ const firstRunSetupService = createFirstRunSetupService({
     };
   },
   installCommandLineLauncher: async () => {
-    const snapshot = await installCommandLineLauncher(createCommandLineLauncherRuntimeOptions());
+    const snapshot = await installCommandLineLauncher(
+      await createCommandLineLauncherRuntimeOptions(),
+    );
     const ok = snapshot.status === 'ready' || snapshot.status === 'not_on_path';
     return {
       ok,
@@ -6452,7 +6470,7 @@ runAndApplyStartupState();
 void app.whenReady().then(() => {
   void takePendingLauncherMigrationPath(async (pendingLauncherPath) => {
     const acknowledgedPaths = await refreshManagedCommandLineLauncher({
-      ...createCommandLineLauncherRuntimeOptions(),
+      ...(await createCommandLineLauncherRuntimeOptions()),
       additionalLauncherPaths: pendingLauncherPath ? [pendingLauncherPath] : [],
     });
     return pendingLauncherPath !== undefined && acknowledgedPaths.includes(pendingLauncherPath);
