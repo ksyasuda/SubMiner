@@ -11,7 +11,7 @@
   `ANTHROPIC_API_KEY` works. Install from <https://claude.com/claude-code> if
   you don't already have it.
 
-## Package contents and size checks
+## Package contents checks
 
 Stable and prerelease workflows share `.github/workflows/package-release.yml`.
 Both callers explicitly pass the five required macOS signing/notarization
@@ -19,11 +19,9 @@ secrets plus the optional `SUBMINER_TMDB_API_KEY` (the project TMDB key that
 `scripts/prepare-build-assets.mjs` stages into `dist/bundled-integration-keys.json`;
 artifacts built without it simply require users to set `tmdb.apiKey`).
 `GITHUB_TOKEN` remains automatically available to the reusable workflow.
-Each platform verifies its ASAR and external resources before signing, then
-measures the signed app and installers before upload. Missing runtime assets,
-foreign SQLite/Koffi binaries, duplicate UI fonts, demo media, source maps,
-TypeScript files, and nested test or fixture directories
-fail the build. Size measurements are informational and do not block releases.
+Each platform verifies its ASAR and external resources before signing. Missing
+runtime assets, foreign SQLite/Koffi binaries, duplicate UI fonts, demo media,
+source maps, TypeScript files, and nested test or fixture directories fail the build.
 Current targets are Linux x64, macOS arm64, and Windows x64.
 
 The runtime allowlist includes `dist/`, `stats/dist/`, and
@@ -33,14 +31,6 @@ pattern in platform `files` lists: electron-builder otherwise treats an
 exclusion-only platform list as a separate include-all matcher. Windows keeps
 only its target Koffi binary; other platforms omit Koffi. Desktop UIs share the
 original M PLUS 1 TTF in `dist/fonts/`.
-
-`release/package-size-<platform>-<arch>.json` reports unpacked bytes, largest
-files inside and outside ASAR, native binaries, and compressed artifact sizes.
-Framework symlinks are not counted twice. Reports are checksummed and published.
-CI downloads the preceding release's reports for comparison; older releases
-without reports skip comparison. Review the inventory and reason for growth
-when comparing releases. An AppImage normally
-runs compressed; its extracted size is a separate measurement.
 
 The shared workflow runs `bun run test:package <resources-directory>` with the
 pinned Electron runtime and temporary user data. On headless Linux, prefix it

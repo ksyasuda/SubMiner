@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  executableRunLines,
   jobSteps,
   readWorkflow,
   stepRunsCommand,
@@ -109,20 +108,12 @@ test('prerelease workflow builds and uploads all release platforms', () => {
       ...paths,
       'release/latest*.yml',
       'release/*.blockmap',
-      'release/package-size-*.json',
     ]);
     const download = jobSteps(parsedPrereleaseWorkflow, 'release').find(
       (step) => step.uses === 'actions/download-artifact@v4' && step.with?.name === name,
     );
     assert.equal(download?.with?.path, 'release');
   }
-  const steps = jobSteps(parsedPrereleaseWorkflow, 'release');
-  const checksum = steps.find((step) => step.name === 'Generate checksums');
-  const publish = steps.find((step) => step.name === 'Publish Prerelease');
-  assert.ok(checksum);
-  assert.ok(publish);
-  assert.ok(executableRunLines(checksum).includes('files+=(release/package-size-*.json)'));
-  assert.ok(executableRunLines(publish).includes('release/package-size-*.json'));
 });
 
 test('release callers pass only the declared packaging secrets', () => {

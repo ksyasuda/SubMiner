@@ -269,8 +269,7 @@
         "from": "CHANGELOG.md",
         "to": "CHANGELOG.md"
       }
-    ],
-    "afterAllArtifactBuild": "scripts/package-audit.cjs"
+    ]
   },
   "patchedDependencies": {
     "@discordjs/rest@2.6.1": "patches/@discordjs%2Frest@2.6.1.patch"

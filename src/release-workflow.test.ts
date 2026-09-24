@@ -289,7 +289,6 @@ test('stable and prerelease builds use the same packaging gate', () => {
   for (const workflow of [releaseWorkflow, prerelease]) {
     assert.match(workflow, /uses: \.\/\.github\/workflows\/package-release\.yml/);
     assert.match(workflow, /needs: \[package\]/);
-    assert.match(workflow, /release\/package-size-\*\.json/);
   }
   assert.deepEqual(
     templateExpressionsInRunBodies(
