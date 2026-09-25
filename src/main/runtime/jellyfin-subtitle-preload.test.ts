@@ -403,20 +403,19 @@ test('preload jellyfin subtitles selects japanese before slower tracks finish do
   );
 
   const done = preload({ session, clientInfo, itemId: 'item-1' });
-  while (
-    !commands.some(
+  const hasJapanesePrimary = () =>
+    commands.some(
       (command) => command[0] === 'set_property' && command[1] === 'sid' && command[2] === 1,
-    )
-  ) {
+    );
+  for (let tick = 0; tick < 1000 && !hasJapanesePrimary(); tick += 1) {
     await new Promise((resolve) => setImmediate(resolve));
   }
-
-  assert.deepEqual(setPropertyCommandsExceptTrackAutoSelection(commands), [
-    ['set_property', 'sid', 1],
-  ]);
+  const selectedBeforeSlowTrack = setPropertyCommandsExceptTrackAutoSelection(commands);
+  // Release before asserting so a regression fails here instead of leaving the preload hanging.
   releaseSlowTrack();
   await done;
 
+  assert.deepEqual(selectedBeforeSlowTrack, [['set_property', 'sid', 1]]);
   assert.deepEqual(setPropertyCommandsExceptTrackAutoSelection(commands), [
     ['set_property', 'sid', 1],
     ['set_property', 'secondary-sid', 2],
