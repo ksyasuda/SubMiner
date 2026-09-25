@@ -377,6 +377,14 @@ test('listSubtitleTracks returns all subtitle streams with delivery urls', async
                 DeliveryUrl: 'https://cdn.example.com/subs.srt',
                 IsExternalUrl: true,
               },
+              {
+                Type: 'Subtitle',
+                Index: 5,
+                Codec: 'PGSSUB',
+                Language: 'eng',
+                DisplayTitle: 'English PGS',
+                DeliveryMethod: 'Embed',
+              },
             ],
           },
         ],
@@ -395,10 +403,10 @@ test('listSubtitleTracks returns all subtitle streams with delivery urls', async
       clientInfo,
       'movie-1',
     );
-    assert.equal(tracks.length, 3);
+    assert.equal(tracks.length, 4);
     assert.deepEqual(
       tracks.map((track) => track.index),
-      [2, 3, 4],
+      [2, 3, 4, 5],
     );
     assert.equal(
       tracks[0]!.deliveryUrl,
@@ -409,6 +417,7 @@ test('listSubtitleTracks returns all subtitle streams with delivery urls', async
       'http://jellyfin.local/Videos/movie-1/ms-1/Subtitles/3/Stream.srt?ApiKey=token',
     );
     assert.equal(tracks[2]!.deliveryUrl, 'https://cdn.example.com/subs.srt');
+    assert.equal(tracks[3]!.deliveryUrl, null, 'bitmap subtitles cannot be fetched as text');
   } finally {
     globalThis.fetch = originalFetch;
   }

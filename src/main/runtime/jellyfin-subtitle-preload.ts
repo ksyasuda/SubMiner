@@ -367,15 +367,22 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
 
       // Download every track at once and add each to mpv as soon as it lands. Jellyfin has
       // to extract embedded tracks from the container, so one slow track must not hold up
-      // the Japanese primary that annotations depend on.
+      // the Japanese primary that annotations depend on. A failed track is skipped rather
+      // than failing the whole preload, so the remaining tracks still get selected.
       const cachedTracks: CachedExternalSubtitleTrack[] = [];
       const downloads = new Map(
         uniqueTracks.map((track) => [
           track,
-          (async (): Promise<CachedExternalSubtitleTrack> => {
+          (async (): Promise<CachedExternalSubtitleTrack | null> => {
             const labelBase = (track.title || track.language || '').trim();
             const label = labelBase || `Jellyfin Subtitle ${track.index}`;
-            const cached = { ...(await deps.cacheSubtitleTrack(track)), source: track };
+            let cached: CachedExternalSubtitleTrack;
+            try {
+              cached = { ...(await deps.cacheSubtitleTrack(track)), source: track };
+            } catch (error) {
+              deps.logDebug(`Failed to download Jellyfin subtitle track ${track.index}`, error);
+              return null;
+            }
             activeCacheDirs.add(cached.cleanupDir);
             cachedTracks.push(cached);
             deps.sendMpvCommand(['sub-add', cached.path, 'auto', label, track.language || '']);
@@ -383,20 +390,17 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
           })(),
         ]),
       );
-      // Settled up front so a failed download is not flagged as unhandled while the
-      // Japanese track is still being selected.
-      const allDownloads = Promise.allSettled(downloads.values());
+      const allDownloads = Promise.all(downloads.values());
 
       try {
         let subtitleTracks: MpvSubtitleTrack[] = [];
         let japanesePrimaryId: number | null | undefined;
 
         const preferredJapaneseSource = pickPreferredJapaneseSource(uniqueTracks);
-        const preferredJapaneseDownload = preferredJapaneseSource
-          ? downloads.get(preferredJapaneseSource)
-          : undefined;
-        if (preferredJapaneseDownload) {
-          const preferredJapanese = await preferredJapaneseDownload;
+        const preferredJapanese = preferredJapaneseSource
+          ? await downloads.get(preferredJapaneseSource)
+          : null;
+        if (preferredJapanese) {
           await deps.wait(TRACK_SELECTION_INITIAL_WAIT_MS);
           subtitleTracks =
             (await waitForPreferredSubtitleTracks(deps, true, [preferredJapanese.path])) ?? [];
@@ -418,11 +422,7 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
           }
         }
 
-        const results = await allDownloads;
-        const failedDownload = results.find((result) => result.status === 'rejected');
-        if (failedDownload) {
-          throw failedDownload.reason;
-        }
+        await allDownloads;
         const cachedPaths = cachedTracks.map((track) => track.path);
         if (!hasExpectedExternalSubtitleTracks(subtitleTracks, cachedPaths)) {
           await deps.wait(TRACK_SELECTION_INITIAL_WAIT_MS);
