@@ -1,12 +1,12 @@
 # Building and testing
 
-Architecture and workflow guidance lives in `docs/README.md` at the repo root. This page covers build and test commands only.
+Build, run, and test SubMiner from source. Architecture and workflow rules live in the repo's internal docs, starting at [`docs/README.md`](https://github.com/ksyasuda/SubMiner/blob/main/docs/README.md). Module boundaries and layering rules are in [`docs/architecture/README.md`](https://github.com/ksyasuda/SubMiner/blob/main/docs/architecture/README.md). The lane-by-lane test guide is [`docs/workflow/verification.md`](https://github.com/ksyasuda/SubMiner/blob/main/docs/workflow/verification.md).
 
 ## Prerequisites
 
-- [Bun](https://bun.sh)
-- A system `lua` interpreter for `bun run test:launcher` / `bun run test:plugin:src`
-- macOS builds compile a Swift helper via `scripts/prepare-build-assets.mjs` (skip with `SUBMINER_SKIP_MACOS_HELPER_BUILD=1`)
+- [Bun](https://bun.sh), at the version pinned in `package.json`
+- A system `lua` interpreter for the mpv plugin tests (`bun run test:launcher`, `bun run test:env`)
+- macOS only: `bun run build` compiles a Swift window helper. Set `SUBMINER_SKIP_MACOS_HELPER_BUILD=1` to skip it.
 
 ## Setup
 
@@ -16,36 +16,20 @@ cd SubMiner
 make deps
 ```
 
-`make deps` initializes submodules and installs root, `stats/`, and `vendor/texthooker-ui` dependencies. The Yomitan submodule installs its own dependencies on demand during `bun run build`.
+`make deps` initializes submodules and installs dependencies for the root, `stats/`, and `vendor/texthooker-ui`. The Yomitan submodule installs its own dependencies during `bun run build`.
 
-## Building
+## Build
 
 ```bash
-# Main app build
-bun run build
-
-# Platform packages
+bun run build               # app build, including bundled Yomitan from vendor/subminer-yomitan
 bun run build:appimage      # Linux AppImage
 bun run build:mac           # macOS DMG + ZIP (signed)
 bun run build:mac:unsigned  # macOS DMG + ZIP (unsigned)
 bun run build:win           # Windows NSIS installer + ZIP
-
-# Optional launcher artifact only
-make build-launcher
-# output: dist/launcher/subminer
+make build-launcher         # launcher only, output: dist/launcher/subminer
 ```
 
-`bun run build` includes the Yomitan build step. It builds the bundled Chrome extension directly from the `vendor/subminer-yomitan` submodule into `build/yomitan` using Bun.
-
-## Launcher artifact workflow
-
-- Source of truth: `launcher/*.ts`
-- Generated output: `dist/launcher/subminer`
-- Do not hand-edit generated launcher output.
-- Repo-root `./subminer` is a stale artifact path and is rejected by verification checks.
-- Install targets (`make install-linux`, `make install-macos`) copy from `dist/launcher/subminer`.
-
-Verify the workflow:
+The launcher source is `launcher/*.ts`. `dist/launcher/subminer` is generated, so never edit it by hand. The repo-root `./subminer` is a stale path and verification rejects it. `make install-linux` and `make install-macos` copy from `dist/launcher/subminer`. To check the launcher build:
 
 ```bash
 make build-launcher
@@ -53,20 +37,17 @@ dist/launcher/subminer --help >/dev/null
 bash scripts/verify-generated-launcher.sh
 ```
 
-## Running locally
+## Run locally
 
 ```bash
-bun run dev    # builds + launches with --start --dev
-electron . --start --dev --log-level debug   # equivalent Electron launch with verbose logging
-electron . --background                       # tray/background mode, minimal default logging
-make dev-start                                # build + launch via Makefile
-make dev-watch                                # watch TS + renderer and launch Electron (faster edit loop)
-make dev-watch-macos                          # same as dev-watch, forcing --backend macos
+bun run dev                                  # build, then launch with --start --dev
+make dev-watch                               # watch TS + renderer and relaunch Electron
+make dev-watch-macos                         # same, forcing --backend macos
+electron . --start --dev --log-level debug   # verbose launch of an existing build
+electron . --background                      # tray/background mode
 ```
 
-For mpv-plugin-driven testing without exporting `SUBMINER_BINARY_PATH` each run, set a one-time
-dev binary path with `mpv.subminerBinaryPath` in your SubMiner config. The launcher injects it into
-the mpv plugin at runtime:
+To test through the mpv plugin without exporting `SUBMINER_BINARY_PATH` each time, point `mpv.subminerBinaryPath` in your config at the dev script. The launcher passes it to the plugin at runtime:
 
 ```json
 {
@@ -76,35 +57,9 @@ the mpv plugin at runtime:
 }
 ```
 
-## Testing
+## Test
 
-Default lanes:
-
-```bash
-bun run test           # alias for test:fast
-bun run test:fast      # full source lanes: src + launcher-unit + scripts + runtime compat
-bun run test:runtime:compat # compiled/runtime compatibility slice only
-bun run test:env       # launcher/plugin + env-sensitive verification
-bun run test:stats     # stats dashboard UI suite
-bun run test:immersion:sqlite # SQLite persistence lane
-bun run test:subtitle  # maintained alass/ffsubsync subtitle surface
-```
-
-Test lane membership is defined once in `scripts/test-lanes.ts` and discovered by
-directory, so new test files join their lane automatically. `scripts/run-test-lane.mjs`
-runs each test file in its own `bun test` process (per-file isolation) so a hanging
-test or leaked global in one file cannot cascade into the rest of the lane; pass
-`--jobs N` to parallelize or `--single-process` for one shared process.
-
-- `bun run test` and `bun run test:fast` cover the full discovered `src/**` suite, launcher unit tests, `scripts/**` tests, and the compiled/runtime compatibility lane.
-- `bun run test:runtime:compat` covers the compiled/runtime slice directly: `ipc`, `anki-jimaku-ipc`, `overlay-manager`, `config-validation`, `startup-config`, and `registry`.
-- `bun run test:env` covers environment-sensitive checks: launcher smoke/plugin verification plus the Bun source SQLite lane.
-- `bun run test:stats` runs the stats dashboard suite under `stats/src/**`.
-- `bun run test:immersion:sqlite` is the reproducible persistence lane when you need real DB-backed SQLite coverage under Bun.
-
-The Bun-managed discovery lanes intentionally exclude a small compiled/runtime-focused set: `src/core/services/ipc.test.ts`, `src/core/services/anki-jimaku-ipc.test.ts`, `src/core/services/overlay-manager.test.ts`, `src/main/config-validation.test.ts`, `src/main/runtime/startup-config.test.ts`, and `src/main/runtime/registry.test.ts`. `bun run test:runtime:compat` keeps them in the standard workflow via `dist/**`.
-
-Suggested local gate before handoff:
+Run the handoff gate before submitting substantial changes:
 
 ```bash
 bun run typecheck
@@ -114,133 +69,111 @@ bun run build
 bun run test:smoke:dist
 ```
 
-If you changed docs in `docs-site/`, also run:
+For smaller changes, start with the cheapest lane that covers what you touched:
+
+| Command                         | Covers                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------ |
+| `bun run test` / `test:fast`    | All `src/**` tests, launcher unit tests, and `scripts/**` tests          |
+| `bun run test:config`           | Config schema, defaults, and `config.example.jsonc` generation           |
+| `bun run test:launcher`         | Launcher tests plus the Lua plugin tests                                 |
+| `bun run test:env`              | Launcher e2e smoke, Lua plugin tests, SQLite immersion tests from source |
+| `bun run test:scripts`          | Build and release scripts under `scripts/**`                             |
+| `bun run test:stats`            | Stats dashboard UI under `stats/src/**`                                  |
+| `bun run test:runtime:compat`   | Compiled-runtime smoke against `dist/` (run `bun run build` first)       |
+| `bun run test:immersion:sqlite` | Compiles, then runs the SQLite-backed immersion tracker tests            |
+| `bun run test:subtitle`         | alass/ffsubsync subtitle sync                                            |
+| `bun run test:docs:kb`          | Internal docs, `AGENTS.md`, and repo skills                              |
+
+Lane membership is defined in `scripts/test-lanes.ts` and discovered by directory, so a new test file joins its lane automatically. Do not hand-list test files in `package.json`. `scripts/run-test-lane.mjs` runs each file in its own `bun test` process, so a hanging test cannot take down the rest of the lane. Pass `--jobs N` to parallelize or `--single-process` to share one process while debugging.
+
+Launcher smoke artifacts go to `.tmp/launcher-smoke`. CI uploads them when the smoke step fails.
+
+## Format
 
 ```bash
-bun run docs:test
-bun run docs:build
+make pretty               # format the maintained source and stats files
+bun run format:check:src  # check the same set without writing
 ```
 
-For production docs routing, run the versioned build:
+`bun run format` runs Prettier over the whole repo. Use it only when you mean to.
+
+## Config generation
+
+```bash
+bun run electron . --generate-config   # write a default config to ~/.config/SubMiner/config.jsonc (%APPDATA%\SubMiner\config.jsonc on Windows)
+bun run generate:config-example        # regenerate config.example.jsonc from the defaults
+```
+
+`make generate-config` and `make generate-example-config` wrap the same commands.
+
+Config definitions are split by domain under `src/config/definitions/`:
+
+- defaults: `defaults-*.ts`
+- option metadata: `options-*.ts`
+- generated template sections and comments: `template-sections.ts`
+
+`src/config/definitions.ts` composes them into the public API (`DEFAULT_CONFIG`, registries, template export). A new key also needs a resolver entry under `src/config/resolve/`, or the resolved config keeps the default.
+
+## Documentation site
+
+The user docs live in `docs-site/` (VitePress).
+
+```bash
+bun --cwd docs-site install
+bun run docs:dev      # dev server at http://localhost:5173
+bun run docs:test     # docs regression tests (links, pinned strings)
+bun run docs:build    # production build into docs-site/.vitepress/dist
+bun run docs:preview  # preview the build at http://localhost:4173
+```
+
+Run `bun run docs:test` and `bun run docs:build` whenever you change `docs-site/`.
+
+Production uses the versioned build:
 
 ```bash
 bun run docs:build:versioned
 ```
 
-The versioned build writes `.tmp/docs-versioned-site` with latest stable docs at `/`, development docs at `/main/`, and stable archives under `/v/<version>/`. Prerelease tags are skipped. Public assets from `docs-site/public/assets` are shared from root `/assets/` so large demo media is not duplicated into every version archive; generated VitePress CSS and JS assets stay under each version route. Stale `.tmp/docs-versioned-archive-cache` generations are pruned after a successful build, and intermediate `.tmp/docs-versioned-build` workspaces are removed.
+It writes `.tmp/docs-versioned-site`: the latest stable docs at `/` with a generated `/versions` page, and development docs at `/main/`. Prerelease tags are skipped. Stable archives under `/v/<version>/` are built once and stored in R2. Without R2 credentials the build skips archive sync, so a local run only produces `/` and `/main/`.
 
-Focused commands:
+The `docs-pages` GitHub Actions workflow uploads that output to Cloudflare Pages with Wrangler. Cloudflare's Git-integration builds are disabled on purpose, so do not re-enable them in the dashboard. `docs-site/README.md` has the full deployment setup.
 
-```bash
-bun run test:config       # Source-level config schema/validation tests
-bun run test:launcher     # Launcher regression tests (config discovery + command routing)
-bun run test:launcher:smoke:src # Launcher e2e smoke: launcher -> mpv IPC -> overlay start/stop wiring
-bun run test:env                # Launcher smoke + Lua plugin gate
-bun run test:src          # Bun-managed maintained src/** discovery lane
-bun run test:launcher:unit:src # Bun-managed maintained launcher unit lane
-bun run test:scripts      # Bun-managed scripts/** test lane
-bun run test:immersion:sqlite:src # Bun source lane
-```
+## Makefile targets
 
-Dist-level tests are now an explicit smoke lane used to validate compiled/runtime assumptions.
+Run `make help` for the full list.
 
-Launcher smoke artifacts are written to `.tmp/launcher-smoke` locally and uploaded by CI/release workflows when the smoke step fails.
-
-Smoke and optional deep dist commands:
-
-```bash
-bun run build                 # compile dist artifacts
-bun run test:immersion:sqlite # compile + run SQLite-backed immersion tests under Bun
-bun run test:smoke:dist       # explicit smoke scope for compiled runtime
-```
-
-Use `bun run test:immersion:sqlite` when you need real DB-backed coverage for the immersion tracker.
-
-## Formatting
-
-Use the scoped formatter for normal app-repo work:
-
-```bash
-make pretty
-bun run format:check:src
-```
-
-- `make pretty` runs the maintained Prettier allowlists (`format:src` and `format:stats`).
-- `bun run format:check:src` checks the same scoped set without writing changes.
-- `bun run format` remains the broad repo-wide Prettier command; use it intentionally.
-
-## Config generation
-
-```bash
-# Generate default config to ~/.config/SubMiner/config.jsonc (or %APPDATA%\SubMiner\config.jsonc on Windows)
-bun run electron . --generate-config
-
-# Regenerate the repo's config.example.jsonc from centralized defaults
-bun run generate:config-example
-```
-
-Convenience wrappers still exist:
-
-- `make generate-config`
-- `make generate-example-config`
-
-## Documentation site
-
-The docs site now lives in `docs-site/` inside the main repo.
-
-From the SubMiner app repo:
-
-```bash
-bun --cwd docs-site install
-bun run docs:dev     # Dev server at http://localhost:5173
-bun run docs:build   # Production build into docs-site/.vitepress/dist
-bun run docs:preview # Preview built site at http://localhost:4173
-bun run docs:test    # Docs regression tests
-```
-
-Deployment: production docs are built with `bun run docs:build:versioned` and uploaded directly to Cloudflare Pages by the `docs-pages` GitHub Actions workflow using Wrangler (from `.tmp/docs-versioned-site`). Cloudflare's automatic Git-integration deployments are intentionally disabled - see `docs-site/README.md` for the deployment contract. Do not re-enable Pages build settings in the Cloudflare dashboard.
-
-## Makefile reference
-
-Run `make help` for a full list of targets. Key ones:
-
-| Target                      | Description                                                       |
-| --------------------------- | ----------------------------------------------------------------- |
-| `make build`                | Build platform package for detected OS                            |
-| `make build-launcher`       | Generate launcher wrappers and CLI payload in `dist/launcher/`    |
-| `make install`              | Install platform artifacts (wrapper, theme, AppImage/app bundle)  |
-| `make deps`                 | Init submodules and install root/stats/texthooker-ui deps         |
-| `make pretty`               | Run scoped Prettier formatting for maintained source/config files |
-| `make generate-config`      | Generate default config from centralized registry                 |
-| `make build-linux`          | Convenience wrapper for Linux packaging                           |
-| `make build-macos`          | Convenience wrapper for signed macOS packaging                    |
-| `make build-macos-unsigned` | Convenience wrapper for unsigned macOS packaging                  |
+| Target                      | Description                                                  |
+| --------------------------- | ------------------------------------------------------------ |
+| `make deps`                 | Init submodules and install root, stats, and texthooker deps |
+| `make build`                | Build the platform package for the current OS                |
+| `make build-linux`          | Build the Linux package                                      |
+| `make build-macos`          | Build the signed macOS package                               |
+| `make build-macos-unsigned` | Build the unsigned macOS package                             |
+| `make build-launcher`       | Generate the launcher in `dist/launcher/`                    |
+| `make install`              | Install platform artifacts (wrapper, theme, AppImage or app) |
+| `make pretty`               | Run scoped Prettier formatting                               |
+| `make generate-config`      | Generate a default config                                    |
 
 ## Contributor notes
 
-- To add/change a config default, edit the matching domain file in `src/config/definitions/defaults-*.ts`.
-- To add/change config option metadata, edit the matching domain file in `src/config/definitions/options-*.ts`.
-- To add/change generated config template blocks/comments, update `src/config/definitions/template-sections.ts`.
-- Keep `src/config/definitions.ts` as the composed public API (`DEFAULT_CONFIG`, registries, template export) that wires domain modules together.
-- Overlay window/visibility state is owned by `src/core/services/overlay-manager.ts`.
-- Runtime architecture/module-boundary conventions are summarized in [Architecture](/architecture), with canonical internal guidance in `docs/architecture/README.md` at the repo root.
-- Linux packaged desktop launches pass `--background` using electron-builder `build.linux.executableArgs` in `package.json`.
-- Prefer direct inline deps objects in `src/main/` modules for simple pass-through wiring.
-- Add a helper/adapter service only when it performs meaningful adaptation, validation, or reuse (not identity mapping).
+- See [Architecture](/architecture) for module boundaries and [IPC + runtime contracts](/ipc-contracts) before adding IPC channels.
+- `src/core/services/overlay-manager.ts` owns overlay window and visibility state.
+- In `src/main/` modules, pass simple dependencies as inline objects. Add a helper or adapter only when it adapts, validates, or gets reused.
+- Packaged Linux desktop launches pass `--background` through `build.linux.executableArgs` in `package.json`.
 
 ## Environment variables
 
-| Variable                           | Description                                                                    |
-| ---------------------------------- | ------------------------------------------------------------------------------ |
-| `SUBMINER_APPIMAGE_PATH`           | Override SubMiner app binary path for launcher playback commands               |
-| `SUBMINER_BINARY_PATH`             | Alias for `SUBMINER_APPIMAGE_PATH`                                             |
-| `SUBMINER_ROFI_THEME`              | Override rofi theme path for launcher picker                                   |
-| `SUBMINER_MPV_PLUGIN_PATH`         | Override the mpv plugin directory injected by the launcher                     |
-| `SUBMINER_LOG_LEVEL`               | Override app logger level (`debug`, `info`, `warn`, `error`)                   |
-| `SUBMINER_MPV_LOG`                 | Override mpv/app shared log file path                                          |
-| `SUBMINER_JIMAKU_API_KEY`          | Override Jimaku API key for launcher subtitle downloads                        |
-| `SUBMINER_JIMAKU_API_KEY_COMMAND`  | Command used to resolve Jimaku API key at runtime                              |
-| `SUBMINER_JIMAKU_API_BASE_URL`     | Override Jimaku API base URL                                                   |
-| `SUBMINER_JELLYFIN_ACCESS_TOKEN`   | Override Jellyfin access token (used before stored encrypted session fallback) |
-| `SUBMINER_JELLYFIN_USER_ID`        | Optional Jellyfin user ID override                                             |
-| `SUBMINER_SKIP_MACOS_HELPER_BUILD` | Set to `1` to skip building the macOS helper binary during `bun run build`     |
+| Variable                           | Description                                                      |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| `SUBMINER_APPIMAGE_PATH`           | SubMiner app binary the launcher uses for playback               |
+| `SUBMINER_BINARY_PATH`             | Alias for `SUBMINER_APPIMAGE_PATH`                               |
+| `SUBMINER_ROFI_THEME`              | rofi theme for the launcher picker                               |
+| `SUBMINER_MPV_PLUGIN_PATH`         | mpv plugin directory the launcher injects                        |
+| `SUBMINER_LOG_LEVEL`               | App log level (`debug`, `info`, `warn`, `error`)                 |
+| `SUBMINER_MPV_LOG`                 | Shared mpv/app log file path                                     |
+| `SUBMINER_JIMAKU_API_KEY`          | Jimaku API key for launcher subtitle downloads                   |
+| `SUBMINER_JIMAKU_API_KEY_COMMAND`  | Command that prints the Jimaku API key                           |
+| `SUBMINER_JIMAKU_API_BASE_URL`     | Jimaku API base URL                                              |
+| `SUBMINER_JELLYFIN_ACCESS_TOKEN`   | Jellyfin access token, used before the stored encrypted session  |
+| `SUBMINER_JELLYFIN_USER_ID`        | Jellyfin user ID                                                 |
+| `SUBMINER_SKIP_MACOS_HELPER_BUILD` | Set to `1` to skip the macOS helper build during `bun run build` |

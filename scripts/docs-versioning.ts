@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 export type DocsVersionEntry = {
   version: string;
   path: string;
@@ -55,22 +53,6 @@ export function versionOutputPath(version: string): string {
   return `v/${version.replace(/^v/, '')}`;
 }
 
-export function versionArchiveCacheName(version: string, sharedInternalsHash: string): string {
-  return `${sharedInternalsHash.slice(0, 12)}-${version}`;
-}
-
-export function versionArchiveCacheKey(options: {
-  sharedInternalsHash: string;
-  manifestJson: string;
-}): string {
-  const hash = createHash('sha256');
-  hash.update('shared-internals:');
-  hash.update(options.sharedInternalsHash);
-  hash.update('\nmanifest:');
-  hash.update(options.manifestJson);
-  return hash.digest('hex');
-}
-
 export function stableTagsWithDocs(
   tags: string[],
   hasDocsSite: (tag: string) => boolean,
@@ -93,4 +75,28 @@ export function buildVersionManifest(options: {
       path: versionPath(version),
     })),
   };
+}
+
+// Markdown for the root-only `/versions` page. Archives link here instead of baking the
+// release list into their nav, so an archive never needs a rebuild when a new tag ships.
+// Raw anchors with `target="_self"` keep VitePress from treating the other builds as
+// dead links or routing to them client-side.
+export function renderVersionsPage(manifest: DocsVersionManifest): string {
+  const link = (path: string, text: string) => `<a href="${path}" target="_self">${text}</a>`;
+  return [
+    '---',
+    'title: Documentation versions',
+    'description: Every published version of the SubMiner documentation.',
+    '---',
+    '',
+    '# Documentation versions',
+    '',
+    `- ${link('/', `Latest stable (${manifest.latestStable})`)}`,
+    `- ${link('/main/', 'main')}: development docs, may describe unreleased behavior`,
+    '',
+    '## Stable releases',
+    '',
+    ...manifest.versions.map((entry) => `- ${link(entry.path, entry.version)}`),
+    '',
+  ].join('\n');
 }

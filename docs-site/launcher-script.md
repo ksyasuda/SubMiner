@@ -1,225 +1,195 @@
 # Launcher script
 
-The `subminer` launcher handles video selection, mpv startup, and overlay management in one script. It guarantees mpv starts with the right IPC socket and SubMiner defaults. On Windows, the **SubMiner mpv** shortcut remains the recommended playback entry point.
+`subminer` is the command-line entry point for SubMiner. It starts mpv with the socket and options SubMiner needs, opens file pickers, and runs helper commands. This page is the reference for its subcommands and flags. For everyday use, start with [Usage](/usage).
 
-The launcher is a small wrapper around the CLI bundled in the desktop app. It locates a normal SubMiner installation, or uses `SUBMINER_BINARY_PATH` when you set a custom executable. Linux also accepts `SUBMINER_APPIMAGE_PATH`. First-run setup records the selected app location for the wrapper. You do not need Bun installed or on `PATH`; only the directory containing `subminer` needs to be on `PATH`.
+You do not need Bun or anything else installed to run it. It uses the runtime bundled with the app. On Windows, the **SubMiner mpv** shortcut is the simpler way to play files (see [Windows mpv shortcut](/usage#windows-mpv-shortcut)).
 
-On macOS, the wrapper runs Bun and the CLI directly from `SubMiner.app/Contents/Resources`. On Windows, `subminer.cmd` stages a versioned private Bun copy under `%LOCALAPPDATA%\SubMiner\launcher-runtime/<version>` and runs the CLI from the current app. Keeping the executable outside the app avoids locking an updater-owned file while a launcher is running. Old runtime versions are removed when no running launcher is using them.
+```bash
+subminer [options] [file | directory | URL]
+subminer <subcommand> [options]
+```
 
-On Linux, the first launch caches Bun and its matching CLI and license files under `${XDG_DATA_HOME:-~/.local/share}/SubMiner/launcher`. Later launches make one `stat` call against the AppImage and run the cache without starting Electron. A missing cache or changed app fingerprint rebuilds it. App startup also refreshes the managed payload after an update.
+Run `subminer -h` or `subminer <subcommand> -h` for built-in help.
 
-The downloaded `subminer` and `subminer.cmd` release assets use the same private runtime flow. Older launcher scripts that were installed before this change cannot update their own code retroactively and still need system Bun until the app migrates them at startup or you download a current wrapper.
+## Options
 
-::: tip Windows users
-On Windows, the recommended way to launch playback is the **SubMiner mpv** shortcut created during first-run setup - double-click it, drag a file onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See [Windows mpv Shortcut](/usage#windows-mpv-shortcut) for details.
-:::
+| Flag                  | Description                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `-d, --directory`     | Directory to browse (default: current directory)                                    |
+| `-r, --recursive`     | Search subdirectories                                                               |
+| `-R, --rofi`          | Use rofi instead of fzf                                                             |
+| `-H, --history`       | Browse [watch history](#watch-history)                                              |
+| `-b, --backend`       | Window backend: `auto`, `hyprland`, `sway`, `x11`, `macos`, `windows`               |
+| `-p, --profile`       | mpv profile to load                                                                 |
+| `-a, --args`          | Extra mpv options as one quoted string, e.g. `--args "--volume=80"`                 |
+| `--start`             | Start the overlay after mpv launches. Only needed if `mpv.autoStartSubMiner` is off |
+| `-S, --start-overlay` | Show the overlay on start                                                           |
+| `-T, --no-texthooker` | Do not start the texthooker server                                                  |
+| `--settings`          | Open the settings window                                                            |
+| `--log-level`         | `debug`, `info`, `warn`, or `error`                                                 |
+| `-u, --update`        | Check for and install updates                                                       |
+| `-v, --version`       | Print the launcher's version                                                        |
+
+The target can be a video file, a directory (opens the picker there), a URL, or `ytsearch:"query"` for the first YouTube search result.
+
+App flags such as `--setup` and `--dev` are not launcher flags. Pass them through with `subminer app`, for example `subminer app --setup`.
+
+## Subcommands
+
+| Command                                    | What it does                                                                                                         |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `subminer stats`                           | Start the stats dashboard server. Opens your browser if `stats.autoOpenBrowser` is on                                |
+| `subminer stats -b` / `-s`                 | Start (or reuse) the stats server in the background / stop it                                                        |
+| `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows (same as `-v`)                                                     |
+| `subminer stats cleanup -l`                | Rebuild lifetime totals from the retained sessions                                                                   |
+| `subminer stats cleanup -d`                | Collapse repeated lines from typeset subtitles. Add `--dry-run` to preview, `--lookback-days <n>` to limit the range |
+| `subminer stats rebuild` / `backfill`      | Same as `stats cleanup -l`                                                                                           |
+| `subminer sync <host>`                     | Sync stats and watch history with another machine. See [below](#sync-between-machines)                               |
+| `subminer doctor`                          | Check the app, mpv, ffmpeg, yt-dlp, pickers, config, and mpv socket                                                  |
+| `subminer doctor --refresh-known-words`    | Refresh the known-word cache from Anki                                                                               |
+| `subminer settings`                        | Open the settings window                                                                                             |
+| `subminer generate-subs [video]`           | Generate [Japanese subtitles](/subtitle-generation) with whisper.cpp                                                 |
+| `subminer jellyfin` / `jf`                 | [Jellyfin](/jellyfin-integration) actions: `setup`, `login`, `logout`, `play`, `discovery`                           |
+| `subminer dictionary <path>` / `dict`      | Build a [character dictionary](/character-dictionary) for a file or directory                                        |
+| `subminer dictionary --candidates <path>`  | List AniList matches for that target                                                                                 |
+| `subminer dictionary --select <id> <path>` | Pin an AniList ID for that target                                                                                    |
+| `subminer texthooker`                      | Run only the texthooker server. `-o` opens it in your browser                                                        |
+| `subminer logs -e`                         | Export a sanitized log ZIP and print its path                                                                        |
+| `subminer config path` / `show`            | Print the config file path or its contents                                                                           |
+| `subminer mpv status`                      | Exit 0 if the mpv socket is ready, 1 if not                                                                          |
+| `subminer mpv socket`                      | Print the mpv socket path                                                                                            |
+| `subminer mpv idle`                        | Start an idle mpv in the background with SubMiner's options                                                          |
+| `subminer app` / `bin`                     | Pass arguments to the SubMiner app, e.g. `subminer app --stop`                                                       |
+
+`stats cleanup` runs one mode at a time. `--lookback-days` must be at least 1. Without it, cleanup scans all history.
+
+`generate-subs` options: `--download-model`, `--model <name>`, `--model-path <file>`, `--output <file>`, and `--audio-stream <index>` (an ffprobe stream index). `--model-path` cannot be combined with `--model` or `--download-model`.
+
+A texthooker is a web page that shows the current subtitle as plain text, so browser extensions and other tools can read along.
 
 ## Video picker
 
-Run `subminer` with no file and it opens an interactive picker. That is **fzf** in the terminal by default, or **rofi** with `-R`.
+With no file argument, `subminer` opens a picker for the current directory, or for `-d <dir>`. Add `-r` to include subdirectories.
 
-### fzf (default)
+- **fzf** (default) runs in the terminal. With `chafa` installed, it shows thumbnail previews.
+- **rofi** (`-R`, Linux) opens a graphical menu with thumbnails.
 
-```bash
-subminer                               # pick from current directory
-subminer -d ~/Videos                   # pick from a specific directory
-subminer -r -d ~/Anime                 # recursive search
-```
+Thumbnails come from your system thumbnail cache, or are generated with `ffmpegthumbnailer` or `ffmpeg`.
 
-fzf shows video files in a fuzzy-searchable list. If `chafa` is installed, you get thumbnail previews in the right pane. Thumbnails are sourced from the freedesktop thumbnail cache first, then generated on the fly with `ffmpegthumbnailer` or `ffmpeg` as fallback.
-
-| Optional tool       | Purpose                           |
-| ------------------- | --------------------------------- |
-| `chafa`             | Render thumbnails in the terminal |
-| `ffmpegthumbnailer` | Generate thumbnails on the fly    |
-
-### rofi
+The launcher installs its rofi theme automatically. To use your own, set `SUBMINER_ROFI_THEME`:
 
 ```bash
-subminer -R                            # rofi picker, current directory
-subminer -R -d ~/Videos                # rofi picker, specific directory
-subminer -R -r -d ~/Anime              # rofi picker, recursive
-subminer -R /directory                 # rofi picker, directory shortcut
-```
-
-rofi shows a GUI menu with icon thumbnails when available. SubMiner ships the rofi theme, a scoped `ffmpegthumbnailer` MIME registration, and the Linux launcher-managed runtime plugin copy in the release assets tarball:
-
-```bash
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
-tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
-mkdir -p ~/.local/share/SubMiner/themes
-cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
-mkdir -p ~/.local/share/SubMiner/thumbnailers
-cp /tmp/assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer ~/.local/share/SubMiner/thumbnailers/
-mkdir -p ~/.local/share/SubMiner/plugin
-cp -R /tmp/plugin/subminer ~/.local/share/SubMiner/plugin/subminer
-```
-
-Once the `SubMiner` data dir exists, `subminer -u` refreshes these assets automatically. Normal Linux launcher playback checks for all three assets and installs them from the bundled app when one is missing. For `subminer -R`, this repair runs before rofi opens.
-
-When `ffmpegthumbnailer` is installed, SubMiner prepends its own data directory to `XDG_DATA_DIRS` for the rofi process only. This lets rofi recognize the canonical Matroska MIME types used by newer GLib versions without changing the desktop-wide MIME or thumbnailer configuration. An existing registration in your own `$XDG_DATA_HOME/thumbnailers` still takes priority.
-
-The theme is auto-detected from these paths (first match wins):
-
-- `$SUBMINER_ROFI_THEME` environment variable (absolute path)
-- `$XDG_DATA_HOME/SubMiner/themes/subminer.rasi` (default: `~/.local/share/SubMiner/themes/subminer.rasi`)
-- `/usr/local/share/SubMiner/themes/subminer.rasi`
-- `/usr/share/SubMiner/themes/subminer.rasi`
-- macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
-- `assets/themes/subminer.rasi` next to the launcher script (final fallback)
-
-Override with the `SUBMINER_ROFI_THEME` environment variable:
-
-```bash
-SUBMINER_ROFI_THEME=/path/to/custom-theme.rasi subminer -R
+SUBMINER_ROFI_THEME=/path/to/theme.rasi subminer -R
 ```
 
 ## Watch history
 
-`subminer -H` (or `--history`) browses your local watch history, sourced from the immersion tracker database. It works with both pickers: fzf by default, rofi with `-R -H`.
+`subminer -H` lists the shows you have watched, most recent first. Add `-R` to use rofi. Pick a show, then choose:
 
-```bash
-subminer -H                            # fzf history browser
-subminer -R -H                         # rofi history browser
+- **Previous episode** or **Next episode**, moving into the neighboring season folder when needed
+- **Replay last watched**
+- **Browse episodes**, with a season menu first if the show has several season folders
+- **Quit SubMiner**
+
+When an episode ends, the menu comes back for the same show. Press `Escape` to leave.
+
+History comes from the immersion stats database, which SubMiner fills during playback. Shows whose folders are not reachable, such as an unmounted network drive, are hidden.
+
+## mpv options and profiles
+
+The launcher starts mpv with these options:
+
+```
+--input-ipc-server=/tmp/subminer-socket
+--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us
+--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us
+--sub-auto=fuzzy
+--sub-file-paths=.;subs;subtitles
+--sid=auto
+--secondary-sid=auto
+--sub-visibility=no
+--secondary-sub-visibility=no
 ```
 
-The first menu lists every locally watched series, most recently watched first, using the parsed media title (e.g. the anime title) when available and the directory name otherwise. Selecting a series opens an action menu:
+mpv's own subtitles are hidden because the overlay draws them. Add more options with `-a`, or load an mpv profile with `-p <name>` or `mpv.profile` in the config. No profile is loaded by default.
 
-- **Previous episode**: plays the episode before the last watched one and continues into the previous season directory when the season starts
-- **Replay last watched**: replays the most recently watched episode
-- **Next episode**: plays the episode after the last watched one and continues into the next season directory when the season ends
-- **Browse episodes**: lists the video files in the series directory in episode order, using the same fzf/rofi episode picker as directory browsing; if the series has multiple season directories, a season menu appears first
-- **Quit SubMiner**: closes the history session without starting an episode
+To launch mpv yourself with the same setup, put the options in a profile in `~/.config/mpv/mpv.conf`:
 
-After an episode ends or you close mpv, the launcher returns to an action menu for the same series. The menu lists Previous, Rewatch, Next, Select episode, and Quit SubMiner in that order, omitting Previous or Next when no episode exists in that direction. Choosing Previous or Next can move between season directories. After you play another episode, Previous, Rewatch, and Next use it instead of the older database entry. Pressing Escape closes the history session.
+```ini
+[subminer]
+input-ipc-server=/tmp/subminer-socket
+alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us
+slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us
+sub-auto=fuzzy
+sub-file-paths=.;subs;subtitles
+sid=auto
+secondary-sid=auto
+secondary-sub-visibility=no
+```
 
-Series whose directories are not currently accessible (e.g. an unmounted network share) are hidden from the list. Watch history requires the immersion tracker database (`immersionTracking.dbPath`, default `<config dir>/immersion.sqlite`), which SubMiner populates during playback.
+Launches through `subminer` start the overlay automatically unless `mpv.autoStartSubMiner` is off. mpv started outside SubMiner does not start the overlay on its own.
 
 ## Sync between machines
 
-`subminer sync <host>` merges immersion stats and watch history between two machines over SSH, so both end up with the union of sessions, lifetime totals, vocabulary counts, daily/monthly charts, and `--history` entries. `<host>` is anything `ssh` accepts (`user@hostname` or an ssh config alias); SubMiner must be installed on both machines at the same version. The sync engine runs only inside the app (`SubMiner --sync-cli sync ...`): the sync window spawns it that way, `subminer sync` is a thin proxy that forwards to the installed app, and the remote side is found automatically whether it has the launcher or just the app. The command-line launcher is optional everywhere.
+`subminer sync <host>` merges immersion stats and watch history between two computers over SSH. Both end up with the combined sessions, totals, vocabulary, charts, and `-H` history. `<host>` is anything `ssh` accepts, such as `user@hostname` or an alias from your SSH config.
+
+Both machines need the same SubMiner version. The remote only needs the app. The `subminer` command is optional there.
 
 ```bash
-subminer sync macbook                  # two-way sync with the host "macbook"
-subminer sync macbook --push           # merge local data into macbook only
-subminer sync macbook --pull           # merge macbook data into local only
-subminer sync user@192.168.1.20       # explicit user@host
-subminer sync macbook --remote-cmd ~/bin/subminer  # custom remote SubMiner/launcher path
-subminer sync macbook --check          # test SSH + remote SubMiner without syncing
-subminer sync --ui                     # open the sync window (also in the tray menu)
+subminer sync macbook                    # two-way sync
+subminer sync macbook --push             # send local data to macbook only
+subminer sync macbook --pull             # bring macbook data here only
+subminer sync macbook --check            # test SSH and the remote install, change nothing
+subminer sync macbook --remote-cmd ~/Apps/SubMiner.AppImage   # SubMiner in a custom place on the remote
+subminer sync --ui                       # open the sync window
 ```
 
-How it works: each side takes a consistent snapshot of its database (`VACUUM INTO`), the snapshots are exchanged over SSH, and each machine merges the other's snapshot into its own database. The merge is an insert-only union keyed on stable identifiers (session UUIDs, video keys, series title keys, word/kanji identity), so it is safe to re-run at any time. Syncing twice changes nothing, and nothing is ever overwritten or summed twice. Lifetime totals and rollup charts are updated incrementally, so history older than the session retention window is preserved on both sides.
+Syncing only adds data. It never overwrites or double-counts, so you can run it as often as you like. `--push` and `--pull` do not delete anything on the receiving side.
 
-On macOS and Linux, sync automatically uses compressed `rsync` transfers when compatible `rsync` commands are available on both machines. The last successfully received snapshot supplies matching blocks for later transfers, so unchanged data can be reused without sending it again. Only unmatched data needs to cross the connection, with compression reducing it further. Without a cached snapshot, sync sends a full compressed snapshot. Windows endpoints and machines without compatible `rsync` use compressed `scp` automatically. No extra configuration is required, and both methods work across different networks, including Tailscale connections.
+Before a command-line sync, close SubMiner on both machines and stop the stats server with `subminer stats -s`, or pass `--force`. The sync window does not need this. It syncs while SubMiner and playback are running, and skips the session in progress until it finishes.
 
-For a one-way transfer, `--push` snapshots the local database and merges it into the host without changing the local database. `--pull` snapshots the host and merges it into the local database without changing the host. These modes add missing data; they do not delete destination-only data or make the destination an exact mirror.
+Transfers are compressed. When both machines have `rsync` (macOS and Linux), later syncs send only what changed. Windows machines use `scp`.
 
-Each rsync transfer explicitly uses SSH and has a 30-minute time limit. A timed-out transfer stops the sync before merging the incomplete snapshot.
+Known-word status from Anki does not sync. Each machine reads it from its own Anki collection.
 
-Transfers write separate temporary files and verify the reconstructed content before merging. Cached comparison snapshots are preserved throughout the transfer. After a successful rsync sync, each receiver keeps one snapshot per peer/database identity in `sync-transfer-cache/` under its SubMiner config directory. This uses roughly one database-sized file per identity; deleting that cache is safe and only makes the next sync transfer more data. Missing or unwritable caches do not prevent syncing. Older peers without the cache helper still support compressed transfers, but cannot retain the upload comparison copy.
+<details>
+<summary><b>More sync options</b></summary>
 
-Command-line sync defaults to a cold-start safety check: close SubMiner (and stop the background stats daemon with `subminer stats -s`) on both machines before running it, or pass `--force`. Syncs started from the Sync window use live mode automatically, including scheduled auto-syncs while SubMiner or playback is active. SQLite WAL provides a consistent snapshot, the transactional merge serializes with live writes, and each machine's unfinished session is excluded from the transfer; that session syncs normally after it finishes. The mpv safety check requires a live socket connection, so a stale socket file left after mpv exits does not block command-line sync. Both machines must be on the same SubMiner version; otherwise, the sync aborts on a stats schema mismatch.
+| Option              | Description                                                 |
+| ------------------- | ----------------------------------------------------------- |
+| `-f, --force`       | Skip the check that SubMiner is closed                      |
+| `--db <file>`       | Use a different local stats database                        |
+| `--json`            | Print progress as NDJSON                                    |
+| `--snapshot <file>` | Write a snapshot of the local database, e.g. to copy by USB |
+| `--merge <file>`    | Merge a snapshot file into the local database               |
 
-On the remote, sync looks for the `subminer` launcher first (PATH and `~/.local/bin`), then the app binary in `--sync-cli` mode (`SubMiner` on PATH, then the standard macOS `/Applications` and `~/Applications` installs), checking standard SubMiner and Bun locations (`~/.local/bin`, `~/.bun/bin`, Homebrew, `/usr/local/bin`, `/usr/bin`, and `/bin`) even when the non-interactive SSH shell omits them from `PATH`. An AppImage in a custom location can be addressed with `--remote-cmd /path/to/SubMiner.AppImage` (or symlink it as `SubMiner` somewhere on the remote PATH).
+A Windows remote needs the built-in **OpenSSH Server** enabled. SubMiner finds itself in the default install location there.
 
-Windows remotes are supported: enable Windows' built-in **OpenSSH Server** and sync detects the remote shell (cmd or PowerShell) automatically, finding SubMiner in its default install location (`%LOCALAPPDATA%\Programs\SubMiner`), the launcher shim (`%LOCALAPPDATA%\SubMiner\bin`), or on PATH. Temp files on the remote are created and removed by SubMiner itself (`sync --make-temp` / `--remove-temp`), so no POSIX tools are required on the remote side.
+If the remote cannot find SubMiner, point `--remote-cmd` at the app or launcher, or link it as `SubMiner` somewhere on the remote `PATH`.
 
-Two lower-level modes are used internally over SSH and also work standalone for manual transfers (e.g. via a USB drive):
+Received snapshots are cached in `sync-transfer-cache/` in the config directory to speed up later syncs. Deleting it is safe.
 
-```bash
-subminer sync --snapshot /tmp/stats.sqlite   # write a consistent snapshot of the local database
-subminer sync --merge /tmp/stats.sqlite      # merge a snapshot file into the local database
-```
-
-Unfinished sessions (a crash mid-playback) are skipped until the app finalizes them; they sync on the next run. Word/kanji "known" state from Anki is not part of the database and does not sync. Each machine derives it from its own Anki collection.
-
-`subminer sync <host> --check` verifies a host without touching any data: it probes the SSH connection, locates SubMiner on the remote (launcher or app binary), and reports its version. `--json` switches any sync mode to machine-readable NDJSON progress output (this is what the sync window consumes).
-
-`sync --make-temp` creates a restricted temporary directory and prints its path; `sync --remove-temp <dir>` removes one created by that command. The internal `--transfer-cache <key>` option seeds the temporary directory from a previous received snapshot when creating it, or saves the received snapshot before removing it after a successful sync. Keys are 64-character lowercase hexadecimal identifiers. These are internal SSH transfer helpers, exposed for compatibility but normally invoked only by sync itself. `SubMiner --sync-cli sync ...` is the packaged app's headless compatibility entrypoint; use `SubMiner --sync-cli --help` for its sync-specific help. The `subminer sync` launcher command selects this entrypoint automatically and runs AppImages in Node-only mode, so remote sync does not require a graphical session.
+</details>
 
 ### Sync window
 
-`subminer sync --ui` opens a dedicated window for the same engine in a detached app process, returning the shell immediately. Closing that standalone-launched window exits its app instance. Opening **Sync Stats & History** from the tray keeps the resident app running when the window closes:
+`subminer sync --ui`, or **Sync Stats & History** in the tray, opens a window where you can:
 
-- **Devices:** saved hosts with a per-host direction (two-way / push / pull), an auto-sync toggle, last-sync status, and one-click **Sync now** / **Test** / **Remove**. Hosts synced from the command line appear here automatically.
-- **Add a device:** test SSH + remote SubMiner availability before saving, with a setup checklist for first-time SSH configuration.
-- **Activity:** live stage-by-stage progress, remote output, and separate merge summaries (sessions, words, kanji, rollups) for each machine updated by the run. Runs can be cancelled and can proceed while the app, stats server, or playback is active.
-- **Snapshots:** create manual database snapshots (stored in `/tmp/subminer-db-snapshots/` by default), merge a snapshot file into the local database, or reveal/delete existing snapshots.
+- Save devices, each with a direction (two-way, push, or pull), and run **Sync now** or **Test**.
+- Turn on **Auto-sync** for a device. It syncs in the background every 60 minutes by default, including during playback.
+- Watch progress and see what was merged on each machine.
+- Create, merge, or delete database snapshots.
 
-Hosts with **Auto-sync** enabled are synced in the background on a configurable interval (default every 60 minutes), including during active playback; results surface as overlay notifications. The unfinished playback session is skipped until a later sync sees it finalized. Host bookkeeping lives in `<config dir>/sync-hosts.json`.
+Saved devices live in `sync-hosts.json` in the config directory.
 
-## Common commands
+## Environment variables
 
-```bash
-subminer video.mkv                      # play a specific file (managed launches auto-start the visible overlay by default)
-subminer https://youtu.be/...           # YouTube playback (requires yt-dlp)
-subminer --backend x11 video.mkv        # Force x11 backend for a specific file
-subminer -u                             # check for SubMiner updates
-subminer logs -e                        # export sanitized log ZIP
-subminer stats                          # open immersion dashboard
-subminer stats -b                       # start background stats daemon
-```
-
-## Subcommands
-
-| Subcommand                                 | Purpose                                                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `subminer jellyfin` / `jf`                 | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login, `--logout`, `--setup`)                 |
-| `subminer stats`                           | Start the stats server (opens the dashboard when `stats.autoOpenBrowser` is on)                   |
-| `subminer stats -b` / `-s`                 | Start/reuse or stop the background stats daemon                                                   |
-| `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows (`-v` vocab, `-l` lifetime summaries)           |
-| `subminer stats cleanup -d`                | Collapse repeated lines from typeset subs (`--dry-run`, `--lookback-days <n>`)                    |
-| `subminer stats rebuild` / `backfill`      | Rebuild or backfill rollup data                                                                   |
-| `subminer doctor`                          | Dependency + config + socket diagnostics (`--refresh-known-words` refreshes the known-word cache) |
-| `subminer settings`                        | Open the SubMiner settings window                                                                 |
-| `subminer generate-subs [video]`           | Generate [Japanese subtitles](/usage#generate-japanese-subtitles-locally) locally                 |
-| `subminer logs -e`                         | Export a sanitized local-date log ZIP and print its path                                          |
-| `subminer config path`                     | Print active config file path                                                                     |
-| `subminer config show`                     | Print active config contents                                                                      |
-| `subminer mpv status`                      | Check mpv socket readiness                                                                        |
-| `subminer mpv socket`                      | Print active socket path                                                                          |
-| `subminer mpv idle`                        | Launch detached idle mpv instance                                                                 |
-| `subminer sync <host>`                     | Two-way stats/history sync with another machine over SSH                                          |
-| `subminer sync <host> --push`              | Merge local stats/history into another machine only                                               |
-| `subminer sync <host> --pull`              | Merge another machine's stats/history into the local database only                                |
-| `subminer sync <host> --check`             | Test SSH connection and remote launcher availability                                              |
-| `subminer sync --ui`                       | Open the sync window (saved devices, auto-sync, snapshots)                                        |
-| `subminer dictionary <path>` / `dict`      | Generate character dictionary ZIP from file/dir target                                            |
-| `subminer dictionary --candidates <path>`  | List AniList candidate matches for character dictionary correction                                |
-| `subminer dictionary --select <id> <path>` | Pin an AniList media ID for that target series                                                    |
-| `subminer texthooker`                      | Launch texthooker-only mode                                                                       |
-| `subminer texthooker -o`                   | Launch texthooker and open it in the default browser                                              |
-| `subminer app` / `bin`                     | Pass arguments directly to SubMiner binary (e.g. `subminer app --setup`)                          |
-
-Use `subminer <subcommand> -h` for command-specific help.
-
-## Options
-
-| Flag                  | Description                                                                  |
-| --------------------- | ---------------------------------------------------------------------------- |
-| `-d, --directory`     | Video search directory (default: cwd)                                        |
-| `-r, --recursive`     | Search directories recursively                                               |
-| `-R, --rofi`          | Use rofi instead of fzf                                                      |
-| `-H, --history`       | Browse local watch history (see [Watch History](#watch-history))             |
-| `-v, --version`       | Print the launcher's own version (can differ from the installed app binary)  |
-| `-u, --update`        | Check for SubMiner updates and update the app/launcher when possible         |
-| `--start`             | Explicitly start overlay after mpv launches                                  |
-| `-S, --start-overlay` | Force the visible overlay on start                                           |
-| `-T, --no-texthooker` | Disable texthooker server                                                    |
-| `-p, --profile`       | mpv profile name (no default; omitted unless set)                            |
-| `-a, --args`          | Pass additional mpv arguments as a quoted string                             |
-| `-b, --backend`       | Force window backend (`auto`, `hyprland`, `sway`, `x11`, `macos`, `windows`) |
-| `--settings`          | Open the SubMiner settings window                                            |
-| `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`)                          |
-
-App-binary flags such as `--setup`, `--dev`, and `--debug` are not launcher flags - pass them through with `subminer app`, for example `subminer app --setup`.
-
-On Linux, `subminer -u` updates from the launcher process itself. It can check and replace the AppImage, launcher, runtime plugin copy, and rofi theme even when SubMiner is already running in the tray.
-
-Managed launches inject `auto_start=yes`, `auto_start_visible_overlay=yes`, and `auto_start_pause_until_ready=yes` as plugin script-opts from SubMiner's config defaults (`mpv.autoStartSubMiner`, `auto_start_overlay`), so explicit start flags are usually unnecessary. The plugin's own built-in defaults are off - mpv launched outside SubMiner does not auto-start the overlay.
+| Variable                 | Use                                                                   |
+| ------------------------ | --------------------------------------------------------------------- |
+| `SUBMINER_BINARY_PATH`   | Path to the SubMiner app, if it is not in a standard install location |
+| `SUBMINER_APPIMAGE_PATH` | Same, for an AppImage (Linux)                                         |
+| `SUBMINER_ROFI_THEME`    | Path to a custom rofi theme                                           |
 
 ## Logging
 
-- Default log level is `warn` (launcher and app; configurable via `logging.level`)
-- `--dev` / `--debug` are app-binary flags that control app dev-mode, not logging verbosity - use `--log-level` for that
+The default log level is `warn`. Change it for one run with `--log-level`, or permanently with `logging.level` in the config. The app's `--dev` and `--debug` flags turn on developer mode. They do not change the log level.

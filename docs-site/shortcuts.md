@@ -1,194 +1,144 @@
 # Keyboard shortcuts
 
-This page is the complete reference for every keystroke SubMiner responds to. If you are just getting started, focus on the **Mining Shortcuts** and **Overlay Controls** sections - those cover the day-to-day mining loop. The rest can wait until you need them.
+Every key SubMiner responds to, with its default binding. `Ctrl/Cmd` means `Ctrl` on Windows and Linux and `Cmd` on macOS (`CommandOrControl` in config).
 
-A few terms used throughout:
+Shortcuts work when the overlay has focus. With the [mpv plugin](/mpv-plugin), `shortcuts.*` and `keybindings` entries also work while mpv has focus. If a key does nothing, click the video once. Set any shortcut to `null` to disable it. Changes to `shortcuts`, `keybindings`, and `subtitleSidebar` apply without a restart.
 
-- **Overlay** - the transparent SubMiner window that sits on top of mpv and shows the interactive subtitles. Most shortcuts only work while this window has focus (click the video once if a shortcut seems to do nothing).
-- **`Ctrl/Cmd`** - use `Ctrl` on Windows/Linux and `Cmd` (⌘) on macOS. In the config file this is written as `CommandOrControl`.
-- **Accelerator** - Electron's name for a shortcut string like `Alt+Shift+O`.
+## Global
 
-All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindings`. Set any shortcut to `null` to disable it.
+| Shortcut      | Action                          | Config key                             |
+| ------------- | ------------------------------- | -------------------------------------- |
+| `Alt+Shift+O` | Toggle visible overlay          | `shortcuts.toggleVisibleOverlayGlobal` |
+| `Alt+Shift+Y` | Open active dictionary settings | Fixed                                  |
 
-## App-wide shortcuts
+`Alt+Shift+Y` opens Yomitan or Hachidori settings, whichever backend is running. It is registered with the OS and works from any app. If another app already uses it, SubMiner cannot take it and you cannot rebind it.
 
-| Shortcut      | Action                 | Scope                                       | Configurable                           |
-| ------------- | ---------------------- | -------------------------------------------- | -------------------------------------- |
-| `Alt+Shift+O` | Toggle visible overlay | Works while the overlay or mpv has focus     | `shortcuts.toggleVisibleOverlayGlobal` |
-| `Alt+Shift+Y` | Open active dictionary settings | OS-global (registered with the OS)           | Fixed (not configurable)               |
+## Mining
 
-::: tip
-`Alt+Shift+O` is dispatched by the overlay window and the mpv plugin, so it works from either surface without OS registration. Only `Alt+Shift+Y` is registered with the OS; if it conflicts with another application, that binding cannot be changed. All `shortcuts.*` keys hot-reload - no restart needed.
-:::
+| Shortcut           | Action                                              | Config key                              |
+| ------------------ | --------------------------------------------------- | --------------------------------------- |
+| `Ctrl/Cmd+S`       | Mine current line as a sentence card                | `shortcuts.mineSentence`                |
+| `Ctrl/Cmd+Shift+S` | Mine several lines as one sentence card             | `shortcuts.mineSentenceMultiple`        |
+| `Ctrl/Cmd+C`       | Copy current line                                   | `shortcuts.copySubtitle`                |
+| `Ctrl/Cmd+Shift+C` | Copy several lines                                  | `shortcuts.copySubtitleMultiple`        |
+| `Ctrl/Cmd+V`       | Update last-added card from the clipboard           | `shortcuts.updateLastCardFromClipboard` |
+| `Ctrl/Cmd+G`       | Run the field grouping check on the last-added card | `shortcuts.triggerFieldGrouping`        |
+| `Ctrl/Cmd+Shift+A` | Mark last-added card as an audio card               | `shortcuts.markAudioCard`               |
 
-## Mining shortcuts
+After a multi-line shortcut, press `1` to `9` for how many lines to combine, counting back from and including the current line. The prompt closes after `shortcuts.multiCopyTimeoutMs`.
 
-These work when the overlay window has focus.
+When text is selected in the [subtitle sidebar](/subtitle-sidebar), `Ctrl/Cmd+C` copies that selection instead.
 
-When text is selected in the [subtitle sidebar](./subtitle-sidebar.md#selecting-and-copying-dialogue), `Ctrl/Cmd+C` copies that selection without timestamps, taking priority over the current-subtitle action. `Escape` clears the sidebar selection.
+## Playback
 
-| Shortcut           | Action                                          | Config key                              |
-| ------------------ | ----------------------------------------------- | --------------------------------------- |
-| `Ctrl/Cmd+S`       | Mine current subtitle as sentence card          | `shortcuts.mineSentence`                |
-| `Ctrl/Cmd+Shift+S` | Mine multiple lines (press 1–9 to select count) | `shortcuts.mineSentenceMultiple`        |
-| `Ctrl/Cmd+C`       | Copy current subtitle text                      | `shortcuts.copySubtitle`                |
-| `Ctrl/Cmd+Shift+C` | Copy multiple lines (press 1–9 to select count) | `shortcuts.copySubtitleMultiple`        |
-| `Ctrl/Cmd+V`       | Update last Anki card from clipboard text       | `shortcuts.updateLastCardFromClipboard` |
-| `Ctrl/Cmd+G`       | Trigger field grouping (Kiku merge check)       | `shortcuts.triggerFieldGrouping`        |
-| `Ctrl/Cmd+Shift+A` | Mark last card as audio card                    | `shortcuts.markAudioCard`               |
+These are the default `keybindings` entries. Remap or disable them in the `keybindings` array.
 
-The multi-line shortcuts open a digit selector with a 3-second timeout (`shortcuts.multiCopyTimeoutMs`). Press `1`–`9` to select the total number of subtitle lines to combine, ending at the current line and moving backward through the subtitle timeline. The current line counts toward the selected total. When the shortcut starts from mpv, SubMiner focuses the visible overlay for that selector instead of reserving the number keys in the mpv plugin.
+| Shortcut           | Action                                   |
+| ------------------ | ---------------------------------------- |
+| `Space`            | Pause or resume                          |
+| `F`                | Toggle fullscreen                        |
+| `J`                | Cycle primary subtitle track             |
+| `Shift+J`          | Cycle secondary subtitle track           |
+| `ArrowRight`       | Seek forward 5 seconds                   |
+| `ArrowLeft`        | Seek back 5 seconds                      |
+| `ArrowUp`          | Seek forward 60 seconds                  |
+| `ArrowDown`        | Seek back 60 seconds                     |
+| `Shift+H`          | Jump to previous subtitle                |
+| `Shift+L`          | Jump to next subtitle                    |
+| `Ctrl+Shift+Left`  | Shift subtitle delay to the previous cue |
+| `Ctrl+Shift+Right` | Shift subtitle delay to the next cue     |
+| `Z`                | Subtitle delay -100 ms                   |
+| `Shift+Z`          | Subtitle delay +100 ms                   |
+| `X`                | Subtitle delay +100 ms                   |
+| `Ctrl+Shift+H`     | Replay current subtitle, then pause      |
+| `Ctrl+Shift+L`     | Play next subtitle, then pause           |
+| `Ctrl+Alt+P`       | Open playlist browser                    |
+| `Ctrl+Alt+C`       | Open YouTube subtitle picker             |
+| `Q`                | Quit mpv                                 |
+| `Ctrl+W`           | Quit mpv                                 |
 
-## Overlay controls
+Built into the overlay, not configurable:
 
-These control playback and subtitle display. They require overlay window focus.
+| Input                     | Action                                             |
+| ------------------------- | -------------------------------------------------- |
+| `V`                       | Cycle primary subtitle bar: hidden, visible, hover |
+| Right-click               | Pause or resume (outside the subtitle area)        |
+| Right-click + drag        | Move the subtitles                                 |
+| Drop files on the overlay | Replace the mpv playlist                           |
+| `Shift` + drop files      | Append to the mpv playlist                         |
 
-| Shortcut             | Action                                                     |
-| -------------------- | ---------------------------------------------------------- |
-| `Space`              | Toggle mpv pause                                           |
-| `F`                  | Toggle fullscreen                                          |
-| `V`                  | Cycle primary subtitle bar mode (hidden → visible → hover) |
-| `J`                  | Cycle primary subtitle track                               |
-| `Shift+J`            | Cycle secondary subtitle track                             |
-| `Ctrl+Alt+P`         | Open playlist browser for current directory + queue        |
-| `ArrowRight`         | Seek forward 5 seconds                                     |
-| `ArrowLeft`          | Seek backward 5 seconds                                    |
-| `ArrowUp`            | Seek forward 60 seconds                                    |
-| `ArrowDown`          | Seek backward 60 seconds                                   |
-| `Shift+H`            | Jump to previous subtitle                                  |
-| `Shift+L`            | Jump to next subtitle                                      |
-| `Ctrl+Shift+Left`    | Shift subtitle delay to previous subtitle cue              |
-| `Ctrl+Shift+Right`   | Shift subtitle delay to next subtitle cue                  |
-| `z`                  | Shift subtitles 100 ms earlier                             |
-| `Shift+Z`            | Delay subtitles by 100 ms                                  |
-| `x`                  | Delay subtitles by 100 ms                                  |
-| `Ctrl+Shift+H`       | Replay current subtitle (play to end, then pause)          |
-| `Ctrl+Shift+L`       | Play next subtitle (jump, play to end, then pause)         |
-| `Q`                  | Quit mpv                                                   |
-| `Ctrl+W`             | Quit mpv                                                   |
-| `Right-click`        | Toggle pause (outside subtitle area)                       |
-| `Right-click + drag` | Reposition subtitles (on subtitle area)                    |
+## Overlay features
 
-The mpv-command rows above (`Space`, `F`, `J`, `Shift+J`, the seek/sub-seek/sub-step/sub-delay keys, replay/play-next, and quit) are merged from the `keybindings` config array and can be remapped or disabled there. `V` and the mouse actions are built-in overlay behaviors and are not part of the `keybindings` array. The playlist browser opens a split overlay modal with sibling video files on the left and the live mpv playlist on the right.
+| Shortcut           | Action                                                 | Config key                                 |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------ |
+| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle bar: hidden, visible, hover   | `shortcuts.toggleSecondarySub`             |
+| `Ctrl/Cmd+Shift+O` | Open runtime options                                   | `shortcuts.openRuntimeOptions`             |
+| `Ctrl/Cmd+/`       | Open session help                                      | `shortcuts.openSessionHelp`                |
+| `Ctrl/Cmd+D`       | Open character dictionary manager                      | `shortcuts.openCharacterDictionaryManager` |
+| `Ctrl/Cmd+N`       | Toggle notification history                            | `shortcuts.toggleNotificationHistory`      |
+| `Ctrl/Cmd+A`       | Append the video path on the clipboard to the playlist | `shortcuts.appendClipboardVideoToQueue`    |
+| `Ctrl+Shift+J`     | Open Jimaku subtitle search                            | `shortcuts.openJimaku`                     |
+| `Ctrl+Shift+T`     | Open TsukiHime subtitle search                         | `shortcuts.openTsukihime`                  |
+| `Ctrl+Shift+G`     | Open Japanese subtitle generation                      | `shortcuts.openSubtitleGeneration`         |
+| `Ctrl+Alt+S`       | Open subtitle sync (subsync)                           | `shortcuts.triggerSubsync`                 |
+| `g` then `s`       | Pick primary and secondary subtitles (when enabled)    | `shortcuts.openSubtitleSelection`          |
+| `\`                | Toggle subtitle sidebar                                | `subtitleSidebar.toggleKey`                |
+| `` ` ``            | Toggle stats overlay                                   | `stats.toggleKey`                          |
+| `W`                | Mark video watched and play the next one in the queue  | `stats.markWatchedKey`                     |
+| `Alt+C`            | Open controller setup and remapping                    | `shortcuts.openControllerSelect`           |
+| `Alt+Shift+C`      | Open controller debug view                             | `shortcuts.openControllerDebug`            |
 
-On macOS managed playback, SubMiner disables mpv's menu-bar shortcuts so configured SubMiner shortcuts like `Cmd+Shift+O` reach the mpv plugin instead of opening native mpv menu actions.
+The sidebar key has a separate mpv-side binding, `shortcuts.toggleSubtitleSidebar`. The sidebar only opens when SubMiner has parsed the active subtitle file. In the sidebar, `Enter` seeks to the focused line.
 
-Mouse-hover playback behavior is configured separately from shortcuts: `subtitleStyle.autoPauseVideoOnHover` defaults to `true` (pause on subtitle hover, resume on leave).
+The subtitle picker (`g` then `s`) is off until you turn it on in **Settings, Behavior, Subtitle Selection**. Press the second key within one second. If `g` already has an action in SubMiner or mpv, the sequence is disabled and a warning is shown. See [subtitle selection](/configuration#subtitle-selection).
 
-## Subtitle and feature shortcuts
+## mpv plugin keys
 
-| Shortcut           | Action                                                   | Config key                                 |
-| ------------------ | -------------------------------------------------------- | ------------------------------------------ |
-| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub`             |
-| `Ctrl/Cmd+D`       | Open loaded character dictionary manager                 | `shortcuts.openCharacterDictionaryManager` |
-| `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions`             |
-| `Ctrl/Cmd+/`       | Open session help modal                                  | `shortcuts.openSessionHelp`                |
-| `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`                     |
-| `Ctrl+Shift+G`     | Open Japanese subtitle generation modal                 | `shortcuts.openSubtitleGeneration`         |
-| `Ctrl+Shift+T`     | Open TsukiHime subtitle search modal (EN/JA tabs)       | `shortcuts.openTsukihime`                 |
-| `Ctrl/Cmd+N`       | Toggle overlay notification history panel                | `shortcuts.toggleNotificationHistory`      |
-| `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                              |
-| `g` then `s`       | Select primary and secondary subtitles, when enabled     | `shortcuts.openSubtitleSelection`                                                               |
-| `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`                 |
-| `Ctrl/Cmd+A`       | Append clipboard video path to mpv playlist              | `shortcuts.appendClipboardVideoToQueue`    |
-| `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey` (overlay) / `shortcuts.toggleSubtitleSidebar` (mpv session binding) |
-| `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                          |
-| `W`                | Mark current video watched and advance to next in queue  | `stats.markWatchedKey`                     |
+Press `y`, then the second key.
 
-`shortcuts.openAnimetosho` remains accepted as a deprecated alias for `shortcuts.openTsukihime`. The current name takes precedence when both are configured.
+| Keys  | Action                          |
+| ----- | ------------------------------- |
+| `y-y` | Open the SubMiner menu          |
+| `y-s` | Start the overlay               |
+| `y-S` | Stop the overlay                |
+| `y-t` | Toggle the visible overlay      |
+| `y-o` | Open active dictionary settings |
+| `y-r` | Restart the overlay             |
+| `y-c` | Show overlay status             |
+| `y-h` | Open session help               |
+| `v`   | Cycle primary subtitle bar      |
 
-The stats toggle is handled inside the focused visible overlay window. It is configurable through the top-level `stats.toggleKey` setting and defaults to `Backquote`.
+The plugin's `v` replaces mpv's own subtitle visibility toggle. When the overlay has focus, `y` then `d` toggles DevTools.
 
-Enable the subtitle selector in **Settings → Behavior → Subtitle Selection**. Its shortcut overrides mpv subtitle selection only while enabled. In the focused overlay, press the second key within one second. Single-key bindings take priority: if `g` already has an action in SubMiner or mpv, `g-s` is disabled with a conflict warning, and `g` still runs immediately. Remap the sequence or remove the conflicting single-key binding. The existing `y` prefix is reserved for its built-in commands. mpv bindings are checked on connection, configuration changes, and overlay focus; refresh the overlay after changing another script's bindings. See [subtitle selection](/configuration#subtitle-selection).
+## Customizing
 
-The subtitle sidebar toggle is overlay-local and only opens when SubMiner has a parsed cue list for the active subtitle source.
-
-In the sidebar, `Enter` seeks the keyboard-focused cue. `Space` keeps its configured playback action, normally pause/resume, even when a cue has focus.
-
-## Controller shortcuts
-
-These overlay-local shortcuts open controller utilities for the Chrome Gamepad API integration.
-
-| Shortcut      | Action                               | Configurable                     |
-| ------------- | ------------------------------------ | -------------------------------- |
-| `Alt+C`       | Open controller config + remap modal | `shortcuts.openControllerSelect` |
-| `Alt+Shift+C` | Open controller debug modal          | `shortcuts.openControllerDebug`  |
-
-Controller input only drives the overlay while keyboard-only mode is enabled. The controller mapping and tuning live under the top-level `controller` config block; keyboard-only mode still works normally without a controller.
-
-## MPV plugin chords
-
-When the mpv plugin is installed, all commands use a `y` chord prefix - press `y`, then the second key (the overlay-side chord times out after 1 second; the mpv plugin uses native mpv key sequences).
-
-| Chord | Action                                                     |
-| ----- | ---------------------------------------------------------- |
-| `y-y` | Open SubMiner menu (OSD)                                   |
-| `y-s` | Start overlay                                              |
-| `y-S` | Stop overlay                                               |
-| `y-t` | Toggle visible overlay                                     |
-| `v`   | Cycle primary subtitle bar mode (hidden → visible → hover) |
-| `y-o` | Open active dictionary settings                           |
-| `y-r` | Restart overlay                                            |
-| `y-c` | Check overlay status                                       |
-| `y-h` | Open session help                                          |
-
-The bare `v` plugin binding intentionally overrides mpv's native primary subtitle visibility toggle so it cycles the SubMiner primary subtitle bar (hidden → visible → hover) instead.
-
-When the overlay has focus, press `y` then `d` to toggle DevTools (debugging helper).
-
-## Drag-and-drop
-
-| Gesture                   | Action                                           |
-| ------------------------- | ------------------------------------------------ |
-| Drop file(s) onto overlay | Replace current mpv playlist with dropped files  |
-| `Shift` + drop file(s)    | Append all dropped files to current mpv playlist |
-
-## Customizing shortcuts
-
-All `shortcuts.*` keys accept [Electron accelerator strings](https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts), for example `"CommandOrControl+D"`. Use `null` to disable a shortcut.
+`shortcuts.*` values are [Electron accelerator strings](https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts).
 
 ```jsonc
 {
   "shortcuts": {
     "mineSentence": "CommandOrControl+S",
-    "copySubtitle": "CommandOrControl+C",
-    "toggleVisibleOverlayGlobal": "Alt+Shift+O",
     "openJimaku": null, // disabled
   },
 }
 ```
 
-The `keybindings` array overrides or extends the overlay's built-in key handling for mpv commands:
+`keybindings` entries map a key to an mpv command. They are merged with the defaults above. Set `command` to `null` to disable a default.
 
 ```jsonc
 {
   "keybindings": [
-    { "key": "f", "command": ["cycle", "fullscreen"] },
     { "key": "m", "command": ["cycle", "mute"] },
     { "key": "MBTN_BACK", "command": ["sub-seek", -1] },
-    { "key": "MBTN_FORWARD", "command": ["sub-seek", 1] },
-    { "key": "Space", "command": null }, // disable default Space → pause
+    { "key": "Space", "command": null },
   ],
 }
 ```
 
-Mouse keybinding names are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, and `MBTN_FORWARD`.
+Mouse button names are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, and `MBTN_FORWARD`. See [keybindings](/configuration#keybindings) and [shortcuts configuration](/configuration#shortcuts-configuration) in the config reference.
 
-Both `shortcuts`, `keybindings`, and `subtitleSidebar` are [hot-reloadable](/configuration#hot-reload-behavior) - changes take effect without restarting SubMiner.
+## Automatic mpv bindings
 
-### Automatic mpv bindings
+The overlay reads single-key bindings from the running mpv (`input.conf`, mpv defaults, and scripts). If SubMiner does not handle a key, it passes it to mpv. SubMiner shortcuts and `keybindings` entries win, including ones set to `null`. Keys are not forwarded while you type in a text field, use an overlay menu, or have a Yomitan popup open.
 
-The overlay also discovers supported single-key keyboard bindings from the connected mpv session,
-including `input.conf`, mpv defaults, and loaded scripts. When SubMiner does not handle a
-key, it forwards the key to mpv to run the current binding. SubMiner shortcuts and
-configured bindings take precedence, including entries explicitly disabled with
-`"command": null`. Text entry, overlay menus, and Yomitan popups do not forward these
-fallback keys.
-
-Discovery runs in the background at startup, again after a short delay for scripts,
-when the overlay regains focus, and when SubMiner's binding configuration reloads.
-Bindings added later may require refocusing the overlay. Imported bindings stay in
-memory for the session and do not appear in SubMiner's help menu or modify its config.
-Supported keys include characters, common navigation keys, and F1 through F24, with
-modifiers. Mouse bindings, keypad-specific and media keys, key sequences, and full
-navigation of interactive mpv script menus are not imported. If discovery is unavailable, SubMiner's configured controls keep working.
+Mouse buttons, keypad and media keys, and key sequences are not imported. Bindings imported this way do not appear in session help. If you add an mpv binding while SubMiner runs, refocus the overlay to pick it up.

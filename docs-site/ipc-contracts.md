@@ -1,12 +1,12 @@
 # IPC + runtime contracts
 
-SubMiner's Electron app runs two isolated processes, main and renderer, and IPC channels are the only way they talk. That boundary is deliberate. The renderer is an untrusted surface: it loads Yomitan, renders subtitle text SubMiner did not write, and runs in a Chromium sandbox. Every message crossing the bridge goes through a validator before any domain code sees it.
+The Electron main and renderer processes talk only through IPC channels. The renderer is an untrusted surface: it loads Yomitan and renders subtitle text SubMiner did not write. Every payload that crosses the bridge goes through a validator before domain code sees it.
 
-Channel names, payload shapes, and validators all live together, so they change together. Touching an IPC surface means updating the contract, the validator, the preload bridge, and the handler in one commit. Drift between those four layers is a bug, not a style preference.
+Channel names, payload validators, the preload bridge, and the handler change together. When you touch an IPC surface, update all four in the same commit.
 
 ## Message flow
 
-Renderer-initiated calls (`invoke`) pass through four boundaries before reaching a service. Fire-and-forget messages (`send`) follow the same path but skip the response leg. Malformed payloads are caught at the validator and never reach domain code.
+Renderer calls pass through the preload bridge, the main-process handler, and a validator before they reach a service. Malformed payloads stop at the validator.
 
 ```mermaid
 flowchart TB
@@ -36,12 +36,18 @@ flowchart TB
   style E fill:#ed8796,stroke:#494d64,color:#24273a,stroke-width:1.5px
 ```
 
+`IPC_CHANNELS` in `src/shared/ipc/contracts.ts` groups channels by pattern:
+
+- `request`: invoke channels. The renderer awaits a result, for example lookups, config reads, and mining actions. Invalid payloads return a structured failure such as `{ ok: false, ... }` instead of throwing.
+- `command`: fire-and-forget sends, for example focus events, UI state hints, and position updates. Invalid payloads are dropped.
+- `event`: messages pushed from main to the renderer.
+
 ## Runtime sockets
 
-The renderer↔main bridge above lives *inside* the Electron app. A separate set of OS sockets connects the app to the other runtimes - mpv and the launcher/plugin. These carry no renderer payloads and bypass the contract/validator layer; they are command and property channels between processes.
+The bridge above lives inside the Electron app. Separate OS sockets connect the app to mpv and to the launcher and plugin. They carry no renderer payloads and do not go through the contract and validator layer.
 
-- **mpv IPC socket** (`/tmp/subminer-socket`, or `\\.\pipe\subminer-socket` on Windows): the `MpvIpcClient` in the main process connects here to send JSON commands and subscribe to playback/subtitle properties via `observe_property`. Created by mpv's `--input-ipc-server`.
-- **App control socket** (`/tmp/subminer-control-<uid>-<hash>.sock`, or a named pipe on Windows): the launcher and the mpv plugin send CLI-style commands (`--start`, `--show-visible-overlay`, `--texthooker`) to a running app here. It also dedupes a second `subminer` invocation into the existing instance instead of launching twice.
+- **mpv IPC socket**: `/tmp/subminer-socket`, or `\\.\pipe\subminer-socket` on Windows. mpv creates it with `--input-ipc-server`. The app's `MpvIpcClient` sends JSON commands here and observes playback and subtitle properties.
+- **App control socket**: `subminer-control-<uid>-<hash>.sock` in the temp directory, or `\\.\pipe\subminer-control-<hash>` on Windows. The launcher and plugin send CLI-style commands (`--start`, `--show-visible-overlay`, `--texthooker`) to a running app here. It also routes a second `subminer` invocation into the existing instance.
 
 ```mermaid
 flowchart LR
@@ -65,60 +71,44 @@ flowchart LR
   style MpvProc fill:#363a4f,stroke:#494d64,color:#cad3f5
 ```
 
-How these sockets are established during launch is covered in [Playback Startup Flow](./architecture#playback-startup-flow).
+[Playback startup flow](./architecture#playback-startup-flow) shows when each socket comes up during a launch.
 
-## Core surfaces
+## Core files
 
-| File | Role |
-| --- | --- |
-| `src/shared/ipc/contracts.ts` | Canonical channel names and payload type contracts. Single source of truth for both processes. |
-| `src/shared/ipc/validators.ts` | Runtime payload parsers and type guards. Every `invoke` payload is validated here before the handler runs. |
-| `src/preload.ts` | Renderer-side bridge. Exposes a typed API surface to the renderer - only approved channels are accessible. |
-| `src/main/ipc-runtime.ts` | Main-process handler registration and routing. Wires validated channels to domain handlers. |
-| `src/core/services/ipc.ts` | Service-level invoke handling. Applies guardrails (validation, error wrapping) before calling domain logic. |
-| `src/core/services/anki-jimaku-ipc.ts` | Integration-specific IPC boundary for Anki and Jimaku operations. |
-| `src/main/cli-runtime.ts` | CLI/runtime command boundary. Handles commands that originate from the launcher or mpv plugin rather than the renderer. |
+| File                                   | Role                                                                                |
+| -------------------------------------- | ----------------------------------------------------------------------------------- |
+| `src/shared/ipc/contracts.ts`          | Channel names and payload types, shared by both processes                           |
+| `src/shared/ipc/validators.ts`         | Runtime payload parsers and type guards                                             |
+| `src/preload.ts`                       | Typed renderer API; only approved channels are exposed                              |
+| `src/core/services/ipc.ts`             | Registers overlay handlers and validates payloads before calling domain logic       |
+| `src/core/services/anki-jimaku-ipc.ts` | Same boundary for Anki and Jimaku operations                                        |
+| `src/main/ipc-runtime.ts`              | Builds handler dependencies (via `src/main/dependencies.ts`) and registers handlers |
+| `src/main/cli-runtime.ts`              | Handles commands from the launcher or mpv plugin, not the renderer                  |
 
 ## Contract rules
 
-These rules exist to prevent a class of bugs where the renderer and main process silently disagree about message shapes - which surfaces as undefined fields, swallowed errors, or state corruption.
-
-- **Use shared constants.** Channel names come from `contracts.ts`, never ad-hoc literal strings. This makes channels greppable and refactor-safe.
-- **Validate before handling.** Every `invoke` payload passes through `validators.ts` before reaching domain logic. This catches shape drift at the boundary instead of deep inside a service.
-- **Return structured failures.** Handlers return `{ ok: false, error: string }` on failure rather than throwing. The renderer can always distinguish success from failure without try/catch.
-- **Keep payloads narrow.** Send only what the handler needs. Avoid passing entire state objects across the bridge - it couples the renderer to internal main-process structure.
-- **Co-evolve all layers.** When a payload shape changes, update `contracts.ts`, `validators.ts`, `preload.ts`, and the handler in the same commit. Partial updates are treated as bugs.
-
-## Two message patterns
-
-**Invoke (request/response):** The renderer calls a typed bridge method and awaits a result. The main process validates the payload, runs the handler, and returns a structured response. Used for operations where the renderer needs a result - lookups, config reads, mining actions.
-
-**Fire-and-forget (send):** The renderer sends a message with no response. The main process validates and handles it silently. Malformed payloads are dropped. Used for notifications where the renderer doesn't need confirmation - UI state hints, focus events, position updates.
+- **Use the shared constants.** Take channel names from `contracts.ts`, never string literals.
+- **Validate before handling.** Every renderer payload goes through `validators.ts` before domain logic.
+- **Return structured failures.** Invoke handlers return `{ ok: false, ... }` on failure instead of throwing, so the renderer can tell success from failure without try/catch.
+- **Keep payloads narrow.** Send only what the handler needs, not whole state objects.
+- **Keep handlers thin.** Validate, delegate to a service or composer, return. Route shared state changes through the transition helpers in `src/main/state.ts`.
 
 ## Add a new IPC action
 
 1. Add the channel constant in `src/shared/ipc/contracts.ts`.
-2. Add or extend the payload validator in `src/shared/ipc/validators.ts`.
+2. Add or extend the validator in `src/shared/ipc/validators.ts`.
 3. Expose a typed bridge method in `src/preload.ts`.
-4. Register the handler in `src/main/ipc-runtime.ts` (or the relevant domain runtime module).
-5. Add tests for both valid and malformed payload cases in `src/core/services/*`.
-6. Update renderer tests when behavior or state transitions change.
-
-## Runtime state notes
-
-- Prefer runtime/domain composition via `src/main/runtime/composers/*` and `src/main/runtime/domains/*`. IPC handlers should delegate to composers rather than containing orchestration logic.
-- Route shared mutable state updates through transition helpers in `src/main/state.ts` for migrated domains. Direct mutation from IPC handlers bypasses invariant checks.
-- Keep IPC handlers thin - they validate, delegate, and return. Business logic belongs in services.
+4. Register the handler in `src/core/services/ipc.ts` (or `anki-jimaku-ipc.ts`), and supply any new dependency through `src/main/ipc-runtime.ts`.
+5. Test valid and malformed payloads in `src/core/services/*`.
+6. Update renderer tests if behavior or state transitions change.
 
 ## Troubleshooting
 
-- **Unknown payload in handler:** The validator is not being applied before the handler runs. Check that the channel is routed through `ipc-runtime.ts` with validation, not registered directly.
-- **Renderer invoke fails:** Verify the preload bridge method exists and matches the channel constant. Check that the handler is registered and returning (not throwing).
-- **Contract drift:** When invoke calls return unexpected shapes, compare the shared contract, validator, preload bridge, and main handler signatures side by side. One of them was updated without the others.
+- **Handler receives an unexpected payload:** the validator is not applied. Check that the channel is registered through the IPC service with validation, not directly.
+- **Renderer invoke fails:** check that the preload method exists, uses the right channel constant, and that the handler is registered and returns instead of throwing.
+- **Invoke returns an unexpected shape:** compare the contract, validator, preload method, and handler side by side. One of them changed without the others.
 
 ## Related docs
 
 - [Architecture](/architecture)
-- [Development](/development)
-- [Configuration](/configuration)
-- [Troubleshooting](/troubleshooting)
+- [Building and testing](/development)

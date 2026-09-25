@@ -2,6 +2,11 @@ name: Docs Pages
 
 on:
   workflow_dispatch:
+    inputs:
+      rebuild_archives:
+        description: 'Stable tags to rebuild in R2 (comma-separated, or "all"); archives are otherwise built once'
+        required: false
+        default: ''
   push:
     branches:
       - main
@@ -10,6 +15,8 @@ on:
     paths:
       - 'docs-site/**'
       - 'scripts/docs-versioning.ts'
+      - 'scripts/docs-versioned-assets.ts'
+      - 'scripts/docs-archive-store.ts'
       - 'scripts/build-versioned-docs.ts'
       - '.github/workflows/docs-pages.yml'
       - 'package.json'
@@ -54,20 +61,21 @@ jobs:
           bun install --frozen-lockfile
           cd docs-site && bun install --frozen-lockfile
 
-      - name: Cache versioned docs archives
-        if: steps.tag_guard.outputs.stable_tag != 'false'
-        uses: actions/cache@v4
-        with:
-          path: .tmp/docs-versioned-archive-cache
-          key: docs-versioned-archives-${{ runner.os }}-${{ hashFiles('docs-site/.vitepress/**', 'docs-site/public/assets/fonts/**', 'docs-site/package.json', 'docs-site/bun.lock', 'scripts/build-versioned-docs.ts', 'scripts/docs-versioning.ts') }}
-
       - name: Test docs
         if: steps.tag_guard.outputs.stable_tag != 'false'
         run: bun run docs:test
 
+      # Builds only archives missing from R2 (plus any requested rebuilds), then the
+      # root and /main/ builds that make up the Pages deployment.
       - name: Build versioned docs
         if: steps.tag_guard.outputs.stable_tag != 'false'
-        run: bun run docs:build:versioned
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOCS_ARCHIVE_R2_ACCESS_KEY_ID: ${{ secrets.DOCS_ARCHIVE_R2_ACCESS_KEY_ID }}
+          DOCS_ARCHIVE_R2_SECRET_ACCESS_KEY: ${{ secrets.DOCS_ARCHIVE_R2_SECRET_ACCESS_KEY }}
+          DOCS_ARCHIVE_R2_BUCKET: ${{ vars.DOCS_ARCHIVE_R2_BUCKET }}
+          REBUILD_ARCHIVES: ${{ inputs.rebuild_archives }}
+        run: bun run scripts/build-versioned-docs.ts --require-archives "--rebuild-archives=${REBUILD_ARCHIVES}"
 
       - name: Deploy docs to Cloudflare Pages
         if: steps.tag_guard.outputs.stable_tag != 'false'
@@ -75,4 +83,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .tmp/docs-versioned-site --project-name "${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}" --branch main
+          # Run from docs-site so Wrangler bundles docs-site/functions (the /v/* archive server).
+          workingDirectory: docs-site
+          command: pages deploy ../.tmp/docs-versioned-site --project-name "${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}" --branch main

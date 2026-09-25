@@ -1,118 +1,62 @@
 # Jimaku integration
 
-[Jimaku](https://jimaku.cc) is a community subtitle repository for anime and Japanese live action, built from files other learners uploaded. SubMiner talks to the Jimaku API, so you search, browse, and download Japanese subtitle files from inside the overlay. No alt-tabbing, no moving files around. A downloaded track loads into mpv right away.
+[Jimaku](https://jimaku.cc) is a community archive of Japanese subtitles for anime and live action. SubMiner searches it from the overlay, downloads the file you pick, and loads it into mpv.
 
-::: tip Prerequisite: a free API key
-You need a Jimaku account and an API key (a personal access string) before this feature works. Create an account at [jimaku.cc](https://jimaku.cc), copy your key, and add it to your config as shown under [Configuration](#configuration) below. Without a key, the search modal will report "Jimaku API key not set."
-:::
+## Setup
 
-## How it works
-
-The Jimaku integration runs through an in-overlay modal accessible via a keyboard shortcut (`Ctrl+Shift+J` by default).
-
-When you open the modal, SubMiner parses the current video filename to extract a title, season, and episode number. It handles `S01E03`, `1x03`, `E03`, and dash-separated episode numbers. If the filename yields a high-confidence match (title + episode), SubMiner auto-searches immediately.
-
-From there:
-
-1. **Pick a catalogue** - The **Anime** and **Live action** tabs at the top of the modal choose which Jimaku catalogue to search. Switching tabs re-runs the current search. The choice persists until SubMiner restarts.
-2. **Search** - SubMiner queries the Jimaku API with the parsed title. Results appear as a list of entries (Japanese and English names).
-3. **Browse entries** - Select an entry to load its available subtitle files, filtered by episode if one was detected.
-4. **Browse files** - Files show name, size, and last-modified date. If a language preference is configured, files are sorted accordingly (e.g., Japanese-tagged files first).
-5. **Download** - Selecting a file downloads it to the same directory as the video (or a temp directory for remote/streamed media) and loads it into mpv as a new subtitle track.
-
-If no files match the current episode filter, a "Show all files" button lets you broaden the search to all episodes for that entry.
-
-### Modal keyboard shortcuts
-
-| Key                          | Action                                        |
-| ---------------------------- | --------------------------------------------- |
-| `Enter` (in text field)      | Search                                        |
-| `Enter` (in list)            | Select entry / download file                  |
-| `Arrow Up` / `Arrow Down`    | Navigate entries or files                     |
-| `Arrow Left` / `Arrow Right` | Switch between the Anime and Live action tabs |
-| `Escape`                     | Close modal                                   |
-
-## Configuration
-
-Add a `jimaku` section to your `config.jsonc`:
+1. Create a free account at [jimaku.cc](https://jimaku.cc) and copy your API key.
+2. Add the key to `config.jsonc`, either directly or through a command that prints it:
 
 ```jsonc
 {
   "jimaku": {
     "apiKey": "YOUR_API_KEY",
-    "apiKeyCommand": "cat ~/.jimaku_key",
-    "apiBaseUrl": "https://jimaku.cc",
-    "languagePreference": "ja",
-    "maxEntryResults": 10,
+    // or, to keep it out of the config file:
+    // "apiKeyCommand": "pass jimaku/api-key",
   },
 }
 ```
 
-| Option                      | Type                         | Default               | Description                                                                                                                                              |
-| --------------------------- | ---------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `jimaku.apiKey`             | `string`                     | -                     | Jimaku API key (plaintext). Mutually exclusive with `apiKeyCommand`.                                                                                     |
-| `jimaku.apiKeyCommand`      | `string`                     | -                     | Shell command that prints the API key to stdout. Useful for secret managers (e.g., `pass jimaku/api-key`).                                               |
-| `jimaku.apiBaseUrl`         | `string`                     | `"https://jimaku.cc"` | Base URL for the Jimaku API. Only change this if using a mirror or local instance.                                                                       |
-| `jimaku.languagePreference` | `"ja"` \| `"en"` \| `"none"` | `"ja"`                | Sort subtitle files by language tag. `"ja"` pushes Japanese-tagged files to the top; `"en"` does the same for English. `"none"` preserves the API order. |
-| `jimaku.maxEntryResults`    | `number`                     | `10`                  | Maximum number of entries returned per search.                                                                                                           |
+If both are set, `apiKey` wins. `apiKeyCommand` must print the key within 10 seconds. Without a key, the modal shows "Jimaku API key not set."
 
-The keyboard shortcut is configured separately under `shortcuts`:
+## Usage
 
-```jsonc
-{
-  "shortcuts": {
-    "openJimaku": "Ctrl+Shift+J",
-  },
-}
-```
+1. Press `Ctrl+Shift+J` during playback.
+2. SubMiner fills in the title, season, and episode from the file name. If it finds both a title and an episode, it searches right away. Otherwise, fix the fields and press `Enter`.
+3. Pick the **Anime** or **Live action** tab. Switching tabs repeats the search.
+4. Select an entry, then select a file. Files are filtered to the current episode. Click **Broaden search (all files)** to see every file in the entry.
 
-### API key
+The file is saved next to the video (or to a temp directory for streams) and loaded into mpv as a new subtitle track.
 
-An API key is required to use the Jimaku integration. You can get one from [jimaku.cc](https://jimaku.cc). There are two ways to provide it:
+| Key              | Action                                 |
+| ---------------- | -------------------------------------- |
+| `Enter`          | Search, or select the highlighted item |
+| `Up` / `Down`    | Move through entries or files          |
+| `Left` / `Right` | Switch tabs                            |
+| `Escape`         | Close                                  |
 
-- **`apiKey`** - set the key directly in config. Simple, but the key is stored in plaintext.
-- **`apiKeyCommand`** - a shell command that outputs the key. Runs with a 10-second timeout. Preferred if you use a secret manager like `pass`, `gpg`, or a keychain tool.
+You can also open the modal with `subminer app --open-jimaku`, or change the shortcut with `shortcuts.openJimaku`.
 
-If both are set, `apiKey` takes priority.
+The file name parser understands `S01E03`, `1x03`, `E03`, `EP03`, and `Title - 03 -` patterns, and reads the season from a parent folder such as `Season 2`. It ignores bracket tags like `[SubGroup]` and year tags like `(2024)`.
 
-## Filename parsing
+## Options
 
-SubMiner extracts media info from the current video path to pre-fill the search fields. The parser handles:
+| Key                         | What it does                                                        |
+| --------------------------- | ------------------------------------------------------------------- |
+| `jimaku.apiKey`             | API key in plain text.                                              |
+| `jimaku.apiKeyCommand`      | Shell command that prints the API key.                              |
+| `jimaku.languagePreference` | Sorts files tagged with this language first: `ja`, `en`, or `none`. |
+| `jimaku.maxEntryResults`    | Maximum entries per search.                                         |
+| `jimaku.apiBaseUrl`         | API address. Change only for a mirror.                              |
 
-- **Season + episode patterns:** `S01E03`, `1x03`
-- **Episode-only patterns:** `E03`, `EP03`, or dash-separated numbers like `Title - 03 -`
-- **Season folders:** a parent directory named `Season 2` or `S2` fills in the season when the filename lacks one
-- **Bracket tags:** `[SubGroup]`, `[1080p]`, `[HEVC]` - stripped before title extraction
-- **Year tags:** `(2024)` - stripped
-- **Dots and underscores:** treated as spaces
-- **Remote/streamed URLs:** SubMiner checks URL query parameters (`title`, `name`, `q`) and path segments to extract a meaningful title
-
-If the parser produces a high-confidence result (title + episode both detected), the search runs automatically when the modal opens. Otherwise, you can adjust the fields manually before searching.
+See [Configuration](/configuration#jimaku) for defaults.
 
 ## Troubleshooting
 
-**"Jimaku API key not set"**
+**"Jimaku API key not set."** Set `jimaku.apiKey` or `jimaku.apiKeyCommand`. Run the command in your shell to confirm it prints only the key.
 
-Configure `jimaku.apiKey` or `jimaku.apiKeyCommand` in your config. If using `apiKeyCommand`, verify the command works in your shell: it should print the key and exit cleanly.
+**HTTP 429.** You hit Jimaku's rate limit. Wait for the time shown in the message and retry.
 
-**"Jimaku request failed" or HTTP 429**
+**No entries found.** Search with just the show's name, without season or episode words. Jimaku matches against its own titles.
 
-The Jimaku API has rate limits. If you see 429 errors, wait for the retry duration shown in the OSD message and try again.
-
-**No entries found**
-
-Try simplifying the title - remove season/episode qualifiers and search with just the anime name. Jimaku's search matches against its own database of anime titles, so the exact spelling matters.
-
-**No files found for this episode**
-
-The entry may not have per-episode files, or files may be named differently. Click "Show all files" to see everything available for the entry.
-
-**Downloaded subtitle not loading**
-
-Verify mpv is running and connected via IPC. SubMiner loads the subtitle by issuing a `sub-add` command over the mpv socket. If mpv is not connected, the download succeeds but the subtitle cannot be loaded.
-
-## Related
-
-- [Configuration Reference](/configuration#jimaku) - full config options
-- [Mining Workflow](/mining-workflow#related-features) - how Jimaku fits into the sentence mining loop
-- [Troubleshooting](/troubleshooting#jimaku) - additional error guidance
+**The subtitle downloads but does not load.** SubMiner loads it over the mpv socket. Make sure mpv is still running and connected.
