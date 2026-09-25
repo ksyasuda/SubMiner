@@ -1,7 +1,9 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { stageBundledIntegrationKeys, TMDB_API_KEY_ENV } from './bundled-integration-keys.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -28,10 +30,6 @@ function copyFile(sourcePath, outputPath) {
 function copyAssets(sourceDir, outputDir, label) {
   copyFile(path.join(sourceDir, 'index.html'), path.join(outputDir, 'index.html'));
   copyFile(path.join(sourceDir, 'style.css'), path.join(outputDir, 'style.css'));
-  fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(outputDir, 'fonts'), {
-    recursive: true,
-    force: true,
-  });
   process.stdout.write(`Staged ${label} assets in ${outputDir}\n`);
 }
 
@@ -50,6 +48,16 @@ function copySyncUiAssets() {
 function fallbackToMacosSource() {
   copyFile(macosHelperSourcePath, macosHelperSourceCopyPath);
   process.stdout.write(`Staged macOS helper source fallback: ${macosHelperSourceCopyPath}\n`);
+}
+
+// Pin the minimum macOS to the app's own floor (Electron's `minos`). Without an
+// explicit target, swiftc stamps the build machine's OS version as the binary's
+// minimum and the helper fails to load on older systems (#213). The arch stays
+// the host's, matching the single-arch app electron-builder packages here.
+const MACOS_HELPER_DEPLOYMENT_TARGET = '12.0';
+
+function macosHelperTarget() {
+  return `${os.arch() === 'x64' ? 'x86_64' : 'arm64'}-apple-macos${MACOS_HELPER_DEPLOYMENT_TARGET}`;
 }
 
 function shouldSkipMacosHelperBuild() {
@@ -72,9 +80,13 @@ function buildMacosHelper() {
   ensureDir(scriptsOutputDir);
 
   try {
-    execFileSync('swiftc', ['-O', macosHelperSourcePath, '-o', macosHelperBinaryPath], {
-      stdio: 'inherit',
-    });
+    execFileSync(
+      'swiftc',
+      ['-O', '-target', macosHelperTarget(), macosHelperSourcePath, '-o', macosHelperBinaryPath],
+      {
+        stdio: 'inherit',
+      },
+    );
     fs.chmodSync(macosHelperBinaryPath, 0o755);
     process.stdout.write(`Built macOS helper: ${macosHelperBinaryPath}\n`);
   } catch (error) {
@@ -86,11 +98,27 @@ function buildMacosHelper() {
   }
 }
 
+// Only the key names are logged, never the values: CI masks secrets, but a
+// stray echo would still leak them into local build logs.
+function stageIntegrationKeys() {
+  const staged = stageBundledIntegrationKeys(path.join(repoRoot, 'dist'));
+  process.stdout.write(
+    staged.length > 0
+      ? `Staged bundled integration keys: ${staged.join(', ')}\n`
+      : `No bundled integration keys (${TMDB_API_KEY_ENV} unset)\n`,
+  );
+}
+
 function main() {
+  fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(repoRoot, 'dist', 'fonts'), {
+    recursive: true,
+    force: true,
+  });
   copyRendererAssets();
   copySettingsAssets();
   copySyncUiAssets();
   buildMacosHelper();
+  stageIntegrationKeys();
 }
 
 main();

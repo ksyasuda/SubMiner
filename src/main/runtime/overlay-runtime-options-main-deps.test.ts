@@ -33,6 +33,8 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
     getOverlayWindows: () => [],
     getResolvedConfig: () => ({}),
     showDesktopNotification: () => calls.push('notify'),
+    showOverlayNotification: () => calls.push('show-overlay'),
+    dismissOverlayNotification: () => calls.push('dismiss-overlay'),
     createFieldGroupingCallback: () => async () => ({
       keepNoteId: 1,
       deleteNoteId: 2,
@@ -57,6 +59,8 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
   deps.refreshCurrentSubtitle?.();
   deps.syncOverlayShortcuts();
   deps.showDesktopNotification('title', {});
+  deps.showOverlayNotification?.({ title: 'title' });
+  deps.dismissOverlayNotification?.('notification-id');
 
   const tracker = {
     close: () => {},
@@ -73,6 +77,8 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
     'refresh-subtitle',
     'sync-shortcuts',
     'notify',
+    'show-overlay',
+    'dismiss-overlay',
   ]);
   assert.equal(appState.windowTracker, tracker);
   assert.deepEqual(appState.ankiIntegration, { id: 'anki' });

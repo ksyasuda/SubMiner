@@ -1,19 +1,23 @@
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import type { AnkiConnectConfig } from '../../../types.js';
 import {
   statsJson,
   type StatsAnilistSearchResult,
   type StatsAnkiBrowseResponse,
 } from '../../../types/stats-http-contract.js';
+import { isTmdbMediaType } from '../../../shared/media-kind.js';
 import type { AnilistRateLimiter } from '../anilist/rate-limiter.js';
+import { TmdbApiKeyMissingError, type TmdbClient } from '../tmdb/tmdb-client.js';
 import { registerStatsCoverRoutes } from '../stats-cover-routes.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import {
   buildAnkiNotePreview,
   countKnownWords,
   enrichSessionsWithKnownWordMetrics,
+  isPositiveSafeInteger,
   loadKnownWordsSet,
-  parseIntQuery,
+  parsePositiveId,
+  parsePositiveIdList,
 } from './route-support.js';
 
 const ANKI_CONNECT_FETCH_TIMEOUT_MS = 3_000;
@@ -27,6 +31,7 @@ export function registerStatsIntegrationRoutes(
     ankiConnectConfig?: AnkiConnectConfig;
     getAnkiConnectConfig?: () => AnkiConnectConfig | undefined;
     anilistRateLimiter?: AnilistRateLimiter;
+    tmdbClient?: TmdbClient;
     resolveAnkiNoteId?: (noteId: number) => number;
   },
 ): void {
@@ -71,6 +76,51 @@ export function registerStatsIntegrationRoutes(
     }
   });
 
+  const tmdbUnavailable = (c: Context, err: unknown) => {
+    if (err instanceof TmdbApiKeyMissingError) {
+      return c.json(statsJson('error', { error: err.message }), 503);
+    }
+    return c.json(statsJson('error', { error: 'TMDB request failed' }), 502);
+  };
+
+  app.get('/api/stats/tmdb/search', async (c) => {
+    const query = (c.req.query('q') ?? '').trim();
+    if (!query) return c.json(statsJson('tmdbSearch', []));
+    const tmdbClient = options?.tmdbClient;
+    if (!tmdbClient) return c.json(statsJson('tmdbSearch', []));
+    try {
+      return c.json(statsJson('tmdbSearch', await tmdbClient.search(query)));
+    } catch (err) {
+      return tmdbUnavailable(c, err);
+    }
+  });
+
+  app.patch('/api/stats/anime/:animeId/tmdb', async (c) => {
+    const animeId = parsePositiveId(c.req.param('animeId'));
+    if (animeId === null) return c.body(null, 400);
+    const body = await c.req.json().catch(() => null);
+    const tmdbId = body?.tmdbId;
+    if (
+      typeof tmdbId !== 'number' ||
+      !Number.isInteger(tmdbId) ||
+      tmdbId <= 0 ||
+      !isTmdbMediaType(body?.tmdbType)
+    ) {
+      return c.body(null, 400);
+    }
+    if (!(await tracker.hasAnime(animeId))) return c.body(null, 404);
+    const tmdbClient = options?.tmdbClient;
+    if (!tmdbClient) return c.json(statsJson('error', { error: 'TMDB is not available' }), 503);
+    try {
+      const details = await tmdbClient.getDetails(body.tmdbType, tmdbId);
+      if (!details) return c.body(null, 404);
+      await tracker.reassignAnimeTmdb(animeId, details);
+      return c.json(statsJson('reassignAnimeTmdb', { ok: true }));
+    } catch (err) {
+      return tmdbUnavailable(c, err);
+    }
+  });
+
   app.get('/api/stats/known-words', (c) => {
     const knownWordsSet = loadKnownWordsSet(options?.knownWordCachePath);
     if (!knownWordsSet) return c.json(statsJson('knownWords', []));
@@ -87,8 +137,8 @@ export function registerStatsIntegrationRoutes(
   });
 
   app.get('/api/stats/anime/:animeId/known-words-summary', async (c) => {
-    const animeId = parseIntQuery(c.req.param('animeId'), 0);
-    if (animeId <= 0) {
+    const animeId = parsePositiveId(c.req.param('animeId'));
+    if (animeId === null) {
       return c.json(
         statsJson('animeKnownWordsSummary', { totalUniqueWords: 0, knownWordCount: 0 }),
         400,
@@ -105,8 +155,8 @@ export function registerStatsIntegrationRoutes(
   });
 
   app.get('/api/stats/media/:videoId/known-words-summary', async (c) => {
-    const videoId = parseIntQuery(c.req.param('videoId'), 0);
-    if (videoId <= 0) {
+    const videoId = parsePositiveId(c.req.param('videoId'));
+    if (videoId === null) {
       return c.json(
         statsJson('mediaKnownWordsSummary', { totalUniqueWords: 0, knownWordCount: 0 }),
         400,
@@ -123,14 +173,10 @@ export function registerStatsIntegrationRoutes(
   });
 
   app.patch('/api/stats/anime/:animeId/anilist', async (c) => {
-    const animeId = parseIntQuery(c.req.param('animeId'), 0);
-    if (animeId <= 0) return c.body(null, 400);
+    const animeId = parsePositiveId(c.req.param('animeId'));
+    if (animeId === null) return c.body(null, 400);
     const body = await c.req.json().catch(() => null);
-    if (
-      typeof body?.anilistId !== 'number' ||
-      !Number.isInteger(body.anilistId) ||
-      body.anilistId <= 0
-    ) {
+    if (!isPositiveSafeInteger(body?.anilistId)) {
       return c.body(null, 400);
     }
     await tracker.reassignAnimeAnilist(animeId, body);
@@ -140,8 +186,8 @@ export function registerStatsIntegrationRoutes(
   registerStatsCoverRoutes(app, tracker);
 
   app.get('/api/stats/episode/:videoId/detail', async (c) => {
-    const videoId = parseIntQuery(c.req.param('videoId'), 0);
-    if (videoId <= 0) return c.body(null, 400);
+    const videoId = parsePositiveId(c.req.param('videoId'));
+    if (videoId === null) return c.body(null, 400);
     const rawSessions = await tracker.getEpisodeSessions(videoId);
     const words = await tracker.getEpisodeWords(videoId);
     const cardEvents = await tracker.getEpisodeCardEvents(videoId);
@@ -154,8 +200,8 @@ export function registerStatsIntegrationRoutes(
   });
 
   app.post('/api/stats/anki/browse', async (c) => {
-    const noteId = parseIntQuery(c.req.query('noteId'), 0);
-    if (noteId <= 0) return c.body(null, 400);
+    const noteId = parsePositiveId(c.req.query('noteId'));
+    if (noteId === null) return c.body(null, 400);
     const ankiConfig = getAnkiConnectConfig();
     try {
       const response = await fetch(ankiConfig?.url ?? 'http://127.0.0.1:8765', {
@@ -177,19 +223,14 @@ export function registerStatsIntegrationRoutes(
 
   app.post('/api/stats/anki/notesInfo', async (c) => {
     const body = await c.req.json().catch(() => null);
-    const noteIds: number[] = Array.isArray(body?.noteIds)
-      ? body.noteIds.filter(
-          (id: unknown): id is number => typeof id === 'number' && Number.isInteger(id) && id > 0,
-        )
-      : [];
+    const noteIds = parsePositiveIdList(body?.noteIds);
+    if (!noteIds) return c.body(null, 400);
     if (noteIds.length === 0) return c.json(statsJson('ankiNotesInfo', []));
     const resolvedNoteIds = Array.from(
       new Set(
         noteIds.map((noteId) => {
           const resolvedNoteId = options?.resolveAnkiNoteId?.(noteId);
-          return Number.isInteger(resolvedNoteId) && (resolvedNoteId as number) > 0
-            ? (resolvedNoteId as number)
-            : noteId;
+          return isPositiveSafeInteger(resolvedNoteId) ? resolvedNoteId : noteId;
         }),
       ),
     );

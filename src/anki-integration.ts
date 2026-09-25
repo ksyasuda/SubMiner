@@ -28,8 +28,11 @@ import {
   KikuMergePreviewResponse,
   NotificationOptions,
   type WordCardKind,
+  type MediaTimingReviewDecision,
+  type MediaTimingReviewRequest,
 } from './types/anki';
 import { AiConfig } from './types/integrations';
+import { sanitizeMediaTitle } from './shared/media-identity';
 import type { KnownWordMaturityTier } from './types/subtitle';
 import { MpvClient } from './types/runtime';
 import { OPEN_ANKI_CARD_ACTION_ID } from './types/notification';
@@ -182,7 +185,7 @@ function extractFilenameFromMediaPath(rawPath: string): string {
 function shouldPreferMediaTitleForMiscInfo(rawPath: string, filename: string): boolean {
   const loweredPath = rawPath.toLowerCase();
   const loweredFilename = filename.toLowerCase();
-  if (loweredPath.includes('api_key=')) {
+  if (loweredPath.includes('api_key=') || loweredPath.includes('apikey=')) {
     return true;
   }
   if (loweredPath.startsWith('http://') || loweredPath.startsWith('https://')) {
@@ -218,6 +221,8 @@ export class AnkiIntegration {
     null;
   private overlayNotificationCallback: ((payload: OverlayNotificationPayload) => void) | null =
     null;
+  private overlayNotificationDismissCallback: ((id: string) => void) | null = null;
+  private overlayUpdateProgressActive = false;
   private updateInProgress = false;
   private uiFeedbackState: UiFeedbackState = createUiFeedbackState();
   private parseWarningKeys = new Set<string>();
@@ -238,6 +243,12 @@ export class AnkiIntegration {
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
   private knownWordCacheUpdatedCallback: (() => void) | null = null;
   private consumeSubtitleMiningContextCallback: (() => SubtitleMiningContext | null) | null = null;
+  private generateSentenceFuriganaCallback:
+    | ((text: string, highlightedText?: string) => Promise<string | null>)
+    | null = null;
+  private mediaTimingReviewCallback:
+    | ((request: MediaTimingReviewRequest) => Promise<MediaTimingReviewDecision>)
+    | null = null;
   private noteIdRedirects = new Map<number, number>();
   private trackedDuplicateNoteIds = new Map<number, number[]>();
   private getCachedMediaPath: MediaGenerationInputResolverOptions['getCachedMediaPath'] | null =
@@ -265,6 +276,7 @@ export class AnkiIntegration {
     getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'],
     shouldRequireRemoteMediaCache?: () => boolean,
     getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined,
+    overlayNotificationDismissCallback?: (id: string) => void,
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
     this.aiConfig = { ...aiConfig };
@@ -280,6 +292,7 @@ export class AnkiIntegration {
     this.getCachedMediaPath = getCachedMediaPath ?? null;
     this.shouldRequireRemoteMediaCache = shouldRequireRemoteMediaCache ?? null;
     this.getYoutubeMediaSourceUrl = getYoutubeMediaSourceUrl ?? null;
+    this.overlayNotificationDismissCallback = overlayNotificationDismissCallback ?? null;
     this.pendingYoutubeMediaQueue = this.createPendingYoutubeMediaQueue();
     this.knownWordCache = this.createKnownWordCache(knownWordCacheStatePath);
     this.pollingRunner = this.createPollingRunner();
@@ -379,8 +392,6 @@ export class AnkiIntegration {
       getCachedMediaPath: this.getCachedMediaPath,
       shouldRequireRemoteMediaCache: () => this.shouldRequireRemoteMediaCache?.() === true,
       getSubtitleMediaRange: (context) => this.getSubtitleMediaRange(context),
-      getResolvedSentenceAudioFieldName: (noteInfo) =>
-        this.getResolvedSentenceAudioFieldName(noteInfo),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
       mergeFieldValue: (existing, newValue, overwrite) =>
@@ -509,6 +520,7 @@ export class AnkiIntegration {
         findNotes: async (query, options) =>
           (await this.client.findNotes(query, options)) as number[],
         retrieveMediaFile: (filename) => this.client.retrieveMediaFile(filename),
+        deleteNotes: (noteIds) => this.client.deleteNotes(noteIds),
       },
       mediaGenerator: {
         generateAudio: (
@@ -566,6 +578,7 @@ export class AnkiIntegration {
       getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
       getFallbackDurationSeconds: () => this.getFallbackDurationSeconds(),
       appendKnownWordsFromNoteInfo: (noteInfo) => this.appendKnownWordsFromNoteInfo(noteInfo),
+      removeKnownWordNote: (noteId) => this.removeKnownWordNote(noteId),
       isUpdateInProgress: () => this.updateInProgress,
       setUpdateInProgress: (value) => {
         this.updateInProgress = value;
@@ -581,6 +594,7 @@ export class AnkiIntegration {
       recordCardsMinedCallback: (count, noteIds) => {
         this.recordCardsMinedSafely(count, noteIds, 'card creation');
       },
+      reviewMediaTiming: (request) => this.reviewMediaTiming(request),
     });
   }
 
@@ -637,12 +651,14 @@ export class AnkiIntegration {
         notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
         updateNoteFields: (noteId, fields) => this.client.updateNoteFields(noteId, fields),
         storeMediaFile: (filename, data) => this.client.storeMediaFile(filename, data),
+        deleteNotes: (noteIds) => this.client.deleteNotes(noteIds),
       },
       getConfig: () => this.config,
       getCurrentSubtitleText: () => this.mpvClient.currentSubText,
       getCurrentSubtitleStart: () => this.mpvClient.currentSubStart,
       getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
       appendKnownWordsFromNoteInfo: (noteInfo) => this.appendKnownWordsFromNoteInfo(noteInfo),
+      removeKnownWordNote: (noteId) => this.removeKnownWordNote(noteId),
       extractFields: (fields) => this.extractFields(fields),
       findDuplicateNote: (expression, excludeNoteId, noteInfo) =>
         this.findDuplicateNote(expression, excludeNoteId, noteInfo),
@@ -653,12 +669,17 @@ export class AnkiIntegration {
       processSentence: (mpvSentence, noteFields) => this.processSentence(mpvSentence, noteFields),
       processSentenceFurigana: (sentenceFurigana, noteFields) =>
         this.processSentenceFurigana(sentenceFurigana, noteFields),
+      generateSentenceFurigana: async (text, noteFields) =>
+        this.generateSentenceFuriganaCallback?.(
+          text,
+          this.config.behavior?.highlightWord === false
+            ? undefined
+            : this.getSentenceHighlightText(noteFields),
+        ) ?? null,
       setCardTypeFields: (updatedFields, availableFieldNames, cardKind) =>
         this.setCardTypeFields(updatedFields, availableFieldNames, cardKind),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
-      getResolvedSentenceAudioFieldName: (noteInfo) =>
-        this.getResolvedSentenceAudioFieldName(noteInfo),
       getAnimatedImageLeadInSeconds: (noteInfo) => this.getAnimatedImageLeadInSeconds(noteInfo),
       mergeFieldValue: (existing, newValue, overwrite) =>
         this.mergeFieldValue(existing, newValue, overwrite),
@@ -680,6 +701,7 @@ export class AnkiIntegration {
       logWarn: (...args) => log.warn(args[0] as string, ...args.slice(1)),
       logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
       logError: (...args) => log.error(args[0] as string, ...args.slice(1)),
+      reviewMediaTiming: (request) => this.reviewMediaTiming(request),
     });
   }
 
@@ -799,6 +821,12 @@ export class AnkiIntegration {
     }
   }
 
+  private removeKnownWordNote(noteId: number): void {
+    if (this.knownWordCache.removeNote(noteId)) {
+      this.notifyKnownWordCacheUpdated();
+    }
+  }
+
   private notifyKnownWordCacheUpdated(): void {
     if (!this.knownWordCacheUpdatedCallback) {
       return;
@@ -835,6 +863,19 @@ export class AnkiIntegration {
     };
   }
 
+  private getSenrenConfig(): {
+    enabled: boolean;
+    fieldGrouping?: 'auto' | 'manual' | 'disabled';
+    deleteDuplicateInAuto?: boolean;
+  } {
+    const senren = this.config.isSenren;
+    return {
+      enabled: senren?.enabled === true,
+      fieldGrouping: senren?.fieldGrouping,
+      deleteDuplicateInAuto: senren?.deleteDuplicateInAuto,
+    };
+  }
+
   private getEffectiveSentenceCardConfig(): {
     model?: string;
     sentenceField: string;
@@ -843,10 +884,27 @@ export class AnkiIntegration {
     kikuEnabled: boolean;
     kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
     kikuDeleteDuplicateInAuto: boolean;
+    senrenEnabled: boolean;
+    fieldGroupingProvider: 'kiku' | 'senren' | null;
+    fieldGroupingMode: 'auto' | 'manual' | 'disabled';
+    fieldGroupingDeleteDuplicateInAuto: boolean;
     wordCardKind: WordCardKind;
   } {
     const lapis = this.getLapisConfig();
     const kiku = this.getKikuConfig();
+    const senren = this.getSenrenConfig();
+
+    const kikuFieldGrouping = (kiku.fieldGrouping || 'disabled') as 'auto' | 'manual' | 'disabled';
+    const senrenFieldGrouping = (senren.fieldGrouping || 'auto') as 'auto' | 'manual' | 'disabled';
+    // Kiku and Senren are mutually exclusive; config resolution enforces it, and
+    // Kiku wins here too in case a runtime patch re-enables both.
+    const fieldGroupingProvider = kiku.enabled ? 'kiku' : senren.enabled ? 'senren' : null;
+    const fieldGroupingMode =
+      fieldGroupingProvider === 'kiku'
+        ? kikuFieldGrouping
+        : fieldGroupingProvider === 'senren'
+          ? senrenFieldGrouping
+          : 'disabled';
 
     return {
       model: lapis.sentenceCardModel,
@@ -854,8 +912,15 @@ export class AnkiIntegration {
       audioField: 'SentenceAudio',
       lapisEnabled: lapis.enabled,
       kikuEnabled: kiku.enabled,
-      kikuFieldGrouping: (kiku.fieldGrouping || 'disabled') as 'auto' | 'manual' | 'disabled',
+      kikuFieldGrouping,
       kikuDeleteDuplicateInAuto: kiku.deleteDuplicateInAuto !== false,
+      senrenEnabled: senren.enabled,
+      fieldGroupingProvider,
+      fieldGroupingMode,
+      fieldGroupingDeleteDuplicateInAuto:
+        fieldGroupingProvider === 'senren'
+          ? senren.deleteDuplicateInAuto !== false
+          : kiku.deleteDuplicateInAuto !== false,
       wordCardKind: resolveWordCardKindSetting(this.config.lapisKiku?.wordCardKind),
     };
   }
@@ -874,7 +939,7 @@ export class AnkiIntegration {
 
   private async processNewCard(
     noteId: number,
-    options?: { skipKikuFieldGrouping?: boolean },
+    options?: { skipFieldGrouping?: boolean },
   ): Promise<void> {
     await this.noteUpdateWorkflow.execute(noteId, options);
   }
@@ -1039,7 +1104,7 @@ export class AnkiIntegration {
       videoPath,
       startTime,
       endTime,
-      this.config.media?.audioPadding,
+      context?.mediaPaddingSeconds ?? this.config.media?.audioPadding,
       resolveAudioStreamIndexForMediaGeneration(videoPath, this.mpvClient.currentAudioStreamIndex),
       this.config.media?.normalizeAudio !== false,
       await this.getMpvVolumeScale(),
@@ -1063,16 +1128,18 @@ export class AnkiIntegration {
       return null;
     }
     const mediaRange = this.getSubtitleMediaRange(context);
-    const timestamp = context
-      ? mediaRange.startTime + (mediaRange.endTime - mediaRange.startTime) / 2
-      : this.mpvClient.currentTimePos || 0;
+    const timestamp =
+      context?.screenshotTime ??
+      (context
+        ? mediaRange.startTime + (mediaRange.endTime - mediaRange.startTime) / 2
+        : this.mpvClient.currentTimePos || 0);
 
     if (this.config.media?.imageType === 'avif') {
       return this.mediaGenerator.generateAnimatedImage(
         videoPath,
         mediaRange.startTime,
         mediaRange.endTime,
-        this.config.media?.audioPadding,
+        context?.mediaPaddingSeconds ?? this.config.media?.audioPadding,
         {
           fps: this.config.media?.animatedFps,
           maxWidth: this.config.media?.animatedMaxWidth,
@@ -1111,11 +1178,13 @@ export class AnkiIntegration {
     }
 
     const videoFilename = extractFilenameFromMediaPath(mediaPath);
-    const resolvedMediaTitle = trimToNonEmptyString(mediaTitle);
+    const resolvedMediaTitle = sanitizeMediaTitle(mediaTitle);
     const filenameWithExt =
       (shouldPreferMediaTitleForMiscInfo(mediaPath, videoFilename)
-        ? resolvedMediaTitle || videoFilename
-        : videoFilename || resolvedMediaTitle) || fallbackFilename;
+        ? resolvedMediaTitle || 'Unknown media'
+        : sanitizeMediaTitle(videoFilename) || resolvedMediaTitle) ||
+      sanitizeMediaTitle(fallbackFilename) ||
+      'Unknown media';
     const filenameWithoutExt = filenameWithExt.replace(/\.[^.]+$/, '');
 
     const currentTimePos =
@@ -1203,12 +1272,13 @@ export class AnkiIntegration {
   private beginUpdateProgress(initialMessage: string): void {
     if (!this.shouldUseOsdNotifications()) {
       if (this.shouldUseOverlayNotifications()) {
+        this.overlayUpdateProgressActive = true;
         this.overlayNotificationCallback?.({
           id: 'anki-update-progress',
           title: 'Anki update',
           body: initialMessage,
           variant: 'progress',
-          persistent: false,
+          persistent: true,
         });
       }
       return;
@@ -1219,6 +1289,10 @@ export class AnkiIntegration {
   }
 
   private endUpdateProgress(): void {
+    if (this.overlayUpdateProgressActive) {
+      this.overlayUpdateProgressActive = false;
+      this.overlayNotificationDismissCallback?.('anki-update-progress');
+    }
     if (!this.shouldUseOsdNotifications()) {
       return;
     }
@@ -1243,18 +1317,20 @@ export class AnkiIntegration {
     if (!this.shouldUseOsdNotifications()) {
       this.updateInProgress = true;
       if (this.shouldUseOverlayNotifications()) {
+        this.overlayUpdateProgressActive = true;
         this.overlayNotificationCallback?.({
           id: 'anki-update-progress',
           title: 'Anki update',
           body: initialMessage,
           variant: 'progress',
-          persistent: false,
+          persistent: true,
         });
       }
       try {
         return await action();
       } finally {
         this.updateInProgress = false;
+        this.endUpdateProgress();
       }
     }
     return withUpdateProgress(
@@ -1353,6 +1429,7 @@ export class AnkiIntegration {
         : undefined;
 
     if (shouldShowOverlayNotification && this.overlayNotificationCallback) {
+      this.overlayUpdateProgressActive = false;
       this.overlayNotificationCallback({
         id: 'anki-update-progress',
         title: 'Anki Card Updated',
@@ -1496,7 +1573,7 @@ export class AnkiIntegration {
     trackedDuplicateNoteIdsBeforeCreate: Set<number>,
   ): boolean {
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-    if (!sentenceCardConfig.kikuEnabled || sentenceCardConfig.kikuFieldGrouping === 'disabled') {
+    if (sentenceCardConfig.fieldGroupingMode === 'disabled') {
       return false;
     }
 
@@ -1553,13 +1630,6 @@ export class AnkiIntegration {
   private getPreferredSentenceAudioFieldName(): string {
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
     return sentenceCardConfig.audioField || 'SentenceAudio';
-  }
-
-  private getResolvedSentenceAudioFieldName(noteInfo: NoteInfo): string | null {
-    return (
-      this.resolveNoteFieldName(noteInfo, this.getPreferredSentenceAudioFieldName()) ||
-      this.resolveConfiguredFieldName(noteInfo, this.config.fields?.audio)
-    );
   }
 
   private getConfiguredWordFieldName(): string {
@@ -1721,6 +1791,31 @@ export class AnkiIntegration {
 
   setSubtitleMiningContextConsumer(callback: (() => SubtitleMiningContext | null) | null): void {
     this.consumeSubtitleMiningContextCallback = callback;
+  }
+
+  setSentenceFuriganaGenerator(callback: typeof this.generateSentenceFuriganaCallback): void {
+    this.generateSentenceFuriganaCallback = callback;
+  }
+
+  setMediaTimingReviewCallback(
+    callback: ((request: MediaTimingReviewRequest) => Promise<MediaTimingReviewDecision>) | null,
+  ): void {
+    this.mediaTimingReviewCallback = callback;
+  }
+
+  private async reviewMediaTiming(
+    request: Omit<MediaTimingReviewRequest, 'audioPadding' | 'maxMediaDuration'>,
+  ): Promise<MediaTimingReviewDecision> {
+    if (this.config.media?.reviewTiming !== true || !this.mediaTimingReviewCallback) {
+      return { action: 'use-original' };
+    }
+    return await this.mediaTimingReviewCallback({
+      ...request,
+      audioPadding: Math.max(0, this.config.media.audioPadding ?? 0),
+      maxMediaDuration: Math.max(0, this.config.media.maxMediaDuration ?? 30),
+      screenshotEnabled:
+        this.config.media.generateImage !== false && this.config.media.imageType !== 'avif',
+    });
   }
 
   resolveCurrentNoteId(noteId: number): number {

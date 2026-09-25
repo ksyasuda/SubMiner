@@ -3,36 +3,12 @@ import type { Hono } from 'hono';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
 import { statsJson, type StatsCoverImagesRequest } from '../../types/stats-http-contract.js';
 import type { StatsCoverImage } from '../../types/stats-wire.js';
+import { parsePositiveId, parsePositiveIdList } from './stats-server/route-support.js';
 
 type StatsCoverImagePayload = StatsCoverImage | null;
 type StatsCoverBatchBody = Partial<Record<keyof StatsCoverImagesRequest, unknown>>;
 
 const MAX_BACKGROUND_ANIME_COVER_FETCHES = 3;
-
-function parseIntQuery(raw: string | undefined, fallback: number, maxLimit?: number): number {
-  if (raw === undefined) return fallback;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) {
-    return fallback;
-  }
-  const parsed = Math.floor(n);
-  return maxLimit === undefined ? parsed : Math.min(parsed, maxLimit);
-}
-
-function parsePositiveIdList(raw: unknown, maxItems = 100): number[] {
-  if (!Array.isArray(raw)) return [];
-
-  const ids = new Set<number>();
-  for (const rawId of raw) {
-    const id = typeof rawId === 'number' ? rawId : typeof rawId === 'string' ? Number(rawId) : NaN;
-    if (Number.isFinite(id) && id > 0) {
-      ids.add(Math.floor(id));
-      if (ids.size >= maxItems) break;
-    }
-  }
-
-  return Array.from(ids).sort((a, b) => a - b);
-}
 
 function coverImagePayload(
   art: { coverBlob?: Uint8Array | null } | null | undefined,
@@ -129,8 +105,11 @@ export function registerStatsCoverRoutes(app: Hono, tracker: ImmersionTrackerSer
 
   app.post('/api/stats/covers', async (c) => {
     const body = (await c.req.json().catch(() => null)) as StatsCoverBatchBody | null;
-    const animeIds = parsePositiveIdList(body?.animeIds);
-    const videoIds = parsePositiveIdList(body?.videoIds);
+    const animeIds = body?.animeIds === undefined ? [] : parsePositiveIdList(body.animeIds, 100);
+    const videoIds = body?.videoIds === undefined ? [] : parsePositiveIdList(body.videoIds, 100);
+    if (!animeIds || !videoIds) return c.body(null, 400);
+    animeIds.sort((a, b) => a - b);
+    videoIds.sort((a, b) => a - b);
     const anime: Record<number, StatsCoverImagePayload> = {};
     const media: Record<number, StatsCoverImagePayload> = {};
 
@@ -155,8 +134,8 @@ export function registerStatsCoverRoutes(app: Hono, tracker: ImmersionTrackerSer
   });
 
   app.get('/api/stats/anime/:animeId/cover', async (c) => {
-    const animeId = parseIntQuery(c.req.param('animeId'), 0);
-    if (animeId <= 0) return c.body(null, 404);
+    const animeId = parsePositiveId(c.req.param('animeId'));
+    if (animeId === null) return c.body(null, 400);
     let art = await tracker.getAnimeCoverArt(animeId);
     if (!art?.coverBlob) {
       await tracker.ensureAnimeCoverArt(animeId);
@@ -167,8 +146,8 @@ export function registerStatsCoverRoutes(app: Hono, tracker: ImmersionTrackerSer
   });
 
   app.get('/api/stats/media/:videoId/cover', async (c) => {
-    const videoId = parseIntQuery(c.req.param('videoId'), 0);
-    if (videoId <= 0) return c.body(null, 404);
+    const videoId = parsePositiveId(c.req.param('videoId'));
+    if (videoId === null) return c.body(null, 400);
     let art = await tracker.getCoverArt(videoId);
     if (!art?.coverBlob) {
       await tracker.ensureCoverArt(videoId);

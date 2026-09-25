@@ -1,4 +1,4 @@
-import type { SubtitleCue } from '../core/services/subtitle-cue-parser';
+import type { AssVerticalBand, SubtitleCue } from '../core/services/subtitle-cue-parser';
 
 export enum PartOfSpeech {
   noun = 'noun',
@@ -187,7 +187,7 @@ export interface ResolvedTokenPos2ExclusionConfig {
 
 export type FrequencyDictionaryMode = 'single' | 'banded';
 
-export type { SubtitleCue };
+export type { AssVerticalBand, SubtitleCue };
 
 export type SubtitleSidebarLayout = 'overlay' | 'embedded';
 
@@ -227,6 +227,7 @@ export interface SubtitleData {
 }
 
 export interface SubtitleSidebarSnapshot {
+  sourceKey: string | null;
   cues: SubtitleCue[];
   currentTimeSec?: number | null;
   currentSubtitle: {
@@ -243,6 +244,10 @@ export interface SubtitleMiningContext {
   startTime: number;
   endTime: number;
   capturedAtMs?: number;
+  /** Explicit generator padding. Confirmed timing-review ranges set this to zero. */
+  mediaPaddingSeconds?: number;
+  /** Independent still screenshot selected during media timing review. */
+  screenshotTime?: number;
 }
 
 export interface SubtitleHoverTokenPayload {

@@ -21,6 +21,8 @@ export type RendererDom = {
   jimakuFilesSection: HTMLDivElement;
   jimakuFilesList: HTMLUListElement;
   jimakuBroadenButton: HTMLButtonElement;
+  jimakuTabAnimeButton: HTMLButtonElement;
+  jimakuTabLiveActionButton: HTMLButtonElement;
 
   tsukihimeModal: HTMLDivElement;
   tsukihimeTitleInput: HTMLInputElement;
@@ -43,6 +45,54 @@ export type RendererDom = {
   youtubePickerCloseButton: HTMLButtonElement;
   youtubePickerStatus: HTMLDivElement;
   youtubePickerTracks: HTMLUListElement;
+
+  mediaTimingReviewFramePicker: HTMLDivElement;
+  mediaTimingReviewFrameImage: HTMLImageElement;
+  mediaTimingReviewFrameSlider: HTMLInputElement;
+  mediaTimingReviewFrameTime: HTMLElement;
+  mediaTimingReviewFrameStatus: HTMLElement;
+  mediaTimingReviewFramePrevious: HTMLButtonElement;
+  mediaTimingReviewFrameNext: HTMLButtonElement;
+  mediaTimingReviewFrameReset: HTMLButtonElement;
+  mediaTimingReviewModal: HTMLDivElement;
+  mediaTimingReviewKind: HTMLDivElement;
+  mediaTimingReviewText: HTMLElement;
+  mediaTimingReviewLineCount: HTMLElement;
+  mediaTimingReviewLineControls: HTMLDivElement;
+  mediaTimingReviewPrevAdd: HTMLButtonElement;
+  mediaTimingReviewPrevRemove: HTMLButtonElement;
+  mediaTimingReviewNextAdd: HTMLButtonElement;
+  mediaTimingReviewNextRemove: HTMLButtonElement;
+  mediaTimingReviewStartValue: HTMLElement;
+  mediaTimingReviewEndValue: HTMLElement;
+  mediaTimingReviewDuration: HTMLElement;
+  mediaTimingReviewTimelineStart: HTMLElement;
+  mediaTimingReviewTimelineEnd: HTMLElement;
+  mediaTimingReviewSelectionTrack: HTMLDivElement;
+  mediaTimingReviewWaveformLabel: HTMLElement;
+  mediaTimingReviewWaveformPath: SVGPathElement;
+  mediaTimingReviewSelectedRange: HTMLDivElement;
+  mediaTimingReviewStartHandle: HTMLDivElement;
+  mediaTimingReviewEndHandle: HTMLDivElement;
+  mediaTimingReviewShowEarlier: HTMLButtonElement;
+  mediaTimingReviewShowLater: HTMLButtonElement;
+  mediaTimingReviewStartBack: HTMLButtonElement;
+  mediaTimingReviewStartForward: HTMLButtonElement;
+  mediaTimingReviewEndBack: HTMLButtonElement;
+  mediaTimingReviewEndForward: HTMLButtonElement;
+  mediaTimingReviewPlay: HTMLButtonElement;
+  mediaTimingReviewPlayLabel: HTMLElement;
+  mediaTimingReviewReset: HTMLButtonElement;
+  mediaTimingReviewCancel: HTMLButtonElement;
+  mediaTimingReviewConfirm: HTMLButtonElement;
+  mediaTimingReviewStatus: HTMLDivElement;
+  mediaTimingReviewEditor: HTMLDivElement;
+  mediaTimingReviewCancelStep: HTMLDivElement;
+  mediaTimingReviewCancelMessage: HTMLParagraphElement;
+  mediaTimingReviewCancelBack: HTMLButtonElement;
+  mediaTimingReviewUseOriginal: HTMLButtonElement;
+  mediaTimingReviewSkipMedia: HTMLButtonElement;
+  mediaTimingReviewDiscard: HTMLButtonElement;
 
   kikuModal: HTMLDivElement;
   kikuCard1: HTMLDivElement;
@@ -117,6 +167,7 @@ export type RendererDom = {
   subtitleSidebarModal: HTMLDivElement;
   subtitleSidebarContent: HTMLDivElement;
   subtitleSidebarClose: HTMLButtonElement;
+  subtitleSidebarCopy: HTMLButtonElement;
   subtitleSidebarStatus: HTMLDivElement;
   subtitleSidebarList: HTMLUListElement;
 
@@ -145,8 +196,8 @@ export type RendererDom = {
   playlistBrowserClose: HTMLButtonElement;
 };
 
-function getRequiredElement<T extends HTMLElement>(id: string): T {
-  const element = document.getElementById(id);
+function getRequiredElement<T extends Element>(id: string): T {
+  const element = document.querySelector(`#${id}`);
   if (!element) {
     throw new Error(`Missing required DOM element #${id}`);
   }
@@ -177,6 +228,8 @@ export function resolveRendererDom(): RendererDom {
     jimakuFilesSection: getRequiredElement<HTMLDivElement>('jimakuFilesSection'),
     jimakuFilesList: getRequiredElement<HTMLUListElement>('jimakuFiles'),
     jimakuBroadenButton: getRequiredElement<HTMLButtonElement>('jimakuBroaden'),
+    jimakuTabAnimeButton: getRequiredElement<HTMLButtonElement>('jimakuTabAnime'),
+    jimakuTabLiveActionButton: getRequiredElement<HTMLButtonElement>('jimakuTabLiveAction'),
 
     tsukihimeModal: getRequiredElement<HTMLDivElement>('tsukihimeModal'),
     tsukihimeTitleInput: getRequiredElement<HTMLInputElement>('tsukihimeTitle'),
@@ -203,6 +256,94 @@ export function resolveRendererDom(): RendererDom {
     youtubePickerCloseButton: getRequiredElement<HTMLButtonElement>('youtubePickerCloseButton'),
     youtubePickerStatus: getRequiredElement<HTMLDivElement>('youtubePickerStatus'),
     youtubePickerTracks: getRequiredElement<HTMLUListElement>('youtubePickerTracks'),
+
+    mediaTimingReviewFramePicker: getRequiredElement<HTMLDivElement>(
+      'mediaTimingReviewFramePicker',
+    ),
+    mediaTimingReviewFrameImage: getRequiredElement<HTMLImageElement>(
+      'mediaTimingReviewFrameImage',
+    ),
+    mediaTimingReviewFrameSlider: getRequiredElement<HTMLInputElement>(
+      'mediaTimingReviewFrameSlider',
+    ),
+    mediaTimingReviewFrameTime: getRequiredElement<HTMLElement>('mediaTimingReviewFrameTime'),
+    mediaTimingReviewFrameStatus: getRequiredElement<HTMLElement>('mediaTimingReviewFrameStatus'),
+    mediaTimingReviewFramePrevious: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewFramePrevious',
+    ),
+    mediaTimingReviewFrameNext: getRequiredElement<HTMLButtonElement>('mediaTimingReviewFrameNext'),
+    mediaTimingReviewFrameReset: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewFrameReset',
+    ),
+    mediaTimingReviewModal: getRequiredElement<HTMLDivElement>('mediaTimingReviewModal'),
+    mediaTimingReviewKind: getRequiredElement<HTMLDivElement>('mediaTimingReviewKind'),
+    mediaTimingReviewText: getRequiredElement<HTMLElement>('mediaTimingReviewText'),
+    mediaTimingReviewLineCount: getRequiredElement<HTMLElement>('mediaTimingReviewLineCount'),
+    mediaTimingReviewLineControls: getRequiredElement<HTMLDivElement>(
+      'mediaTimingReviewLineControls',
+    ),
+    mediaTimingReviewPrevAdd: getRequiredElement<HTMLButtonElement>('mediaTimingReviewPrevAdd'),
+    mediaTimingReviewPrevRemove: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewPrevRemove',
+    ),
+    mediaTimingReviewNextAdd: getRequiredElement<HTMLButtonElement>('mediaTimingReviewNextAdd'),
+    mediaTimingReviewNextRemove: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewNextRemove',
+    ),
+    mediaTimingReviewStartValue: getRequiredElement<HTMLElement>('mediaTimingReviewStartValue'),
+    mediaTimingReviewEndValue: getRequiredElement<HTMLElement>('mediaTimingReviewEndValue'),
+    mediaTimingReviewDuration: getRequiredElement<HTMLElement>('mediaTimingReviewDuration'),
+    mediaTimingReviewTimelineStart: getRequiredElement<HTMLElement>(
+      'mediaTimingReviewTimelineStart',
+    ),
+    mediaTimingReviewTimelineEnd: getRequiredElement<HTMLElement>('mediaTimingReviewTimelineEnd'),
+    mediaTimingReviewSelectionTrack: getRequiredElement<HTMLDivElement>(
+      'mediaTimingReviewSelectionTrack',
+    ),
+    mediaTimingReviewWaveformLabel: getRequiredElement<HTMLElement>(
+      'mediaTimingReviewWaveformLabel',
+    ),
+    mediaTimingReviewWaveformPath: getRequiredElement<SVGPathElement>(
+      'mediaTimingReviewWaveformPath',
+    ),
+    mediaTimingReviewSelectedRange: getRequiredElement<HTMLDivElement>(
+      'mediaTimingReviewSelectedRange',
+    ),
+    mediaTimingReviewStartHandle: getRequiredElement<HTMLDivElement>(
+      'mediaTimingReviewStartHandle',
+    ),
+    mediaTimingReviewEndHandle: getRequiredElement<HTMLDivElement>('mediaTimingReviewEndHandle'),
+    mediaTimingReviewShowEarlier: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewShowEarlier',
+    ),
+    mediaTimingReviewShowLater: getRequiredElement<HTMLButtonElement>('mediaTimingReviewShowLater'),
+    mediaTimingReviewStartBack: getRequiredElement<HTMLButtonElement>('mediaTimingReviewStartBack'),
+    mediaTimingReviewStartForward: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewStartForward',
+    ),
+    mediaTimingReviewEndBack: getRequiredElement<HTMLButtonElement>('mediaTimingReviewEndBack'),
+    mediaTimingReviewEndForward: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewEndForward',
+    ),
+    mediaTimingReviewPlay: getRequiredElement<HTMLButtonElement>('mediaTimingReviewPlay'),
+    mediaTimingReviewPlayLabel: getRequiredElement<HTMLElement>('mediaTimingReviewPlayLabel'),
+    mediaTimingReviewReset: getRequiredElement<HTMLButtonElement>('mediaTimingReviewReset'),
+    mediaTimingReviewCancel: getRequiredElement<HTMLButtonElement>('mediaTimingReviewCancel'),
+    mediaTimingReviewConfirm: getRequiredElement<HTMLButtonElement>('mediaTimingReviewConfirm'),
+    mediaTimingReviewStatus: getRequiredElement<HTMLDivElement>('mediaTimingReviewStatus'),
+    mediaTimingReviewEditor: getRequiredElement<HTMLDivElement>('mediaTimingReviewEditor'),
+    mediaTimingReviewCancelStep: getRequiredElement<HTMLDivElement>('mediaTimingReviewCancelStep'),
+    mediaTimingReviewCancelMessage: getRequiredElement<HTMLParagraphElement>(
+      'mediaTimingReviewCancelMessage',
+    ),
+    mediaTimingReviewCancelBack: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewCancelBack',
+    ),
+    mediaTimingReviewUseOriginal: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewUseOriginal',
+    ),
+    mediaTimingReviewSkipMedia: getRequiredElement<HTMLButtonElement>('mediaTimingReviewSkipMedia'),
+    mediaTimingReviewDiscard: getRequiredElement<HTMLButtonElement>('mediaTimingReviewDiscard'),
 
     kikuModal: getRequiredElement<HTMLDivElement>('kikuFieldGroupingModal'),
     kikuCard1: getRequiredElement<HTMLDivElement>('kikuCard1'),
@@ -295,6 +436,7 @@ export function resolveRendererDom(): RendererDom {
     subtitleSidebarModal: getRequiredElement<HTMLDivElement>('subtitleSidebarModal'),
     subtitleSidebarContent: getRequiredElement<HTMLDivElement>('subtitleSidebarContent'),
     subtitleSidebarClose: getRequiredElement<HTMLButtonElement>('subtitleSidebarClose'),
+    subtitleSidebarCopy: getRequiredElement<HTMLButtonElement>('subtitleSidebarCopy'),
     subtitleSidebarStatus: getRequiredElement<HTMLDivElement>('subtitleSidebarStatus'),
     subtitleSidebarList: getRequiredElement<HTMLUListElement>('subtitleSidebarList'),
 

@@ -86,10 +86,30 @@
             <button id="jimakuClose" class="modal-close" type="button">Close</button>
           </div>
           <div class="modal-body">
+            <div class="jimaku-tabs" role="tablist">
+              <button
+                id="jimakuTabAnime"
+                class="jimaku-tab active"
+                type="button"
+                role="tab"
+                aria-selected="true"
+              >
+                Anime
+              </button>
+              <button
+                id="jimakuTabLiveAction"
+                class="jimaku-tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+              >
+                Live action
+              </button>
+            </div>
             <div class="jimaku-form">
               <label class="jimaku-field">
                 <span>Title</span>
-                <input id="jimakuTitle" type="text" placeholder="Anime title" />
+                <input id="jimakuTitle" type="text" placeholder="Title" />
               </label>
               <label class="jimaku-field">
                 <span>Season</span>
@@ -196,6 +216,351 @@
           </div>
         </div>
       </div>
+      <div
+        id="mediaTimingReviewModal"
+        class="modal media-timing-review-modal hidden"
+        aria-hidden="true"
+      >
+        <div
+          class="modal-content media-timing-review-content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mediaTimingReviewTitle"
+        >
+          <div class="media-timing-review-header">
+            <div class="media-timing-review-heading">
+              <div id="mediaTimingReviewTitle" class="media-timing-review-title">
+                Review media timing
+              </div>
+              <div id="mediaTimingReviewKind" class="media-timing-review-kind">Sentence card</div>
+            </div>
+            <button
+              id="mediaTimingReviewCancel"
+              class="media-timing-review-quiet-button"
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div id="mediaTimingReviewEditor" class="media-timing-review-editor">
+            <div class="media-timing-review-sentence-header">
+              <div class="media-timing-review-sentence-heading">
+                <span class="media-timing-review-sentence-label">Sentence on card</span>
+                <span id="mediaTimingReviewLineCount" class="media-timing-review-line-count">
+                  1 line
+                </span>
+              </div>
+              <div
+                id="mediaTimingReviewLineControls"
+                class="media-timing-review-line-controls hidden"
+              >
+                <div class="media-timing-review-line-stepper">
+                  <span>Prev</span>
+                  <button
+                    id="mediaTimingReviewPrevRemove"
+                    type="button"
+                    aria-label="Remove the earliest added previous subtitle line from the card sentence"
+                    title="Remove the earliest previous line (Shift+P)"
+                  >
+                    &minus;
+                  </button>
+                  <button
+                    id="mediaTimingReviewPrevAdd"
+                    type="button"
+                    aria-label="Add the previous subtitle line to the card sentence"
+                    title="Add the previous line (P)"
+                  >
+                    +
+                  </button>
+                </div>
+                <div class="media-timing-review-line-stepper">
+                  <span>Next</span>
+                  <button
+                    id="mediaTimingReviewNextRemove"
+                    type="button"
+                    aria-label="Remove the latest added next subtitle line from the card sentence"
+                    title="Remove the latest next line (Shift+N)"
+                  >
+                    &minus;
+                  </button>
+                  <button
+                    id="mediaTimingReviewNextAdd"
+                    type="button"
+                    aria-label="Add the next subtitle line to the card sentence"
+                    title="Add the next line (N)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+            <blockquote id="mediaTimingReviewText" class="media-timing-review-text"></blockquote>
+
+            <div id="mediaTimingReviewFramePicker" class="media-timing-frame-picker hidden">
+              <div class="media-timing-frame-image-shell">
+                <img
+                  id="mediaTimingReviewFrameImage"
+                  class="hidden"
+                  alt="Selected card screenshot"
+                />
+              </div>
+              <div class="media-timing-frame-controls">
+                <div class="media-timing-frame-heading">
+                  <label for="mediaTimingReviewFrameSlider">Card screenshot</label>
+                  <output id="mediaTimingReviewFrameTime" for="mediaTimingReviewFrameSlider"
+                    >—</output
+                  >
+                </div>
+                <input
+                  id="mediaTimingReviewFrameSlider"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.001"
+                  value="0"
+                  aria-label="Screenshot time"
+                />
+                <div class="media-timing-frame-buttons">
+                  <button
+                    id="mediaTimingReviewFramePrevious"
+                    type="button"
+                    aria-label="Previous video frame"
+                  >
+                    ← Frame
+                  </button>
+                  <button
+                    id="mediaTimingReviewFrameNext"
+                    type="button"
+                    aria-label="Next video frame"
+                  >
+                    Frame →
+                  </button>
+                  <button
+                    id="mediaTimingReviewFrameReset"
+                    type="button"
+                    aria-label="Reset screenshot"
+                  >
+                    Reset
+                  </button>
+                </div>
+                <p id="mediaTimingReviewFrameStatus" role="status"></p>
+              </div>
+            </div>
+
+            <div class="media-timing-review-readout" aria-live="polite">
+              <div>
+                <span>Starts</span>
+                <strong id="mediaTimingReviewStartValue">00:00.000</strong>
+              </div>
+              <div class="media-timing-review-duration">
+                <span>Clip length</span>
+                <strong id="mediaTimingReviewDuration">0.00s</strong>
+              </div>
+              <div>
+                <span>Ends</span>
+                <strong id="mediaTimingReviewEndValue">00:00.000</strong>
+              </div>
+            </div>
+
+            <div class="media-timing-review-timeline-shell">
+              <div class="media-timing-review-timeline-labels">
+                <span id="mediaTimingReviewTimelineStart">00:00</span>
+                <span id="mediaTimingReviewWaveformLabel">speech-weighted waveform</span>
+                <span id="mediaTimingReviewTimelineEnd">00:00</span>
+              </div>
+              <div id="mediaTimingReviewSelectionTrack" class="media-timing-review-track">
+                <svg
+                  class="media-timing-review-waveform"
+                  viewBox="0 0 1000 100"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <linearGradient id="mediaTimingReviewWaveformFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop class="media-timing-review-waveform-edge-stop" offset="0%" />
+                      <stop class="media-timing-review-waveform-core-stop" offset="50%" />
+                      <stop class="media-timing-review-waveform-edge-stop" offset="100%" />
+                    </linearGradient>
+                  </defs>
+                  <path id="mediaTimingReviewWaveformPath"></path>
+                </svg>
+                <div
+                  class="media-timing-review-original-range"
+                  title="Mined subtitle timing"
+                  aria-hidden="true"
+                >
+                  <span class="media-timing-review-original-boundary is-start"></span>
+                  <span class="media-timing-review-original-boundary is-end"></span>
+                </div>
+                <span class="media-timing-review-original-label is-start" aria-hidden="true">
+                  Line start
+                </span>
+                <span class="media-timing-review-original-label is-end" aria-hidden="true">
+                  Line end
+                </span>
+                <div
+                  id="mediaTimingReviewSelectedRange"
+                  class="media-timing-review-selected-range"
+                  aria-hidden="true"
+                ></div>
+                <div class="media-timing-review-playhead" aria-hidden="true"></div>
+                <div
+                  id="mediaTimingReviewStartHandle"
+                  class="media-timing-review-handle media-timing-review-handle-start"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Clip start"
+                  aria-orientation="horizontal"
+                ></div>
+                <div
+                  id="mediaTimingReviewEndHandle"
+                  class="media-timing-review-handle media-timing-review-handle-end"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Clip end"
+                  aria-orientation="horizontal"
+                ></div>
+              </div>
+              <div class="media-timing-review-expand-row">
+                <button
+                  id="mediaTimingReviewShowEarlier"
+                  class="media-timing-review-expand-button"
+                  type="button"
+                  aria-label="Show two more seconds before the visible timeline without moving the selected clip"
+                  title="Show 2 more seconds before the visible timeline. The selected clip does not move."
+                >
+                  Earlier &minus;2s
+                </button>
+                <span>Drag an edge to trim, or drag the highlighted clip to move it.</span>
+                <button
+                  id="mediaTimingReviewShowLater"
+                  class="media-timing-review-expand-button"
+                  type="button"
+                  aria-label="Show two more seconds after the visible timeline without moving the selected clip"
+                  title="Show 2 more seconds after the visible timeline. The selected clip does not move."
+                >
+                  Later +2s
+                </button>
+              </div>
+            </div>
+
+            <div class="media-timing-review-fine-grid">
+              <div class="media-timing-review-fine-control">
+                <span>Start</span>
+                <button
+                  id="mediaTimingReviewStartBack"
+                  type="button"
+                  aria-label="Move start backward 100 milliseconds"
+                >
+                  &minus;0.1s
+                </button>
+                <button
+                  id="mediaTimingReviewStartForward"
+                  type="button"
+                  aria-label="Move start forward 100 milliseconds"
+                >
+                  +0.1s
+                </button>
+              </div>
+              <div class="media-timing-review-fine-control">
+                <span>End</span>
+                <button
+                  id="mediaTimingReviewEndBack"
+                  type="button"
+                  aria-label="Move end backward 100 milliseconds"
+                >
+                  &minus;0.1s
+                </button>
+                <button
+                  id="mediaTimingReviewEndForward"
+                  type="button"
+                  aria-label="Move end forward 100 milliseconds"
+                >
+                  +0.1s
+                </button>
+              </div>
+            </div>
+
+            <div
+              id="mediaTimingReviewStatus"
+              class="media-timing-review-status"
+              role="status"
+              aria-live="polite"
+            ></div>
+            <div class="media-timing-review-footer">
+              <div class="media-timing-review-preview-actions">
+                <button
+                  id="mediaTimingReviewPlay"
+                  class="media-timing-review-play-button"
+                  type="button"
+                >
+                  <span class="media-timing-review-play-glyph" aria-hidden="true"></span>
+                  <span id="mediaTimingReviewPlayLabel">Play selection</span>
+                </button>
+                <button
+                  id="mediaTimingReviewReset"
+                  class="media-timing-review-quiet-button"
+                  type="button"
+                >
+                  Reset timing
+                </button>
+              </div>
+              <button
+                id="mediaTimingReviewConfirm"
+                class="media-timing-review-confirm-button"
+                type="button"
+              >
+                Use this timing
+              </button>
+            </div>
+            <div class="media-timing-review-hints" aria-hidden="true">
+              <span><kbd>Space</kbd> preview</span>
+              <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> nudge focused edge</span>
+              <span><kbd>P</kbd>/<kbd>N</kbd> add prev/next line</span>
+              <span><kbd>Enter</kbd> confirm</span>
+              <span><kbd>Esc</kbd> cancel</span>
+            </div>
+          </div>
+
+          <div id="mediaTimingReviewCancelStep" class="media-timing-review-cancel-step hidden">
+            <div class="media-timing-review-cancel-mark" aria-hidden="true">?</div>
+            <h2>Stop reviewing?</h2>
+            <p id="mediaTimingReviewCancelMessage">Choose what should happen to this card.</p>
+            <div class="media-timing-review-cancel-actions">
+              <button
+                id="mediaTimingReviewCancelBack"
+                class="media-timing-review-quiet-button"
+                type="button"
+              >
+                Keep editing
+              </button>
+              <button
+                id="mediaTimingReviewUseOriginal"
+                class="media-timing-review-original-button"
+                type="button"
+              >
+                Use original timing
+              </button>
+              <button
+                id="mediaTimingReviewSkipMedia"
+                class="media-timing-review-skip-button"
+                type="button"
+                title="Keep this card but do not add audio or an image."
+              >
+                Keep without media
+              </button>
+              <button
+                id="mediaTimingReviewDiscard"
+                class="media-timing-review-discard-button"
+                type="button"
+              >
+                Delete card
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div id="kikuFieldGroupingModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content">
           <div class="modal-header">
@@ -205,8 +570,8 @@
             <div id="kikuSelectionStep">
               <div class="kiku-info-text">
                 A card with the same expression already exists. Select which card to keep. The other
-                card's content will be merged using Kiku field grouping. You can choose whether to
-                delete the duplicate.
+                card's content will be merged using field grouping. You can choose whether to delete
+                the duplicate.
               </div>
               <div class="kiku-cards-container">
                 <div id="kikuCard1" class="kiku-card active" tabindex="0">
@@ -340,6 +705,171 @@
           </div>
         </div>
       </div>
+      <div
+        id="subtitleGenerationModal"
+        class="modal hidden"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="subtitleGenerationTitle"
+      >
+        <div class="modal-content subtitle-generation-content">
+          <div class="modal-header">
+            <div id="subtitleGenerationTitle" class="modal-title">Generate Japanese subtitles</div>
+            <button id="subtitleGenerationClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body subtitle-generation-body">
+            <p class="subtitle-generation-intro">
+              Turn the current audio track into timed Japanese subtitles. Audio stays on this
+              device.
+            </p>
+            <div class="subtitle-generation-detail">
+              <span class="subtitle-generation-label">Current media</span>
+              <div id="subtitleGenerationMedia">Checking current media...</div>
+            </div>
+            <div class="subtitle-generation-detail">
+              <span class="subtitle-generation-label">Local tools</span>
+              <div id="subtitleGenerationTools">Checking local tools...</div>
+              <p class="subtitle-generation-hint">
+                SubMiner downloads models, not whisper.cpp or FFmpeg. Install them, or set their
+                paths in Settings → Integrations → Japanese Subtitle Generation.
+              </p>
+            </div>
+            <div class="subtitle-generation-detail">
+              <span class="subtitle-generation-label">Speech model</span>
+              <div id="subtitleGenerationModel">Checking local models...</div>
+              <div
+                id="subtitleGenerationModelPicker"
+                class="subtitle-generation-model-picker hidden"
+              >
+                <label for="subtitleGenerationModelSelect">Model</label>
+                <select
+                  id="subtitleGenerationModelSelect"
+                  aria-describedby="subtitleGenerationModelDescription subtitleGenerationModelRecommendation"
+                ></select>
+                <p id="subtitleGenerationModelDescription" class="subtitle-generation-hint"></p>
+                <p id="subtitleGenerationModelRecommendation" class="subtitle-generation-hint">
+                  Start with small for a balance of accuracy and CPU time. Larger models need more
+                  memory; speed depends on your hardware. Sizes shown are downloads.
+                </p>
+                <p class="subtitle-generation-hint">
+                  This choice lasts for this SubMiner session. Set the default model in Settings.
+                </p>
+              </div>
+              <p class="subtitle-generation-hint">
+                Use your own model in Settings → Integrations → Japanese Subtitle Generation → Model
+                Path.
+              </p>
+              <button
+                id="subtitleGenerationDownload"
+                class="kiku-cancel-button hidden"
+                type="button"
+              >
+                Download model
+              </button>
+            </div>
+            <div class="subtitle-generation-detail">
+              <label class="subtitle-generation-vad-toggle" for="subtitleGenerationVadEnabled">
+                <input
+                  id="subtitleGenerationVadEnabled"
+                  type="checkbox"
+                  aria-describedby="subtitleGenerationVadHint"
+                />
+                Focus on spoken dialogue <span class="subtitle-generation-hint">Optional</span>
+              </label>
+              <div id="subtitleGenerationVadModel" class="subtitle-generation-hint"></div>
+              <p id="subtitleGenerationVadHint" class="subtitle-generation-hint">
+                Keeps uncertain audio to avoid losing dialogue under music. Songs may also be
+                transcribed. Requires whisper.cpp's speech detector.
+              </p>
+              <p class="subtitle-generation-hint">
+                Applies for this session. Set VAD Model Path in Settings to enable it by default.
+              </p>
+              <button
+                id="subtitleGenerationVadDownload"
+                class="kiku-cancel-button hidden"
+                type="button"
+              >
+                Download speech detection model
+              </button>
+            </div>
+            <div id="subtitleGenerationActivity" class="subtitle-generation-activity hidden">
+              <div class="subtitle-generation-progress-heading">
+                <span id="subtitleGenerationStage">Preparing</span>
+                <span id="subtitleGenerationPercent"></span>
+              </div>
+              <progress
+                id="subtitleGenerationProgress"
+                max="100"
+                aria-label="Subtitle generation progress"
+              ></progress>
+            </div>
+            <div
+              id="subtitleGenerationStatus"
+              class="runtime-options-status"
+              role="status"
+              aria-live="polite"
+            ></div>
+            <div class="subtitle-generation-actions">
+              <button id="subtitleGenerationRefresh" class="kiku-cancel-button" type="button">
+                Check again
+              </button>
+              <button id="subtitleGenerationCancel" class="kiku-cancel-button hidden" type="button">
+                Cancel
+              </button>
+              <button
+                id="subtitleGenerationStart"
+                class="kiku-confirm-button"
+                type="button"
+                disabled
+              >
+                Generate subtitles
+              </button>
+            </div>
+            <p class="subtitle-generation-hint">
+              The generated SRT will be saved locally and loaded into the player. You can close this
+              window while it runs.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div id="subtitleSelectionModal" class="modal hidden" aria-hidden="true">
+        <div
+          class="modal-content subsync-modal-content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="subtitleSelectionTitle"
+        >
+          <div class="modal-header">
+            <h2 id="subtitleSelectionTitle">Select subtitles</h2>
+            <button id="subtitleSelectionClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div class="subsync-form">
+              <label class="subsync-field">
+                <span>Primary subtitle</span>
+                <select id="subtitleSelectionPrimary"></select>
+              </label>
+              <label class="subsync-field">
+                <span>Secondary subtitle</span>
+                <select id="subtitleSelectionSecondary"></select>
+              </label>
+            </div>
+            <div
+              id="subtitleSelectionStatus"
+              class="runtime-options-status"
+              role="status"
+              aria-live="polite"
+            ></div>
+            <div class="subsync-footer">
+              <button id="subtitleSelectionApply" class="kiku-confirm-button" type="button">
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="subsyncModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content subsync-modal-content">
           <div class="modal-header">
@@ -437,9 +967,17 @@
         <div id="subtitleSidebarContent" class="modal-content subtitle-sidebar-content">
           <div class="modal-header">
             <div class="modal-title">Subtitle Sidebar</div>
+            <button id="subtitleSidebarCopy" class="modal-close" type="button" hidden>Copy</button>
             <button id="subtitleSidebarClose" class="modal-close" type="button">Close</button>
           </div>
           <div class="modal-body subtitle-sidebar-body">
+            <button
+              id="subtitleGenerationOpen"
+              class="kiku-cancel-button subtitle-generation-open"
+              type="button"
+            >
+              Generate Japanese subtitles
+            </button>
             <div id="subtitleSidebarStatus" class="runtime-options-status"></div>
             <ul id="subtitleSidebarList" class="subtitle-sidebar-list"></ul>
           </div>

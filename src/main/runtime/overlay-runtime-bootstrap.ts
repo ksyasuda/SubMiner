@@ -26,6 +26,7 @@ type InitializeOverlayRuntimeCore = (options: {
   } | null;
   setAnkiIntegration: (integration: unknown | null) => void;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  dismissOverlayNotification?: (id: string) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;

@@ -11,6 +11,27 @@ interface AnimeMergeDialogProps {
   onMerged: (survivingAnimeId: number) => void;
 }
 
+const PROVIDER_CONFLICT_MESSAGE =
+  'AniList-linked and TMDB-linked entries cannot be merged together. Relink one of them first.';
+const KIND_CONFLICT_MESSAGE =
+  'YouTube channels cannot be merged with anime or live-action entries.';
+
+/** Merging an AniList entry with a TMDB entry is rejected by the server (409), as is mixing in a channel. */
+function hasProviderConflict(entries: AnimeLibraryItem[]): boolean {
+  return (
+    entries.some((entry) => entry.anilistId !== null) &&
+    entries.some((entry) => entry.tmdbId !== null)
+  );
+}
+
+function describeMergeError(err: unknown, entries: AnimeLibraryItem[]): string {
+  const message = err instanceof Error ? err.message : '';
+  if (/^Stats API error: 409\b/.test(message)) {
+    return hasProviderConflict(entries) ? PROVIDER_CONFLICT_MESSAGE : KIND_CONFLICT_MESSAGE;
+  }
+  return message || 'Failed to merge these entries.';
+}
+
 /** Biggest entry first: the one most likely to carry the right title and art. */
 function pickDefaultKeeper(entries: AnimeLibraryItem[]): number {
   const best = [...entries].sort(
@@ -26,6 +47,7 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
   const [keeperId, setKeeperId] = useState(() => pickDefaultKeeper(entries));
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const providerConflict = hasProviderConflict(entries);
 
   const totalEpisodes = entries.reduce((sum, entry) => sum + entry.episodeCount, 0);
   const totalCards = entries.reduce((sum, entry) => sum + entry.totalCards, 0);
@@ -42,14 +64,14 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
     const sourceAnimeIds = entries
       .map((entry) => entry.animeId)
       .filter((animeId) => animeId !== keeperId);
-    if (sourceAnimeIds.length === 0) return;
+    if (sourceAnimeIds.length === 0 || providerConflict) return;
     setMerging(true);
     setError(null);
     try {
       const result = await apiClient.mergeAnime(keeperId, sourceAnimeIds);
       onMerged(result.animeId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to merge these entries.');
+      setError(describeMergeError(err, entries));
       setMerging(false);
     }
   };
@@ -120,7 +142,7 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
               <AnimeCoverImage
                 animeId={entry.animeId}
                 title={entry.canonicalTitle}
-                coverRetryToken={entry.anilistId ?? 0}
+                coverRetryToken={entry.anilistId ?? entry.tmdbId ?? 0}
                 className="w-10 h-14 rounded shrink-0"
               />
               <div className="min-w-0 flex-1">
@@ -138,7 +160,11 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
         </div>
 
         <div className="p-4 border-t border-ctp-surface1 space-y-2">
-          {error ? (
+          {providerConflict ? (
+            <div role="alert" className="text-xs text-ctp-peach">
+              {PROVIDER_CONFLICT_MESSAGE}
+            </div>
+          ) : error ? (
             <div role="alert" className="text-xs text-ctp-red">
               {error}
             </div>
@@ -150,7 +176,7 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
             </div>
             <button
               type="button"
-              disabled={merging}
+              disabled={merging || providerConflict}
               onClick={() => void handleMerge()}
               className="px-3 py-1.5 rounded-lg bg-ctp-blue/15 border border-ctp-blue/40 text-xs text-ctp-blue hover:bg-ctp-blue/25 transition-colors disabled:opacity-50"
             >

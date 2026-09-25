@@ -89,6 +89,7 @@ function createControllerConfigFixture() {
 
 function createSubtitleSidebarSnapshotFixture(): SubtitleSidebarSnapshot {
   return {
+    sourceKey: 'test-subtitles',
     cues: [],
     currentSubtitle: { text: '', startTime: null, endTime: null },
     config: {
@@ -648,6 +649,114 @@ test('registerIpcHandlers exposes playback window activation request', async () 
   assert.deepEqual(calls, ['activate']);
 });
 
+test('registerIpcHandlers accepts the keep-without-media timing decision', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const requests: unknown[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      resolveMediaTimingReview: async (request) => {
+        requests.push(request);
+        return { ok: true };
+      },
+    }),
+    registrar,
+  );
+
+  const handler = handlers.handle.get(IPC_CHANNELS.request.mediaTimingReviewResolve);
+  assert.ok(handler);
+  assert.deepEqual(
+    await handler!({}, { reviewId: 'review-1', decision: { action: 'skip-media' } }),
+    { ok: true },
+  );
+  assert.deepEqual(requests, [{ reviewId: 'review-1', decision: { action: 'skip-media' } }]);
+});
+
+test('frame IPC validates timestamps and directions', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const requests: unknown[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      getMediaTimingReviewFrame: async (request) => {
+        requests.push(request);
+        return { ok: true };
+      },
+    }),
+    registrar,
+  );
+  const frame = handlers.handle.get(IPC_CHANNELS.request.mediaTimingReviewFrame)!;
+  const valid = { reviewId: 'r', timestamp: 13, direction: 1 };
+  assert.deepEqual(await frame({}, valid), { ok: true });
+  for (const invalid of [
+    null,
+    {},
+    { ...valid, timestamp: NaN },
+    { ...valid, timestamp: '13' },
+    { ...valid, direction: 2 },
+  ]) {
+    assert.equal(((await frame({}, invalid)) as { ok: boolean }).ok, false);
+  }
+  assert.deepEqual(requests, [valid]);
+});
+
+test('registerIpcHandlers validates and forwards timing review text and screenshot selection', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const requests: unknown[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      resolveMediaTimingReview: async (request) => {
+        requests.push(request);
+        return { ok: true };
+      },
+    }),
+    registrar,
+  );
+
+  const handler = handlers.handle.get(IPC_CHANNELS.request.mediaTimingReviewResolve);
+  assert.ok(handler);
+  assert.deepEqual(
+    await handler!(
+      {},
+      {
+        reviewId: 'review-1',
+        decision: {
+          action: 'confirm',
+          startTime: 10,
+          endTime: 12,
+          text: '前の行 対象の行',
+          screenshotTime: 13,
+        },
+      },
+    ),
+    { ok: true },
+  );
+  assert.deepEqual(requests, [
+    {
+      reviewId: 'review-1',
+      decision: {
+        action: 'confirm',
+        startTime: 10,
+        endTime: 12,
+        text: '前の行 対象の行',
+        screenshotTime: 13,
+      },
+    },
+  ]);
+
+  for (const invalid of [{ text: '   ' }, { screenshotTime: Infinity }]) {
+    assert.deepEqual(
+      await handler!(
+        {},
+        {
+          reviewId: 'review-1',
+          decision: { action: 'confirm', startTime: 10, endTime: 12, ...invalid },
+        },
+      ),
+      { ok: false, message: 'Timing review is unavailable.' },
+    );
+  }
+  assert.equal(requests.length, 1);
+});
+
 test('registerIpcHandlers forwards yomitan lookup tracking commands to immersion tracker', () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const calls: string[] = [];
@@ -959,7 +1068,13 @@ test('registerIpcHandlers accepts per-controller profile config updates', async 
     },
   };
   await saveHandler({}, update);
-  assert.deepEqual(controllerSaves, [update]);
+  assert.deepEqual(controllerSaves, [
+    {
+      ...update,
+      // Validation uses a null prototype to safely store arbitrary profile IDs.
+      profiles: { __proto__: null, ...update.profiles },
+    },
+  ]);
 
   await assert.rejects(async () => {
     await saveHandler(
@@ -1238,4 +1353,19 @@ test('registerIpcHandlers exposes character dictionary selection handlers', asyn
   });
   assert.deepEqual(calls, [21355]);
   assert.deepEqual(searches, ['Re:ZERO']);
+});
+
+test('mpv discovery has its own request and does not change session bindings', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const snapshot = { keys: ['r'], blockedKeys: [] };
+  registerIpcHandlers(
+    createRegisterIpcDeps({ getMpvInputBindings: async () => snapshot }),
+    registrar,
+  );
+  const discovery = handlers.handle.get(IPC_CHANNELS.request.getMpvInputBindings);
+  const session = handlers.handle.get(IPC_CHANNELS.request.getSessionBindings);
+  assert.ok(discovery);
+  assert.ok(session);
+  assert.deepEqual(await discovery({}), snapshot);
+  assert.deepEqual(await session({}), []);
 });

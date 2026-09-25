@@ -1,6 +1,7 @@
 import type { ResolveContext } from './context';
 import { initializeAnkiConnectResolution } from './anki-connect/initialize';
 import { applyAnkiKikuResolution } from './anki-connect/kiku';
+import { applyAnkiSenrenResolution } from './anki-connect/senren';
 import { applyAnkiLapisKikuResolution } from './anki-connect/lapis-kiku';
 import { applyAnkiKnownWordsResolution } from './anki-connect/known-words';
 import { applyAnkiLegacyResolution } from './anki-connect/legacy';
@@ -18,10 +19,11 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   const media = isObject(ankiConnect.media) ? ankiConnect.media : {};
   const metadata = isObject(ankiConnect.metadata) ? ankiConnect.metadata : {};
 
-  initializeAnkiConnectResolution(context, ankiConnect);
+  initializeAnkiConnectResolution(context);
   applyAnkiModernResolution(context, ankiConnect, behavior, media);
   applyAnkiLegacyResolution(context, ankiConnect, behavior, fields, media, metadata);
   applyAnkiKnownWordsResolution(context, ankiConnect, behavior);
-  applyAnkiKikuResolution(context);
+  applyAnkiKikuResolution(context, ankiConnect);
+  applyAnkiSenrenResolution(context, ankiConnect);
   applyAnkiLapisKikuResolution(context, ankiConnect);
 }

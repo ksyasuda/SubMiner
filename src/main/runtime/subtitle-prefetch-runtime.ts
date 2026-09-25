@@ -28,7 +28,7 @@ function parseTrackId(value: unknown): number | null {
   return null;
 }
 
-function isRemoteMediaPath(value: string): boolean {
+function isRemoteMediaUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return url.protocol === 'http:' || url.protocol === 'https:';
@@ -126,7 +126,10 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
       return { path: externalFilename, sourceKey: externalFilename };
     }
 
-    if (isRemoteMediaPath(input.videoPath)) {
+    // Network-mounted files extract like local ones: demuxing reads the whole
+    // container (~10s/GB on gigabit), which a LAN handles alongside playback.
+    // Only true remote URLs have no on-disk container to demux.
+    if (isRemoteMediaUrl(input.videoPath)) {
       deps.logDebug?.('[subtitle-prefetch] skipping internal subtitle extraction for remote media');
       return null;
     }
@@ -156,7 +159,7 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
     requestProperty: (name: string) => Promise<unknown>;
   } | null;
   getLastObservedTimePos: () => number;
-  shouldKeepExistingCuesOnMissingSource?: (videoPath: string) => boolean;
+  shouldKeepExistingCuesOnMissingSource?: (videoPath: string) => boolean | Promise<boolean>;
   subtitlePrefetchInitController: SubtitlePrefetchInitController;
   resolveActiveSubtitleSidebarSource: (
     input: Parameters<ReturnType<typeof createResolveActiveSubtitleSidebarSourceHandler>>[0],
@@ -195,7 +198,7 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
         videoPath,
       });
       if (!resolvedSource) {
-        if (deps.shouldKeepExistingCuesOnMissingSource?.(videoPath) === true) {
+        if ((await deps.shouldKeepExistingCuesOnMissingSource?.(videoPath)) === true) {
           deps.logDebug?.(
             '[subtitle-prefetch] no active subtitle source resolved; keeping existing cues',
           );

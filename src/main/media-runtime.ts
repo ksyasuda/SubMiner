@@ -1,4 +1,5 @@
 import { updateCurrentMediaPath } from '../core/services';
+import { sanitizeMediaTitle } from '../shared/media-identity';
 
 import type { SubtitlePosition } from '../types';
 
@@ -52,17 +53,18 @@ export function createMediaRuntimeService(deps: MediaRuntimeDeps): MediaRuntimeS
 
     updateCurrentMediaTitle(mediaTitle: unknown): void {
       if (typeof mediaTitle === 'string') {
-        const sanitized = mediaTitle.trim();
-        deps.setCurrentMediaTitle(sanitized.length > 0 ? sanitized : null);
+        const sanitized = sanitizeMediaTitle(mediaTitle);
+        if (mediaTitle.trim() && !sanitized) return;
+        deps.setCurrentMediaTitle(sanitized);
         return;
       }
       deps.setCurrentMediaTitle(null);
     },
 
     resolveMediaPathForJimaku(mediaPath: string | null): string | null {
-      return mediaPath && deps.isRemoteMediaPath(mediaPath) && deps.getCurrentMediaTitle()
-        ? deps.getCurrentMediaTitle()
-        : mediaPath;
+      return mediaPath && deps.isRemoteMediaPath(mediaPath)
+        ? sanitizeMediaTitle(deps.getCurrentMediaTitle())
+        : sanitizeMediaTitle(mediaPath);
     },
   };
 }

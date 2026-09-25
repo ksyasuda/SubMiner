@@ -136,6 +136,27 @@ function getErrorMessage(error: unknown): string {
   return String(error || 'unknown error');
 }
 
+// Jellyfin reads query keys case-insensitively and older servers embed the token as
+// `api_key` in the URLs they hand back, so drop every spelling before setting the one
+// form Jellyfin 12 still accepts with legacy authorization disabled.
+function setApiKeyParam(url: URL, accessToken: string): void {
+  for (const key of [...url.searchParams.keys()]) {
+    if (/^api_?key$/i.test(key)) url.searchParams.delete(key);
+  }
+  url.searchParams.set('ApiKey', accessToken);
+}
+
+const IMAGE_SUBTITLE_CODECS = new Set([
+  'pgssub',
+  'pgs',
+  'hdmv_pgs_subtitle',
+  'dvdsub',
+  'dvd_subtitle',
+  'dvbsub',
+  'dvb_subtitle',
+  'xsub',
+]);
+
 function resolveDeliveryUrl(
   session: JellyfinAuthSession,
   stream: JellyfinMediaStream,
@@ -146,15 +167,15 @@ function resolveDeliveryUrl(
   if (deliveryUrl) {
     if (stream.IsExternalUrl === true) return deliveryUrl;
     const resolved = new URL(deliveryUrl, `${session.serverUrl}/`);
-    if (!resolved.searchParams.has('api_key')) {
-      resolved.searchParams.set('api_key', session.accessToken);
-    }
+    setApiKeyParam(resolved, session.accessToken);
     return resolved.toString();
   }
 
   const streamIndex = asIntegerOrNull(stream.Index);
   if (streamIndex === null || !itemId || !mediaSourceId) return null;
   const codec = ensureString(stream.Codec).toLowerCase();
+  // Jellyfin cannot convert bitmap subtitles to text, so requesting them always fails.
+  if (IMAGE_SUBTITLE_CODECS.has(codec)) return null;
   const ext =
     codec === 'subrip'
       ? 'srt'
@@ -171,9 +192,7 @@ function resolveDeliveryUrl(
     `/Videos/${encodeURIComponent(itemId)}/${encodeURIComponent(mediaSourceId)}/Subtitles/${streamIndex}/Stream.${ext}`,
     `${session.serverUrl}/`,
   );
-  if (!fallback.searchParams.has('api_key')) {
-    fallback.searchParams.set('api_key', session.accessToken);
-  }
+  setApiKeyParam(fallback, session.accessToken);
   return fallback.toString();
 }
 
@@ -197,7 +216,6 @@ async function jellyfinRequestJson<T>(
   const headers = new Headers(init.headers ?? {});
   headers.set('Content-Type', 'application/json');
   headers.set('Authorization', createAuthorizationHeader(client, session.accessToken));
-  headers.set('X-Emby-Token', session.accessToken);
 
   const response = await fetch(`${session.serverUrl}${path}`, {
     ...init,
@@ -221,7 +239,7 @@ function createDirectPlayUrl(
 ): string {
   const query = new URLSearchParams({
     static: 'true',
-    api_key: session.accessToken,
+    ApiKey: session.accessToken,
     MediaSourceId: ensureString(mediaSource.Id),
   });
   if (mediaSource.LiveStreamId) {
@@ -245,9 +263,7 @@ function createTranscodeUrl(
 ): string {
   if (mediaSource.TranscodingUrl) {
     const url = new URL(`${session.serverUrl}${mediaSource.TranscodingUrl}`);
-    if (!url.searchParams.has('api_key')) {
-      url.searchParams.set('api_key', session.accessToken);
-    }
+    setApiKeyParam(url, session.accessToken);
     if (!url.searchParams.has('AudioStreamIndex') && plan.audioStreamIndex !== null) {
       url.searchParams.set('AudioStreamIndex', String(plan.audioStreamIndex));
     }
@@ -261,7 +277,7 @@ function createTranscodeUrl(
   }
 
   const query = new URLSearchParams({
-    api_key: session.accessToken,
+    ApiKey: session.accessToken,
     MediaSourceId: ensureString(mediaSource.Id),
     VideoCodec: ensureString(config.transcodeVideoCodec, 'h264'),
     TranscodingContainer: 'ts',

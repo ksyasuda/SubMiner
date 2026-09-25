@@ -9,6 +9,7 @@ import {
 } from './mpv';
 import {
   MPV_REQUEST_ID_TRACK_LIST_AUDIO,
+  MPV_REQUEST_ID_MEDIA_TITLE,
   MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
 } from './mpv-protocol';
 
@@ -120,9 +121,30 @@ test('MpvIpcClient emits fullscreen property changes', async () => {
   assert.deepEqual(events, [{ fullscreen: true }]);
 });
 
-test('MpvIpcClient clears cached media title when media path changes', async () => {
+test('MpvIpcClient ignores URL-derived titles without replacing known metadata', async () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  const titles: Array<string | null> = [];
+  client.on('media-title-change', ({ title }) => titles.push(title));
+  for (const data of [
+    'My Anime S01E02',
+    'https://example.com/stream?api_key=test-secret',
+    'stream?api_key=test-secret',
+  ]) {
+    await invokeHandleMessage(client, { event: 'property-change', name: 'media-title', data });
+  }
+  assert.equal(client.currentMediaTitle, 'My Anime S01E02');
+  assert.deepEqual(titles, ['My Anime S01E02']);
+});
 
+test('MpvIpcClient clears cached media title when media path changes and reads it back', async () => {
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  const commands: Array<{ command?: unknown[]; request_id?: number }> = [];
+  (client as any).send = (command: { command?: unknown[]; request_id?: number }) => {
+    commands.push(command);
+    return true;
+  };
+
+  // A forced title (Jellyfin sets force-media-title before loadfile) arrives before the path.
   await invokeHandleMessage(client, {
     event: 'property-change',
     name: 'media-title',
@@ -133,11 +155,33 @@ test('MpvIpcClient clears cached media title when media path changes', async () 
   await invokeHandleMessage(client, {
     event: 'property-change',
     name: 'path',
-    data: '/tmp/new-episode.mkv',
+    data: 'http://pve-main:8096/Videos/item/stream?static=true&ApiKey=secret',
   });
 
-  assert.equal(client.currentVideoPath, '/tmp/new-episode.mkv');
+  assert.equal(
+    client.currentVideoPath,
+    'http://pve-main:8096/Videos/item/stream?static=true&ApiKey=secret',
+  );
   assert.equal(client.currentMediaTitle, null);
+  const titleRequest = commands.find(
+    (command) => command.command?.[0] === 'get_property' && command.command?.[1] === 'media-title',
+  );
+  assert.equal(titleRequest?.request_id, MPV_REQUEST_ID_MEDIA_TITLE);
+
+  await invokeHandleMessage(client, {
+    request_id: MPV_REQUEST_ID_MEDIA_TITLE,
+    error: 'success',
+    data: '[Jellyfin/direct] Episode 1',
+  });
+  assert.equal(client.currentMediaTitle, '[Jellyfin/direct] Episode 1');
+
+  // A URL-derived read-back must not poison the cache.
+  await invokeHandleMessage(client, {
+    request_id: MPV_REQUEST_ID_MEDIA_TITLE,
+    error: 'success',
+    data: 'stream?static=true&ApiKey=secret',
+  });
+  assert.equal(client.currentMediaTitle, '[Jellyfin/direct] Episode 1');
 });
 
 test('MpvIpcClient skips secondary subtitle autoload when media path is managed', async () => {
@@ -652,7 +696,7 @@ test('MpvIpcClient captures and disables secondary subtitle visibility on reques
   ]);
 });
 
-test('MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tracked value', async () => {
+test('MpvIpcClient restores secondary subtitle visibility and relinquishes suppression', async () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   const previous: boolean[] = [];
@@ -671,6 +715,12 @@ test('MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tra
   });
   client.restorePreviousSecondarySubVisibility();
 
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sub-visibility',
+    data: 'yes',
+  });
+
   assert.equal(previous[0], true);
   assert.equal(previous.length, 1);
   assert.deepEqual(commands, [
@@ -682,8 +732,53 @@ test('MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tra
     },
   ]);
 
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sub-visibility',
+    data: 'yes',
+  });
+  assert.equal(commands.length, 2);
+
   client.restorePreviousSecondarySubVisibility();
   assert.equal(commands.length, 2);
+
+  const callbacks = (client as any).transport.callbacks;
+  callbacks.onConnect();
+  commands.length = 0;
+
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sub-visibility',
+    data: 'yes',
+  });
+  assert.deepEqual(commands, [{ command: ['set_property', 'secondary-sub-visibility', 'no'] }]);
+});
+
+test('MpvIpcClient keeps secondary subtitle suppression when restoration send fails', async () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return false;
+  };
+
+  await invokeHandleMessage(client, {
+    request_id: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+    data: 'yes',
+  });
+  client.restorePreviousSecondarySubVisibility();
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sid',
+    data: 4,
+  });
+
+  assert.deepEqual(commands, [
+    { command: ['set_property', 'secondary-sub-visibility', 'no'] },
+    { command: ['set_property', 'secondary-sub-visibility', 'yes'] },
+    { command: ['set_property', 'secondary-sub-visibility', 'no'] },
+  ]);
 });
 
 test('MpvIpcClient updates current audio stream index from track list', async () => {

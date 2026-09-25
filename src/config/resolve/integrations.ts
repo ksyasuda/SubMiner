@@ -58,6 +58,19 @@ export function applyIntegrationConfig(context: ResolveContext): void {
     warn('ai', src.ai, resolved.ai, 'Expected object.');
   }
 
+  if (isObject(src.tmdb)) {
+    for (const key of ['apiKey', 'apiKeyCommand'] as const) {
+      const value = asString(src.tmdb[key]);
+      if (value !== undefined) {
+        resolved.tmdb[key] = value;
+      } else if (src.tmdb[key] !== undefined) {
+        warn(`tmdb.${key}`, src.tmdb[key], resolved.tmdb[key], 'Expected string.');
+      }
+    }
+  } else if (src.tmdb !== undefined) {
+    warn('tmdb', src.tmdb, resolved.tmdb, 'Expected object.');
+  }
+
   if (isObject(src.anilist)) {
     const enabled = asBoolean(src.anilist.enabled);
     if (enabled !== undefined) {

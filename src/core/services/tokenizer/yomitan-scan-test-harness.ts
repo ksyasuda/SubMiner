@@ -64,7 +64,8 @@ export async function runInjectedYomitanScript(
   script: string,
   handler: (action: string, params: unknown) => unknown,
 ): Promise<unknown> {
-  return await vm.runInNewContext(script, createYomitanScriptSandbox(handler));
+  // Clone results into the host realm, matching Electron's process boundary.
+  return structuredClone(await vm.runInNewContext(script, createYomitanScriptSandbox(handler)));
 }
 
 // Persistent page context shared across executeJavaScript calls, matching the
@@ -75,7 +76,8 @@ function createPersistentYomitanScriptRunner(
   handler: (action: string, params: unknown) => unknown,
 ): (script: string) => Promise<unknown> {
   const context = vm.createContext(createYomitanScriptSandbox(handler));
-  return async (script: string) => await vm.runInContext(script, context);
+  // Clone results into the host realm, matching Electron's process boundary.
+  return async (script: string) => structuredClone(await vm.runInContext(script, context));
 }
 
 // Deps whose parser window executes every injected script (profile metadata,

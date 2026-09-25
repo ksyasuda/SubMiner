@@ -3,7 +3,7 @@ import type { SessionActionId } from '../../types/session-bindings';
 import type { SessionActionDispatchRequest } from '../../types/runtime';
 
 export interface SessionActionExecutorDeps {
-  toggleStatsOverlay: () => void;
+  toggleStatsOverlay: () => Promise<void> | void;
   toggleVisibleOverlay: () => void;
   copyCurrentSubtitle: () => void;
   copySubtitleCount: (count: number) => void;
@@ -25,6 +25,8 @@ export interface SessionActionExecutorDeps {
   openControllerDebug: () => void;
   openJimaku: () => void;
   openTsukihime: () => void;
+  openSubtitleSelection: () => void;
+  openSubtitleGeneration: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => boolean | void | Promise<boolean | void>;
   replayCurrentSubtitle: () => void;
@@ -49,7 +51,7 @@ export async function dispatchSessionAction(
 ): Promise<void> {
   switch (request.actionId) {
     case 'toggleStatsOverlay':
-      deps.toggleStatsOverlay();
+      await deps.toggleStatsOverlay();
       return;
     case 'toggleVisibleOverlay':
       deps.toggleVisibleOverlay();
@@ -118,6 +120,12 @@ export async function dispatchSessionAction(
       return;
     case 'openTsukihime':
       deps.openTsukihime();
+      return;
+    case 'openSubtitleSelection':
+      deps.openSubtitleSelection();
+      return;
+    case 'openSubtitleGeneration':
+      deps.openSubtitleGeneration();
       return;
     case 'openYoutubePicker':
       await deps.openYoutubeTrackPicker();

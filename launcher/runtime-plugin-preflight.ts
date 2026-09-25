@@ -31,6 +31,7 @@ type EnsureLinuxRuntimePluginAvailableOptions = {
   detectInstalledPlugin?: () => boolean;
   resolveRuntimePluginPath?: () => string | null;
   isManagedThemeAvailable?: () => boolean;
+  isManagedThumbnailerAvailable?: () => boolean;
   installManagedPluginAssets?: () => Promise<EnsureLinuxRuntimePluginAssetsResult>;
   log?: PreflightLog;
 };
@@ -46,6 +47,14 @@ function resolveConfiguredLogLevel(
   logLevel: EnsureLinuxRuntimePluginAvailableOptions['logLevel'],
 ): 'debug' | 'info' | 'warn' | 'error' {
   return logLevel ?? 'warn';
+}
+
+function isRegularFile(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
 }
 
 async function waitForInstallResponse(
@@ -170,15 +179,17 @@ export async function ensureLinuxRuntimePluginAvailable(
     });
   const isManagedThemeAvailable =
     options.isManagedThemeAvailable ?? (() => fs.existsSync(managedPaths.themePath));
+  const isManagedThumbnailerAvailable =
+    options.isManagedThumbnailerAvailable ?? (() => isRegularFile(managedPaths.thumbnailerPath));
   const runtimePluginAvailable = installedPluginAvailable || Boolean(resolveRuntimePluginPath());
-  if (runtimePluginAvailable && isManagedThemeAvailable()) {
+  if (runtimePluginAvailable && isManagedThemeAvailable() && isManagedThumbnailerAvailable()) {
     return;
   }
 
   log(
     'info',
     configuredLogLevel,
-    'Linux runtime support assets missing; installing managed plugin/theme assets.',
+    'Linux runtime support assets missing; installing managed plugin/theme/thumbnailer assets.',
   );
   const installManagedPluginAssets =
     options.installManagedPluginAssets ??
@@ -207,16 +218,21 @@ export async function ensureLinuxRuntimePluginAvailable(
   log(
     'info',
     configuredLogLevel,
-    `Managed Linux runtime support assets installed: plugin=${installResult.path ?? 'unknown path'} theme=${managedPaths.themePath}`,
+    `Managed Linux runtime support assets installed: plugin=${installResult.path ?? 'unknown path'} theme=${managedPaths.themePath} thumbnailer=${managedPaths.thumbnailerPath}`,
   );
-  const runtimePluginPath = resolveRuntimePluginPath();
-  if (runtimePluginPath) {
+  const runtimePluginAvailableAfterInstall =
+    installedPluginAvailable || Boolean(resolveRuntimePluginPath());
+  if (
+    runtimePluginAvailableAfterInstall &&
+    isManagedThemeAvailable() &&
+    isManagedThumbnailerAvailable()
+  ) {
     return;
   }
 
   const message =
     `Linux managed runtime plugin assets could not be installed. ` +
-    `Checked path: ${managedPaths.pluginEntrypointPath}. ` +
+    `Checked paths: plugin=${managedPaths.pluginEntrypointPath} theme=${managedPaths.themePath} thumbnailer=${managedPaths.thumbnailerPath}. ` +
     'Launch aborted before starting mpv.';
   log('warn', configuredLogLevel, message);
   throw new Error(message);

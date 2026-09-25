@@ -2,8 +2,10 @@
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
+THUMBNAILER_SOURCE := assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer
 LAUNCHER_OUT := dist/launcher/$(APP_NAME)
 THEME_FILE := subminer.rasi
+THUMBNAILER_FILE := subminer-ffmpegthumbnailer.thumbnailer
 
 # Default install prefix for the wrapper script.
 PREFIX ?= $(HOME)/.local
@@ -158,14 +160,8 @@ build-macos-unsigned: deps
 	@bun run build:mac:unsigned
 
 build-launcher:
-	@printf '%s\n' "[INFO] Bundling launcher script"
-	@install -d "$(dir $(LAUNCHER_OUT))"
-	@bun build ./launcher/main.ts --target=bun --packages=bundle --outfile="$(LAUNCHER_OUT)"
-	@if ! head -1 "$(LAUNCHER_OUT)" | grep -q '^#!/usr/bin/env bun'; then \
-		{ printf '#!/usr/bin/env bun\n'; cat "$(LAUNCHER_OUT)"; } > "$(LAUNCHER_OUT).tmp" && mv "$(LAUNCHER_OUT).tmp" "$(LAUNCHER_OUT)"; \
-	fi
-	@chmod +x "$(LAUNCHER_OUT)"
-	@printf '%s\n' "[INFO] Launcher artifact: $(LAUNCHER_OUT)"
+	@printf '%s\n' "[INFO] Building launcher runtime artifacts"
+	@bun run build:launcher
 
 clean:
 	@printf '%s\n' "[INFO] Removing build artifacts"
@@ -221,11 +217,13 @@ docs-dev: ensure-bun
 
 
 install-linux: build-launcher
-	@printf '%s\n' "[INFO] Installing Linux wrapper/theme artifacts"
+	@printf '%s\n' "[INFO] Installing Linux wrapper/support artifacts"
 	@install -d "$(BINDIR)"
 	@install -m 0755 "$(LAUNCHER_OUT)" "$(BINDIR)/$(APP_NAME)"
 	@install -d "$(LINUX_DATA_DIR)/themes"
 	@install -m 0644 "./$(THEME_SOURCE)" "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
+	@install -d "$(LINUX_DATA_DIR)/thumbnailers"
+	@install -m 0644 "./$(THUMBNAILER_SOURCE)" "$(LINUX_DATA_DIR)/thumbnailers/$(THUMBNAILER_FILE)"
 	@install -d "$(LINUX_DATA_DIR)/plugin/subminer"
 	@cp -R ./plugin/subminer/. "$(LINUX_DATA_DIR)/plugin/subminer/"
 	@if [ -n "$(APPIMAGE_SRC)" ]; then \
@@ -234,7 +232,7 @@ install-linux: build-launcher
 		printf '%s\n' "[WARN] No release/SubMiner-*.AppImage found; skipping AppImage install"; \
 		printf '%s\n' "       Build one with: make build"; \
 	fi
-	@printf '%s\n' "Installed to:" "  $(BINDIR)/subminer" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
+	@printf '%s\n' "Installed to:" "  $(BINDIR)/subminer" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)" "  $(LINUX_DATA_DIR)/thumbnailers/$(THUMBNAILER_FILE)"
 
 install-macos: build-launcher
 	@printf '%s\n' "[INFO] Installing macOS wrapper/theme/app artifacts"
@@ -275,8 +273,9 @@ uninstall:
 uninstall-linux:
 	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 	@rm -f "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
+	@rm -f "$(LINUX_DATA_DIR)/thumbnailers/$(THUMBNAILER_FILE)"
 	@rm -rf "$(LINUX_DATA_DIR)/plugin/subminer"
-	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/SubMiner.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)" "  $(LINUX_DATA_DIR)/plugin/subminer"
+	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/SubMiner.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)" "  $(LINUX_DATA_DIR)/thumbnailers/$(THUMBNAILER_FILE)" "  $(LINUX_DATA_DIR)/plugin/subminer"
 
 uninstall-macos:
 	@rm -f "$(BINDIR)/subminer"

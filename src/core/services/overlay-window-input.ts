@@ -37,6 +37,15 @@ export function handleOverlayWindowBeforeInputEvent(options: {
   if (options.kind === 'modal') return false;
   if (!options.windowVisible) return false;
 
+  // The renderer decides whether Copy targets selected sidebar text or the live cue.
+  if (
+    (options.input.control || options.input.meta) &&
+    !options.input.alt &&
+    !options.input.shift &&
+    (options.input.code === 'KeyC' || options.input.key.toLowerCase() === 'c')
+  )
+    return false;
+
   if (isKeyboardModeToggleInput(options.input)) {
     options.preventDefault();
     options.sendKeyboardModeToggleRequested();

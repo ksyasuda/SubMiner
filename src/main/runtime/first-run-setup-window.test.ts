@@ -271,7 +271,7 @@ test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
   assert.equal(parseFirstRunSetupSubmissionUrl('https://example.com'), null);
 });
 
-test('buildFirstRunSetupHtml renders command-line launcher section and actions', () => {
+test('buildFirstRunSetupHtml reports a broken included runtime in the optional launcher controls', () => {
   const html = buildFirstRunSetupHtml({
     configReady: true,
     dictionaryCount: 1,
@@ -294,9 +294,9 @@ test('buildFirstRunSetupHtml renders command-line launcher section and actions',
         status: 'failed',
         commandPath: null,
         version: null,
-        installMethod: 'official-script',
-        installCommand: ['bash', '-lc', 'curl -fsSL https://bun.com/install | bash'],
-        message: 'network failed',
+        installMethod: null,
+        installCommand: null,
+        message: 'Included Bun runtime is missing.',
       },
       launcher: {
         status: 'installed_bun_missing',
@@ -311,14 +311,11 @@ test('buildFirstRunSetupHtml renders command-line launcher section and actions',
   });
 
   assert.match(html, /Command line launcher/);
-  assert.match(html, /Optional\. Setup can finish without Bun or the launcher\./);
-  assert.match(html, /Bun runtime/);
+  assert.match(html, /Optional\. Install the launcher to use SubMiner from your terminal\./);
   assert.match(html, /Failed/);
-  assert.match(html, /bash -lc curl -fsSL https:\/\/bun\.com\/install \| bash/);
-  assert.match(html, /Install Bun/);
-  assert.match(html, /action=install-bun/);
   assert.match(html, /SubMiner launcher/);
-  assert.match(html, /Installed, Bun missing/);
+  assert.match(html, /Reinstall SubMiner to repair it/);
+  assert.match(html, /<button disabled[^>]+action=install-command-line-launcher/);
   assert.match(html, /\/home\/tester\/\.local\/bin\/subminer/);
   assert.match(html, /action=install-command-line-launcher/);
   assert.match(
@@ -360,7 +357,7 @@ test('buildFirstRunSetupHtml disables launcher install when no target is install
 
   assert.match(
     html,
-    /<button disabled onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=install-command-line-launcher'">Install launcher<\/button>/,
+    /<button disabled onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=install-command-line-launcher'">Install command-line launcher<\/button>/,
   );
 });
 

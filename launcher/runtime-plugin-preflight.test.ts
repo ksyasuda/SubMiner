@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   ensureLinuxRuntimePluginAvailable,
   installManagedPluginAssetsViaApp,
@@ -31,7 +33,7 @@ test('ensureLinuxRuntimePluginAvailable is a no-op on non-Linux platforms', asyn
   assert.deepEqual(calls, []);
 });
 
-test('ensureLinuxRuntimePluginAvailable skips install when installed global plugin and managed theme exist', async () => {
+test('ensureLinuxRuntimePluginAvailable skips install when plugin, theme, and thumbnailer exist', async () => {
   const calls: string[] = [];
 
   await ensureLinuxRuntimePluginAvailable({
@@ -52,13 +54,17 @@ test('ensureLinuxRuntimePluginAvailable skips install when installed global plug
       calls.push('theme');
       return true;
     },
+    isManagedThumbnailerAvailable: () => {
+      calls.push('thumbnailer');
+      return true;
+    },
     log: () => {},
   });
 
-  assert.deepEqual(calls, ['detect', 'theme']);
+  assert.deepEqual(calls, ['detect', 'theme', 'thumbnailer']);
 });
 
-test('ensureLinuxRuntimePluginAvailable skips install when managed runtime path and theme already resolve', async () => {
+test('ensureLinuxRuntimePluginAvailable skips install when all managed assets resolve', async () => {
   const calls: string[] = [];
 
   await ensureLinuxRuntimePluginAvailable({
@@ -80,14 +86,19 @@ test('ensureLinuxRuntimePluginAvailable skips install when managed runtime path 
       calls.push('theme');
       return true;
     },
+    isManagedThumbnailerAvailable: () => {
+      calls.push('thumbnailer');
+      return true;
+    },
     log: () => {},
   });
 
-  assert.deepEqual(calls, ['detect', 'resolve', 'theme']);
+  assert.deepEqual(calls, ['detect', 'resolve', 'theme', 'thumbnailer']);
 });
 
 test('ensureLinuxRuntimePluginAvailable installs managed assets when rofi theme is missing', async () => {
   const calls: string[] = [];
+  let themeAvailable = false;
 
   await ensureLinuxRuntimePluginAvailable({
     platform: 'linux',
@@ -102,10 +113,15 @@ test('ensureLinuxRuntimePluginAvailable installs managed assets when rofi theme 
     },
     isManagedThemeAvailable: () => {
       calls.push('theme');
-      return false;
+      return themeAvailable;
+    },
+    isManagedThumbnailerAvailable: () => {
+      calls.push('thumbnailer');
+      return true;
     },
     installManagedPluginAssets: async () => {
       calls.push('install');
+      themeAvailable = true;
       return { ok: true, status: 'installed', path: '/tmp/plugin/main.lua' };
     },
     log: (level, _configured, message) => {
@@ -117,11 +133,66 @@ test('ensureLinuxRuntimePluginAvailable installs managed assets when rofi theme 
     'detect',
     'resolve',
     'theme',
-    'info:Linux runtime support assets missing; installing managed plugin/theme assets.',
+    'info:Linux runtime support assets missing; installing managed plugin/theme/thumbnailer assets.',
     'install',
-    'info:Managed Linux runtime support assets installed: plugin=/tmp/plugin/main.lua theme=/tmp/xdg-data/SubMiner/themes/subminer.rasi',
+    'info:Managed Linux runtime support assets installed: plugin=/tmp/plugin/main.lua theme=/tmp/xdg-data/SubMiner/themes/subminer.rasi thumbnailer=/tmp/xdg-data/SubMiner/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer',
     'resolve',
+    'theme',
+    'thumbnailer',
   ]);
+});
+
+test('ensureLinuxRuntimePluginAvailable installs managed assets when thumbnailer is missing', async () => {
+  const calls: string[] = [];
+  let thumbnailerAvailable = false;
+
+  await ensureLinuxRuntimePluginAvailable({
+    platform: 'linux',
+    xdgDataHome: '/tmp/xdg-data',
+    detectInstalledPlugin: () => true,
+    resolveRuntimePluginPath: () => '/tmp/plugin/main.lua',
+    isManagedThemeAvailable: () => true,
+    isManagedThumbnailerAvailable: () => thumbnailerAvailable,
+    installManagedPluginAssets: async () => {
+      calls.push('install');
+      thumbnailerAvailable = true;
+      return { ok: true, status: 'installed', path: '/tmp/plugin/main.lua' };
+    },
+    log: (_level, _configured, message) => {
+      calls.push(message);
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'Linux runtime support assets missing; installing managed plugin/theme/thumbnailer assets.',
+    'install',
+    'Managed Linux runtime support assets installed: plugin=/tmp/plugin/main.lua theme=/tmp/xdg-data/SubMiner/themes/subminer.rasi thumbnailer=/tmp/xdg-data/SubMiner/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer',
+  ]);
+});
+
+test('ensureLinuxRuntimePluginAvailable retains an installed plugin after installing support assets', async () => {
+  const calls: string[] = [];
+  let thumbnailerAvailable = false;
+
+  await ensureLinuxRuntimePluginAvailable({
+    platform: 'linux',
+    xdgDataHome: '/tmp/xdg-data',
+    detectInstalledPlugin: () => true,
+    resolveRuntimePluginPath: () => {
+      calls.push('resolve');
+      return null;
+    },
+    isManagedThemeAvailable: () => true,
+    isManagedThumbnailerAvailable: () => thumbnailerAvailable,
+    installManagedPluginAssets: async () => {
+      calls.push('install');
+      thumbnailerAvailable = true;
+      return { ok: true, status: 'installed', path: '/tmp/plugin/main.lua' };
+    },
+    log: () => {},
+  });
+
+  assert.deepEqual(calls, ['install']);
 });
 
 test('ensureLinuxRuntimePluginAvailable installs managed assets and re-resolves plugin path', async () => {
@@ -137,6 +208,8 @@ test('ensureLinuxRuntimePluginAvailable installs managed assets and re-resolves 
       calls.push(`resolve:${resolveCount}`);
       return resolveCount === 1 ? null : '/tmp/plugin/main.lua';
     },
+    isManagedThemeAvailable: () => true,
+    isManagedThumbnailerAvailable: () => true,
     installManagedPluginAssets: async () => {
       calls.push('install');
       return { ok: true, status: 'installed', path: '/tmp/plugin/main.lua' };
@@ -148,9 +221,9 @@ test('ensureLinuxRuntimePluginAvailable installs managed assets and re-resolves 
 
   assert.deepEqual(calls, [
     'resolve:1',
-    'info:Linux runtime support assets missing; installing managed plugin/theme assets.',
+    'info:Linux runtime support assets missing; installing managed plugin/theme/thumbnailer assets.',
     'install',
-    'info:Managed Linux runtime support assets installed: plugin=/tmp/plugin/main.lua theme=/tmp/xdg-data/SubMiner/themes/subminer.rasi',
+    'info:Managed Linux runtime support assets installed: plugin=/tmp/plugin/main.lua theme=/tmp/xdg-data/SubMiner/themes/subminer.rasi thumbnailer=/tmp/xdg-data/SubMiner/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer',
     'resolve:2',
   ]);
 });
@@ -189,6 +262,60 @@ test('ensureLinuxRuntimePluginAvailable fails when runtime path remains unresolv
       }),
     /managed runtime plugin assets could not be installed/i,
   );
+});
+
+test('ensureLinuxRuntimePluginAvailable fails when thumbnailer remains missing after install', async () => {
+  await assert.rejects(
+    () =>
+      ensureLinuxRuntimePluginAvailable({
+        platform: 'linux',
+        xdgDataHome: '/tmp/xdg-data',
+        detectInstalledPlugin: () => true,
+        resolveRuntimePluginPath: () => '/tmp/plugin/main.lua',
+        isManagedThemeAvailable: () => true,
+        isManagedThumbnailerAvailable: () => false,
+        installManagedPluginAssets: async () => ({
+          ok: true,
+          status: 'installed',
+          path: '/tmp/plugin/main.lua',
+        }),
+        log: () => {},
+      }),
+    /thumbnailer=.*subminer-ffmpegthumbnailer\.thumbnailer/i,
+  );
+});
+
+test('ensureLinuxRuntimePluginAvailable rejects a thumbnailer directory before and after install', async () => {
+  const xdgDataHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-thumbnailer-directory-'));
+  const thumbnailerPath = path.join(
+    xdgDataHome,
+    'SubMiner',
+    'thumbnailers',
+    'subminer-ffmpegthumbnailer.thumbnailer',
+  );
+  fs.mkdirSync(thumbnailerPath, { recursive: true });
+  const calls: string[] = [];
+
+  try {
+    await assert.rejects(
+      () =>
+        ensureLinuxRuntimePluginAvailable({
+          platform: 'linux',
+          xdgDataHome,
+          detectInstalledPlugin: () => true,
+          isManagedThemeAvailable: () => true,
+          installManagedPluginAssets: async () => {
+            calls.push('install');
+            return { ok: true, status: 'installed', path: '/tmp/plugin/main.lua' };
+          },
+          log: () => {},
+        }),
+      /thumbnailer=.*subminer-ffmpegthumbnailer\.thumbnailer/i,
+    );
+    assert.deepEqual(calls, ['install']);
+  } finally {
+    fs.rmSync(xdgDataHome, { recursive: true, force: true });
+  }
 });
 
 test('installManagedPluginAssetsViaApp returns launch errors without waiting for a response file', async () => {

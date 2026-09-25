@@ -190,8 +190,12 @@ export interface JimakuMediaInfo {
   rawTitle: string;
 }
 
+export type JimakuSearchCategory = 'anime' | 'liveAction';
+
 export interface JimakuSearchQuery {
   query: string;
+  // Which Jimaku catalogue to search; defaults to anime when omitted.
+  category?: JimakuSearchCategory;
 }
 
 export interface JimakuEntryFlags {
@@ -282,4 +286,10 @@ export type TsukihimeDownloadResult = JimakuDownloadResult;
 export interface TsukihimeConfig {
   apiBaseUrl?: string;
   maxSearchResults?: number;
+}
+
+/** TMDB (The Movie Database) access for live-action drama and movie metadata. */
+export interface TmdbConfig {
+  apiKey?: string;
+  apiKeyCommand?: string;
 }

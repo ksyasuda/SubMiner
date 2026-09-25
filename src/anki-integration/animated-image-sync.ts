@@ -97,8 +97,8 @@ export async function resolveAnimatedImageLeadInSeconds<TNoteInfo extends NoteIn
 
   const wordAudioFieldName = resolveConfiguredFieldName(
     noteInfo,
-    config.fields?.audio,
-    DEFAULT_ANKI_CONNECT_CONFIG.fields.audio,
+    config.fields?.wordAudio,
+    DEFAULT_ANKI_CONNECT_CONFIG.fields.wordAudio,
   );
   if (!wordAudioFieldName) {
     return 0;

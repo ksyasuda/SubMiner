@@ -75,5 +75,6 @@ export function createBuildReportJellyfinRemoteStoppedMainDepsHandler(
     getNow: deps.getNow ? () => deps.getNow?.() ?? Date.now() : undefined,
     ticksPerSecond: deps.ticksPerSecond,
     logDebug: (message: string, error: unknown) => deps.logDebug(message, error),
+    ...(deps.logWarn ? { logWarn: (message: string) => deps.logWarn?.(message) } : {}),
   });
 }

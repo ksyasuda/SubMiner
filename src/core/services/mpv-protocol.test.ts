@@ -83,6 +83,7 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
         state.secondarySubText = text;
       },
       resolvePendingRequest: () => false,
+      shouldEnforceSecondarySubVisibilityHidden: () => true,
       setSecondarySubVisibility: () => {},
       syncCurrentAudioStreamIndex: () => {},
       setCurrentAudioTrackId: () => {},
@@ -198,6 +199,21 @@ test('dispatchMpvProtocolMessage rejects decimal subtitle track IDs', async () =
   assert.deepEqual(state.events, [{ sid: null }, { sid: null }, { sid: null }, { sid: null }]);
 });
 
+test('dispatchMpvProtocolMessage hides native secondary subtitles after a track change', async () => {
+  const visibilityChanges: boolean[] = [];
+  const { deps, state } = createDeps({
+    setSecondarySubVisibility: (visible) => visibilityChanges.push(visible),
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sid', data: '4' },
+    deps,
+  );
+
+  assert.deepEqual(visibilityChanges, [false]);
+  assert.deepEqual(state.events, [{ sid: 4 }]);
+});
+
 test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay suppression is enabled', async () => {
   const { deps, state } = createDeps({
     isVisibleOverlayVisible: () => true,
@@ -237,6 +253,24 @@ test('dispatchMpvProtocolMessage skips sub-visibility suppression when overlay i
   );
 
   assert.equal(state.commands.length, 0);
+});
+
+test('dispatchMpvProtocolMessage corrects native secondary subtitle visibility', async () => {
+  const visibilityChanges: boolean[] = [];
+  const { deps } = createDeps({
+    setSecondarySubVisibility: (visible) => visibilityChanges.push(visible),
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sub-visibility', data: 'yes' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sub-visibility', data: 'no' },
+    deps,
+  );
+
+  assert.deepEqual(visibilityChanges, [false]);
 });
 
 test('dispatchMpvProtocolMessage sets secondary subtitle track based on track list response', async () => {

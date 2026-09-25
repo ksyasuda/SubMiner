@@ -19,7 +19,11 @@ import { shouldFetchReleaseMetadataForPlatform } from './release-metadata-policy
 import { updateLauncherFromRelease } from './launcher-updater';
 import { notifyUpdateAvailable } from './update-notifications';
 import { createUpdateDialogPresenter } from './update-dialogs';
-import { createFileUpdateStateStore, createUpdateService } from './update-service';
+import {
+  createFileUpdateStateStore,
+  createUpdateService,
+  takePendingLauncherMigrationPath,
+} from './update-service';
 import { updateSupportAssetsFromRelease } from './support-assets';
 import { runSupportAssetUpdatesForLauncherResult } from './update-support-assets-runtime';
 
@@ -38,6 +42,9 @@ export interface UpdateServiceRuntimeDeps {
 
 export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
   getUpdateService: () => ReturnType<typeof createUpdateService>;
+  takePendingLauncherMigrationPath: (
+    refresh: Parameters<typeof takePendingLauncherMigrationPath>[1],
+  ) => Promise<string | undefined>;
 } {
   const updateStateStore = createFileUpdateStateStore(
     path.join(deps.userDataPath, 'update-state.json'),
@@ -79,6 +86,7 @@ export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
       sha256Sums: sums,
       launcherPath,
       downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
+      deferRecognizedLauncherUpdate: true,
     });
     return runSupportAssetUpdatesForLauncherResult({
       launcherResult,
@@ -152,8 +160,7 @@ export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
       getConfig: () => deps.getUpdatesConfig(),
       getCurrentVersion: () => app.getVersion(),
       now: () => Date.now(),
-      readState: () => updateStateStore.readState(),
-      writeState: (state) => updateStateStore.writeState(state),
+      stateStore: updateStateStore,
       checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
       shouldFetchReleaseMetadata: ({ request, appUpdate }) =>
         shouldFetchReleaseMetadataForPlatform(process.platform, appUpdate, request),
@@ -187,5 +194,9 @@ export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
     return updateService;
   }
 
-  return { getUpdateService };
+  return {
+    getUpdateService,
+    takePendingLauncherMigrationPath: (refresh) =>
+      takePendingLauncherMigrationPath(updateStateStore, refresh),
+  };
 }

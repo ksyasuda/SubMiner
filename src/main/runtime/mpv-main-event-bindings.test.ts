@@ -1,10 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
 import { createBindMpvMainEventHandlersHandler } from './mpv-main-event-bindings';
+import { resolvePrimarySubtitleText } from './primary-subtitle-text';
 
 test('main mpv event binder wires callbacks through to runtime deps', () => {
   const handlers = new Map<string, (payload: unknown) => void>();
   const calls: string[] = [];
+  let currentTime = 0;
+  const seekLiveText = '少しだけ好きになる\n少しだけ好きになる';
+  const seekCues = parseSubtitleCues(
+    [
+      '[Events]',
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+      'Dialogue: 1,0:01:29.00,0:01:32.00,EDJP,,0,0,0,,少しだけ好きになる',
+      'Dialogue: 0,0:01:29.00,0:01:32.00,EDJP,,0,0,0,,少しだけ好きになる',
+    ].join('\n'),
+    'seek-ending.ass',
+  );
 
   const bind = createBindMpvMainEventHandlersHandler({
     reportJellyfinRemoteStopped: () => calls.push('remote-stopped'),
@@ -27,6 +40,9 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
       calls.push(`post-watch:${options?.watchedSeconds ?? 'none'}`);
     },
     logSubtitleTimingError: () => calls.push('subtitle-error'),
+    resolveSubtitleText: (liveText) =>
+      resolvePrimarySubtitleText({ liveText, currentTimeSec: currentTime, cues: seekCues }),
+    getCurrentLiveSubtitleText: () => seekLiveText,
     setCurrentSubText: (text) => calls.push(`set-sub:${text}`),
     getImmediateSubtitlePayload: (text) => ({ text, tokens: [] }),
     broadcastSubtitle: (payload) => calls.push(`broadcast-sub:${payload.text}`),
@@ -60,6 +76,9 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     recordMediaDuration: (duration) => calls.push(`duration:${duration}`),
     reportJellyfinRemoteProgress: (forceImmediate) =>
       calls.push(`progress:${forceImmediate ? 'force' : 'normal'}`),
+    onTimePosUpdate: (time) => {
+      currentTime = time;
+    },
     recordPauseState: (paused) => calls.push(`pause:${paused ? 'yes' : 'no'}`),
 
     updateSubtitleRenderMetrics: () => calls.push('subtitle-metrics'),
@@ -83,7 +102,13 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   handlers.get('media-path-change')?.({ path: '' });
   handlers.get('media-title-change')?.({ title: 'Episode 1' });
   handlers.get('subtitle-timing')?.({ text: 'timed line', start: 899, end: 901 });
+  handlers.get('subtitle-change')?.({ text: seekLiveText });
+  handlers.get('time-pos-change')?.({ time: 90 });
+  assert.ok(calls.includes('set-sub:少しだけ好きになる'));
+
   handlers.get('time-pos-change')?.({ time: 2.5 });
+  handlers.get('subtitle-change')?.({ text: seekLiveText });
+  handlers.get('time-pos-change')?.({ time: 90 });
   handlers.get('pause-change')?.({ paused: true });
 
   assert.ok(calls.includes('set-sub:line'));

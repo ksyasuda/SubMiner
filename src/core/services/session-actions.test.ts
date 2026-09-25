@@ -6,7 +6,9 @@ import { dispatchSessionAction, type SessionActionExecutorDeps } from './session
 function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
   const calls: string[] = [];
   const deps: SessionActionExecutorDeps = {
-    toggleStatsOverlay: () => calls.push('stats'),
+    toggleStatsOverlay: () => {
+      calls.push('stats');
+    },
     toggleVisibleOverlay: () => calls.push('visible'),
     copyCurrentSubtitle: () => calls.push('copy'),
     copySubtitleCount: (count) => calls.push(`copy:${count}`),
@@ -41,6 +43,8 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     openControllerDebug: () => calls.push('controller-debug'),
     openJimaku: () => calls.push('jimaku'),
     openTsukihime: () => calls.push('tsukihime'),
+    openSubtitleSelection: () => calls.push('subtitle-selection'),
+    openSubtitleGeneration: () => calls.push('subtitle-generation'),
     openYoutubeTrackPicker: () => {
       calls.push('youtube');
     },
@@ -84,4 +88,10 @@ test('dispatchSessionAction opens the character dictionary manager', async () =>
   await dispatchSessionAction({ actionId: 'openCharacterDictionaryManager' }, deps);
 
   assert.deepEqual(calls, ['character-dictionary-manager']);
+});
+
+test('dispatchSessionAction opens subtitle generation without opening the sidebar', async () => {
+  const { calls, deps } = createDeps();
+  await dispatchSessionAction({ actionId: 'openSubtitleGeneration' }, deps);
+  assert.deepEqual(calls, ['subtitle-generation']);
 });

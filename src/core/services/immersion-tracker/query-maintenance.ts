@@ -331,6 +331,29 @@ export async function cleanupVocabularyStats(
   };
 }
 
+/**
+ * Drop the cached art of every episode in a library entry. Used when a manual
+ * relink points at a title with no artwork, so the previous link's cover does
+ * not keep standing in for it.
+ */
+export function clearAnimeCoverArt(db: DatabaseSync, animeId: number): void {
+  const rows = db
+    .prepare(
+      `SELECT m.cover_blob_hash AS coverBlobHash
+       FROM imm_media_art m
+       JOIN imm_videos v ON v.video_id = m.video_id
+       WHERE v.anime_id = ?`,
+    )
+    .all(animeId) as Array<{ coverBlobHash: string | null }>;
+  if (rows.length === 0) return;
+  db.prepare(
+    'DELETE FROM imm_media_art WHERE video_id IN (SELECT video_id FROM imm_videos WHERE anime_id = ?)',
+  ).run(animeId);
+  for (const hash of new Set(rows.map((row) => row.coverBlobHash))) {
+    cleanupUnusedCoverArtBlobHash(db, hash);
+  }
+}
+
 export function upsertCoverArt(
   db: DatabaseSync,
   videoId: number,

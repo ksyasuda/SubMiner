@@ -23,7 +23,7 @@ Renderer, launcher, plugin, and stats each keep their own local layering and sho
 - Keep side effects explicit and close to composition boundaries.
 - Put reusable business logic in focused services, not in top-level lifecycle files.
 - Keep renderer concerns in `src/renderer/`; avoid leaking DOM behavior into main-process code.
-- Treat `launcher/*.ts` as source of truth for the launcher. Never hand-edit `dist/launcher/subminer`.
+- Treat `launcher/*.ts` and the runtime bootstrap generators as source of truth for launcher behavior. `scripts/build-launcher.ts` creates `dist/launcher`; never hand-edit those artifacts.
 
 ## Smells
 

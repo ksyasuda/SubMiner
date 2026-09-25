@@ -43,7 +43,8 @@ test('resolveJapaneseNameSplits splits a single-kanji surname via person-name PO
     }),
   );
 
-  assert.deepEqual(splits.get('東紫乃'), { family: '東', given: '紫乃' });
+  assert.equal(splits.kind, 'complete');
+  assert.deepEqual(splits.splits.get('東紫乃'), { family: '東', given: '紫乃' });
 });
 
 test('resolveJapaneseNameSplits corrects a hint-length-misleading surname boundary', async () => {
@@ -64,7 +65,8 @@ test('resolveJapaneseNameSplits corrects a hint-length-misleading surname bounda
     }),
   );
 
-  assert.deepEqual(splits.get('渡辺真奈美'), { family: '渡辺', given: '真奈美' });
+  assert.equal(splits.kind, 'complete');
+  assert.deepEqual(splits.splits.get('渡辺真奈美'), { family: '渡辺', given: '真奈美' });
 });
 
 test('resolveJapaneseNameSplits falls back to hint readings when POS tags are generic', async () => {
@@ -85,7 +87,8 @@ test('resolveJapaneseNameSplits falls back to hint readings when POS tags are ge
     }),
   );
 
-  assert.deepEqual(splits.get('鈴木みゆ'), { family: '鈴木', given: 'みゆ' });
+  assert.equal(splits.kind, 'complete');
+  assert.deepEqual(splits.splits.get('鈴木みゆ'), { family: '鈴木', given: 'みゆ' });
 });
 
 test('resolveJapaneseNameSplits skips names whose tokens do not reconstruct the name', async () => {
@@ -96,7 +99,8 @@ test('resolveJapaneseNameSplits skips names whose tokens do not reconstruct the 
     }),
   );
 
-  assert.equal(splits.size, 0);
+  assert.equal(splits.kind, 'complete');
+  assert.equal(splits.splits.size, 0);
 });
 
 test('resolveJapaneseNameSplits skips ambiguous or untagged segmentations', async () => {
@@ -117,7 +121,8 @@ test('resolveJapaneseNameSplits skips ambiguous or untagged segmentations', asyn
     }),
   );
 
-  assert.equal(splits.size, 0);
+  assert.equal(splits.kind, 'complete');
+  assert.equal(splits.splits.size, 0);
 });
 
 test('resolveJapaneseNameSplits survives tokenizer failures', async () => {
@@ -130,7 +135,8 @@ test('resolveJapaneseNameSplits survives tokenizer failures', async () => {
     (message) => warnings.push(message),
   );
 
-  assert.equal(splits.size, 0);
+  assert.equal(splits.kind, 'incomplete');
+  assert.equal(splits.splits.size, 0);
   assert.equal(warnings.length, 1);
   assert.match(warnings[0]!, /mecab unavailable/);
 });

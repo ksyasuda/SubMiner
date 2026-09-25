@@ -5,8 +5,90 @@ import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_CONFIG, deepCloneConfig } from '../../config';
 import { resolveConfig } from '../../config/resolve';
+import { buildConfigSettingsRegistry } from '../../config/settings/registry';
+import type { RawConfig } from '../../types/config';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import { createConfigSettingsRuntime } from './config-settings-runtime';
+
+test('settings saves report live changes and only the sections that actually need restart', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-settings-live-'));
+  const configPath = path.join(dir, 'config.jsonc');
+  let rawConfig: RawConfig = {};
+  let resolvedConfig = resolveConfig(rawConfig).resolved;
+  const applied: string[][] = [];
+  const runtime = createConfigSettingsRuntime({
+    fields: buildConfigSettingsRegistry(DEFAULT_CONFIG),
+    getConfigPath: () => configPath,
+    getRawConfig: () => rawConfig,
+    getConfig: () => resolvedConfig,
+    getWarnings: () => [],
+    reloadConfigStrict: () => {
+      rawConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const result = resolveConfig(rawConfig);
+      resolvedConfig = result.resolved;
+      return { ok: true, config: resolvedConfig, warnings: result.warnings, path: configPath };
+    },
+    onHotReloadApplied: (diff) => {
+      applied.push(diff.hotReloadFields);
+    },
+    getSettingsWindow: () => null,
+    setSettingsWindow: () => {},
+    createSettingsWindow: () => {
+      throw new Error('Save must not open a window');
+    },
+    settingsHtmlPath: '/tmp/settings.html',
+    openPath: async () => '',
+    defaultAnkiConnectUrl: DEFAULT_CONFIG.ankiConnect.url,
+    createAnkiClient: () => {
+      throw new Error('Save must not query Anki');
+    },
+    ipcMain: { handle: () => {} },
+    ipcChannels: IPC_CHANNELS.request,
+  });
+
+  try {
+    const live = runtime.savePatch({
+      operations: [
+        { op: 'set', path: 'notifications.overlayPosition', value: 'top' },
+        {
+          op: 'set',
+          path: 'subtitleGeneration.threads',
+          value: DEFAULT_CONFIG.subtitleGeneration.threads + 1,
+        },
+      ],
+    });
+    assert.equal(live.ok, true);
+    assert.deepEqual(live.restartRequiredFields, []);
+    assert.deepEqual(live.restartRequiredSections, []);
+    assert.deepEqual(
+      new Set(live.hotReloadFields),
+      new Set(['notifications.overlayPosition', 'subtitleGeneration.threads']),
+    );
+    assert.deepEqual(applied, [live.hotReloadFields]);
+
+    const mixed = runtime.savePatch({
+      operations: [
+        { op: 'set', path: 'ankiConnect.deck', value: 'Mining' },
+        { op: 'set', path: 'ankiConnect.url', value: 'http://127.0.0.1:9999' },
+      ],
+    });
+    assert.equal(mixed.ok, true);
+    assert.deepEqual(mixed.hotReloadFields, ['ankiConnect.deck']);
+    assert.deepEqual(mixed.restartRequiredSections, ['AnkiConnect']);
+
+    const reset = runtime.savePatch({
+      operations: [
+        { op: 'reset', path: 'notifications.overlayPosition' },
+        { op: 'reset', path: 'subtitleGeneration.threads' },
+      ],
+    });
+    assert.equal(reset.ok, true);
+    assert.deepEqual(reset.restartRequiredSections, []);
+    assert.deepEqual(new Set(reset.hotReloadFields), new Set(live.hotReloadFields));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test('config settings runtime exposes inferred Yomitan Anki deck lookup', async () => {
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();

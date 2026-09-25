@@ -206,7 +206,7 @@ export interface AppState {
   anilistSetupPageOpened: boolean;
   anilistRetryQueueState: AnilistRetryQueueState;
   firstRunSetupCompleted: boolean;
-  statsServer: { close: () => void } | null;
+  statsServer: { close: () => Promise<void> } | null;
   statsStartupInProgress: boolean;
 }
 

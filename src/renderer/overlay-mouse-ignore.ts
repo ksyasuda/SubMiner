@@ -10,7 +10,9 @@ function isBlockingOverlayModalOpen(state: RendererState): boolean {
     state.youtubePickerModalOpen ||
     state.kikuModalOpen ||
     state.runtimeOptionsModalOpen ||
+    state.subtitleSelectionModalOpen ||
     state.subsyncModalOpen ||
+    state.subtitleGenerationModalOpen ||
     state.sessionHelpModalOpen,
   );
 }
@@ -27,7 +29,9 @@ function isYomitanPopupInteractionActive(state: RendererState): boolean {
 
 export function syncOverlayMouseIgnoreState(ctx: RendererContext): void {
   const shouldKeepWindowInteractive =
-    isYomitanPopupInteractionActive(ctx.state) || isBlockingOverlayModalOpen(ctx.state);
+    ctx.dom.subtitleSidebarList?.dataset?.selecting === 'true' ||
+    isYomitanPopupInteractionActive(ctx.state) ||
+    isBlockingOverlayModalOpen(ctx.state);
   const shouldStayInteractive =
     ctx.state.isOverSubtitle ||
     ctx.state.isOverSubtitleSidebar ||

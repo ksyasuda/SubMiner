@@ -11,6 +11,99 @@ export type CardKind = 'sentence' | 'audio' | 'word-and-sentence' | 'click';
 /** Card kind SubMiner flags on word cards; 'none' leaves the flag fields untouched. */
 export type WordCardKind = CardKind | 'none';
 
+export type MediaTimingReviewKind = 'word' | 'sentence' | 'audio';
+
+export interface MediaTimingReviewRequest {
+  kind: MediaTimingReviewKind;
+  text: string;
+  startTime: number;
+  endTime: number;
+  noteId?: number;
+  audioPadding: number;
+  maxMediaDuration: number;
+  /** Still screenshots only; animated images continue to follow the audio range. */
+  screenshotEnabled?: boolean;
+}
+
+/** A subtitle line adjacent to the mined one that the review can pull onto the card. */
+export interface MediaTimingReviewContextLine {
+  text: string;
+  startTime: number;
+  endTime: number;
+}
+
+export type MediaTimingReviewDecision =
+  /** `text` is set when the review combined adjacent lines into the card sentence. */
+  | {
+      action: 'confirm';
+      startTime: number;
+      endTime: number;
+      text?: string;
+      screenshotTime?: number;
+    }
+  | { action: 'use-original' }
+  | { action: 'skip-media' }
+  | { action: 'discard' };
+
+export interface MediaTimingReviewOpenPayload {
+  reviewId: string;
+  kind: MediaTimingReviewKind;
+  text: string;
+  /** Lines before/after the mined one, both chronological: nearest previous line is last, nearest next line is first. */
+  previousLines: MediaTimingReviewContextLine[];
+  nextLines: MediaTimingReviewContextLine[];
+  noteId?: number;
+  originalStartTime: number;
+  originalEndTime: number;
+  selectionStartTime: number;
+  selectionEndTime: number;
+  timelineStartTime: number;
+  timelineEndTime: number;
+  mediaDuration?: number;
+  maxMediaDuration: number;
+  screenshotEnabled?: boolean;
+}
+
+export interface MediaTimingReviewFrameRequest {
+  reviewId: string;
+  timestamp: number;
+  /** Step to the adjacent decoded frame instead of seeking to a time. */
+  direction?: -1 | 1;
+}
+
+export interface MediaTimingReviewFrameResult extends MediaTimingReviewActionResult {
+  dataUrl?: string;
+  timestamp?: number;
+}
+
+export interface MediaTimingReviewPreviewRequest {
+  reviewId: string;
+  startTime: number;
+  endTime: number;
+}
+
+export interface MediaTimingReviewWaveformRequest {
+  reviewId: string;
+  startTime: number;
+  endTime: number;
+}
+
+export interface MediaTimingReviewWaveformResult extends MediaTimingReviewActionResult {
+  peaks?: number[];
+}
+
+export interface MediaTimingReviewResolveRequest {
+  reviewId: string;
+  decision: MediaTimingReviewDecision;
+}
+
+export interface MediaTimingReviewActionResult {
+  ok: boolean;
+  message?: string;
+  /** The review this request targeted has already ended; the renderer should close. */
+  stale?: boolean;
+}
+
 export interface NotificationOptions {
   body?: string;
   icon?: string;
@@ -64,6 +157,7 @@ export interface AnkiConnectConfig {
   fields?: {
     word?: string;
     audio?: string;
+    wordAudio?: string;
     image?: string;
     sentence?: string;
     miscInfo?: string;
@@ -85,6 +179,7 @@ export interface AnkiConnectConfig {
     syncAnimatedImageToWordAudio?: boolean;
     normalizeAudio?: boolean;
     mirrorMpvVolume?: boolean;
+    reviewTiming?: boolean;
     audioPadding?: number;
     fallbackDuration?: number;
     maxMediaDuration?: number;
@@ -120,6 +215,11 @@ export interface AnkiConnectConfig {
     sentenceCardModel?: string;
   };
   isKiku?: {
+    enabled?: boolean;
+    fieldGrouping?: 'auto' | 'manual' | 'disabled';
+    deleteDuplicateInAuto?: boolean;
+  };
+  isSenren?: {
     enabled?: boolean;
     fieldGrouping?: 'auto' | 'manual' | 'disabled';
     deleteDuplicateInAuto?: boolean;

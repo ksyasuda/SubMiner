@@ -4,8 +4,13 @@ import type {
   SubtitleMiningContext,
   SubtitleSidebarSnapshot,
 } from '../../types';
+import { subtitleCueListSeekTime } from '../../core/services/subtitle-cue-navigation.js';
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
+import {
+  clearSubtitleSidebarSelection,
+  hasSubtitleSidebarSelection,
+} from './subtitle-sidebar-selection.js';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
@@ -14,7 +19,6 @@ import {
 
 const MANUAL_SCROLL_HOLD_MS = 1500;
 const ACTIVE_CUE_LOOKAHEAD_SEC = 0.18;
-const CLICK_SEEK_OFFSET_SEC = 0.08;
 const SNAPSHOT_POLL_INTERVAL_MS = 80;
 const EMBEDDED_SIDEBAR_MIN_WIDTH_PX = 240;
 const EMBEDDED_SIDEBAR_MAX_RATIO = 0.45;
@@ -116,8 +120,12 @@ export function findActiveSubtitleCueIndex(
     return -1;
   }
 
+  // The mpv client maps cleared sub-start to zero. Empty text has no active cue timing.
   const hasCurrentTiming =
-    typeof current?.startTime === 'number' && Number.isFinite(current.startTime);
+    current !== null &&
+    normalizeCueText(current.text).length > 0 &&
+    typeof current.startTime === 'number' &&
+    Number.isFinite(current.startTime);
 
   if (hasCurrentTiming) {
     const timingMatch = cues.findIndex(
@@ -209,6 +217,7 @@ export function createSubtitleSidebarModal(
   let subtitleSidebarYomitanPopupVisible = false;
   let subtitleSidebarPauseHeldByYomitanPopup = false;
   let lastSubtitleSidebarLookupCueIndex = -1;
+  let subtitleSourceKey: string | null = null;
 
   function restoreEmbeddedSidebarPassthrough(): void {
     syncOverlayMouseIgnoreState(ctx);
@@ -392,10 +401,9 @@ export function createSubtitleSidebarModal(
   }
 
   function seekToCue(cue: SubtitleCue): void {
-    const targetTime = Math.min(cue.endTime - 0.01, cue.startTime + CLICK_SEEK_OFFSET_SEC);
     window.electronAPI.sendMpvCommand([
       'seek',
-      Math.max(cue.startTime, targetTime),
+      subtitleCueListSeekTime(ctx.state.subtitleSidebarCues, cue),
       'absolute+exact',
     ]);
   }
@@ -470,6 +478,8 @@ export function createSubtitleSidebarModal(
   ): void {
     if (
       !ctx.state.subtitleSidebarAutoScroll ||
+      ctx.dom.subtitleSidebarList.dataset?.selecting === 'true' ||
+      hasSubtitleSidebarSelection(ctx.dom.subtitleSidebarList) ||
       ctx.state.subtitleSidebarActiveCueIndex < 0 ||
       (!force && ctx.state.subtitleSidebarActiveCueIndex === previousActiveCueIndex) ||
       nowForUiTiming() < ctx.state.subtitleSidebarManualScrollUntilMs
@@ -509,7 +519,7 @@ export function createSubtitleSidebarModal(
       row.setAttribute('role', 'button');
       row.setAttribute('aria-label', getCueRowLabel(cue));
       row.addEventListener('keydown', (event: KeyboardEvent) => {
-        if (event.key !== 'Enter' && event.key !== ' ') {
+        if (event.key !== 'Enter') {
           return;
         }
         event.preventDefault();
@@ -566,8 +576,14 @@ export function createSubtitleSidebarModal(
 
   async function refreshSnapshot(): Promise<SubtitleSidebarSnapshot> {
     const snapshot = await window.electronAPI.getSubtitleSidebarSnapshot();
+    if (snapshot.sourceKey !== subtitleSourceKey) {
+      clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
+      lastSubtitleSidebarLookupCueIndex = -1;
+      subtitleSourceKey = snapshot.sourceKey;
+    }
     applyConfig(snapshot);
     if (!snapshot.config.enabled) {
+      clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
       resumeSubtitleSidebarHoverPause();
       clearSidebarInteractionState();
       ctx.state.subtitleSidebarCues = [];
@@ -587,6 +603,7 @@ export function createSubtitleSidebarModal(
 
     const cuesChanged = !subtitleCueListsEqual(ctx.state.subtitleSidebarCues, snapshot.cues);
     if (cuesChanged) {
+      clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
       ctx.state.subtitleSidebarCues = snapshot.cues;
       if (ctx.state.subtitleSidebarModalOpen) {
         renderCueList();
@@ -671,6 +688,7 @@ export function createSubtitleSidebarModal(
     if (!ctx.state.subtitleSidebarModalOpen) {
       return;
     }
+    clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
     resumeSubtitleSidebarHoverPause();
     clearSidebarInteractionState();
     ctx.state.subtitleSidebarModalOpen = false;
@@ -711,6 +729,7 @@ export function createSubtitleSidebarModal(
       closeSubtitleSidebarModal();
     });
     ctx.dom.subtitleSidebarList.addEventListener('click', (event) => {
+      if (hasSubtitleSidebarSelection(ctx.dom.subtitleSidebarList)) return;
       const target = event.target;
       if (!(target instanceof Element)) {
         return;
@@ -727,6 +746,7 @@ export function createSubtitleSidebarModal(
       if (!cue) {
         return;
       }
+      row.blur();
       seekToCue(cue);
     });
     ctx.dom.subtitleSidebarList.addEventListener('wheel', () => {

@@ -7,6 +7,32 @@
 {
 
   // ==========================================
+  // Subtitle Selection
+  // Select primary and secondary mpv subtitle tracks from the overlay.
+  // Hot-reload: enabling or disabling updates the session shortcut immediately.
+  // ==========================================
+  "subtitleSelection": {
+    "enabled": false // Use the SubMiner modal to select primary and secondary subtitle tracks. When enabled, its shortcut overrides mpv subtitle selection. Values: true | false
+  }, // Select primary and secondary mpv subtitle tracks from the overlay.
+
+  // ==========================================
+  // Japanese Subtitle Generation
+  // Generate timed Japanese subtitles from local audio using whisper.cpp.
+  // Configure an existing GGML model path or explicitly download a SubMiner-managed model.
+  // Hot-reload: settings apply to the next generation or model download.
+  // ==========================================
+  "subtitleGeneration": {
+    "whisperPath": "", // Optional path override for whisper.cpp. Leave empty to find whisper-cli on PATH.
+    "modelPath": "", // Path to an existing multilingual whisper.cpp GGML model. Leave empty to use a SubMiner-managed model. A configured path always takes precedence.
+    "managedModel": "small", // Multilingual whisper.cpp model to use when modelPath is empty. Download it explicitly from the generation modal or launcher. Values: tiny | tiny-q5_1 | tiny-q8_0 | base | base-q5_1 | base-q8_0 | small | small-q5_1 | small-q8_0 | medium | medium-q5_0 | medium-q8_0 | large-v1 | large-v2 | large-v2-q5_0 | large-v2-q8_0 | large-v3 | large-v3-q5_0 | large-v3-turbo | large-v3-turbo-q5_0 | large-v3-turbo-q8_0
+    "threads": 4, // Positive integer CPU thread count for whisper.cpp Japanese transcription.
+    "ffmpegPath": "", // Optional FFmpeg path override for audio extraction. Leave empty to find ffmpeg on PATH.
+    "ffprobePath": "", // Optional FFprobe path override for audio tracks and timing. Leave empty to find ffprobe on PATH.
+    "vadModelPath": "", // Path to a whisper.cpp Silero VAD model. Enables dialogue-focused generation while retaining uncertain audible sections, which may include songs. Leave empty to transcribe the full audio.
+    "vadPath": "" // Optional speech detector executable override. With vadModelPath configured, leave empty to find whisper-vad-speech-segments or vad-speech-segments on PATH.
+  }, // Generate timed Japanese subtitles from local audio using whisper.cpp.
+
+  // ==========================================
   // Visible Overlay Auto-Start
   // Show the visible subtitle overlay automatically after managed mpv playback starts SubMiner.
   // SubMiner can still auto-start in the background when this is false.
@@ -206,6 +232,8 @@
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Accelerator that opens the runtime options modal.
     "openJimaku": "Ctrl+Shift+J", // Accelerator that opens the Jimaku subtitle search modal.
     "openTsukihime": "Ctrl+Shift+T", // Accelerator that opens the TsukiHime subtitle search modal (configured secondary/Japanese primary tabs).
+    "openSubtitleSelection": "g-s", // Open subtitle selection when enabled. Use g-s to press g then s. Set null to unbind.
+    "openSubtitleGeneration": "Ctrl+Shift+G", // Accelerator that opens the standalone Japanese subtitle generation modal.
     "openSessionHelp": "CommandOrControl+Slash", // Accelerator that opens the session help / keybinding cheatsheet.
     "openControllerSelect": "Alt+C", // Accelerator that opens the controller selection and learn-mode modal.
     "openControllerDebug": "Alt+Shift+C", // Accelerator that opens the controller debug modal with live axis/button readouts.
@@ -523,7 +551,7 @@
   // ==========================================
   // AnkiConnect Integration
   // Automatic Anki updates and media generation options.
-  // Hot-reload: ankiConnect.ai.enabled, media.normalizeAudio/mirrorMpvVolume, knownWords, nPlusOne, fields.word/audio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, isKiku.fieldGrouping, and lapisKiku.wordCardKind update live while SubMiner is running.
+  // Hot-reload: ankiConnect.ai.enabled, media.normalizeAudio/mirrorMpvVolume/reviewTiming, knownWords, nPlusOne, fields.word/audio/wordAudio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, isKiku.fieldGrouping, isSenren.fieldGrouping, and lapisKiku.wordCardKind update live while SubMiner is running.
   // Shared AI provider transport settings are read from top-level ai and typically require restart.
   // Most other AnkiConnect settings still require restart.
   // ==========================================
@@ -544,6 +572,7 @@
     "fields": {
       "word": "Expression", // Card field for the mined word or expression text.
       "audio": "ExpressionAudio", // Card field that receives generated sentence audio.
+      "wordAudio": "ExpressionAudio", // Existing word-audio field read to time the frozen first frame of animated images. This mapping is only used for synchronization.
       "image": "Picture", // Card field that receives the captured screenshot or animated image.
       "sentence": "Sentence", // Card field that receives the source sentence text.
       "miscInfo": "MiscInfo", // Card field that receives the miscellaneous info pattern (see ankiConnect.metadata.pattern).
@@ -569,9 +598,10 @@
       "syncAnimatedImageToWordAudio": true, // For animated AVIF images, prepend a frozen first frame matching the existing word-audio duration so motion starts with sentence audio. Values: true | false
       "normalizeAudio": true, // Normalize generated sentence audio loudness during media extraction. Changes apply live. Values: true | false
       "mirrorMpvVolume": true, // Apply mpv's current software volume curve to generated sentence audio. Changes apply live. Values: true | false
+      "reviewTiming": false, // Review and preview subtitle media timing before SubMiner creates or enriches a mined card. Values: true | false
       "audioPadding": 0, // Seconds of padding appended to both ends of generated sentence audio and animated AVIF clips.
       "fallbackDuration": 3, // Fallback clip duration in seconds when subtitle timing data is unavailable.
-      "maxMediaDuration": 30 // Maximum allowed media clip duration in seconds.
+      "maxMediaDuration": 30 // Maximum allowed media clip duration in seconds. 0 disables the cap.
     }, // Media setting.
     "knownWords": {
       "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false
@@ -606,6 +636,11 @@
       "fieldGrouping": "disabled", // Kiku duplicate-card field grouping mode. Values: auto | manual | disabled
       "deleteDuplicateInAuto": true // When Kiku field grouping is "auto", delete the duplicate source card after grouping completes. Values: true | false
     }, // Is kiku setting.
+    "isSenren": {
+      "enabled": false, // Enable Senren-specific duplicate handling (scene-switching field grouping, including miscInfo grouping). Mutually exclusive with isKiku.enabled. Values: true | false
+      "fieldGrouping": "auto", // Senren duplicate-card field grouping mode (scene switching). Values: auto | manual | disabled
+      "deleteDuplicateInAuto": true // When Senren field grouping is "auto", delete the duplicate source card after grouping completes. Values: true | false
+    }, // Is senren setting.
     "lapisKiku": {
       "wordCardKind": "word-and-sentence" // Card-type flag SubMiner marks on Kiku/Lapis word cards. Only one flag is set at a time; the others are cleared. Requires isKiku.enabled or isLapis.enabled. Values: word-and-sentence | click | sentence | audio | none
     } // Lapis kiku setting.
@@ -633,6 +668,16 @@
     "apiBaseUrl": "https://api.tsukihime.org/v1", // Base URL of the TsukiHime API (Animetosho successor). No API key required.
     "maxSearchResults": 10 // Maximum TsukiHime search results returned.
   }, // TsukiHime subtitle search configuration for Japanese primary and configured secondary subtitles. No API key required.
+
+  // ==========================================
+  // TMDB
+  // TMDB (The Movie Database) metadata for live-action dramas and movies in the stats Library: posters, synopses, and grouping by show.
+  // Hot-reload: TMDB changes apply to the next TMDB request.
+  // ==========================================
+  "tmdb": {
+    "apiKey": "", // Your own TMDB API key or read access token for live-action posters and synopses in the stats Library. Release builds bundle a project key, so set this only to use your own quota or when running from source (free under Settings > API on themoviedb.org).
+    "apiKeyCommand": "" // Shell command that prints the TMDB API key to stdout. Used instead of apiKey to avoid storing the key in plain text.
+  }, // TMDB (The Movie Database) metadata for live-action dramas and movies in the stats Library: posters, synopses, and grouping by show.
 
   // ==========================================
   // YouTube Playback Settings

@@ -1,10 +1,10 @@
 <script setup>
 import { useRoute, useData } from 'vitepress';
-import { computed } from 'vue';
-import { formatStatusLineFilePath } from '../status-line';
+import { computed, onMounted, ref } from 'vue';
+import { formatStatusLineDate, formatStatusLineFilePath } from '../status-line';
 
 const route = useRoute();
-const { page, frontmatter } = useData();
+const { frontmatter } = useData();
 
 const mode = computed(() => {
   const layout = frontmatter.value.layout;
@@ -23,10 +23,10 @@ const section = computed(() => {
   return parts[0] || 'root';
 });
 
-const lastUpdated = computed(() => {
-  if (!page.value.lastUpdated) return '';
-  const date = new Date(page.value.lastUpdated);
-  return date.toISOString().slice(0, 10);
+// Set on the client only, so the prerendered HTML never bakes in the build date.
+const today = ref('');
+onMounted(() => {
+  today.value = formatStatusLineDate(new Date());
 });
 </script>
 
@@ -40,8 +40,8 @@ const lastUpdated = computed(() => {
     <div class="tui-statusline__right">
       <span class="tui-statusline__section">{{ section }}</span>
       <span class="tui-statusline__sep"></span>
-      <span v-if="lastUpdated" class="tui-statusline__date">{{ lastUpdated }}</span>
-      <span v-if="lastUpdated" class="tui-statusline__sep"></span>
+      <span v-if="today" class="tui-statusline__date">{{ today }}</span>
+      <span v-if="today" class="tui-statusline__sep"></span>
       <span class="tui-statusline__branch">GPL-3.0</span>
     </div>
   </footer>

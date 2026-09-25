@@ -275,6 +275,9 @@ test('settings registry routes playback-related integrations into integrations',
   assert.equal(field('subsync.replace').section, 'Subtitle Sync');
   assert.equal(field('tsukihime.apiBaseUrl').category, 'integrations');
   assert.equal(field('tsukihime.apiBaseUrl').section, 'TsukiHime');
+  assert.equal(field('tmdb.apiKey').category, 'integrations');
+  assert.equal(field('tmdb.apiKey').section, 'TMDB');
+  assert.equal(field('tmdb.apiKey').secret, true);
 });
 
 test('settings registry puts feature toggles first, then other toggles alphabetically', () => {
@@ -298,10 +301,12 @@ test('settings registry puts feature toggles first, then other toggles alphabeti
   ];
   assert.equal(miningSections[0], 'AnkiConnect');
 
-  const kikuLapis = fields.filter((candidate) => candidate.section === 'Kiku/Lapis Features');
+  const kikuLapis = fields.filter(
+    (candidate) => candidate.section === 'Kiku/Lapis/Senren Features',
+  );
   assert.deepEqual(
-    kikuLapis.slice(0, 2).map((candidate) => candidate.configPath),
-    ['ankiConnect.isLapis.enabled', 'ankiConnect.isKiku.enabled'],
+    kikuLapis.slice(0, 3).map((candidate) => candidate.configPath),
+    ['ankiConnect.isLapis.enabled', 'ankiConnect.isKiku.enabled', 'ankiConnect.isSenren.enabled'],
   );
 });
 
@@ -352,6 +357,7 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
     'ankiConnect.deck',
     'ankiConnect.media.normalizeAudio',
     'ankiConnect.media.mirrorMpvVolume',
+    'ankiConnect.media.reviewTiming',
     'ankiConnect.knownWords.highlightEnabled',
     'ankiConnect.knownWords.refreshMinutes',
     'ankiConnect.knownWords.addMinedWordsImmediately',
@@ -361,11 +367,13 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
     'ankiConnect.nPlusOne.minSentenceWords',
     'ankiConnect.fields.word',
     'ankiConnect.fields.audio',
+    'ankiConnect.fields.wordAudio',
     'ankiConnect.fields.image',
     'ankiConnect.fields.sentence',
     'ankiConnect.fields.miscInfo',
     'ankiConnect.isLapis.sentenceCardModel',
     'ankiConnect.isKiku.fieldGrouping',
+    'ankiConnect.isSenren.fieldGrouping',
   ]) {
     assert.equal(field(path).restartBehavior, 'hot-reload', path);
   }

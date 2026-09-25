@@ -1,190 +1,119 @@
-# Subtitle Annotations
+# Subtitle annotations
 
-SubMiner annotates subtitle tokens in real time as they appear in the overlay. Four annotation layers work together to surface useful context while you watch: **N+1 highlighting**, **character-name highlighting**, **frequency highlighting**, and **JLPT tagging**.
+SubMiner can color and underline words in the subtitle overlay: words you already know, the one new word in an N+1 line, common words, JLPT levels, and character names. Each layer is off by default and works on its own, so turn on only the ones you want.
 
-All four are opt-in and configured under `subtitleStyle`, `ankiConnect.knownWords`, and `ankiConnect.nPlusOne` in your config. They apply independently - you can enable any combination.
+Yomitan splits the subtitle into words, so your installed Yomitan dictionaries and their order decide where word boundaries fall. Grammar words such as particles (`は`), auxiliaries (`です`), and endings like `んです` stay hoverable but never get annotation colors.
 
-::: tip Tokenization
-SubMiner's primary tokenizer is Yomitan itself - subtitle text is tokenized based entirely on the dictionaries you have installed in Yomitan. Installing many large dictionaries can increase noise and slow down lookups, so be selective about which dictionaries you install and their priority order.
-:::
+Defaults for every key below are in the [configuration reference](/configuration).
 
-Before any of those layers render, SubMiner strips annotation metadata from tokens that are usually just subtitle glue or annotation noise. Standalone particles, auxiliaries, adnominals, common explanatory endings like `んです` / `のだ`, merged trailing quote-particle forms like `...って`, auxiliary-stem grammar tails like `そうだ` (MeCab POS3 `助動詞語幹`), repeated kana interjections, and similar non-lexical helper tokens remain hoverable in the subtitle text, but they render as plain tokens without known-word, N+1, frequency, JLPT, or name-match annotation styling.
+## Known words {#known-words}
 
-Kanji vocabulary that MeCab labels `名詞/非自立`, such as `日` or `以外`, remains content for every annotation layer. The `非自立` exclusion only suppresses kana grammar nouns such as `こと` and `もの`.
+Colors every word that already appears in your Anki decks, so you can see how much of a line you know.
 
-## N+1 Word Highlighting
+Needs: Anki running with AnkiConnect, and at least one deck in `ankiConnect.knownWords.decks`.
 
-N+1 highlighting identifies sentences where you know every word except one, making them ideal mining targets. When enabled, SubMiner builds a local cache of your known vocabulary from Anki and highlights tokens accordingly.
-
-**How it works:**
-
-1. SubMiner queries your configured Anki decks for expression/word fields such as `Expression` or `Word`.
-2. The results are cached locally (`known-words-cache.json`) and refreshed on a configurable interval.
-3. When a subtitle line appears, each token is checked against the cache.
-4. If exactly one unknown word remains in the sentence, it is highlighted with `subtitleStyle.nPlusOneColor` (default: `#c6a0f6`).
-5. Already-known tokens can optionally display in `subtitleStyle.knownWordColor` (default: `#a6da95`).
-
-**Key settings:**
-
-| Option                                    | Default      | Description                                              |
-| ----------------------------------------- | ------------ | -------------------------------------------------------- |
-| `ankiConnect.knownWords.highlightEnabled` | `false`      | Enable known-word cache lookups used by N+1 highlighting |
-| `ankiConnect.knownWords.refreshMinutes`   | `1440`       | Minutes between Anki cache refreshes                     |
-| `ankiConnect.knownWords.decks`            | `{}`         | Deck→fields map for known-word cache queries             |
-| `ankiConnect.knownWords.matchMode`        | `"headword"` | `"headword"` (dictionary form) or `"surface"` (raw text) |
-| `ankiConnect.nPlusOne.enabled`            | `false`      | Enable N+1 target highlighting                           |
-| `ankiConnect.nPlusOne.minSentenceWords`   | `3`          | Minimum tokens in a sentence for N+1 to trigger          |
-| `subtitleStyle.nPlusOneColor`             | `#c6a0f6`    | Color for the single unknown target word                 |
-| `subtitleStyle.knownWordColor`            | `#a6da95`    | Color for already-known tokens                           |
-
-Prefer expression/word fields for `ankiConnect.knownWords.decks`. Reading-only fields can mark unrelated homophones as known, so only include them when that tradeoff is intentional.
-
-::: tip
-Set `refreshMinutes` to `1440` (24 hours) for daily sync if your Anki collection is large.
-:::
-
-## Known-Word Maturity Highlighting
-
-Instead of one color for every known word, maturity highlighting tints each known token by the review state of its Anki cards (like asbplayer), giving an at-a-glance sense of how much of a line is solidly learned.
-
-**How it works:**
-
-1. During the known-word cache refresh, SubMiner classifies each note with Anki search filters (`prop:ivl`, `is:learn`) - no extra card data is downloaded.
-2. Each note gets the tier of its **most mature** card: `mature` (in review, interval ≥ threshold), `young` (in review, interval below the threshold), `learning` (in the learning or relearning queue), or `new` (never studied). The buckets are disjoint, matching Anki's own card counts: a lapsed card in relearning counts as `learning`, not `young`, even though its interval is ≥ 1 day. A note with a mature card plus a relearning card still shows `mature`.
-3. A word matched by several notes takes the most mature tier among them, with the same reading-aware matching as regular known-word highlighting.
-4. Known tokens render in the tier color instead of `subtitleStyle.knownWordColor`; if tier data is missing for a match, the token falls back to the single known-word color.
-
-**Key settings:**
-
-| Option                                           | Default   | Description                                                           |
-| ------------------------------------------------ | --------- | --------------------------------------------------------------------- |
-| `ankiConnect.knownWords.maturityEnabled`         | `false`   | Color known words by card maturity (requires known-word highlighting) |
-| `ankiConnect.knownWords.matureThresholdDays`     | `21`      | Card interval in days at which a word counts as mature                |
-| `subtitleStyle.knownWordMaturityColors.new`      | `#ee99a0` | Tier color for never-reviewed cards                                   |
-| `subtitleStyle.knownWordMaturityColors.learning` | `#b7bdf8` | Tier color for cards in the learning/relearning queue                 |
-| `subtitleStyle.knownWordMaturityColors.young`    | `#91d7e3` | Tier color for young review cards                                     |
-| `subtitleStyle.knownWordMaturityColors.mature`   | `#a6da95` | Tier color for mature cards                                           |
-
-Changing `maturityEnabled` or the threshold triggers a full known-word cache refresh so tiers are refetched, as does upgrading to a build that revises the tier rules.
-
-How often the `learning` color appears depends on your deck preset: with no relearning steps configured, a lapsed card returns straight to review and shows `young` instead.
-
-While maturity highlighting is on, the session help color legend replaces its single "Known words" swatch with one row per tier (new, learning, young, mature).
-
-**Checking the colors you actually see:**
-
-Tiers are only as fresh as the last known-word cache refresh (`ankiConnect.knownWords.refreshMinutes`), so a card that crosses the mature threshold mid-day keeps its old color until the next refresh. To check a whole episode offline, run the verifier against its subtitle file:
-
-```sh
-bun run verify-known-word-highlights:electron -- --input /path/to/episode.ja.srt --audit
+```jsonc
+{
+  "ankiConnect": {
+    "knownWords": {
+      "highlightEnabled": true,
+      "decks": { "Kaishi 1.5k": ["Word"] },
+    },
+  },
+}
 ```
 
-It tokenizes every cue through the real Yomitan/MeCab pipeline with your live known-word cache, prints each line in your configured tier colors, and summarizes the tier counts. `--audit` re-derives each highlighted tier from live Anki card data (`notesInfo` + `cardsInfo` intervals) and lists any token whose color disagrees, with the note ids and intervals behind it. Electron locks the Yomitan profile, so quit SubMiner first or pass `--profile-copy` to run against a scratch copy. Other useful flags: `--refresh` (refresh the cache first), `--limit <n>`, `--quiet`, `--json`.
+Map each deck to its expression or word field. SubMiner also reads the note's reading field when it has one, so a known word only matches in the reading its card teaches.
 
-## Character-Name Highlighting
+| Key                                               | What it does                                                        |
+| ------------------------------------------------- | ------------------------------------------------------------------- |
+| `ankiConnect.knownWords.highlightEnabled`         | Turn known-word coloring on                                         |
+| `ankiConnect.knownWords.decks`                    | Deck name to list of fields to read                                 |
+| `ankiConnect.knownWords.matchMode`                | `headword` matches the dictionary form, `surface` the text as shown |
+| `ankiConnect.knownWords.refreshMinutes`           | How often the known-word list is re-read from Anki                  |
+| `ankiConnect.knownWords.addMinedWordsImmediately` | Count a word as known as soon as you mine it                        |
+| `subtitleStyle.knownWordColor`                    | Color for known words                                               |
 
-Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. When the current AniList media ID is known, SubMiner ignores loaded entries from other titles for subtitle name matching and inline portraits. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles - portraits, roles, voice actors, and biographical detail.
+### Known-word maturity highlighting
 
-**How it works:**
+Colors known words by how well you know them instead of using one color. Each word gets the tier of its most mature card:
 
-1. Subtitles are tokenized, then candidate name tokens are matched against the character dictionary via Yomitan's scanning pipeline.
-2. Matching tokens receive a dedicated style distinct from N+1 and frequency layers.
-3. This layer can be independently toggled with `subtitleStyle.nameMatchEnabled`.
-4. When `subtitleStyle.nameMatchImagesEnabled` is also enabled, SubMiner shows the cached AniList portrait beside matched names.
+- `new`: never studied
+- `learning`: in the learning or relearning queue
+- `young`: in review, interval below the threshold
+- `mature`: in review, interval at or above `ankiConnect.knownWords.matureThresholdDays`
 
-**Key settings:**
+Turn it on with `ankiConnect.knownWords.maturityEnabled` (known-word highlighting must also be on). Set the colors under `subtitleStyle.knownWordMaturityColors` (`new`, `learning`, `young`, `mature`).
 
-| Option                                 | Default   | Description                                      |
-| -------------------------------------- | --------- | ------------------------------------------------ |
-| `subtitleStyle.nameMatchEnabled`       | `false`   | Enable character-name token highlighting         |
-| `subtitleStyle.nameMatchImagesEnabled` | `false`   | Show small AniList portraits next to name tokens |
-| `subtitleStyle.nameMatchColor`         | `#f5bde6` | Color used for character-name matches            |
+Tiers update when the known-word list refreshes, so a card that turns mature today keeps its old color until the next refresh. If your deck has no relearning steps, lapsed cards go straight back to review and show as `young`.
 
-For full details on dictionary generation, name variant expansion, auto-sync lifecycle, and configuration, see the dedicated [Character Dictionary](/character-dictionary) page.
+## N+1 word highlighting
 
-## Frequency Highlighting
+An N+1 line has exactly one word you don't know. It is the easiest kind of sentence to mine, because the rest of the line gives you context. SubMiner colors that one unknown word.
 
-Frequency highlighting colors tokens based on how common they are, using dictionary frequency rank data. This helps you spot high-value vocabulary at a glance. For each token, ranks from the installed Yomitan frequency dictionaries are consulted in priority order: the highest-priority dictionary that has the term wins, lower-priority dictionaries fill in terms it lacks, and occurrence-based dictionaries are skipped.
+Needs: the same Anki setup as [known words](#known-words) (`ankiConnect.knownWords.decks`). Known-word coloring itself can stay off.
 
-**Modes:**
+| Key                                     | What it does                            |
+| --------------------------------------- | --------------------------------------- |
+| `ankiConnect.nPlusOne.enabled`          | Turn N+1 highlighting on                |
+| `ankiConnect.nPlusOne.minSentenceWords` | Skip lines shorter than this many words |
+| `subtitleStyle.nPlusOneColor`           | Color for the unknown word              |
 
-- **Single** - all highlighted tokens share one color (`singleColor`).
-- **Banded** - tokens are assigned to five color bands from most common to least common within the `topX` window.
+## Frequency highlighting
 
-SubMiner looks up each token's `frequencyRank` from `term_meta_bank_*.json` files. Only tokens with a positive rank at or below `topX` are highlighted.
+Colors words by how common they are, so a rare word in an easy line stands out.
 
-**Key settings:**
+Needs: at least one frequency dictionary installed in Yomitan. When several are installed, SubMiner uses them in your Yomitan priority order. Occurrence-count dictionaries are skipped. You can also point `sourcePath` at a folder of Yomitan-format frequency files as a fallback.
 
-| Option                                           | Default      | Description                                                      |
-| ------------------------------------------------ | ------------ | ---------------------------------------------------------------- |
-| `subtitleStyle.frequencyDictionary.enabled`      | `false`      | Enable frequency highlighting                                    |
-| `subtitleStyle.frequencyDictionary.topX`         | `10000`      | Max frequency rank to highlight                                  |
-| `subtitleStyle.frequencyDictionary.mode`         | `"single"`   | `"single"` or `"banded"`                                         |
-| `subtitleStyle.frequencyDictionary.matchMode`    | `"headword"` | `"headword"` or `"surface"`                                      |
-| `subtitleStyle.frequencyDictionary.singleColor`  | `#f5a97f`    | Color for single mode                                            |
-| `subtitleStyle.frequencyDictionary.bandedColors` | 5 colors[^1] | Array of five hex colors for banded mode                         |
-| `subtitleStyle.frequencyDictionary.sourcePath`   | `""`         | Custom path to frequency dictionary root (empty = auto-discover) |
+| Key                                              | What it does                                                           |
+| ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `subtitleStyle.frequencyDictionary.enabled`      | Turn frequency highlighting on                                         |
+| `subtitleStyle.frequencyDictionary.topX`         | Only color words whose rank is this number or lower (1 is most common) |
+| `subtitleStyle.frequencyDictionary.mode`         | `single` uses one color, `banded` splits the range into five colors    |
+| `subtitleStyle.frequencyDictionary.singleColor`  | Color for `single` mode                                                |
+| `subtitleStyle.frequencyDictionary.bandedColors` | Five colors for `banded` mode, most common first                       |
+| `subtitleStyle.frequencyDictionary.matchMode`    | `headword` or `surface`, as for known words                            |
+| `subtitleStyle.frequencyDictionary.sourcePath`   | Optional folder of frequency files                                     |
 
-[^1]: Default banded palette (most common → least common): `#ed8796`, `#f5a97f`, `#f9e2af`, `#8bd5ca`, `#8aadf4`.
+## JLPT tagging
 
-When `sourcePath` is omitted, SubMiner searches default install/runtime locations for `frequency-dictionary` directories automatically.
+Underlines each word in a color for its JLPT level, N1 to N5. The JLPT word lists ship with SubMiner, so there is nothing to install.
 
-::: info
-Frequency highlighting skips tokens that look like non-lexical noise (kana reduplication, short kana endings like `っ`), even when dictionary ranks exist. For merged kana tokens, SubMiner keeps a rank when the dictionary headword reading covers the full token (for example, `かと言って` / `かといって`), while grammar wrapped around a shorter lemma remains unannotated.
-:::
+| Key                                   | What it does                   |
+| ------------------------------------- | ------------------------------ |
+| `subtitleStyle.enableJlpt`            | Turn JLPT underlines on        |
+| `subtitleStyle.jlptColors.N1` to `N5` | Underline color for each level |
 
-::: info
-Frequency, JLPT, and N+1 metadata are only shown for tokens that survive the subtitle-annotation noise filter. Standalone grammar tokens like `は`, `です`, and `この` are intentionally left unannotated even if a dictionary can assign them metadata.
-:::
+## Character names
 
-## JLPT Tagging
+Colors character names from the current show and lets you hover them for a portrait, role, and voice actor.
 
-JLPT tagging adds colored underlines to tokens based on their JLPT level (N1–N5), giving you an at-a-glance sense of difficulty distribution in each subtitle line.
+Needs: the [character dictionary](/character-dictionary), which SubMiner builds from AniList when you turn this on.
 
-**How it works:**
+| Key                                    | What it does                                    |
+| -------------------------------------- | ----------------------------------------------- |
+| `subtitleStyle.nameMatchEnabled`       | Build the character dictionary and color names  |
+| `subtitleStyle.nameMatchImagesEnabled` | Show a small portrait next to each matched name |
+| `subtitleStyle.nameMatchColor`         | Color for character names                       |
 
-SubMiner loads offline `term_meta_bank_*.json` files from `vendor/yomitan-jlpt-vocab` and matches each token's headword against the bank entries. Tokens with a recognized JLPT level receive a colored underline.
+## Toggling during playback
 
-**Default colors:**
+Open the runtime options palette (`Ctrl/Cmd+Shift+O`) to switch these without restarting:
 
-| Level | Color     | Preview |
-| ----- | --------- | ------- |
-| N1    | `#ed8796` | Red     |
-| N2    | `#f5a97f` | Peach   |
-| N3    | `#f9e2af` | Yellow  |
-| N4    | `#8bd5ca` | Teal    |
-| N5    | `#8aadf4` | Blue    |
+- known-word highlighting, maturity colors, and known-word match mode
+- N+1 highlighting
+- JLPT tagging
+- frequency highlighting
 
-All colors are customizable via the `subtitleStyle.jlptColors` object.
+Character names are toggled in the config file or the Settings window. Changes apply from the next subtitle line.
 
-**Key settings:**
+## When layers overlap
 
-| Option                             | Default   | Description                   |
-| ---------------------------------- | --------- | ----------------------------- |
-| `subtitleStyle.enableJlpt`         | `false`   | Enable JLPT underline styling |
-| `subtitleStyle.jlptColors.N1`–`N5` | see above | Per-level underline colors    |
+If one word matches several layers, the first match in this list sets its color:
 
-## Runtime Toggles
+1. Character name (also removes N+1, frequency, and JLPT marks)
+2. N+1 target
+3. Known word
+4. Frequency
 
-These annotation layers can be toggled at runtime via the runtime options palette (`Ctrl/Cmd+Shift+O`) without restarting:
-
-- `ankiConnect.knownWords.highlightEnabled` (`On` / `Off`)
-- `ankiConnect.knownWords.maturityEnabled` (`On` / `Off`)
-- `ankiConnect.knownWords.matchMode`
-- `ankiConnect.nPlusOne.enabled` (`On` / `Off`)
-- `subtitleStyle.enableJlpt` (`On` / `Off`)
-- `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)
-
-(Character-name matching, `subtitleStyle.nameMatchEnabled`, is toggled through config or the Settings window, not the runtime palette.)
-
-Toggles only apply to new subtitle lines after the change - the currently displayed line is not re-tokenized in place.
-
-## Rendering Priority
-
-When multiple annotations apply to the same token, the visual priority is:
-
-1. **Character-name match** (highest) - dictionary-driven character-name token styling; it clears the token's N+1, frequency, and JLPT annotations
-2. **N+1 target** - the single unknown word in an N+1 sentence
-3. **Known-word color** - already-learned token tint (per-tier maturity colors when `maturityEnabled` is on)
-4. **Frequency highlight** - common-word coloring (not applied when a higher layer already matched)
-5. **JLPT underline** - level-based underline (stacks with N+1/known/frequency since it uses underline rather than text color, but not with a character-name match)
+JLPT is an underline, so it shows alongside any of these except a character name.

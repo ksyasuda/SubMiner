@@ -496,3 +496,39 @@ test('playback command ensures Linux runtime plugin before mpv launch', async ()
 
   assert.deepEqual(calls, ['plugin', 'startMpv']);
 });
+
+test('rofi playback repairs support assets before opening the picker', async () => {
+  const context = createContext();
+  context.args = {
+    ...context.args,
+    target: '',
+    targetKind: '',
+    useRofi: true,
+  };
+  const calls: string[] = [];
+
+  await runPlaybackCommandWithDeps(context, {
+    ensurePlaybackSetupReady: async () => {},
+    ensureRuntimePluginReady: async () => {
+      calls.push('assets');
+    },
+    chooseTarget: async () => {
+      calls.push('picker');
+      return { target: '/tmp/movie.mkv', kind: 'file' };
+    },
+    checkPickerDependencies: () => {},
+    checkDependencies: () => {},
+    registerCleanup: () => {},
+    startMpv: async () => {
+      calls.push('startMpv');
+    },
+    waitForUnixSocketReady: async () => true,
+    startOverlay: async () => {},
+    launchAppCommandDetached: () => {},
+    log: () => {},
+    cleanupPlaybackSession: async () => {},
+    getMpvProc: () => null,
+  });
+
+  assert.deepEqual(calls, ['assets', 'picker', 'startMpv']);
+});

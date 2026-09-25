@@ -1,3 +1,5 @@
+import { toMediaIdentityPath } from '../../shared/media-identity';
+
 type ResolvedConfigLike = {
   immersionTracking?: {
     dbPath?: string | null;
@@ -119,7 +121,7 @@ export function createImmersionMediaRuntime(deps: ImmersionMediaRuntimeDeps): {
         const mediaState = await getCurrentMpvMediaStateForTracker();
         if (mediaState.path) {
           deps.logInfo(
-            `Seeded immersion tracker media state at attempt ${attempt + 1}/${attempts}: ${mediaState.path}`,
+            `Seeded immersion tracker media state at attempt ${attempt + 1}/${attempts}: ${toMediaIdentityPath(mediaState.path)}`,
           );
           tracker.handleMediaChange(mediaState.path, mediaState.title);
           return;

@@ -3,6 +3,7 @@ import { spawn as nodeSpawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { parseMediaInfo } from '../../../jimaku/utils';
+import { resolveMediaLookupTarget, sanitizeMediaTitle } from '../../../shared/media-identity';
 import {
   guessAnilistMediaInfo,
   runGuessit,
@@ -184,6 +185,7 @@ export async function guessAnimeVideoMetadata(
   mediaTitle: string | null,
   deps: GuessAnimeVideoMetadataDeps = {},
 ): Promise<ParsedAnimeVideoGuess | null> {
+  const lookupTarget = resolveMediaLookupTarget(mediaPath, mediaTitle);
   const parsed = await guessAnilistMediaInfo(mediaPath, mediaTitle, {
     runGuessit: deps.runGuessit ?? runGuessit,
   });
@@ -191,7 +193,12 @@ export async function guessAnimeVideoMetadata(
     return null;
   }
 
-  const parsedBasename = mediaPath ? path.basename(mediaPath) : null;
+  const parsedBasename =
+    lookupTarget === sanitizeMediaTitle(mediaTitle)
+      ? lookupTarget
+      : lookupTarget
+        ? path.basename(lookupTarget)
+        : null;
   if (parsed.source === 'guessit') {
     return {
       parsedBasename,
@@ -207,7 +214,7 @@ export async function guessAnimeVideoMetadata(
     };
   }
 
-  const fallbackInfo = parseMediaInfo(mediaPath ?? mediaTitle);
+  const fallbackInfo = parseMediaInfo(lookupTarget);
   return {
     parsedBasename: parsedBasename ?? fallbackInfo.filename ?? null,
     parsedTitle: parsed.title,

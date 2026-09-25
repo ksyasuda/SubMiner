@@ -1,9 +1,9 @@
+import { getConfigHotReloadField } from '../hot-reload';
 import type { ResolvedConfig } from '../../types/config';
 import type {
   ConfigSettingsCategory,
   ConfigSettingsControl,
   ConfigSettingsField,
-  ConfigSettingsRestartBehavior,
 } from '../../types/settings';
 import { CONFIG_OPTION_REGISTRY, DEFAULT_CONFIG } from '../definitions';
 import {
@@ -93,7 +93,12 @@ const JSON_OBJECT_FIELDS = new Set([
   'subtitleSidebar.css',
 ]);
 
-export const SECRET_PATHS = new Set(['ai.apiKey', 'jimaku.apiKey', 'anilist.accessToken']);
+export const SECRET_PATHS = new Set([
+  'ai.apiKey',
+  'jimaku.apiKey',
+  'tmdb.apiKey',
+  'anilist.accessToken',
+]);
 
 const COLOR_SUFFIXES = new Set(['Color', 'color', 'backgroundColor', 'singleColor']);
 const SUBTITLE_CSS_MANAGED_CONFIG_PATHS = new Set([
@@ -131,10 +136,11 @@ const SECTION_ORDER = new Map<string, number>(
     'AnkiConnect',
     'Note Fields',
     'Media Capture',
-    'Kiku/Lapis Features',
+    'Kiku/Lapis/Senren Features',
     'Anki AI',
     'AnkiConnect Proxy',
     'Jimaku',
+    'TMDB',
     'Subtitle Sync',
     'MPV Keybindings',
     'Overlay Shortcuts',
@@ -163,6 +169,7 @@ const PATH_ORDER = new Map<string, number>(
     'ankiConnect.proxy.enabled',
     'ankiConnect.isLapis.enabled',
     'ankiConnect.isKiku.enabled',
+    'ankiConnect.isSenren.enabled',
     'subtitleStyle.knownWordColor',
     'ankiConnect.knownWords.matureThresholdDays',
     'subtitleStyle.knownWordMaturityColors.new',
@@ -221,6 +228,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'ankiConnect.nPlusOne.enabled': 'Enabled',
   'ankiConnect.isLapis.enabled': 'Enable Lapis Features',
   'ankiConnect.isKiku.enabled': 'Enable Kiku Features',
+  'ankiConnect.isSenren.enabled': 'Enable Senren Features',
   'ankiConnect.lapisKiku.wordCardKind': 'Word Card Type',
   'stats.toggleKey': 'Toggle Stats Overlay',
   'shortcuts.openCharacterDictionaryManager': 'Open Character Dictionary Manager',
@@ -244,6 +252,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'mpv.aniskipEnabled': 'Enable AniSkip',
   'mpv.aniskipButtonKey': 'AniSkip Button Key',
   'ankiConnect.media.mirrorMpvVolume': 'Mirror mpv Volume',
+  'ankiConnect.media.reviewTiming': 'Review Media Timing',
   'discordPresence.updateIntervalMs': 'Update Interval (ms)',
 };
 
@@ -251,7 +260,9 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
   'ankiConnect.pollingRate':
     'Polling interval in milliseconds. Ignored while the local AnkiConnect proxy is enabled because push-based enrichment is used instead.',
   'ankiConnect.isKiku.enabled':
-    'Enable Kiku-specific mining behavior. Kiku supersedes Lapis: Lapis features still work, and Kiku adds duplicate handling and field grouping.',
+    'Enable Kiku-specific mining behavior. Kiku supersedes Lapis: Lapis features still work, and Kiku adds duplicate handling and field grouping. Mutually exclusive with Senren.',
+  'ankiConnect.isSenren.enabled':
+    'Enable Senren-specific duplicate handling: field grouping merges duplicates into Senren scene-switching markup (including miscInfo grouping). Mutually exclusive with Kiku; only one can be enabled at a time.',
   'ankiConnect.isLapis.enabled':
     'Enable Lapis-specific mining behavior and sentence-card model targeting. When Kiku is enabled, Lapis features still work and Kiku-specific features are added on top.',
   'ankiConnect.isLapis.sentenceCardModel':
@@ -322,6 +333,7 @@ function humanizePath(path: string): string {
     .replace(/\bmpv\b/i, 'mpv')
     .replace(/\byomitan\b/i, 'Yomitan')
     .replace(/\bjimaku\b/i, 'Jimaku')
+    .replace(/\btmdb\b/i, 'TMDB')
     .replace(/\banilist\b/i, 'AniList')
     .replace(/\banki\b/i, 'Anki');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
@@ -407,9 +419,10 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (
     path.startsWith('ankiConnect.isKiku.') ||
     path.startsWith('ankiConnect.isLapis.') ||
+    path.startsWith('ankiConnect.isSenren.') ||
     path.startsWith('ankiConnect.lapisKiku.')
   ) {
-    return { category: 'mining-anki', section: 'Kiku/Lapis Features' };
+    return { category: 'mining-anki', section: 'Kiku/Lapis/Senren Features' };
   }
   if (path.startsWith('ankiConnect.ai.')) {
     return { category: 'mining-anki', section: 'Anki AI' };
@@ -436,11 +449,17 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (path.startsWith('mpv.') || path.startsWith('youtube.')) {
     return { category: 'behavior', section: topSection(path) };
   }
-  if (path.startsWith('jimaku.') || path.startsWith('tsukihime.')) {
+  if (path.startsWith('jimaku.') || path.startsWith('tsukihime.') || path.startsWith('tmdb.')) {
     return { category: 'integrations', section: topSection(path) };
   }
   if (path.startsWith('subsync.')) {
     return { category: 'integrations', section: topSection(path) };
+  }
+  if (path.startsWith('subtitleSelection.')) {
+    return { category: 'behavior', section: 'Subtitle Selection' };
+  }
+  if (path.startsWith('subtitleGeneration.')) {
+    return { category: 'integrations', section: 'Japanese Subtitle Generation' };
   }
   if (path === 'stats.toggleKey' || path === 'stats.markWatchedKey') {
     return { category: 'input', section: 'Overlay Shortcuts' };
@@ -501,6 +520,7 @@ function topSection(path: string): string {
     subsync: 'Subtitle Sync',
     texthooker: 'Texthooker',
     tsukihime: 'TsukiHime',
+    tmdb: 'TMDB',
     updates: 'Updates',
     websocket: 'WebSocket server',
     yomitan: 'Yomitan',
@@ -614,6 +634,8 @@ function subsectionForPath(path: string): string | undefined {
       leaf === 'openRuntimeOptions' ||
       leaf === 'openJimaku' ||
       leaf === 'openTsukihime' ||
+      leaf === 'openSubtitleSelection' ||
+      leaf === 'openSubtitleGeneration' ||
       leaf === 'openSessionHelp' ||
       leaf === 'openControllerSelect' ||
       leaf === 'openControllerDebug'
@@ -683,50 +705,6 @@ function compareFields(a: ConfigSettingsField, b: ConfigSettingsField): number {
   return a.configPath.localeCompare(b.configPath);
 }
 
-function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
-  if (
-    path === 'keybindings' ||
-    pathStartsWith(path, 'shortcuts') ||
-    pathStartsWith(path, 'subtitleStyle') ||
-    pathStartsWith(path, 'subtitleSidebar') ||
-    path === 'secondarySub.defaultMode' ||
-    path === 'ankiConnect.deck' ||
-    path === 'ankiConnect.ai.enabled' ||
-    path === 'ankiConnect.media.normalizeAudio' ||
-    path === 'ankiConnect.media.mirrorMpvVolume' ||
-    path === 'ankiConnect.behavior.autoUpdateNewCards' ||
-    path === 'ankiConnect.knownWords.highlightEnabled' ||
-    path === 'ankiConnect.knownWords.refreshMinutes' ||
-    path === 'ankiConnect.knownWords.addMinedWordsImmediately' ||
-    path === 'ankiConnect.knownWords.matchMode' ||
-    path === 'ankiConnect.knownWords.decks' ||
-    path === 'ankiConnect.nPlusOne.enabled' ||
-    path === 'ankiConnect.nPlusOne.minSentenceWords' ||
-    path === 'ankiConnect.fields.word' ||
-    path === 'ankiConnect.fields.audio' ||
-    path === 'ankiConnect.fields.image' ||
-    path === 'ankiConnect.fields.sentence' ||
-    path === 'ankiConnect.fields.miscInfo' ||
-    path === 'ankiConnect.isLapis.sentenceCardModel' ||
-    path === 'ankiConnect.isKiku.fieldGrouping' ||
-    path === 'ankiConnect.lapisKiku.wordCardKind' ||
-    path === 'mpv.aniskipEnabled' ||
-    path === 'mpv.aniskipButtonKey' ||
-    path === 'stats.toggleKey' ||
-    path === 'stats.markWatchedKey' ||
-    path === 'logging.level' ||
-    path === 'logging.rotation' ||
-    pathStartsWith(path, 'logging.files') ||
-    pathStartsWith(path, 'notifications') ||
-    path === 'youtube.primarySubLanguages' ||
-    pathStartsWith(path, 'jimaku') ||
-    pathStartsWith(path, 'subsync')
-  ) {
-    return 'hot-reload';
-  }
-  return 'restart';
-}
-
 function fieldForLeaf(leaf: Leaf): ConfigSettingsField {
   const option = OPTION_BY_PATH.get(leaf.path);
   const { category, section } = categoryAndSection(leaf.path);
@@ -745,7 +723,7 @@ function fieldForLeaf(leaf: Leaf): ConfigSettingsField {
       ? { enumValues: option.settingsEnumValues ?? option.enumValues }
       : {}),
     ...(option?.enumLabels ? { enumLabels: option.enumLabels } : {}),
-    restartBehavior: restartBehaviorForPath(leaf.path),
+    restartBehavior: getConfigHotReloadField(leaf.path) ? 'hot-reload' : 'restart',
     advanced:
       leaf.path.startsWith('controller.') ||
       leaf.path.startsWith('immersionTracking.retention.') ||

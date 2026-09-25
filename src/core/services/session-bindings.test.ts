@@ -5,6 +5,7 @@ import type { ConfiguredShortcuts } from '../utils/shortcut-config';
 import { DEFAULT_CONFIG, DEFAULT_KEYBINDINGS, SPECIAL_COMMANDS } from '../../config/definitions';
 import { resolveConfiguredShortcuts } from '../utils/shortcut-config';
 import { buildPluginSessionBindingsArtifact, compileSessionBindings } from './session-bindings';
+import { parseSessionActionDispatchRequest } from '../../shared/ipc/validators';
 
 function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): ConfiguredShortcuts {
   return {
@@ -23,6 +24,8 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     openRuntimeOptions: null,
     openJimaku: null,
     openTsukihime: null,
+    openSubtitleSelection: null,
+    openSubtitleGeneration: null,
     openSessionHelp: null,
     openControllerSelect: null,
     openControllerDebug: null,
@@ -36,6 +39,50 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
 function createKeybinding(key: string, command: Keybinding['command']): Keybinding {
   return { key, command };
 }
+
+test('subtitle generation shortcut compiles for overlay and mpv without conflicting with field grouping', () => {
+  for (const platform of ['linux', 'darwin', 'win32'] as const) {
+    const result = compileSessionBindings({
+      shortcuts: resolveConfiguredShortcuts(DEFAULT_CONFIG, DEFAULT_CONFIG),
+      keybindings: DEFAULT_KEYBINDINGS,
+      platform,
+    });
+    const binding = result.bindings.find(
+      (entry) =>
+        entry.actionType === 'session-action' && entry.actionId === 'openSubtitleGeneration',
+    );
+    assert.ok(binding);
+    assert.deepEqual(binding.key, { code: 'KeyG', modifiers: ['ctrl', 'shift'] });
+    assert.equal(
+      result.warnings.some(
+        (warning) =>
+          warning.path === 'shortcuts.openSubtitleGeneration' ||
+          warning.conflictingPaths?.includes('shortcuts.openSubtitleGeneration'),
+      ),
+      false,
+    );
+    assert.ok(
+      result.bindings.some(
+        (entry) =>
+          entry.actionType === 'session-action' && entry.actionId === 'triggerFieldGrouping',
+      ),
+    );
+    const artifact = buildPluginSessionBindingsArtifact({
+      bindings: [binding],
+      warnings: [],
+      numericSelectionTimeoutMs: 3000,
+    });
+    const pluginBinding = artifact.bindings[0];
+    assert.ok(pluginBinding?.actionType === 'session-action');
+    assert.deepEqual(pluginBinding.cliArgs, [
+      '--session-action',
+      '{"actionId":"openSubtitleGeneration"}',
+    ]);
+    assert.deepEqual(parseSessionActionDispatchRequest({ actionId: 'openSubtitleGeneration' }), {
+      actionId: 'openSubtitleGeneration',
+    });
+  }
+});
 
 test('compileSessionBindings merges shortcuts and keybindings into one canonical list', () => {
   const result = compileSessionBindings({
@@ -660,4 +707,59 @@ test('buildPluginSessionBindingsArtifact preserves plugin selector CLI for no-co
 
   assert.equal(byActionId.get('copySubtitleMultiple')?.cliArgs, undefined);
   assert.equal(byActionId.get('mineSentenceMultiple')?.cliArgs, undefined);
+});
+
+test('single keys reserve sequence prefixes without reserving the second stroke', () => {
+  for (const key of ['g', 'Ctrl+g', 's']) {
+    const result = compileSessionBindings({
+      shortcuts: createShortcuts({ openSubtitleSelection: 'g-s' }),
+      keybindings: [createKeybinding(key, ['show-text', 'single'])],
+      platform: 'linux',
+    });
+    assert.ok(result.bindings.some((binding) => binding.originalKey === key));
+    assert.equal(
+      result.bindings.some((binding) => binding.originalKey === 'g-s'),
+      key !== 'g',
+    );
+    assert.equal(result.warnings.length, key === 'g' ? 1 : 0);
+    if (key === 'g') assert.match(result.warnings[0]!.message, /Single-key bindings take priority/);
+  }
+});
+
+test('configured shortcuts and built-in overlay keys also reserve sequence prefixes', () => {
+  for (const prefix of ['g', 'y', 'v']) {
+    const result = compileSessionBindings({
+      shortcuts: createShortcuts({ openSubtitleSelection: `${prefix}-s`, copySubtitle: 'g' }),
+      keybindings: [],
+      platform: 'linux',
+    });
+    assert.equal(
+      result.bindings.some((binding) => binding.originalKey === `${prefix}-s`),
+      false,
+    );
+    assert.ok(result.bindings.some((binding) => binding.originalKey === 'g'));
+    assert.equal(result.warnings.length, 1);
+  }
+});
+
+test('sequence reservations follow the sidebar code and literal Shift semantics', () => {
+  for (const [toggleKey, disabled] of [
+    ['KeyG', true],
+    ['g', false],
+    ['G', true],
+  ] as const) {
+    const result = compileSessionBindings({
+      shortcuts: createShortcuts({ openSubtitleSelection: 'Shift+g-s' }),
+      keybindings: [],
+      platform: 'linux',
+      rawConfig: {
+        ...DEFAULT_CONFIG,
+        subtitleSidebar: { ...DEFAULT_CONFIG.subtitleSidebar, toggleKey },
+      },
+    });
+    assert.equal(
+      result.bindings.some((binding) => binding.originalKey === 'Shift+g-s'),
+      !disabled,
+    );
+  }
 });

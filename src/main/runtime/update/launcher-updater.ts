@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { GitHubRelease } from './release-assets';
 import { findReleaseAsset } from './release-assets';
+import { isManagedLauncher } from '../managed-launcher';
 
 type StatLike = {
   isFile: () => boolean;
@@ -23,6 +24,8 @@ export interface LauncherUpdateResult {
   path?: string;
   command?: string;
   message?: string;
+  // Set when a writable legacy launcher was left for app startup to migrate.
+  deferred?: boolean;
 }
 
 export interface LauncherUpdateFileSystem {
@@ -82,6 +85,7 @@ export async function updateLauncherAtPath(options: {
   assetUrl: string;
   expectedSha256: string;
   download: () => Promise<Buffer>;
+  deferRecognizedLauncherUpdate?: boolean;
   fs?: LauncherUpdateFileSystem;
 }): Promise<LauncherUpdateResult> {
   const fsDeps = options.fs ?? defaultFs();
@@ -96,6 +100,13 @@ export async function updateLauncherAtPath(options: {
   }
 
   const existing = await fsDeps.readFile(options.launcherPath);
+  if (isManagedLauncher(existing.toString())) {
+    return {
+      status: 'skipped',
+      path: options.launcherPath,
+      message: 'This launcher is updated with the SubMiner app.',
+    };
+  }
   if (!looksLikeSubminerLauncher(existing)) {
     return {
       status: 'skipped',
@@ -103,14 +114,23 @@ export async function updateLauncherAtPath(options: {
       message: 'Existing executable does not look like a SubMiner launcher.',
     };
   }
-
   try {
     await fsDeps.access(options.launcherPath);
+    await fsDeps.access(path.dirname(options.launcherPath));
   } catch {
     return {
       status: 'protected',
       path: options.launcherPath,
       command: buildProtectedLauncherUpdateCommand(options.assetUrl, options.launcherPath),
+    };
+  }
+
+  if (options.deferRecognizedLauncherUpdate) {
+    return {
+      status: 'skipped',
+      path: options.launcherPath,
+      message: 'Launcher migration is deferred until the updated SubMiner app starts.',
+      deferred: true,
     };
   }
 
@@ -160,7 +180,9 @@ export async function updateLauncherFromRelease(options: {
   platform?: NodeJS.Platform;
   homeDir?: string;
   downloadAsset: (url: string) => Promise<Buffer>;
+  deferRecognizedLauncherUpdate?: boolean;
   exists?: (targetPath: string) => boolean;
+  fs?: LauncherUpdateFileSystem;
 }): Promise<LauncherUpdateResult> {
   if (!options.release) return { status: 'missing-asset', message: 'No release found.' };
   const asset = findReleaseAsset(options.release, 'subminer');
@@ -184,5 +206,7 @@ export async function updateLauncherFromRelease(options: {
     assetUrl: asset.browser_download_url,
     expectedSha256,
     download: () => options.downloadAsset(asset.browser_download_url),
+    deferRecognizedLauncherUpdate: options.deferRecognizedLauncherUpdate,
+    fs: options.fs,
   });
 }

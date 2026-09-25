@@ -140,6 +140,62 @@ test('guessAnilistMediaInfo preserves useful guessit alternative title for ambig
   });
 });
 
+test('guessAnilistMediaInfo uses the display title for authenticated streams', async () => {
+  const targets: string[] = [];
+  const result = await guessAnilistMediaInfo(
+    'https://jellyfin.example/Videos/item/stream?static=true&api_key=test-secret',
+    'My Anime S02E03',
+    {
+      runGuessit: async (target) => {
+        targets.push(target);
+        throw new Error('use fallback parser');
+      },
+    },
+  );
+  assert.deepEqual(targets, ['My Anime S02E03']);
+  assert.deepEqual(result, {
+    title: 'My Anime',
+    season: 2,
+    episode: 3,
+    source: 'fallback',
+  });
+});
+
+test('guessAnilistMediaInfo preserves slashes in display titles', async () => {
+  const title = 'Fate/stay night S01E02';
+  for (const mediaPath of [null, title, 'https://example.com/stream?api_key=test-secret']) {
+    const targets: string[] = [];
+    await guessAnilistMediaInfo(mediaPath, title, {
+      runGuessit: async (target) => {
+        targets.push(target);
+        return JSON.stringify({ title: 'Fate/stay night', season: 1, episode: 2 });
+      },
+    });
+    assert.deepEqual(targets, [title]);
+  }
+});
+
+test('guessAnilistMediaInfo never parses stream URLs or their query-bearing filenames', async () => {
+  const unsafeInputs = [
+    'https://jellyfin.example/Videos/item/stream?static=true&api_key=test-secret',
+    'stream?static=true&api_key=test-secret&MediaSourceId=item',
+    'https://user:test-secret@example.com/video.mkv',
+  ];
+  for (const input of unsafeInputs) {
+    const targets: string[] = [];
+    const deps = {
+      runGuessit: async (target: string) => {
+        targets.push(target);
+        return JSON.stringify({ title: target });
+      },
+    };
+    assert.equal(await guessAnilistMediaInfo(input, null, deps), null);
+    assert.equal(await guessAnilistMediaInfo(null, input, deps), null);
+    assert.equal(await guessAnilistMediaInfo(input, input, deps), null);
+    assert.deepEqual(targets, []);
+  }
+});
+
 test('updateAnilistPostWatchProgress updates progress when behind', async () => {
   const originalFetch = globalThis.fetch;
   let call = 0;

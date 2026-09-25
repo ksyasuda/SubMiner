@@ -27,7 +27,7 @@ function getAnimeTitles(db: DatabaseSync, animeId: number): AnimeTitleRow | null
     .prepare(
       `SELECT canonical_title, title_romaji, title_english, title_native
        FROM imm_anime
-       WHERE anime_id = ?`,
+       WHERE anime_id = ? AND media_kind = 'anime'`,
     )
     .get(animeId) as AnimeTitleRow | null;
 }
@@ -77,6 +77,7 @@ export function shouldRecommendAnilistConflict(
   conflictAnimeId: number,
   options: AnimeConflictRecommendationOptions,
 ): boolean {
+  if (!getAnimeTitles(db, targetAnimeId) || !getAnimeTitles(db, conflictAnimeId)) return false;
   if (options.survivor === 'target' || options.matchConfidence === 'manual') return false;
   if (
     !animeSeasonsAreMergeCompatible(
@@ -99,6 +100,8 @@ export function recordAnimeMergeRecommendation(
   secondCandidateAnimeId: number,
   anilistId: number,
 ): void {
+  if (!getAnimeTitles(db, firstCandidateAnimeId) || !getAnimeTitles(db, secondCandidateAnimeId))
+    return;
   const firstAnimeId = Math.min(firstCandidateAnimeId, secondCandidateAnimeId);
   const secondAnimeId = Math.max(firstCandidateAnimeId, secondCandidateAnimeId);
   const timestamp = toDbTimestamp(nowMs());
@@ -141,6 +144,8 @@ export function getAnimeMergeRecommendations(db: DatabaseSync): AnimeMergeRecomm
                 second_anime_id AS secondAnimeId
          FROM imm_anime_merge_recommendations
          WHERE status = 'pending'
+           AND first_anime_id IN (SELECT anime_id FROM imm_anime WHERE media_kind = 'anime')
+           AND second_anime_id IN (SELECT anime_id FROM imm_anime WHERE media_kind = 'anime')
          ORDER BY recommendation_id ASC`,
       )
       .all() as Array<{

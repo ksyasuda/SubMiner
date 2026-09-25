@@ -71,7 +71,7 @@ function createWorkflowHarness() {
     getEffectiveSentenceCardConfig: () => ({
       sentenceField: 'Sentence',
       audioField: 'SentenceAudio',
-      kikuDeleteDuplicateInAuto: true,
+      fieldGroupingDeleteDuplicateInAuto: true,
     }),
     getCurrentSubtitleText: () => 'subtitle-text',
     getFieldGroupingCallback: (): FieldGroupingCallback | null => {

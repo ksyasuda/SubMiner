@@ -9,12 +9,59 @@ import {
 
 test('buildAnilistAttemptKey formats media and episode', () => {
   assert.equal(buildAnilistAttemptKey('/tmp/video.mkv', 3), '/tmp/video.mkv::3');
+  assert.equal(
+    buildAnilistAttemptKey('https://example.com/Videos/item/stream?api_key=test-secret', 3),
+    'jellyfin://example.com/item/item::3',
+  );
 });
 
 test('rememberAnilistAttemptedUpdateKey evicts oldest beyond max size', () => {
   const set = new Set<string>(['a', 'b']);
   rememberAnilistAttemptedUpdateKey(set, 'c', 2);
   assert.deepEqual(Array.from(set), ['b', 'c']);
+});
+
+test('post-watch rejects empty media identities before attempted keys or update side effects', async () => {
+  for (const mediaKey of [
+    '  ',
+    'stream?api_key=secret',
+    'stream%3Fapi_key%3Dsecret',
+    'https://[invalid',
+  ]) {
+    assert.equal(buildAnilistAttemptKey(mediaKey, 3), null);
+    const calls: string[] = [];
+    const unexpected = () => assert.fail('invalid identity reached update side effects');
+    const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+      getInFlight: () => false,
+      setInFlight: (value) => calls.push(`inflight:${value}`),
+      getResolvedConfig: () => ({}),
+      isAnilistTrackingEnabled: () => true,
+      getCurrentMediaKey: () => mediaKey,
+      hasMpvClient: () => true,
+      getTrackedMediaKey: () => mediaKey,
+      resetTrackedMedia: unexpected,
+      getWatchedSeconds: () => 1000,
+      maybeProbeAnilistDuration: async () => 1000,
+      ensureAnilistMediaGuess: async () => ({ title: 'Show', season: null, episode: 3 }),
+      hasAttemptedUpdateKey: unexpected,
+      processNextAnilistRetryUpdate: unexpected,
+      refreshAnilistClientSecretState: unexpected,
+      enqueueRetry: unexpected,
+      markRetryFailure: unexpected,
+      markRetrySuccess: unexpected,
+      refreshRetryQueueState: unexpected,
+      updateAnilistPostWatchProgress: unexpected,
+      rememberAttemptedUpdateKey: unexpected,
+      showMpvOsd: unexpected,
+      logInfo: unexpected,
+      logWarn: unexpected,
+      minWatchSeconds: 600,
+      minWatchRatio: 0.85,
+    });
+    await handler();
+    await handler({ force: true });
+    assert.deepEqual(calls, ['inflight:true', 'inflight:false', 'inflight:true', 'inflight:false']);
+  }
 });
 
 test('createProcessNextAnilistRetryUpdateHandler handles successful retry', async () => {
@@ -335,6 +382,7 @@ test('createMaybeRunAnilistPostWatchUpdateHandler notifies when retry already ha
   const attemptedKeys = new Set<string>();
   const mediaKey = '/tmp/video.mkv';
   const attemptKey = buildAnilistAttemptKey(mediaKey, 1);
+  assert.ok(attemptKey);
   const handler = createMaybeRunAnilistPostWatchUpdateHandler({
     getInFlight: () => false,
     setInFlight: (value) => calls.push(`inflight:${value}`),

@@ -2,6 +2,21 @@ import { ConfigTemplateSection } from './shared';
 
 const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
+    title: 'Subtitle Selection',
+    description: ['Select primary and secondary mpv subtitle tracks from the overlay.'],
+    notes: ['Hot-reload: enabling or disabling updates the session shortcut immediately.'],
+    key: 'subtitleSelection',
+  },
+  {
+    title: 'Japanese Subtitle Generation',
+    description: [
+      'Generate timed Japanese subtitles from local audio using whisper.cpp.',
+      'Configure an existing GGML model path or explicitly download a SubMiner-managed model.',
+    ],
+    notes: ['Hot-reload: settings apply to the next generation or model download.'],
+    key: 'subtitleGeneration',
+  },
+  {
     title: 'Visible Overlay Auto-Start',
     description: [
       'Show the visible subtitle overlay automatically after managed mpv playback starts SubMiner.',
@@ -135,7 +150,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'AnkiConnect Integration',
     description: ['Automatic Anki updates and media generation options.'],
     notes: [
-      'Hot-reload: ankiConnect.ai.enabled, media.normalizeAudio/mirrorMpvVolume, knownWords, nPlusOne, fields.word/audio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, isKiku.fieldGrouping, and lapisKiku.wordCardKind update live while SubMiner is running.',
+      'Hot-reload: ankiConnect.ai.enabled, media.normalizeAudio/mirrorMpvVolume/reviewTiming, knownWords, nPlusOne, fields.word/audio/wordAudio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, isKiku.fieldGrouping, isSenren.fieldGrouping, and lapisKiku.wordCardKind update live while SubMiner is running.',
       'Shared AI provider transport settings are read from top-level ai and typically require restart.',
       'Most other AnkiConnect settings still require restart.',
     ],
@@ -154,6 +169,14 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     ],
     notes: ['Hot-reload: TsukiHime changes apply to the next TsukiHime request.'],
     key: 'tsukihime',
+  },
+  {
+    title: 'TMDB',
+    description: [
+      'TMDB (The Movie Database) metadata for live-action dramas and movies in the stats Library: posters, synopses, and grouping by show.',
+    ],
+    notes: ['Hot-reload: TMDB changes apply to the next TMDB request.'],
+    key: 'tmdb',
   },
   {
     title: 'YouTube Playback Settings',

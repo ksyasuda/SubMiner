@@ -27,6 +27,83 @@ function createLogger() {
   };
 }
 
+test('anilist retry queue migrates stream keys and rejects URL-derived searches', () => {
+  const queueFile = createTempQueueFile();
+  const loggerState = createLogger();
+  const key = 'https://example.com/Videos/item/stream?api_key=test-secret::2';
+  fs.writeFileSync(
+    queueFile,
+    JSON.stringify({
+      pending: [
+        {
+          key,
+          title: 'My Anime',
+          episode: 2,
+          createdAt: 1,
+          attemptCount: 0,
+          nextAttemptAt: 1,
+          lastError: null,
+        },
+      ],
+      deadLetter: [],
+    }),
+  );
+  const queue = createAnilistUpdateQueue(queueFile, loggerState.logger);
+  assert.equal(queue.nextReady()?.key, 'jellyfin://example.com/item/item::2');
+  assert.equal(fs.readFileSync(queueFile, 'utf8').includes('test-secret'), false);
+  queue.enqueue('unsafe', 'stream?api_key=test-secret', 3);
+  assert.equal(queue.getSnapshot().pending, 1);
+  queue.markSuccess(key);
+  assert.equal(queue.getSnapshot().pending, 0);
+});
+
+test('anilist retry queue discards empty normalized identities on load and enqueue', () => {
+  const queueFile = createTempQueueFile();
+  const loggerState = createLogger();
+  const invalidKeys = [
+    '',
+    '  ',
+    '::3',
+    'stream?api_key=secret::3',
+    'stream%3Fapi_key%3Dsecret::3',
+    'https://[invalid::3',
+  ];
+  const item = {
+    title: 'My Anime',
+    episode: 3,
+    createdAt: 1,
+    attemptCount: 0,
+    nextAttemptAt: 1,
+    lastError: null,
+  };
+  const validKey = 'https://example.com/Videos/item/stream?api_key=secret::3';
+  fs.writeFileSync(
+    queueFile,
+    JSON.stringify({
+      pending: [...invalidKeys, validKey].map((key) => ({ ...item, key })),
+      deadLetter: invalidKeys.map((key) => ({ ...item, key })),
+    }),
+  );
+  const queue = createAnilistUpdateQueue(queueFile, loggerState.logger);
+  assert.deepEqual(queue.getSnapshot(), { pending: 1, ready: 1, deadLetter: 0 });
+  const persisted = fs.readFileSync(queueFile, 'utf8');
+  assert.deepEqual(JSON.parse(persisted), {
+    pending: [{ ...item, key: 'jellyfin://example.com/item/item::3' }],
+    deadLetter: [],
+  });
+  for (const key of invalidKeys) {
+    queue.enqueue(key, 'My Anime', 3);
+    queue.markFailure(key, 'invalid');
+    queue.markSuccess(key);
+  }
+  assert.equal(fs.readFileSync(queueFile, 'utf8'), persisted);
+  queue.markFailure(validKey, 'retry', 10);
+  assert.equal(queue.nextReady(30_010)?.attemptCount, 1);
+  queue.markSuccess(validKey);
+  queue.enqueue(validKey, 'My Anime', 3);
+  assert.equal(queue.nextReady()?.key, 'jellyfin://example.com/item/item::3');
+});
+
 test('anilist update queue enqueues, snapshots, and dequeues success', () => {
   const queueFile = createTempQueueFile();
   const loggerState = createLogger();

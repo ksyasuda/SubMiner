@@ -6,6 +6,7 @@ import { buildLookupRateDisplay } from '../../lib/yomitan-lookup';
 import { EpisodeDetail } from './EpisodeDetail';
 import { LibraryEntryPicker } from './LibraryEntryPicker';
 import type { AnimeEpisode } from '../../types/stats';
+import type { MediaKind } from '../../../../src/shared/media-kind';
 
 /**
  * Row actions that only appear on hover. Keyboard focus and pointers with no
@@ -17,6 +18,8 @@ const HOVER_REVEALED =
 
 interface EpisodeListProps {
   episodes: AnimeEpisode[];
+  /** Kind of the owning entry; the move picker only offers entries of the same kind. */
+  mediaKind?: MediaKind;
   /** Entry these episodes currently belong to; excluded from the move picker. */
   animeId?: number;
   onEpisodeDeleted?: () => void;
@@ -27,11 +30,13 @@ interface EpisodeListProps {
 
 export function EpisodeList({
   episodes: initialEpisodes,
+  mediaKind = 'anime',
   animeId,
   onEpisodeDeleted,
   onEpisodeMoved,
   onOpenDetail,
 }: EpisodeListProps) {
+  const isYoutube = mediaKind === 'youtube';
   const [expandedVideoId, setExpandedVideoId] = useState<number | null>(null);
   const [episodes, setEpisodes] = useState(initialEpisodes);
   const [movingEpisode, setMovingEpisode] = useState<AnimeEpisode | null>(null);
@@ -90,7 +95,7 @@ export function EpisodeList({
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-ctp-text">Episodes</h3>
+        <h3 className="text-sm font-semibold text-ctp-text">{isYoutube ? 'Videos' : 'Episodes'}</h3>
         <span className="text-xs text-ctp-overlay2">
           {watchedCount}/{episodes.length} watched
         </span>
@@ -178,7 +183,7 @@ export function EpisodeList({
                               onOpenDetail(ep.videoId);
                             }}
                             className="px-2 py-1 rounded border border-ctp-surface2 text-[11px] text-ctp-blue hover:border-ctp-blue/50 hover:bg-ctp-blue/10 transition-colors"
-                            title="Open episode details"
+                            title={isYoutube ? 'Open video details' : 'Open episode details'}
                           >
                             Details
                           </button>
@@ -218,8 +223,8 @@ export function EpisodeList({
                             void handleDeleteEpisode(ep.videoId, ep.canonicalTitle);
                           }}
                           className={`w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-red/50 hover:text-ctp-red focus-visible:text-ctp-red hover:bg-ctp-red/10 transition-colors text-xs flex items-center justify-center ${HOVER_REVEALED}`}
-                          title="Delete episode"
-                          aria-label="Delete episode"
+                          title={isYoutube ? 'Delete video' : 'Delete episode'}
+                          aria-label={isYoutube ? 'Delete video' : 'Delete episode'}
                         >
                           {'\u2715'}
                         </button>
@@ -243,6 +248,7 @@ export function EpisodeList({
         <LibraryEntryPicker
           heading={`Move "${movingEpisode.canonicalTitle}" To`}
           excludeAnimeIds={animeId != null ? [animeId] : []}
+          mediaKind={mediaKind}
           busyAnimeId={moveTargetId}
           error={moveError}
           onSelect={(entry) => void handleMoveEpisode(movingEpisode.videoId, entry.animeId)}

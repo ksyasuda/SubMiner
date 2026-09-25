@@ -218,6 +218,8 @@ export function createCharacterDictionaryImageLookup(deps: {
   userDataPath?: string;
   outputDir?: string;
   getCurrentMediaId?: () => number | null | undefined;
+  onIndexReady?: () => void;
+  onIndexReadyError?: (error: unknown) => void;
 }): {
   get: (term: string, mediaId?: number | null) => CharacterNameImage | null;
   invalidate: () => void;
@@ -229,6 +231,24 @@ export function createCharacterDictionaryImageLookup(deps: {
   let index = new Map<string, CharacterNameImage>();
   let indexByMediaId = new Map<number, Map<string, CharacterNameImage>>();
   let refreshInFlight = false;
+  let indexReadyDeliveryPending = false;
+
+  function deliverIndexReadyIfPending(): void {
+    if (!indexReadyDeliveryPending || !deps.onIndexReady) {
+      return;
+    }
+    indexReadyDeliveryPending = false;
+    try {
+      deps.onIndexReady();
+    } catch (error) {
+      indexReadyDeliveryPending = true;
+      try {
+        deps.onIndexReadyError?.(error);
+      } catch {
+        // Error reporting must not reject the detached index refresh task.
+      }
+    }
+  }
 
   // Rebuilding means re-reading every cached snapshot (potentially GBs of JSON), which used to run
   // synchronously inside a lookup and froze the whole app right after a snapshot changed. Lookups
@@ -241,6 +261,7 @@ export function createCharacterDictionaryImageLookup(deps: {
       signature = '';
       return;
     }
+    deliverIndexReadyIfPending();
     const nextSignature = getSnapshotDirectorySignature(outputDir);
     if (nextSignature === signature || refreshInFlight) {
       return;
@@ -262,6 +283,8 @@ export function createCharacterDictionaryImageLookup(deps: {
         index = nextIndex;
         indexByMediaId = nextIndexByMediaId;
         signature = nextSignature;
+        indexReadyDeliveryPending = deps.onIndexReady !== undefined;
+        deliverIndexReadyIfPending();
       } finally {
         refreshInFlight = false;
       }

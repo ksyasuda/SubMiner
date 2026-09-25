@@ -62,6 +62,11 @@ export interface MainIpcRuntimeServiceDepsParams {
   onOverlayInteractiveHint?: IpcDepsRuntimeOptions['onOverlayInteractiveHint'];
   handleOverlayNotificationAction?: IpcDepsRuntimeOptions['handleOverlayNotificationAction'];
   onYoutubePickerResolve: IpcDepsRuntimeOptions['onYoutubePickerResolve'];
+  previewMediaTimingReview?: IpcDepsRuntimeOptions['previewMediaTimingReview'];
+  getMediaTimingReviewFrame?: IpcDepsRuntimeOptions['getMediaTimingReviewFrame'];
+  getMediaTimingReviewWaveform?: IpcDepsRuntimeOptions['getMediaTimingReviewWaveform'];
+  stopMediaTimingReviewPreview?: IpcDepsRuntimeOptions['stopMediaTimingReviewPreview'];
+  resolveMediaTimingReview?: IpcDepsRuntimeOptions['resolveMediaTimingReview'];
   openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
   quitApp: IpcDepsRuntimeOptions['quitApp'];
   toggleVisibleOverlay: IpcDepsRuntimeOptions['toggleVisibleOverlay'];
@@ -79,6 +84,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getMecabTokenizer: IpcDepsRuntimeOptions['getMecabTokenizer'];
   handleMpvCommand: IpcDepsRuntimeOptions['handleMpvCommand'];
   getKeybindings: IpcDepsRuntimeOptions['getKeybindings'];
+  getMpvInputBindings?: IpcDepsRuntimeOptions['getMpvInputBindings'];
   getSessionBindings: IpcDepsRuntimeOptions['getSessionBindings'];
   getConfiguredShortcuts: IpcDepsRuntimeOptions['getConfiguredShortcuts'];
   dispatchSessionAction: IpcDepsRuntimeOptions['dispatchSessionAction'];
@@ -132,6 +138,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
   getYoutubeMediaSourceUrl?: AnkiJimakuIpcRuntimeOptions['getYoutubeMediaSourceUrl'];
   showDesktopNotification: AnkiJimakuIpcRuntimeOptions['showDesktopNotification'];
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
+  dismissOverlayNotification?: (id: string) => void;
   createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions['createFieldGroupingCallback'];
   broadcastRuntimeOptionsChanged: AnkiJimakuIpcRuntimeOptions['broadcastRuntimeOptionsChanged'];
   getFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions['getFieldGroupingResolver'];
@@ -256,6 +263,11 @@ export function createMainIpcRuntimeServiceDeps(
     onOverlayInteractiveHint: params.onOverlayInteractiveHint,
     handleOverlayNotificationAction: params.handleOverlayNotificationAction,
     onYoutubePickerResolve: params.onYoutubePickerResolve,
+    previewMediaTimingReview: params.previewMediaTimingReview,
+    getMediaTimingReviewFrame: params.getMediaTimingReviewFrame,
+    getMediaTimingReviewWaveform: params.getMediaTimingReviewWaveform,
+    stopMediaTimingReviewPreview: params.stopMediaTimingReviewPreview,
+    resolveMediaTimingReview: params.resolveMediaTimingReview,
     openYomitanSettings: params.openYomitanSettings,
     quitApp: params.quitApp,
     toggleVisibleOverlay: params.toggleVisibleOverlay,
@@ -271,6 +283,7 @@ export function createMainIpcRuntimeServiceDeps(
     getMecabTokenizer: params.getMecabTokenizer,
     handleMpvCommand: params.handleMpvCommand,
     getKeybindings: params.getKeybindings,
+    getMpvInputBindings: params.getMpvInputBindings,
     getSessionBindings: params.getSessionBindings,
     getConfiguredShortcuts: params.getConfiguredShortcuts,
     dispatchSessionAction: params.dispatchSessionAction,
@@ -334,6 +347,7 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
       : {}),
     showDesktopNotification: params.showDesktopNotification,
     showOverlayNotification: params.showOverlayNotification,
+    dismissOverlayNotification: params.dismissOverlayNotification,
     createFieldGroupingCallback: params.createFieldGroupingCallback,
     broadcastRuntimeOptionsChanged: params.broadcastRuntimeOptionsChanged,
     getFieldGroupingResolver: params.getFieldGroupingResolver,

@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { detectInstalledMpvPlugin } from './first-run-setup-plugin';
+import { resolveWindowsMpvPath } from './mpv-process';
 import {
   createEnsureMpvConnectedForJellyfinPlaybackHandler,
   createLaunchMpvIdleForJellyfinPlaybackHandler,
@@ -30,6 +32,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
   const spawnedArgs: string[][] = [];
   const logs: string[] = [];
   const launch = createLaunchMpvIdleForJellyfinPlaybackHandler({
+    getMpvExecutablePath: () => 'mpv',
     getSocketPath: () => '/tmp/subminer.sock',
     getLaunchMode: () => 'maximized',
     platform: 'darwin',
@@ -39,7 +42,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
     getDefaultMpvLogPath: () => ' /tmp/mp.log ',
     defaultMpvArgs: ['--sid=auto'],
     removeSocketPath: () => {},
-    spawnMpv: (args) => {
+    spawnMpv: (_executable, args) => {
       spawnedArgs.push(args);
       return {
         on: () => {},
@@ -67,6 +70,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
 test('createLaunchMpvIdleForJellyfinPlaybackHandler forwards runtime plugin config', () => {
   const spawnedArgs: string[][] = [];
   const launch = createLaunchMpvIdleForJellyfinPlaybackHandler({
+    getMpvExecutablePath: () => 'mpv',
     getSocketPath: () => '/tmp/subminer.sock',
     getLaunchMode: () => 'normal',
     platform: 'linux',
@@ -84,7 +88,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler forwards runtime plugin conf
     getDefaultMpvLogPath: () => '/tmp/mp.log',
     defaultMpvArgs: ['--sid=auto'],
     removeSocketPath: () => {},
-    spawnMpv: (args) => {
+    spawnMpv: (_executable, args) => {
       spawnedArgs.push(args);
       return {
         on: () => {},
@@ -108,41 +112,53 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler forwards runtime plugin conf
   assert.doesNotMatch(scriptOpts ?? '', /subminer-aniskip_button_key=/);
 });
 
-test('createLaunchMpvIdleForJellyfinPlaybackHandler skips bundled script when installed plugin exists', () => {
-  const spawnedArgs: string[][] = [];
-  const launch = createLaunchMpvIdleForJellyfinPlaybackHandler({
-    getSocketPath: () => '/tmp/subminer.sock',
-    getLaunchMode: () => 'normal',
-    platform: 'linux',
-    execPath: '/opt/SubMiner/SubMiner.AppImage',
-    getRuntimePluginEntrypoint: () => '/opt/SubMiner/plugin/subminer/main.lua',
-    getInstalledPluginDetection: () => ({
-      installed: true,
-      path: '/home/tester/.config/mpv/scripts/subminer/main.lua',
-      version: '0.1.0',
-      source: 'default-config',
-      message: null,
-    }),
-    getDefaultMpvLogPath: () => '/tmp/mp.log',
-    defaultMpvArgs: ['--sid=auto'],
-    removeSocketPath: () => {},
-    spawnMpv: (args) => {
-      spawnedArgs.push(args);
-      return {
-        on: () => {},
-        unref: () => {},
-      };
-    },
-    logWarn: () => {},
-    logInfo: () => {},
-  });
+test('Jellyfin detects portable plugins beside the executable selected for launch', () => {
+  const mpvPath = 'C:\\portable player\\mpv.exe';
+  const pluginPath = 'C:\\portable player\\portable_config\\scripts\\subminer\\main.lua';
+  for (const source of ['environment', 'PATH']) {
+    let resolutions = 0;
+    const spawned: Array<{ executable: string; args: string[] }> = [];
+    const launch = createLaunchMpvIdleForJellyfinPlaybackHandler({
+      getMpvExecutablePath: () => {
+        resolutions += 1;
+        return resolveWindowsMpvPath({
+          getEnv: () => (source === 'environment' ? mpvPath : undefined),
+          runWhere: () => ({ status: 0, stdout: mpvPath }),
+          fileExists: (candidate) => candidate === mpvPath,
+        });
+      },
+      getSocketPath: () => '\\\\.\\pipe\\subminer-test',
+      getLaunchMode: () => 'normal',
+      platform: 'win32',
+      execPath: 'C:\\SubMiner\\SubMiner.exe',
+      getRuntimePluginEntrypoint: () => 'C:\\SubMiner\\plugin\\subminer\\main.lua',
+      getInstalledPluginDetection: (mpvExecutablePath) =>
+        detectInstalledMpvPlugin({
+          platform: 'win32',
+          homeDir: 'C:\\Users\\test',
+          mpvExecutablePath,
+          existsSync: (candidate) => candidate === pluginPath,
+        }),
+      getDefaultMpvLogPath: () => '',
+      defaultMpvArgs: [],
+      removeSocketPath: () => {},
+      spawnMpv: (executable, args) => {
+        spawned.push({ executable, args });
+        return { on: () => {}, unref: () => {} };
+      },
+      logWarn: () => {},
+      logInfo: () => {},
+    });
 
-  launch();
-  assert.equal(
-    spawnedArgs[0]?.some((arg) => arg.startsWith('--script=/opt/SubMiner/plugin/subminer')),
-    false,
-  );
-  assert.ok(spawnedArgs[0]?.some((arg) => arg.startsWith('--script-opts=')));
+    launch();
+    assert.equal(resolutions, 1, source);
+    assert.equal(spawned.length, 1);
+    assert.equal(spawned[0]!.executable, mpvPath);
+    assert.equal(
+      spawned[0]!.args.some((arg) => arg.startsWith('--script=')),
+      false,
+    );
+  }
 });
 
 test('createEnsureMpvConnectedForJellyfinPlaybackHandler auto-launches once', async () => {

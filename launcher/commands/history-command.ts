@@ -23,6 +23,7 @@ import {
   type HistorySeriesEntry,
 } from '../history.js';
 import type { Args } from '../types.js';
+import { ensureLinuxRuntimePluginAvailable } from '../runtime-plugin-preflight.js';
 import type { LauncherCommandContext } from './context.js';
 
 export type HistorySessionAction = 'previous' | 'replay' | 'next' | 'browse' | 'quit';
@@ -333,6 +334,13 @@ export async function runHistoryCommand(
   const { args, scriptPath } = context;
 
   checkPickerDependencies(args);
+  if (args.useRofi) {
+    await ensureLinuxRuntimePluginAvailable({
+      appPath: context.appPath ?? undefined,
+      scriptPath,
+      logLevel: args.logLevel,
+    });
+  }
   const themePath = args.useRofi ? findRofiTheme(scriptPath) : null;
 
   const dbPath = resolveImmersionDbPath();

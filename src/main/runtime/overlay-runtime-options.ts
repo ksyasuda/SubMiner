@@ -33,6 +33,7 @@ type OverlayRuntimeOptions = {
   setAnkiIntegration: (integration: unknown | null) => void;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
+  dismissOverlayNotification?: (id: string) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -73,6 +74,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
   setAnkiIntegration: (integration: unknown | null) => void;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
+  dismissOverlayNotification?: (id: string) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -107,6 +109,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     setAnkiIntegration: deps.setAnkiIntegration,
     showDesktopNotification: deps.showDesktopNotification,
     showOverlayNotification: deps.showOverlayNotification,
+    dismissOverlayNotification: deps.dismissOverlayNotification,
     createFieldGroupingCallback: deps.createFieldGroupingCallback,
     getKnownWordCacheStatePath: deps.getKnownWordCacheStatePath,
     ...(deps.getCachedMediaPath ? { getCachedMediaPath: deps.getCachedMediaPath } : {}),

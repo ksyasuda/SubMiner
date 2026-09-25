@@ -3,14 +3,17 @@ import { execFileSync } from 'node:child_process';
 export interface HyprlandPlacementClient {
   address?: string;
   at?: [number, number];
+  class?: string;
   floating?: boolean;
   hidden?: boolean;
+  initialClass?: string;
   initialTitle?: string;
   mapped?: boolean;
   pid?: number;
   pinned?: boolean;
   size?: [number, number];
   title?: string;
+  workspace?: { id: number };
 }
 
 export interface HyprlandPlacementBounds {
@@ -25,7 +28,11 @@ export interface HyprlandPlacementDispatchOptions {
   promote?: boolean;
 }
 
-type ExecFileSync = typeof execFileSync;
+type ExecFileSync = (
+  file: string,
+  args: string[],
+  options: NonNullable<Parameters<typeof execFileSync>[2]>,
+) => ReturnType<typeof execFileSync>;
 export type HyprlandConfigProvider = 'hyprlang' | 'lua';
 
 export function shouldAttemptHyprlandWindowPlacement(
@@ -152,6 +159,33 @@ function luaWindowDispatch(name: string, windowAddress: string, fields: string[]
     'dispatch',
     `hl.dsp.window.${name}({ ${[...fields, `window = ${luaString(windowAddress)}`].join(', ')} })`,
   ];
+}
+
+// Compositor recovery dialogs must remain clickable even when an overlay still owns input.
+function buildHyprlandDialogPromotionDispatches(
+  clients: HyprlandPlacementClient[],
+  placedClient: HyprlandPlacementClient,
+  configProvider: HyprlandConfigProvider,
+): string[][] {
+  if (typeof placedClient.workspace?.id !== 'number') return [];
+  return clients.flatMap((client) => {
+    if (
+      !client.address ||
+      client.address === placedClient.address ||
+      client.mapped === false ||
+      client.hidden === true ||
+      client.workspace?.id !== placedClient.workspace?.id ||
+      (client.class !== 'hyprland-dialog' && client.initialClass !== 'hyprland-dialog')
+    ) {
+      return [];
+    }
+    const windowAddress = `address:${client.address}`;
+    return [
+      configProvider === 'lua'
+        ? luaWindowDispatch('alter_zorder', windowAddress, ['mode = "top"'])
+        : ['dispatch', 'alterzorder', `top,${windowAddress}`],
+    ];
+  });
 }
 
 function luaWindowSetProp(windowAddress: string, prop: string, value: string): string[] {
@@ -331,12 +365,16 @@ export function ensureHyprlandWindowFloatingByTitleWithStatus(options: {
       configProvider,
       promote: options.promote,
     });
+    if (options.promote !== false) {
+      dispatches.push(...buildHyprlandDialogPromotionDispatches(clients, client, configProvider));
+    }
     for (const args of dispatches) {
       run('hyprctl', args, { stdio: 'ignore' });
     }
     if (shouldVerifyBounds) {
       try {
-        const refreshedClient = findHyprlandWindowForPlacement(readHyprlandPlacementClients(run), {
+        const refreshedClients = readHyprlandPlacementClients(run);
+        const refreshedClient = findHyprlandWindowForPlacement(refreshedClients, {
           pid: options.pid ?? process.pid,
           title: options.title,
         });
@@ -345,10 +383,20 @@ export function ensureHyprlandWindowFloatingByTitleWithStatus(options: {
           targetBounds &&
           clientMatchesPlacementBounds(refreshedClient, targetBounds) === false
         ) {
-          for (const args of buildHyprlandPlacementDispatches(refreshedClient, targetBounds, {
+          const retryDispatches = buildHyprlandPlacementDispatches(refreshedClient, targetBounds, {
             configProvider,
             promote: options.promote,
-          })) {
+          });
+          if (options.promote !== false) {
+            retryDispatches.push(
+              ...buildHyprlandDialogPromotionDispatches(
+                refreshedClients,
+                refreshedClient,
+                configProvider,
+              ),
+            );
+          }
+          for (const args of retryDispatches) {
             run('hyprctl', args, { stdio: 'ignore' });
           }
         }

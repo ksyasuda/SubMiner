@@ -13,7 +13,11 @@ import {
   getOrCreateAnimeRecord,
   linkVideoToAnimeRecord,
 } from '../storage.js';
-import { mergeAnimeRecords, moveVideoToAnime } from '../anime-merge.js';
+import {
+  MEDIA_KIND_MISMATCH_MESSAGE,
+  mergeAnimeRecords,
+  moveVideoToAnime,
+} from '../anime-merge.js';
 import {
   dismissAnimeMergeRecommendation,
   getAnimeMergeRecommendations,
@@ -937,6 +941,39 @@ test('automatic AniList update onto an entry that already links elsewhere does n
         }
       ).anilistId,
       999,
+    );
+  });
+});
+
+test('merge and move refuse to mix anime entries with YouTube channels', () => {
+  withDb((db) => {
+    insertAnime(db, { animeId: 1, key: 'some anime', title: 'Some Anime', anilistId: 555 });
+    insertAnime(db, { animeId: 2, key: 'youtube channel uc123', title: 'Channel' });
+    db.prepare("UPDATE imm_anime SET media_kind = 'youtube' WHERE anime_id = 2").run();
+    insertEpisode(db, { videoId: 10, animeId: 1 });
+    insertEpisode(db, { videoId: 20, animeId: 2 });
+
+    assert.throws(() => mergeAnimeRecords(db, 1, [2]), { message: MEDIA_KIND_MISMATCH_MESSAGE });
+    assert.throws(() => mergeAnimeRecords(db, 2, [1]), { message: MEDIA_KIND_MISMATCH_MESSAGE });
+    assert.throws(() => moveVideoToAnime(db, 20, 1), { message: MEDIA_KIND_MISMATCH_MESSAGE });
+    assert.throws(() => moveVideoToAnime(db, 10, 2), { message: MEDIA_KIND_MISMATCH_MESSAGE });
+
+    const rows = db
+      .prepare(
+        'SELECT anime_id AS animeId, media_kind AS mediaKind FROM imm_anime ORDER BY anime_id',
+      )
+      .all() as Array<{ animeId: number; mediaKind: string }>;
+    assert.deepEqual(rows, [
+      { animeId: 1, mediaKind: 'anime' },
+      { animeId: 2, mediaKind: 'youtube' },
+    ]);
+    assert.equal(
+      (
+        db.prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = 20').get() as {
+          animeId: number;
+        }
+      ).animeId,
+      2,
     );
   });
 });

@@ -201,14 +201,18 @@ export function mergeLcovReports(reports: string[]): string {
   return chunks.length > 0 ? `${chunks.join('\n')}\n` : '';
 }
 
-function runCoverageLane(): number {
-  const laneName = process.argv[2];
+export function runCoverageLane(
+  options: { repoRootDir?: string; argv?: string[]; stdio?: 'inherit' | 'pipe' } = {},
+): number {
+  const repoRootDir = options.repoRootDir ?? repoRoot;
+  const argv = options.argv ?? process.argv.slice(2);
+  const laneName = argv[0];
   if (laneName === undefined) {
     process.stderr.write('Missing coverage lane name\n');
     return 1;
   }
 
-  const coverageDir = resolveCoverageDir(repoRoot, process.argv.slice(3));
+  const coverageDir = resolveCoverageDir(repoRootDir, argv.slice(1));
   const shardRoot = join(coverageDir, '.shards');
   mkdirSync(coverageDir, { recursive: true });
   rmSync(shardRoot, { recursive: true, force: true });
@@ -216,7 +220,7 @@ function runCoverageLane(): number {
 
   let files: string[];
   try {
-    files = collectLaneFiles(repoRoot, laneName);
+    files = collectLaneFiles(repoRootDir, laneName);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : error}\n`);
     return 1;
@@ -230,8 +234,8 @@ function runCoverageLane(): number {
         'bun',
         ['test', '--coverage', '--coverage-reporter=lcov', '--coverage-dir', shardDir, `./${file}`],
         {
-          cwd: repoRoot,
-          stdio: 'inherit',
+          cwd: repoRootDir,
+          stdio: options.stdio ?? 'inherit',
         },
       );
 
@@ -253,7 +257,7 @@ function runCoverageLane(): number {
 
     writeFileSync(join(coverageDir, 'lcov.info'), mergeLcovReports(reports), 'utf8');
     process.stdout.write(
-      `Merged LCOV written to ${relative(repoRoot, join(coverageDir, 'lcov.info'))}\n`,
+      `Merged LCOV written to ${relative(repoRootDir, join(coverageDir, 'lcov.info'))}\n`,
     );
     return 0;
   } finally {

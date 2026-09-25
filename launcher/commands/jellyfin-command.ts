@@ -2,6 +2,7 @@ import { fail } from '../log.js';
 import { runAppCommandWithInherit } from '../mpv.js';
 import { commandExists } from '../util.js';
 import { runJellyfinPlayMenu } from '../jellyfin.js';
+import { ensureLinuxRuntimePluginAvailable } from '../runtime-plugin-preflight.js';
 import { shouldForwardLogLevel } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 
@@ -63,6 +64,13 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
     }
     if (args.useRofi && !commandExists('rofi')) {
       fail('rofi not found. Install rofi or omit -R for fzf.');
+    }
+    if (args.useRofi) {
+      await ensureLinuxRuntimePluginAvailable({
+        appPath,
+        scriptPath,
+        logLevel: args.logLevel,
+      });
     }
     await runJellyfinPlayMenu(appPath, args, scriptPath, mpvSocketPath);
     return true;

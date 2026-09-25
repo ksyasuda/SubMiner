@@ -90,6 +90,12 @@ export function createOverlayModalRuntimeService(
   const platform = options.platform ?? process.platform;
   const shouldPrimeModalWindow = platform === 'darwin' || platform === 'win32';
   const reuseModalWindowAfterClose = platform === 'darwin';
+  // On Linux (Hyprland) every placement dispatch on a mapped window (resize, move, set_prop)
+  // blanks the still-visible overlay for a few frames while mpv is fullscreen. Revealing the
+  // dedicated modal window before its renderer has the modal open runs the placement ladder,
+  // and the open retry, against a visible overlay, which the user sees as flicker. Keep the
+  // window unmapped until the renderer acknowledges the open, then hide the overlay first.
+  const deferModalRevealUntilOpened = platform === 'linux';
   const focusApplication = options.focusApplication ?? requestOverlayApplicationFocus;
   const scheduleRevealFallback = (callback: () => void, delayMs: number): RevealFallbackHandle =>
     (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
@@ -457,7 +463,9 @@ export function createOverlayModalRuntimeService(
       deps.setModalWindowBounds(deps.getModalGeometry());
       const wasVisible = modalWindow.isVisible();
       if (!wasVisible) {
-        if (modalWindowPrimedForImmediateShow && isWindowReadyForIpc(modalWindow)) {
+        if (deferModalRevealUntilOpened) {
+          // notifyOverlayModalOpened reveals the window once the renderer has the modal open.
+        } else if (modalWindowPrimedForImmediateShow && isWindowReadyForIpc(modalWindow)) {
           showModalWindow(modalWindow);
         } else {
           scheduleModalWindowReveal(modalWindow);
@@ -560,15 +568,23 @@ export function createOverlayModalRuntimeService(
     }
 
     const modalWindow = deps.getModalWindow();
+    const targetIsModalWindow =
+      modalWindow !== null && !modalWindow.isDestroyed() && targetWindow === modalWindow;
+    const handOffMainWindowToModal = (): void => {
+      setMainWindowMousePassthroughForModal(true);
+      setMainWindowVisibilityForModal(true);
+    };
+
+    if (targetIsModalWindow && deferModalRevealUntilOpened) {
+      handOffMainWindowToModal();
+    }
     if (targetWindow.isVisible()) {
       ensureModalWindowInteractive(targetWindow);
     } else {
       showModalWindow(targetWindow);
     }
-
-    if (modalWindow && !modalWindow.isDestroyed() && targetWindow === modalWindow) {
-      setMainWindowMousePassthroughForModal(true);
-      setMainWindowVisibilityForModal(true);
+    if (targetIsModalWindow && !deferModalRevealUntilOpened) {
+      handOffMainWindowToModal();
     }
   };
 

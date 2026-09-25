@@ -7,6 +7,7 @@ import {
   createHandleJellyfinRemoteGeneralCommand,
   createHandleJellyfinRemotePlay,
   createHandleJellyfinRemotePlaystate,
+  createJellyfinRemoteReportTracker,
   createReportJellyfinRemoteProgressHandler,
   createReportJellyfinRemoteStoppedHandler,
 } from '../domains/jellyfin';
@@ -91,13 +92,17 @@ export function composeJellyfinRemoteHandlers(
       getNow: options.getNow,
       ticksPerSecond: options.ticksPerSecond,
       logDebug: options.logDebug,
+      logWarn: options.logWarn,
     });
-  const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler(
-    buildReportJellyfinRemoteProgressMainDepsHandler(),
-  );
-  const reportJellyfinRemoteStopped = createReportJellyfinRemoteStoppedHandler(
-    buildReportJellyfinRemoteStoppedMainDepsHandler(),
-  );
+  const reportTracker = createJellyfinRemoteReportTracker();
+  const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler({
+    ...buildReportJellyfinRemoteProgressMainDepsHandler(),
+    reportTracker,
+  });
+  const reportJellyfinRemoteStopped = createReportJellyfinRemoteStoppedHandler({
+    ...buildReportJellyfinRemoteStoppedMainDepsHandler(),
+    reportTracker,
+  });
 
   const buildHandleJellyfinRemotePlayMainDepsHandler =
     createBuildHandleJellyfinRemotePlayMainDepsHandler({

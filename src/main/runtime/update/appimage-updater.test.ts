@@ -58,7 +58,7 @@ test('updateAppImageFromRelease verifies hash and atomically replaces writable A
   ]);
 });
 
-test('updateAppImageFromRelease reports protected command without replacing non-writable AppImage', async () => {
+test('updateAppImageFromRelease reports protected command for a direct non-writable AppImage', async () => {
   const result = await updateAppImageFromRelease({
     release: {
       tag_name: 'v0.15.0',
@@ -67,7 +67,7 @@ test('updateAppImageFromRelease reports protected command without replacing non-
       assets: [{ name: 'SubMiner.AppImage', browser_download_url: 'https://example.test/app' }],
     },
     sha256Sums: new Map([['SubMiner.AppImage', appImageHash]]),
-    appImagePath: '/opt/SubMiner/SubMiner.AppImage',
+    appImagePath: '/usr/local/lib/SubMiner.AppImage',
     downloadAsset: async () => appImageBytes,
     fs: {
       stat: async () => ({
@@ -87,10 +87,50 @@ test('updateAppImageFromRelease reports protected command without replacing non-
   });
 
   assert.equal(result.status, 'protected');
-  assert.equal(result.path, '/opt/SubMiner/SubMiner.AppImage');
+  assert.equal(result.path, '/usr/local/lib/SubMiner.AppImage');
   assert.match(result.command ?? '', /curl -fSL 'https:\/\/example\.test\/app' -o "\$tmp"/);
   assert.match(result.command ?? '', /sha256sum -c -/);
-  assert.match(result.command ?? '', /sudo mv "\$tmp" '\/opt\/SubMiner\/SubMiner\.AppImage'/);
+  assert.match(result.command ?? '', /sudo mv "\$tmp" '\/usr\/local\/lib\/SubMiner\.AppImage'/);
+});
+
+test('updateAppImageFromRelease leaves canonical and symlinked AUR AppImages to pacman', async () => {
+  for (const appImagePath of ['/opt/SubMiner/SubMiner.AppImage', '/usr/bin/SubMiner.AppImage']) {
+    let accessed = false;
+    const result = await updateAppImageFromRelease({
+      release: {
+        tag_name: 'v0.15.0',
+        prerelease: false,
+        draft: false,
+        assets: [{ name: 'SubMiner.AppImage', browser_download_url: 'https://example.test/app' }],
+      },
+      sha256Sums: new Map([['SubMiner.AppImage', appImageHash]]),
+      appImagePath,
+      downloadAsset: async () => {
+        throw new Error('must not download package-managed AppImage');
+      },
+      fs: {
+        realpath: async () => '/opt/SubMiner/SubMiner.AppImage',
+        stat: async () => {
+          throw new Error('must not stat package-managed AppImage');
+        },
+        access: async () => {
+          accessed = true;
+        },
+        writeFile: async () => {},
+        chmod: async () => {},
+        rename: async () => {},
+        unlink: async () => {},
+      },
+    });
+
+    assert.deepEqual(result, {
+      status: 'skipped',
+      path: appImagePath,
+      message: 'This AppImage is managed by the subminer-bin system package.',
+    });
+    assert.equal(accessed, false);
+    assert.equal(result.command, undefined);
+  }
 });
 
 test('buildProtectedAppImageUpdateCommand quotes inputs and verifies checksum before sudo move', () => {

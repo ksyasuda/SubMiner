@@ -19,6 +19,23 @@ test('package scripts expose a sharded maintained source coverage lane with lcov
   );
 });
 
+test('source and coverage scripts discover the same maintained source lane', () => {
+  const sourceLane = packageJson.scripts['test:src']?.match(/run-test-lane\.mjs\s+([^\s]+)/)?.[1];
+  const coverageLane = packageJson.scripts['test:coverage:src']?.match(
+    /run-coverage-lane\.ts\s+([^\s]+)/,
+  )?.[1];
+
+  assert.equal(sourceLane, 'bun-src-full');
+  assert.equal(coverageLane, sourceLane);
+});
+
+test('environment suite owns launcher smoke execution', () => {
+  assert.match(
+    packageJson.scripts['test:env'] ?? '',
+    /^bun run test:launcher:smoke:src && bun run test:plugin:src && bun run test:immersion:sqlite:src$/,
+  );
+});
+
 test('ci delegates its gate instead of duplicating quality steps', () => {
   assert.match(
     ciWorkflow,
@@ -36,15 +53,17 @@ test('main docs deploy exists, serializes deploys, and uses Cloudflare credentia
   assert.match(docsPagesWorkflow, /CLOUDFLARE_API_TOKEN/);
   assert.match(docsPagesWorkflow, /CLOUDFLARE_ACCOUNT_ID/);
   assert.match(docsPagesWorkflow, /CLOUDFLARE_PAGES_PROJECT_NAME/);
-  assert.match(docsPagesWorkflow, /pages deploy \.tmp\/docs-versioned-site/);
+  assert.match(docsPagesWorkflow, /pages deploy \.\.\/\.tmp\/docs-versioned-site/);
   assert.match(docsPagesWorkflow, /--branch main/);
 });
 
-test('docs deploy caches stable archive builds between runs', () => {
-  assert.match(docsPagesWorkflow, /actions\/cache@v4/);
-  assert.match(docsPagesWorkflow, /\.tmp\/docs-versioned-archive-cache/);
-  assert.match(docsPagesWorkflow, /docs-versioned-archives-/);
-  assert.match(docsPagesWorkflow, /docs-site\/\.vitepress\/\*\*/);
+test('docs deploy syncs frozen archives to R2 and ships the archive Pages Function', () => {
+  assert.doesNotMatch(docsPagesWorkflow, /actions\/cache@/);
+  assert.match(docsPagesWorkflow, /DOCS_ARCHIVE_R2_ACCESS_KEY_ID/);
+  assert.match(docsPagesWorkflow, /DOCS_ARCHIVE_R2_SECRET_ACCESS_KEY/);
+  assert.match(docsPagesWorkflow, /--require-archives/);
+  assert.match(docsPagesWorkflow, /--rebuild-archives=\$\{REBUILD_ARCHIVES\}/);
+  assert.match(docsPagesWorkflow, /workingDirectory: docs-site/);
 });
 
 test('docs deploy skips invalid release tags without failing the workflow', () => {

@@ -31,7 +31,6 @@ function createDeps(
     getCachedMediaPath: async () => null,
     shouldRequireRemoteMediaCache: () => true,
     getSubtitleMediaRange: () => ({ startTime: 1, endTime: 2 }),
-    getResolvedSentenceAudioFieldName: () => 'SentenceAudio',
     resolveConfiguredFieldName: () => 'Picture',
     mergeFieldValue: (_existing, newValue) => newValue,
     getAnimatedImageLeadInSeconds: async () => 0,
@@ -51,6 +50,41 @@ function createDeps(
   };
   return deps;
 }
+
+test('queued media keeps a chosen screenshot separate from the reviewed audio range', async () => {
+  const screenshots: number[] = [];
+  const audioRanges: number[][] = [];
+  const deps = createDeps();
+  deps.client.notesInfo = async () => [{ noteId: 42, fields: { Picture: { value: '' } } }];
+  deps.mediaGenerator.generateScreenshot = async (_media, time) => {
+    screenshots.push(time);
+    return Buffer.from('image');
+  };
+  deps.mediaGenerator.generateAudio = async (_media, start, end, padding) => {
+    audioRanges.push([start, end, padding ?? -1]);
+    return Buffer.from('audio');
+  };
+  const queue = new PendingYoutubeMediaQueue(deps);
+  assert.equal(
+    await queue.queueFromNote({
+      noteId: 42,
+      noteInfo: { noteId: 42, fields: {} },
+      label: 'test',
+      context: {
+        source: 'overlay',
+        text: '字幕',
+        startTime: 1,
+        endTime: 2,
+        mediaPaddingSeconds: 0,
+        screenshotTime: 3.125,
+      },
+    }),
+    true,
+  );
+  await queue.handleReady('https://youtu.be/abc123', '/cache/video.mkv');
+  assert.deepEqual(screenshots, [3.125]);
+  assert.deepEqual(audioRanges, [[1, 2, 0]]);
+});
 
 test('PendingYoutubeMediaQueue treats cache lookup failures as an immediate generation fallback', async () => {
   const deps = createDeps({
@@ -133,7 +167,7 @@ test('PendingYoutubeMediaQueue defaults missing media flags to enabled when queu
         noteIds.map((noteId) => ({
           noteId,
           fields: {
-            SentenceAudio: { value: '' },
+            ExpressionAudio: { value: '' },
             Picture: { value: '' },
           },
         })),
@@ -144,13 +178,16 @@ test('PendingYoutubeMediaQueue defaults missing media flags to enabled when queu
         storedMedia.push(filename);
       },
     },
-    getConfig: () => ({ media: {}, fields: { image: 'Picture' } }) as AnkiConnectConfig,
+    getConfig: () =>
+      ({ media: {}, fields: { audio: 'ExpressionAudio', image: 'Picture' } }) as AnkiConnectConfig,
+    resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
+      preferredNames.find((name) => name && name in noteInfo.fields) ?? null,
   });
   const queue = new PendingYoutubeMediaQueue(deps);
 
   const queued = await queue.queueFromNote({
     noteId: 42,
-    noteInfo: { noteId: 42, fields: {} },
+    noteInfo: { noteId: 42, fields: { ExpressionAudio: { value: '' } } },
     label: 'demo',
   });
   await queue.handleReady('https://youtu.be/abc123', '/tmp/media.mkv');
@@ -158,7 +195,8 @@ test('PendingYoutubeMediaQueue defaults missing media flags to enabled when queu
   assert.equal(queued, true);
   assert.equal(updatedNotes.length, 1);
   assert.equal(storedMedia.length, 2);
-  assert.match(updatedNotes[0]?.fields.SentenceAudio ?? '', /^\[sound:audio\.mp3\]$/);
+  assert.match(updatedNotes[0]?.fields.ExpressionAudio ?? '', /^\[sound:audio\.mp3\]$/);
+  assert.equal('SentenceAudio' in (updatedNotes[0]?.fields ?? {}), false);
   assert.match(updatedNotes[0]?.fields.Picture ?? '', /^<img src="image\.webp">$/);
 });
 

@@ -21,13 +21,17 @@ Read when: you need to find the owner module for a behavior or test surface
   `src/config/resolve/anki-connect/`
 - Overlay/window state: `src/core/services/overlay-*`, `src/main/overlay-*.ts`
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
+  Windows executable lookup and detached process creation are shared in `src/main/runtime/mpv-process.ts`. The Windows launcher and Jellyfin handlers retain their own playback and connection workflows.
 - Subtitle/token pipeline: `src/core/services/subtitle-*.ts`, `src/core/services/tokenizer*`, `src/core/services/tokenizer/`, `src/subsync/`
 - Anki workflow: `src/anki-integration/`, `src/core/services/anki-jimaku*.ts`
 - Immersion tracking: `src/core/services/immersion-tracker/`
   Includes stats storage/query schema such as `imm_videos`, `imm_media_art`, and `imm_youtube_videos` for per-video and YouTube-specific library metadata.
   Library-entry identity aliases and merge recommendations are persisted alongside this schema; the stats HTTP and SPA layers only expose and present those domain decisions.
   `delete-maintenance-scheduler.ts` coalesces and serializes stats deletes; the expensive work runs in `delete-maintenance-worker-thread.ts` while the tracker queues playback writes. Each batch uses one transaction, lexical update, rollup refresh, and incremental lifetime subtraction (`planLifetimeRemovals`/`applyLifetimeRemovals` in `lifetime.ts`). Merges, moves, AniList reassignments, and `stats cleanup -l` use `repairLifetimeSummariesFromMedia` (recompute from the per-video media ledger). The full lifetime rebuild survives only as the empty-table bootstrap; anywhere else it would collapse lifetime totals to the session retention window.
+- Immersion sync: `src/core/services/stats-sync/`, bound by `src/main/sync-cli.ts`.
+  `snapshot-transfer.ts` selects compressed rsync or scp. `transfer-cache.ts` atomically retains the last successfully received snapshot per hashed peer/database identity under the config directory's `sync-transfer-cache/`. Cache copies seed isolated transfer directories; rsync verifies reconstructed files before the existing merge engine runs. The `--make-temp` / `--remove-temp` helpers accept an internal `--transfer-cache` key, with a fallback for older peers that do not recognize it.
 - AniList tracking + character dictionary: `src/core/services/anilist/`, `src/main/runtime/composers/anilist-*`, `src/main/character-dictionary-runtime.ts`, `src/main/character-dictionary-runtime/`
+- TMDB live-action metadata: `src/core/services/tmdb/` (client + exact-title resolver), `src/core/services/immersion-tracker/live-action-link.ts` (links an entry to a TMDB title and merges other holders of the same title). The AniList cover-art fetcher calls the resolver as its fallback; `imm_anime.media_kind` marks the result and keeps the entry out of AniList season repair.
 - Jellyfin integration: `src/core/services/jellyfin*.ts`, `src/main/runtime/composers/jellyfin-*`
 - Window trackers: `src/window-trackers/`
 - Stats HTTP app: `src/core/services/stats-server.ts`, with route groups and shared route support
@@ -36,6 +40,25 @@ Read when: you need to find the owner module for a behavior or test surface
 - Public docs site: `docs-site/`
 
 ## Shared Contract Entry Points
+
+Automatic mpv keyboard discovery uses the `get-mpv-input-bindings` IPC request and
+`MpvInputBindingsSnapshot` in `src/types/session-bindings.ts`.
+`src/main/runtime/mpv-input-bindings.ts` queries the connected player and preserves
+configured keys, including disabled entries. `src/shared/mpv-input-bindings.ts`
+validates discovered keys and translates browser input. The renderer's
+`handlers/mpv-input-forwarding.ts` keeps the session lookup, coalesces asynchronous
+refreshes, and releases held keys on blur or disposal. `handlers/keyboard.ts` runs
+this fallback after SubMiner controls and refreshes on startup, a delayed startup
+pass, focus, and binding reload. Discovery does not enter compiled session bindings,
+the plugin artifact, persistent config, or session help.
+
+The subtitle sidebar consumes parsed cues through `SubtitleSidebarSnapshot`. Its `sourceKey`
+identifies the media and subtitle source so renderer selections are invalidated on source changes,
+including changes whose cue text and timings are identical. Native selection and clean clipboard
+serialization live in `src/renderer/modals/subtitle-sidebar-selection.ts`. Electron lets standard
+Copy input reach the renderer, where sidebar selection takes priority over the live-subtitle binding.
+The preload bridge writes selections through Electron's clipboard API so copying does not depend
+on Chromium document focus or require activating the overlay window.
 
 - Config + app-state contracts: `src/types/config.ts`
 - Subtitle/token/media annotation contracts: `src/types/subtitle.ts`

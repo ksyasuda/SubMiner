@@ -39,6 +39,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
+  dismissOverlayNotification?: (id: string) => void;
   createFieldGroupingCallback: OverlayRuntimeOptionsMainDeps['createFieldGroupingCallback'];
   getKnownWordCacheStatePath: () => string;
   getCachedMediaPath?: OverlayRuntimeOptionsMainDeps['getCachedMediaPath'];
@@ -78,6 +79,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
     },
     showDesktopNotification: deps.showDesktopNotification,
     showOverlayNotification: deps.showOverlayNotification,
+    dismissOverlayNotification: deps.dismissOverlayNotification,
     createFieldGroupingCallback: () => deps.createFieldGroupingCallback(),
     getKnownWordCacheStatePath: () => deps.getKnownWordCacheStatePath(),
     ...(deps.getCachedMediaPath ? { getCachedMediaPath: deps.getCachedMediaPath } : {}),

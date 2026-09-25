@@ -9,13 +9,17 @@ import { compareSemverLike, findReleaseAsset } from './release-assets';
 
 const execFileAsync = promisify(execFile);
 const THEME_RELATIVE_PATH = path.join('themes', 'subminer.rasi');
+const THUMBNAILER_RELATIVE_PATH = path.join(
+  'thumbnailers',
+  'subminer-ffmpegthumbnailer.thumbnailer',
+);
 const PLUGIN_ENTRYPOINT_RELATIVE_PATH = path.join('plugin', 'subminer', 'main.lua');
 const PLUGIN_VERSION_RELATIVE_PATH = path.join('plugin', 'subminer', 'version.lua');
 const PLUGIN_DIR_RELATIVE_PATH = path.join('plugin', 'subminer');
 
 export interface SupportAssetsUpdateResult {
   status: 'updated' | 'skipped' | 'protected' | 'hash-mismatch' | 'missing-asset';
-  component?: 'theme' | 'plugin';
+  component?: 'theme' | 'thumbnailer' | 'plugin';
   path?: string;
   command?: string;
   message?: string;
@@ -69,11 +73,12 @@ async function readInstalledPluginVersion(pluginDir: string): Promise<string | n
 async function detectManagedSupportAssetDataDirs(dataDirs: string[]): Promise<string[]> {
   const managedDataDirs: string[] = [];
   for (const dataDir of dataDirs) {
-    const [hasTheme, hasPlugin] = await Promise.all([
+    const [hasTheme, hasThumbnailer, hasPlugin] = await Promise.all([
       pathExists(path.join(dataDir, THEME_RELATIVE_PATH)),
+      pathExists(path.join(dataDir, THUMBNAILER_RELATIVE_PATH)),
       pathExists(path.join(dataDir, PLUGIN_ENTRYPOINT_RELATIVE_PATH)),
     ]);
-    if (hasTheme || hasPlugin) {
+    if (hasTheme || hasThumbnailer || hasPlugin) {
       managedDataDirs.push(dataDir);
     }
   }
@@ -163,8 +168,14 @@ export function buildProtectedSupportAssetsCommand(
     `curl -fSL ${shellQuote(assetUrl)} -o "$tmp/subminer-assets.tar.gz"`,
     `printf '%s  %s\\n' ${quotedExpectedSha256} "$tmp/subminer-assets.tar.gz" | sha256sum -c -`,
     'tar -xzf "$tmp/subminer-assets.tar.gz" -C "$tmp"',
+    'test -f "$tmp/assets/themes/subminer.rasi"',
+    'test -f "$tmp/assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer"',
+    'test -f "$tmp/plugin/subminer/main.lua"',
+    'test -f "$tmp/plugin/subminer/version.lua"',
     `sudo mkdir -p ${quotedDir}/themes`,
     `sudo cp "$tmp/assets/themes/subminer.rasi" ${quotedDir}/themes/subminer.rasi`,
+    `sudo mkdir -p ${quotedDir}/thumbnailers`,
+    `sudo cp "$tmp/assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer" ${quotedDir}/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer`,
     `sudo mkdir -p ${quotedDir}/plugin`,
     `sudo rm -rf ${quotedStagedPluginDir} ${quotedBackupPluginDir}`,
     `sudo cp -R "$tmp/plugin/subminer" ${quotedStagedPluginDir}`,
@@ -218,6 +229,12 @@ export async function updateSupportAssetsFromRelease(options: {
         ),
         makeSupportAssetResult(
           'skipped',
+          'thumbnailer',
+          dataDir,
+          'Support asset path is not a directory.',
+        ),
+        makeSupportAssetResult(
+          'skipped',
           'plugin',
           dataDir,
           'Support asset path is not a directory.',
@@ -242,6 +259,13 @@ export async function updateSupportAssetsFromRelease(options: {
         'theme',
         dataDir,
         'Theme install requires a manual command.',
+        command,
+      ),
+      makeSupportAssetResult(
+        'protected',
+        'thumbnailer',
+        dataDir,
+        'Rofi thumbnailer install requires a manual command.',
         command,
       ),
       makeSupportAssetResult(
@@ -284,6 +308,17 @@ export async function updateSupportAssetsFromRelease(options: {
     }
     const themeBytes = await fs.promises.readFile(themeSourcePath);
 
+    const thumbnailerSourcePath = path.join(tempDir, 'assets', THUMBNAILER_RELATIVE_PATH);
+    if (!(await pathExists(thumbnailerSourcePath))) {
+      return [
+        {
+          status: 'missing-asset',
+          message: 'Support asset archive is missing the rofi thumbnailer.',
+        },
+      ];
+    }
+    const thumbnailerBytes = await fs.promises.readFile(thumbnailerSourcePath);
+
     const sourcePluginDir = path.join(tempDir, PLUGIN_DIR_RELATIVE_PATH);
     const sourcePluginEntrypoint = path.join(tempDir, PLUGIN_ENTRYPOINT_RELATIVE_PATH);
     if (!(await pathExists(sourcePluginEntrypoint))) {
@@ -324,6 +359,33 @@ export async function updateSupportAssetsFromRelease(options: {
             'theme',
             dataDir,
             existingThemeBytes ? 'Updated theme.' : 'Installed theme.',
+          ),
+        );
+      }
+
+      const targetThumbnailerPath = path.join(dataDir, THUMBNAILER_RELATIVE_PATH);
+      const existingThumbnailerBytes = await readFileIfExists(targetThumbnailerPath);
+      if (
+        existingThumbnailerBytes &&
+        Buffer.compare(existingThumbnailerBytes, thumbnailerBytes) === 0
+      ) {
+        results.push(
+          makeSupportAssetResult(
+            'skipped',
+            'thumbnailer',
+            dataDir,
+            'Rofi thumbnailer already up to date.',
+          ),
+        );
+      } else {
+        await fs.promises.mkdir(path.dirname(targetThumbnailerPath), { recursive: true });
+        await fs.promises.writeFile(targetThumbnailerPath, thumbnailerBytes);
+        results.push(
+          makeSupportAssetResult(
+            'updated',
+            'thumbnailer',
+            dataDir,
+            existingThumbnailerBytes ? 'Updated rofi thumbnailer.' : 'Installed rofi thumbnailer.',
           ),
         );
       }

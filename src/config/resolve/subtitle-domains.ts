@@ -1,5 +1,6 @@
 import { ResolvedConfig } from '../../types/config';
 import { ResolveContext } from './context';
+import { resolveSubtitleGenerationConfig } from '../../shared/subtitle-generation';
 import {
   asBoolean,
   asColor,
@@ -46,6 +47,17 @@ function applySubtitleHoverTokenCssCompatibility(
 
 export function applySubtitleDomainConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
+  resolved.subtitleGeneration = resolveSubtitleGenerationConfig(
+    src.subtitleGeneration,
+    (key, value, message) => {
+      const configPath = key === 'subtitleGeneration' ? key : `subtitleGeneration.${key}`;
+      const fallback =
+        key === 'subtitleGeneration'
+          ? resolved.subtitleGeneration
+          : Object.entries(resolved.subtitleGeneration).find(([name]) => name === key)?.[1];
+      warn(configPath, value, fallback, message);
+    },
+  );
 
   if (isObject(src.jimaku)) {
     const apiKey = asString(src.jimaku.apiKey);

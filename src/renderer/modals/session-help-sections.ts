@@ -225,6 +225,10 @@ function describeSessionAction(
       return 'Open jimaku';
     case 'openTsukihime':
       return 'Open TsukiHime';
+    case 'openSubtitleSelection':
+      return 'Select subtitle tracks';
+    case 'openSubtitleGeneration':
+      return 'Generate Japanese subtitles';
     case 'openYoutubePicker':
       return 'Open YouTube subtitle picker';
     case 'openPlaylistBrowser':
@@ -266,6 +270,8 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
     case 'openJimaku':
     case 'openTsukihime':
     case 'openCharacterDictionaryManager':
+    case 'openSubtitleSelection':
+    case 'openSubtitleGeneration':
     case 'openControllerSelect':
     case 'openControllerDebug':
     case 'openYoutubePicker':

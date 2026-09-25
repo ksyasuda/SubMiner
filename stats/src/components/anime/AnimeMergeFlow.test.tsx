@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { apiClient } from '../../lib/api-client';
 import type { AnimeLibraryItem, StatsMergeAnimeResponse } from '../../types/stats';
+import { AnimeMergeDialog } from './AnimeMergeDialog';
 import { AnimeTab } from './AnimeTab';
 
 interface TestWindow extends Window {
@@ -45,9 +46,12 @@ function installDom(): () => void {
 
 function libraryItem(animeId: number, title: string, episodeCount: number): AnimeLibraryItem {
   return {
+    mediaKind: 'anime',
     animeId,
     canonicalTitle: title,
     anilistId: null,
+    tmdbId: null,
+    tmdbType: null,
     totalSessions: 1,
     totalActiveMs: 1000,
     totalCards: 1,
@@ -68,7 +72,9 @@ function findButton(container: Element, label: string): HTMLElement {
 
 /** Library cards only expose aria-pressed while selection mode is on. */
 function cardButtons(container: Element): HTMLButtonElement[] {
-  return [...container.querySelectorAll('button[aria-pressed]')] as unknown as HTMLButtonElement[];
+  return [
+    ...container.querySelectorAll('.grid button[aria-pressed]'),
+  ] as unknown as HTMLButtonElement[];
 }
 
 function mergeButton(container: Element): HTMLButtonElement {
@@ -158,6 +164,52 @@ test('AnimeTab merges the selected duplicate entries into the chosen keeper', as
     });
   } finally {
     Object.assign(apiClient, original);
+    uninstallDom();
+  }
+});
+
+test('AnimeMergeDialog refuses to merge an AniList entry with a TMDB entry', async () => {
+  const uninstallDom = installDom();
+  const originalMerge = apiClient.mergeAnime;
+  let mergeCalls = 0;
+  apiClient.mergeAnime = (async () => {
+    mergeCalls += 1;
+    throw new Error('unexpected merge');
+  }) as typeof apiClient.mergeAnime;
+
+  const anime = { ...libraryItem(1, 'Show', 2), anilistId: 100 };
+  const drama = {
+    ...libraryItem(2, 'Show', 1),
+    mediaKind: 'live_action' as const,
+    tmdbId: 200,
+    tmdbType: 'tv' as const,
+  };
+
+  try {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <AnimeMergeDialog entries={[anime, drama]} onClose={() => {}} onMerged={() => {}} />,
+      );
+    });
+
+    const merge = findButton(container, 'Merge Entries') as HTMLButtonElement;
+    assert.equal(merge.disabled, true);
+    assert.match(container.textContent ?? '', /cannot be merged together/);
+
+    await act(async () => {
+      merge.click();
+    });
+    assert.equal(mergeCalls, 0);
+
+    await act(async () => {
+      root.unmount();
+    });
+  } finally {
+    apiClient.mergeAnime = originalMerge;
     uninstallDom();
   }
 });

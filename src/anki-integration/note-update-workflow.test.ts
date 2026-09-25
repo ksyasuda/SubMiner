@@ -44,6 +44,7 @@ function createWorkflowHarness() {
         updates.push({ noteId, fields });
       },
       storeMediaFile: async () => undefined,
+      deleteNotes: async () => undefined,
     },
     getConfig: () => ({
       fields: {
@@ -58,9 +59,10 @@ function createWorkflowHarness() {
       sentenceField: 'Sentence',
       lapisEnabled: false,
       kikuEnabled: false,
-      kikuFieldGrouping: 'disabled' as const,
+      fieldGroupingMode: 'disabled' as const,
     }),
     appendKnownWordsFromNoteInfo: (_noteInfo: NoteUpdateWorkflowNoteInfo) => undefined,
+    removeKnownWordNote: (_noteId: number) => undefined,
     extractFields: (fields: Record<string, { value: string }>) => {
       const out: Record<string, string> = {};
       for (const [key, value] of Object.entries(fields)) {
@@ -80,7 +82,6 @@ function createWorkflowHarness() {
       const names = Object.keys(noteInfo.fields);
       return names.find((name) => name.toLowerCase() === preferred.toLowerCase()) ?? null;
     },
-    getResolvedSentenceAudioFieldName: () => null,
     getAnimatedImageLeadInSeconds: async () => 0,
     mergeFieldValue: (_existing: string, next: string, _overwrite: boolean) => next,
     generateAudioFilename: () => 'audio_1.mp3',
@@ -120,15 +121,59 @@ test('NoteUpdateWorkflow updates sentence field and emits notification', async (
   assert.equal(harness.notifications.length, 1);
 });
 
+test('NoteUpdateWorkflow uses configured fields for word-card enrichment with Lapis and Kiku enabled', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.getConfig = () => ({
+    fields: {
+      sentence: 'Context',
+      audio: 'ContextAudio',
+    },
+    media: {
+      generateAudio: true,
+      generateImage: false,
+    },
+    behavior: {},
+  });
+  harness.deps.getEffectiveSentenceCardConfig = () => ({
+    sentenceField: 'Sentence',
+    lapisEnabled: true,
+    kikuEnabled: true,
+    fieldGroupingMode: 'disabled',
+  });
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: '' },
+          SentenceAudio: { value: '' },
+          Context: { value: '' },
+          ContextAudio: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+  harness.deps.generateAudio = async () => Buffer.from('audio');
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.deepEqual(harness.updates[0]?.fields, {
+    Context: 'subtitle-text',
+    ContextAudio: '[sound:audio_1.mp3]',
+  });
+});
+
 test('NoteUpdateWorkflow updates sentence furigana when highlight processor changes it', async () => {
   const harness = createWorkflowHarness();
+  harness.deps.getCurrentSubtitleText = () => 'tokugi';
   harness.deps.client.notesInfo = async () =>
     [
       {
         noteId: 42,
         fields: {
           Expression: { value: 'tokugi' },
-          Sentence: { value: '' },
+          Sentence: { value: 'tokugi' },
           SentenceFurigana: { value: '<span class="term">tokugi</span>' },
         },
       },
@@ -140,7 +185,7 @@ test('NoteUpdateWorkflow updates sentence furigana when highlight processor chan
 
   assert.equal(harness.updates.length, 1);
   assert.deepEqual(harness.updates[0]?.fields, {
-    Sentence: 'subtitle-text',
+    Sentence: 'tokugi',
     SentenceFurigana: '<span class="term"><b>tokugi</b></span>',
   });
 });
@@ -151,7 +196,7 @@ test('NoteUpdateWorkflow marks enriched Kiku word cards as word-and-sentence car
     sentenceField: 'Sentence',
     lapisEnabled: false,
     kikuEnabled: true,
-    kikuFieldGrouping: 'manual',
+    fieldGroupingMode: 'manual',
   });
   harness.deps.client.notesInfo = async () =>
     [
@@ -184,7 +229,7 @@ test('NoteUpdateWorkflow marks the configured word card kind instead of word-and
     sentenceField: 'Sentence',
     lapisEnabled: false,
     kikuEnabled: true,
-    kikuFieldGrouping: 'manual',
+    fieldGroupingMode: 'manual',
     wordCardKind: 'click',
   });
   harness.deps.client.notesInfo = async () =>
@@ -220,7 +265,7 @@ test('NoteUpdateWorkflow leaves card type flags alone when the word card kind is
     sentenceField: 'Sentence',
     lapisEnabled: false,
     kikuEnabled: true,
-    kikuFieldGrouping: 'manual',
+    fieldGroupingMode: 'manual',
     wordCardKind: 'none',
   });
   harness.deps.client.notesInfo = async () =>
@@ -275,7 +320,7 @@ test('NoteUpdateWorkflow preserves explicit sentence card type during sentence e
     sentenceField: 'Sentence',
     lapisEnabled: true,
     kikuEnabled: false,
-    kikuFieldGrouping: 'disabled',
+    fieldGroupingMode: 'disabled',
   });
   harness.deps.client.notesInfo = async () =>
     [
@@ -318,7 +363,7 @@ test('NoteUpdateWorkflow updates note before auto field grouping merge', async (
     sentenceField: 'Sentence',
     lapisEnabled: false,
     kikuEnabled: true,
-    kikuFieldGrouping: 'auto',
+    fieldGroupingMode: 'auto',
   });
   harness.deps.findDuplicateNote = async () => 99;
   harness.deps.client.notesInfo = async () => {
@@ -432,6 +477,7 @@ test('NoteUpdateWorkflow uses subtitle sidebar context for sentence media timing
   harness.deps.getConfig = () => ({
     fields: {
       sentence: 'Sentence',
+      audio: 'SentenceAudio',
       image: 'Picture',
       miscInfo: 'MiscInfo',
     },
@@ -444,7 +490,6 @@ test('NoteUpdateWorkflow uses subtitle sidebar context for sentence media timing
   });
   harness.deps.getCurrentSubtitleText = () => 'current primary line';
   harness.deps.getCurrentSubtitleStart = () => 20;
-  harness.deps.getResolvedSentenceAudioFieldName = () => 'SentenceAudio';
   harness.deps.generateAudio = async (context?: SubtitleMiningContext) => {
     audioContext = context ?? null;
     return Buffer.from('audio');
@@ -501,6 +546,7 @@ test('NoteUpdateWorkflow snapshots one media range for audio and image without a
   harness.deps.getConfig = () => ({
     fields: {
       sentence: 'Sentence',
+      audio: 'SentenceAudio',
       image: 'Picture',
       miscInfo: 'MiscInfo',
     },
@@ -511,7 +557,6 @@ test('NoteUpdateWorkflow snapshots one media range for audio and image without a
     },
     behavior: {},
   });
-  harness.deps.getResolvedSentenceAudioFieldName = () => 'SentenceAudio';
   harness.deps.captureSubtitleMediaContext = () => {
     captureCalls += 1;
     return capturedContext;
@@ -591,4 +636,204 @@ test('NoteUpdateWorkflow queues media updates when YouTube cache is pending', as
   assert.equal(queuedUpdates[0]?.label, 'taberu');
   assert.equal(queuedUpdates[0]?.context, undefined);
   assert.deepEqual(harness.updates, [{ noteId: 42, fields: { Sentence: 'subtitle-text' } }]);
+});
+
+test('NoteUpdateWorkflow deletes an existing word card when timing review discards it', async () => {
+  const harness = createWorkflowHarness();
+  const deletedNoteIds: number[][] = [];
+  const removedKnownWordNoteIds: number[] = [];
+  let appendedKnownWords = false;
+  harness.deps.captureSubtitleMediaContext = () => ({
+    source: 'overlay',
+    text: 'subtitle-text',
+    startTime: 4,
+    endTime: 6,
+  });
+  harness.deps.client.deleteNotes = async (noteIds) => {
+    deletedNoteIds.push(noteIds);
+  };
+  harness.deps.appendKnownWordsFromNoteInfo = () => {
+    appendedKnownWords = true;
+  };
+  harness.deps.removeKnownWordNote = (noteId) => {
+    removedKnownWordNoteIds.push(noteId);
+  };
+  harness.deps.reviewMediaTiming = async () => ({ action: 'discard' });
+
+  await harness.workflow.execute(42);
+
+  assert.deepEqual(deletedNoteIds, [[42]]);
+  assert.deepEqual(removedKnownWordNoteIds, [42]);
+  assert.equal(appendedKnownWords, false);
+  assert.deepEqual(harness.updates, []);
+  assert.deepEqual(harness.notifications, []);
+});
+
+test('NoteUpdateWorkflow keeps the word card but skips media after timing review', async () => {
+  const harness = createWorkflowHarness();
+  const mediaCalls: string[] = [];
+  const deletedNoteIds: number[][] = [];
+  const queuedUpdates: unknown[] = [];
+  harness.deps.captureSubtitleMediaContext = () => ({
+    source: 'overlay',
+    text: 'subtitle-text',
+    startTime: 4,
+    endTime: 6,
+  });
+  harness.deps.getConfig = () => ({
+    fields: { sentence: 'Sentence', image: 'Picture' },
+    media: { generateAudio: true, generateImage: true },
+    behavior: {},
+  });
+  harness.deps.reviewMediaTiming = async () => ({ action: 'skip-media' });
+  harness.deps.generateAudio = async () => {
+    mediaCalls.push('audio');
+    return Buffer.from('audio');
+  };
+  harness.deps.generateImage = async () => {
+    mediaCalls.push('image');
+    return Buffer.from('image');
+  };
+  harness.deps.queuePendingYoutubeMediaUpdate = async (update) => {
+    queuedUpdates.push(update);
+    return true;
+  };
+  harness.deps.client.deleteNotes = async (noteIds) => {
+    deletedNoteIds.push(noteIds);
+  };
+
+  await harness.workflow.execute(42);
+
+  assert.deepEqual(mediaCalls, []);
+  assert.deepEqual(queuedUpdates, []);
+  assert.deepEqual(deletedNoteIds, []);
+  assert.deepEqual(harness.updates, [{ noteId: 42, fields: { Sentence: 'subtitle-text' } }]);
+  assert.deepEqual(harness.notifications, [{ noteId: 42, label: 'taberu' }]);
+});
+
+test('NoteUpdateWorkflow uses the combined review sentence for the card and media range', async () => {
+  const harness = createWorkflowHarness();
+  const audioContexts: Array<SubtitleMiningContext | undefined> = [];
+  harness.deps.captureSubtitleMediaContext = () => ({
+    source: 'overlay',
+    text: 'current-line',
+    startTime: 4,
+    endTime: 6,
+  });
+  harness.deps.getConfig = () => ({
+    fields: { sentence: 'Sentence' },
+    media: { generateAudio: true, generateImage: false },
+    behavior: {},
+  });
+  harness.deps.reviewMediaTiming = async () => ({
+    action: 'confirm',
+    startTime: 2,
+    endTime: 7,
+    text: 'previous-line current-line next-line',
+    screenshotTime: 8,
+  });
+  harness.deps.generateAudio = async (context) => {
+    audioContexts.push(context);
+    return null;
+  };
+
+  await harness.workflow.execute(42);
+
+  assert.deepEqual(harness.updates, [
+    { noteId: 42, fields: { Sentence: 'previous-line current-line next-line' } },
+  ]);
+  assert.equal(audioContexts.length, 1);
+  assert.equal(audioContexts[0]?.text, 'previous-line current-line next-line');
+  assert.equal(audioContexts[0]?.startTime, 2);
+  assert.equal(audioContexts[0]?.endTime, 7);
+  assert.equal(audioContexts[0]?.mediaPaddingSeconds, 0);
+  assert.equal(audioContexts[0]?.screenshotTime, 8);
+});
+
+test('NoteUpdateWorkflow keeps cache unchanged and reports when deletion fails', async () => {
+  const harness = createWorkflowHarness();
+  const statusMessages: string[] = [];
+  let removedKnownWord = false;
+  harness.deps.captureSubtitleMediaContext = () => ({
+    source: 'overlay',
+    text: 'subtitle-text',
+    startTime: 4,
+    endTime: 6,
+  });
+  harness.deps.client.deleteNotes = async () => {
+    throw new Error('delete failed');
+  };
+  harness.deps.removeKnownWordNote = () => {
+    removedKnownWord = true;
+  };
+  harness.deps.showOsdNotification = (message) => {
+    statusMessages.push(message);
+  };
+  harness.deps.reviewMediaTiming = async () => ({ action: 'discard' });
+
+  await harness.workflow.execute(42);
+
+  assert.equal(removedKnownWord, false);
+  assert.deepEqual(statusMessages, ['Card deletion failed: delete failed']);
+  assert.ok(harness.warnings.length === 0);
+});
+
+for (const outcome of ['success', 'unavailable', 'throws'] as const) {
+  test(`NoteUpdateWorkflow regenerates expanded furigana (${outcome})`, async () => {
+    const harness = createWorkflowHarness();
+    harness.deps.client.notesInfo = async () => [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: '猫' },
+          Sentence: { value: '<b>猫</b>を見た。' },
+          SentenceFurigana: { value: ' 猫[ねこ]を 見[み]た。' },
+        },
+      },
+    ];
+    harness.deps.captureSubtitleMediaContext = () => ({
+      source: 'overlay',
+      text: '猫を見た。',
+      startTime: 4,
+      endTime: 6,
+    });
+    harness.deps.reviewMediaTiming = async () => ({
+      action: 'confirm',
+      text: '猫を見た。犬もいた。',
+      startTime: 2,
+      endTime: 8,
+    });
+    harness.deps.generateSentenceFurigana = async (text, fields) => {
+      assert.equal(text, '猫を見た。犬もいた。');
+      assert.equal(fields.expression, '猫');
+      if (outcome === 'throws') throw new Error('parser unavailable');
+      return outcome === 'success' ? '<b> 猫[ねこ]</b>を 見[み]た。 犬[いぬ]もいた。' : null;
+    };
+    await harness.workflow.execute(42);
+    assert.equal(harness.updates[0]?.fields.Sentence, '猫を見た。犬もいた。');
+    assert.equal(
+      harness.updates[0]?.fields.SentenceFurigana,
+      outcome === 'success' ? '<b> 猫[ねこ]</b>を 見[み]た。 犬[いぬ]もいた。' : '',
+    );
+  });
+}
+
+test('NoteUpdateWorkflow preserves native furigana formatting when sentence context is unchanged', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.client.notesInfo = async () => [
+    {
+      noteId: 42,
+      fields: {
+        Expression: { value: '猫' },
+        Sentence: { value: '<b>猫</b>を見た。' },
+        SentenceFurigana: { value: '<ruby>猫<rt>ねこ</rt></ruby>を見た。' },
+      },
+    },
+  ];
+  harness.deps.getCurrentSubtitleText = () => '猫を見た。';
+  harness.deps.generateSentenceFurigana = async () => {
+    assert.fail('unchanged sentence must keep native formatting');
+  };
+  await harness.workflow.execute(42);
+  assert.equal(harness.updates[0]?.fields.SentenceFurigana, undefined);
 });

@@ -8,7 +8,6 @@ const installationContents = readFileSync(new URL('./installation.md', import.me
 const mpvPluginContents = readFileSync(new URL('./mpv-plugin.md', import.meta.url), 'utf8');
 const developmentContents = readFileSync(new URL('./development.md', import.meta.url), 'utf8');
 const changelogContents = readFileSync(new URL('./changelog.md', import.meta.url), 'utf8');
-const docsPackageContents = readFileSync(new URL('./package.json', import.meta.url), 'utf8');
 const ankiIntegrationContents = readFileSync(
   new URL('./anki-integration.md', import.meta.url),
   'utf8',
@@ -57,7 +56,19 @@ test('docs reflect current launcher and release surfaces', () => {
   expect(configurationContents).not.toContain('youtubeSubgen": {\n    "mode"');
   expect(configurationContents).not.toContain('youtubeSubgen.primarySubLanguages');
   expect(configurationContents).toContain('youtube.primarySubLanguages');
-  expect(configurationContents).toContain('### Shared AI Provider');
+  // The AI provider still exists in src/ai and ankiConnect.ai, but it is not
+  // exposed in the Settings window and is not documented for users. Keep the
+  // user-facing docs free of it so nobody configures a hidden surface.
+  expect(configurationContents).not.toContain('Shared AI Provider');
+  expect(configurationContents).not.toContain('ankiConnect.ai');
+  expect(ankiIntegrationContents).not.toContain('AI Translation');
+  // ankiConnect.fields.translation is a LEGACY_HIDDEN_CONFIG_PATHS key, so it
+  // must not be documented as a current setting.
+  expect(configurationContents).not.toContain('fields.translation');
+  expect(ankiIntegrationContents).not.toContain('SelectionText');
+  // fields.audio holds SubMiner's generated sentence audio; examples should not
+  // point it at the field Yomitan uses for word audio.
+  expect(ankiIntegrationContents).not.toContain('"audio": "ExpressionAudio"');
 
   expect(changelogContents).toContain('v0.5.1 (2026-03-09)');
 });
@@ -87,15 +98,6 @@ test('docs state the real secondary-subtitle and Anki field-matching behavior', 
   expect(usageContents).not.toContain('exactly (case-sensitive)');
   expect(troubleshootingContents).not.toContain('exactly (case-sensitive)');
   expect(ankiIntegrationContents).toContain('case-insensitively');
-});
-
-test('docs dev server links version navigation to local dev routes', () => {
-  expect(docsPackageContents).toContain('scripts/build-versioned-docs.ts');
-  expect(docsPackageContents).toContain(
-    'SUBMINER_DOCS_VERSION_LINK_ORIGIN=local bun run ../scripts/build-versioned-docs.ts',
-  );
-  expect(docsPackageContents).toContain('SUBMINER_DOCS_VERSION_LINK_ORIGIN=local');
-  expect(docsPackageContents).toContain('SUBMINER_DOCS_VERSION_MANIFEST');
 });
 
 test('docs changelog keeps the current minor release headings aligned with the root changelog', () => {

@@ -1,11 +1,13 @@
 export type RuntimeOptionId =
   | 'anki.autoUpdateNewCards'
+  | 'anki.mediaReviewTiming'
   | 'subtitle.annotation.knownWords.highlightEnabled'
   | 'subtitle.annotation.knownWords.maturityEnabled'
   | 'subtitle.annotation.nPlusOne'
   | 'subtitle.annotation.jlpt'
   | 'subtitle.annotation.frequency'
   | 'anki.kikuFieldGrouping'
+  | 'anki.senrenFieldGrouping'
   | 'anki.nPlusOneMatchMode';
 
 export type RuntimeOptionScope = 'ankiConnect' | 'subtitle';

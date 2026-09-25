@@ -1,6 +1,7 @@
 import path from 'node:path';
 import os from 'node:os';
 import type { MpvBackend, MpvLaunchMode } from '../src/types/config.js';
+import type { SubtitleGenerationConfig } from '../src/shared/subtitle-generation.js';
 import {
   resolveDefaultLogFilePath,
   type LogFileToggles,
@@ -88,6 +89,14 @@ export interface LauncherAiConfig {
 }
 
 export interface Args {
+  generateSubtitles?: {
+    mediaPath?: string;
+    downloadModel: boolean;
+    modelPath?: string;
+    managedModel?: SubtitleGenerationConfig['managedModel'];
+    outputPath?: string;
+    audioStreamIndex?: number;
+  };
   backend: Backend;
   directory: string;
   recursive: boolean;

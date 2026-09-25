@@ -6,10 +6,45 @@
 
 - `claude` (Claude Code CLI) installed, on `PATH`, and authenticated.
   `changelog:build` and `changelog:prerelease-notes` invoke
-  `claude -p --model sonnet` to merge and rewrite `changes/*.md` fragments into
+  `claude -p --model opus --effort medium` to merge and rewrite `changes/*.md` fragments into
   a polished, user-facing release body. Either OAuth login (`claude /login`) or
   `ANTHROPIC_API_KEY` works. Install from <https://claude.com/claude-code> if
   you don't already have it.
+
+## Package contents checks
+
+Stable and prerelease workflows share `.github/workflows/package-release.yml`.
+Both callers explicitly pass the five required macOS signing/notarization
+secrets plus the optional `SUBMINER_TMDB_API_KEY` (the project TMDB key that
+`scripts/prepare-build-assets.mjs` stages into `dist/bundled-integration-keys.json`;
+artifacts built without it simply require users to set `tmdb.apiKey`).
+`GITHUB_TOKEN` remains automatically available to the reusable workflow.
+Each platform verifies its ASAR and external resources before signing. Missing
+runtime assets, foreign SQLite/Koffi binaries, duplicate UI fonts, demo media,
+source maps, TypeScript files, and nested test or fixture directories fail the build.
+Current targets are Linux x64, macOS arm64, and Windows x64.
+
+The runtime allowlist includes `dist/`, `stats/dist/`, and
+`vendor/texthooker-ui/docs/` plus metadata, config example, and license. The
+texthooker `docs/` directory is its built UI. Keep the positive `package.json`
+pattern in platform `files` lists: electron-builder otherwise treats an
+exclusion-only platform list as a separate include-all matcher. Windows keeps
+only its target Koffi binary; other platforms omit Koffi. Desktop UIs share the
+original M PLUS 1 TTF in `dist/fonts/`.
+
+The shared workflow runs `bun run test:package <resources-directory>` with the
+pinned Electron runtime and temporary user data. On headless Linux, prefix it
+with `xvfb-run -a`. This checks packaged SQLite, Windows FFI loading/polling,
+texthooker serving, Yomitan loading, UI assets, and Japanese font loading.
+Standalone pages lack app IPC handlers and can log related errors; this check
+does not replace an installed app session.
+
+Before shipping packaging changes, check each platform's installed app:
+startup and mpv tracking, dictionary lookup and stroke orders, settings/sync UI,
+stats persistence, sentence mining with AnkiConnect, and updating from the prior
+release. Preserve Electron locales, graphics fallbacks, codecs, dictionaries,
+license notices, updater metadata, blockmaps, and the macOS updater ZIP. Trim
+files before signing and generating updater hashes, never from a signed app.
 
 ## Stable Release
 
@@ -31,6 +66,14 @@
    `bun run test:fast`
    `bun run test:env`
    `bun run build`
+   Confirm `dist/launcher` contains only `subminer`, `subminer.cmd`,
+   `subminer.js`, `prepare.cjs`, and `version`. Release CI smoke-tests
+   `subminer.js` with Bun, then publishes both wrapper files and their checksums.
+   Tagged CI runs `bun scripts/package-bun-source.mjs` and must publish
+   `bun-v<version>-source.tar.gz` plus its `.sha256` file. The script
+   fails if Bun's CMake dependency pins, WebKit pin, source checksums, patch
+   inputs, or collected license files differ from
+   `build/bun-source-manifest.json`.
    When validating auto-update metadata, also run the relevant platform package
    build and confirm `release/` contains the generated updater metadata
    (`latest*.yml`) and blockmaps (`*.blockmap`).
@@ -54,16 +97,24 @@
    `bun run test:fast`
    `bun run test:env`
    `bun run build`
+   Confirm both launcher wrappers and their checksums are included in the
+   prerelease assets.
+   Prerelease CI also assembles and publishes the pinned Bun corresponding
+   source archive. A missing source repository or license file fails the
+   release instead of publishing only the executable.
    When validating packaged updater output, confirm the platform build writes
    `latest*.yml` and `*.blockmap` files under `release/`.
 5. Commit the prerelease prep (package.json version bump + the generated
    `release/prerelease-notes.md`). CI does not regenerate notes — it uses the
-   committed file — so review it before committing. If you add more
-   `changes/*.md` fragments for a later beta/RC, rerun
-   `bun run changelog:prerelease-notes --version <version>`; the generator uses
-   the existing prerelease notes as the baseline only when their hidden
-   `prerelease-base-version` marker matches the current base version, and asks
-   Claude to merge only the new fragment material. Do not run
+   committed file — so review it before committing. Rerun
+   `bun run changelog:prerelease-notes --version <version>` for every later
+   beta/RC, even if no fragments changed: the notes carry a hidden
+   `prerelease-version` marker and CI rejects the tag when the marker does not
+   match it (verify locally with
+   `bun run changelog:check-prerelease-notes --version <version>`). The
+   generator reuses the existing notes as the cumulative baseline when their
+   marker (or legacy `prerelease-base-version` marker) matches the current base
+   version, and asks Claude to merge only the new fragment material. Do not run
    `bun run changelog:build`.
 6. Tag the commit: `git tag v<version>`.
 7. Push commit + tag.
@@ -78,6 +129,8 @@ Notes:
 - Pass `--date` explicitly when you want the release stamped with the local cut date; otherwise the generator uses the current ISO date, which can roll over to the next UTC day late at night.
 - `changelog:check` now rejects tag/package version mismatches.
 - `changelog:prerelease-notes` also rejects tag/package version mismatches and writes `release/prerelease-notes.md` without mutating tracked changelog files. When that file already exists, the generator includes it in the Claude prompt so later beta/RC notes reuse the reviewed text instead of starting over.
+- From the second prerelease of a base version onward, the notes open with a `## Changes since <previous tag>` section above the cumulative `## Highlights`. The generator locates the newest preceding beta/RC tag for the same base version (semver order: all betas before all RCs), diffs `changes/*.md` between that tag and the working tree, and asks Claude to describe only the behavioral beta-to-beta differences — added fragments as new changes, modified fragments by their before/after difference (editorial-only edits are dropped), deleted fragments as removed/reverted changes. If no fragments changed (for example a packaging-only rebuild), the section states that explicitly without a Claude call. The delta section carries no separate contributor attribution; `## What's Changed` stays cumulative like `## Highlights`.
+- `changelog:check-prerelease-notes --version <version>` verifies the committed notes' `prerelease-version` marker matches the version being tagged; the prerelease workflow runs it and fails the release on stale notes.
 - `changelog:build` generates `CHANGELOG.md` + `release/release-notes.md` (both polished by `claude -p`) and removes the released `changes/*.md` fragments. The CHANGELOG keeps internal notes inside a `<details><summary>Internal changes</summary>` collapse; the release notes drop them entirely.
 - `release/release-notes.md` (and `release/prerelease-notes.md`) include GitHub-style attribution after `## Highlights`: a `## What's Changed` list crediting each released fragment as `by @<author> in #<pr>`, plus a `## New Contributors` section for first-time authors. Attribution is resolved per fragment via `git log` (the commit that added the fragment) + `gh api .../commits/<sha>/pulls`, with one `gh` search per author for the first-contribution check. It needs `gh` installed and authenticated; if `gh` is unavailable or a lookup fails, the generator warns and emits notes without the attribution sections rather than failing. The CHANGELOG itself stays attribution-free.
 - The release workflow no longer auto-runs `changelog:build`. If pending `changes/*.md` fragments are present on a tag-based run, CI exits with a clear `::error::` pointing at the local fix. Run `bun run changelog:build --version <version>` locally, commit the polished output, then tag.
@@ -89,9 +142,10 @@ Notes:
 - Tagged release workflow now also attempts to update `subminer-bin` on the AUR after GitHub Release publication.
 - Stable release tags update `https://docs.subminer.moe/` and `https://docs.subminer.moe/v/<version>/` through `.github/workflows/docs-pages.yml`; `/main/` continues to show development docs from `main`.
 - Keep Cloudflare Pages Git auto-deploy disabled for `docs.subminer.moe`. Production docs are direct-uploaded by Wrangler from GitHub Actions with `--branch main`.
-- AUR publish is best-effort: the workflow retries transient SSH clone/push failures, then warns and leaves the GitHub Release green if AUR still fails. Follow up with a manual `git push aur master` from the AUR checkout when needed.
+- AUR publish is best-effort: the workflow downloads the three known assets directly from the tagged release URLs, avoiding GitHub's sometimes-stale release asset listing. Downloads and SSH clone/push operations retry transient failures, then warn and skip AUR publication if retries are exhausted. Follow up with a manual `git push aur master` from the AUR checkout when needed.
 - Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.
 - Release and prerelease workflows upload updater metadata (`latest*.yml`) and blockmaps (`*.blockmap`) alongside platform artifacts. Do not remove those files while `electron-updater` is enabled.
+- Release and prerelease workflows publish `subminer` for POSIX systems and `subminer.cmd` for Windows. Both locate a packaged app and use its private Bun runtime. Keep the corresponding-source archive named `bun-v1.3.5-source.tar.gz`.
 - macOS tray app updates use the standard `electron-updater`/Squirrel path. Keep `latest-mac.yml`, the macOS `SubMiner-<version>-mac.zip`, and ZIP blockmap published; Squirrel uses the ZIP payload even when the DMG remains the user-facing installer.
 - macOS update metadata and full ZIP downloads are routed through `/usr/bin/curl` before Squirrel installation to avoid Electron main-process network crashes on update checks.
 - Windows tray app updates use the standard `electron-updater`/NSIS path. Keep `latest.yml`, the Windows NSIS installer, and installer blockmap published; updater HTTP is routed through main-process fetch to avoid Electron main-process network crashes during update checks.

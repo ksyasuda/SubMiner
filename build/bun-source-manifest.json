@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "version": "1.3.5",
+  "releaseTag": "bun-v1.3.5",
+  "releaseTagCommit": "fa5a5bbe556a4bda5bde77b4013aa6c3bb4ec9ab",
+  "bunRevision": "1e86cebd74a5723e818b5c0555276b646bcf0e4c",
+  "archiveName": "bun-v1.3.5-source.tar.gz",
+  "sources": [
+    {
+      "name": "bun",
+      "repository": "oven-sh/bun",
+      "revision": "1e86cebd74a5723e818b5c0555276b646bcf0e4c",
+      "destination": "bun",
+      "sha256": "3a766087902a62a4920e5ac5452dbc7143ff97ea19721f945146629fc9f2d82c",
+      "licensePaths": ["LICENSE.md"]
+    },
+    {
+      "name": "WebKit",
+      "repository": "oven-sh/WebKit",
+      "revision": "6d0f3aac0b817cc01a846b3754b21271adedac12",
+      "destination": "bun/vendor/WebKit",
+      "transport": "git-sparse",
+      "exclude": ["JSTests", "LayoutTests", "ManualTests", "PerformanceTests", "WebDriverTests"],
+      "licensePaths": ["Source/JavaScriptCore/COPYING.LIB"]
+    },
+    {
+      "name": "boringssl",
+      "repository": "oven-sh/boringssl",
+      "revision": "f1ffd9e83d4f5c28a9c70d73f9a4e6fcf310062f",
+      "destination": "bun/vendor/boringssl",
+      "sha256": "af8fd325793bb261c70114d09a24f36092fbe252be8ec040f0054ec9455f0ea3",
+      "licensePaths": ["LICENSE"]
+    },
+    {
+      "name": "brotli",
+      "repository": "google/brotli",
+      "revision": "ed738e842d2fbdf2d6459e39267a633c4a9b2f5d",
+      "upstreamReference": "v1.1.0",
+      "destination": "bun/vendor/brotli",
+      "sha256": "aaa739962a45b508b2e783b915e6b2b57ed3b12bd4b0feac73acfb144dffa54f",
+      "licensePaths": ["LICENSE"]
+    },
+    {
+      "name": "cares",
+      "repository": "c-ares/c-ares",
+      "revision": "3ac47ee46edd8ea40370222f91613fc16c434853",
+      "destination": "bun/vendor/cares",
+      "sha256": "8c94116cb366ae4a44e487da4d9f7e736287d329efa6f88fdf077cd2d0a2e4b8",
+      "licensePaths": ["LICENSE.md"]
+    },
+    {
+      "name": "hdrhistogram",
+      "repository": "HdrHistogram/HdrHistogram_c",
+      "revision": "be60a9987ee48d0abf0d7b6a175bad8d6c1585d1",
+      "destination": "bun/vendor/hdrhistogram",
+      "sha256": "811c5e5ae5303a75ade50688880af6aad5d2f951ec5785f68186bd18635cdfc9",
+      "licensePaths": ["COPYING.txt", "LICENSE.txt"]
+    },
+    {
+      "name": "highway",
+      "repository": "google/highway",
+      "revision": "ac0d5d297b13ab1b89f48484fc7911082d76a93f",
+      "destination": "bun/vendor/highway",
+      "sha256": "a7a816f4b62a0414ff0d39c0a8875847468dd6f7c9ad71781a24469a756cdea7",
+      "licensePaths": ["LICENSE"]
+    },
+    {
+      "name": "libarchive",
+      "repository": "libarchive/libarchive",
+      "revision": "9525f90ca4bd14c7b335e2f8c84a4607b0af6bdf",
+      "destination": "bun/vendor/libarchive",
+      "sha256": "944db9ab58a3cbdb5d947db4f04a3cc15f83b3147fcf7830ada592ba8d4a102c",
+      "licensePaths": ["COPYING"]
+    },
+    {
+      "name": "libdeflate",
+      "repository": "ebiggers/libdeflate",
+      "revision": "c8c56a20f8f621e6a966b716b31f1dedab6a41e3",
+      "destination": "bun/vendor/libdeflate",
+      "sha256": "1e5cc06bdbf3e1245d8b89c9e3588f507e3c8bc53fe8b8229770a9e8661dea81",
+      "licensePaths": ["COPYING"]
+    },
+    {
+      "name": "libuv",
+      "repository": "libuv/libuv",
+      "revision": "f3ce527ea940d926c40878ba5de219640c362811",
+      "destination": "bun/vendor/libuv",
+      "sha256": "46040d51e8aa86a7c84e377e224d427c35022ec6e3ed8ed399493b0d8574d0cf",
+      "licensePaths": ["LICENSE"]
+    },
+    {
+      "name": "lolhtml",
+      "repository": "cloudflare/lol-html",
+      "revision": "d64457d9ff0143deef025d5df7e8586092b9afb7",
+      "destination": "bun/vendor/lolhtml",
+      "sha256": "893b77b460f4c4f4634c973f72cf35e38ebe30646d14a92db3f50ee7e586c0ad",
+      "licensePaths": ["LICENSE"]
+    },
+    {
+      "name": "lshpack",
+      "repository": "litespeedtech/ls-hpack",
+      "revision": "8905c024b6d052f083a3d11d0a169b3c2735c8a1",
+      "destination": "bun/vendor/lshpack",
+      "sha256": "07d8bf901bb1b15543f38eabd23938519e1210eebadb52f3d651d6ef130ef973",
+      "licensePaths": ["LICENSE"]
+    },
+    {
+      "name": "mimalloc",
+      "repository": "oven-sh/mimalloc",
+      "revision": "1beadf9651a7bfdec6b5367c380ecc3fe1c40d1a",
+      "destination": "bun/vendor/mimalloc",
+      "sha256": "317ec2a83462ece78c344c4955c6fee103b412a8e6a0d6ddf9ec8963ed9c0881",
+      "licensePaths": ["LICENSE"]
+    },
+    {
+      "name": "picohttpparser",
+      "repository": "h2o/picohttpparser",
+      "revision": "066d2b1e9ab820703db0837a7255d92d30f0c9f5",
+      "destination": "bun/vendor/picohttpparser",
+      "sha256": "637ff2ab6f5c7f7e05a5b5dc393d5cf2fea8d4754fcaceaaf935ffff5c1323ee",
+      "licensePaths": ["picohttpparser.c", "picohttpparser.h"]
+    },
+    {
+      "name": "tinycc",
+      "repository": "oven-sh/tinycc",
+      "revision": "29985a3b59898861442fa3b43f663fc1af2591d7",
+      "destination": "bun/vendor/tinycc",
+      "sha256": "813cc09aafd6cea9c1ae6b745781e6b27576a0c103f49b63b5c8a732bbe3d290",
+      "licensePaths": ["COPYING"]
+    },
+    {
+      "name": "zlib",
+      "repository": "cloudflare/zlib",
+      "revision": "886098f3f339617b4243b286f5ed364b9989e245",
+      "destination": "bun/vendor/zlib",
+      "sha256": "14bf449df8308696af52f87de88f54c9eb9c91ec5e280587f9d37f7a3f6ed9bb",
+      "licensePaths": ["LICENSE"]
+    },
+    {
+      "name": "zstd",
+      "repository": "facebook/zstd",
+      "revision": "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+      "destination": "bun/vendor/zstd",
+      "sha256": "4b0bd1f0cfb25e61b9103c35f27395530ff5b4c0d2513a00fd745849e85ea52c",
+      "licensePaths": ["COPYING", "LICENSE"]
+    }
+  ]
+}

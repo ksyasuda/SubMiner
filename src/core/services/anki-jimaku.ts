@@ -65,6 +65,7 @@ export interface AnkiJimakuIpcRuntimeOptions {
   getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
+  dismissOverlayNotification?: (id: string) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -166,6 +167,7 @@ export function registerAnkiJimakuIpcRuntime(
           options.getCachedMediaPath,
           options.shouldRequireRemoteMediaCache,
           options.getYoutubeMediaSourceUrl,
+          options.dismissOverlayNotification,
         );
         integration.start();
         options.setAnkiIntegration(integration);
@@ -212,9 +214,10 @@ export function registerAnkiJimakuIpcRuntime(
     },
     getJimakuMediaInfo: () => options.parseMediaInfo(options.getCurrentMediaPath()),
     searchJimakuEntries: async (query) => {
-      logger.info(`[jimaku] search-entries query: "${query.query}"`);
+      const category = query.category ?? 'anime';
+      logger.info(`[jimaku] search-entries query: "${query.query}" category=${category}`);
       const response = await options.jimakuFetchJson<JimakuEntry[]>('/api/entries/search', {
-        anime: true,
+        anime: category === 'anime',
         query: query.query,
       });
       if (!response.ok) return response;

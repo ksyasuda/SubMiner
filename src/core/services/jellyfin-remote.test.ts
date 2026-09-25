@@ -4,6 +4,17 @@ import { buildJellyfinTimelinePayload, JellyfinRemoteSessionService } from './je
 
 class FakeWebSocket {
   private listeners: Record<string, Array<(...args: unknown[]) => void>> = {};
+  sent: string[] = [];
+  terminated = false;
+
+  send(data: string): void {
+    this.sent.push(data);
+  }
+
+  terminate(): void {
+    this.terminated = true;
+    this.emit('close');
+  }
 
   on(event: string, listener: (...args: unknown[]) => void): this {
     if (!this.listeners[event]) {
@@ -58,7 +69,7 @@ test('start posts capabilities on socket connect', async () => {
     accessToken: 'token-1',
     deviceId: 'device-1',
     webSocketFactory: (url) => {
-      assert.equal(url, 'ws://jellyfin.local:8096/socket?api_key=token-1&deviceId=device-1');
+      assert.equal(url, 'ws://jellyfin.local:8096/socket?ApiKey=token-1&deviceId=device-1');
       const socket = new FakeWebSocket();
       sockets.push(socket);
       return socket as unknown as any;
@@ -99,7 +110,8 @@ test('socket headers include jellyfin authorization metadata', () => {
   assert.equal(seenHeaders.length, 1);
   assert.ok(seenHeaders[0]!['Authorization']!.includes('Client="SubMiner"'));
   assert.ok(seenHeaders[0]!['Authorization']!.includes('DeviceId="device-auth"'));
-  assert.ok(seenHeaders[0]!['X-Emby-Authorization']);
+  assert.equal('X-Emby-Authorization' in seenHeaders[0]!, false);
+  assert.equal('X-Emby-Token' in seenHeaders[0]!, false);
 });
 
 test('dispatches inbound Play, Playstate, and GeneralCommand messages', () => {
@@ -354,4 +366,150 @@ test('advertiseNow validates server registration using Sessions endpoint', async
   const ok = await service.advertiseNow();
   assert.equal(ok, true);
   assert.ok(calls.some((url) => url.endsWith('/Sessions')));
+});
+
+test('answers ForceKeepAlive with KeepAlive messages on the advertised cadence', () => {
+  const sockets: FakeWebSocket[] = [];
+  const timers: Array<{ handler: () => void; delay: number }> = [];
+
+  const service = new JellyfinRemoteSessionService({
+    serverUrl: 'http://jellyfin.local',
+    accessToken: 'token-ka',
+    deviceId: 'device-ka',
+    webSocketFactory: () => {
+      const socket = new FakeWebSocket();
+      sockets.push(socket);
+      return socket as unknown as any;
+    },
+    fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch,
+    setTimer: ((handler: () => void, delay?: number) => {
+      timers.push({ handler, delay: Number(delay) });
+      return timers.length as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout,
+    clearTimer: (() => undefined) as typeof clearTimeout,
+  });
+
+  service.start();
+  sockets[0]!.emit('open');
+  assert.deepEqual(sockets[0]!.sent, ['{"MessageType":"KeepAlive"}']);
+  assert.equal(timers[0]!.delay, 30_000);
+
+  sockets[0]!.emit('message', JSON.stringify({ MessageType: 'ForceKeepAlive', Data: 20 }));
+  assert.equal(sockets[0]!.sent.length, 2);
+  assert.equal(timers.at(-1)!.delay, 10_000);
+
+  timers.at(-1)!.handler();
+  assert.equal(sockets[0]!.sent.length, 3);
+});
+
+test('reconnects when the server stops answering keep-alives', () => {
+  let now = 1_000_000;
+  const sockets: FakeWebSocket[] = [];
+  const timers: Array<() => void> = [];
+  const warnings: string[] = [];
+
+  const service = new JellyfinRemoteSessionService({
+    serverUrl: 'http://jellyfin.local',
+    accessToken: 'token-lost',
+    deviceId: 'device-lost',
+    webSocketFactory: () => {
+      const socket = new FakeWebSocket();
+      sockets.push(socket);
+      return socket as unknown as any;
+    },
+    fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch,
+    getNow: () => now,
+    logWarn: (message) => {
+      warnings.push(message);
+    },
+    reconnectBaseDelayMs: 100,
+    setTimer: ((handler: () => void) => {
+      timers.push(handler);
+      return timers.length as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout,
+    clearTimer: (() => undefined) as typeof clearTimeout,
+  });
+
+  service.start();
+  sockets[0]!.emit('open');
+
+  // Two silent ticks are still within the 90s tolerance; the third marks the socket lost.
+  now += 30_000;
+  timers.shift()!();
+  now += 30_000;
+  timers.shift()!();
+  assert.equal(sockets[0]!.sent.length, 3);
+  assert.equal(sockets[0]!.terminated, false);
+
+  now += 30_000;
+  timers.shift()!();
+  assert.equal(sockets[0]!.terminated, true);
+  assert.equal(service.isConnected(), false);
+  assert.equal(warnings.length, 1);
+
+  timers.shift()!();
+  assert.equal(sockets.length, 2);
+});
+
+test('warns once per failing timeline endpoint until it recovers', async () => {
+  const warnings: string[] = [];
+  let status = 400;
+
+  const service = new JellyfinRemoteSessionService({
+    serverUrl: 'http://jellyfin.local',
+    accessToken: 'token-warn',
+    deviceId: 'device-warn',
+    webSocketFactory: () => new FakeWebSocket() as unknown as any,
+    fetchImpl: (async () => new Response(null, { status })) as typeof fetch,
+    logWarn: (message) => {
+      warnings.push(message);
+    },
+  });
+  const state = { itemId: 'item-1', positionTicks: 10, playMethod: 'DirectPlay' };
+
+  assert.equal(await service.reportStopped(state), false);
+  assert.equal(await service.reportStopped(state), false);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]!, /Sessions\/Playing\/Stopped/);
+
+  status = 200;
+  assert.equal(await service.reportStopped(state), true);
+  status = 500;
+  assert.equal(await service.reportStopped(state), false);
+  assert.equal(warnings.length, 2);
+});
+
+test('ignores messages from a superseded socket', () => {
+  const sockets: FakeWebSocket[] = [];
+  const playPayloads: unknown[] = [];
+
+  const service = new JellyfinRemoteSessionService({
+    serverUrl: 'http://jellyfin.local',
+    accessToken: 'token-stale',
+    deviceId: 'device-stale',
+    webSocketFactory: () => {
+      const socket = new FakeWebSocket();
+      sockets.push(socket);
+      return socket as unknown as any;
+    },
+    fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch,
+    onPlay: (payload) => {
+      playPayloads.push(payload);
+    },
+    setTimer: (() => 1 as unknown as ReturnType<typeof setTimeout>) as unknown as typeof setTimeout,
+    clearTimer: (() => undefined) as typeof clearTimeout,
+  });
+
+  service.start();
+  service.stop();
+  service.start();
+  sockets[1]!.emit('open');
+  assert.equal(sockets.length, 2);
+
+  sockets[0]!.emit('message', JSON.stringify({ MessageType: 'ForceKeepAlive', Data: 10 }));
+  sockets[0]!.emit('message', JSON.stringify({ MessageType: 'Play', Data: { ItemIds: ['x'] } }));
+
+  assert.deepEqual(sockets[0]!.sent, []);
+  assert.deepEqual(playPayloads, []);
+  assert.deepEqual(sockets[1]!.sent, ['{"MessageType":"KeepAlive"}']);
 });

@@ -12,6 +12,7 @@ type AutoplaySubtitlePrimingMpvClient = {
   requestProperty: (name: string) => Promise<unknown>;
   currentVideoPath?: string;
   currentTimePos?: number;
+  currentSubText?: string;
   currentSecondarySubText?: string;
   setCurrentSecondarySubText?: (text: string) => void;
 };
@@ -107,11 +108,19 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     autoplaySubtitlePrimedMediaPath = null;
   }
 
-  function emitAutoplayPrimedSubtitle(mediaPath: string, text: string): boolean {
+  function emitAutoplayPrimedSubtitle(
+    mediaPath: string,
+    text: string,
+    options: { replaceExisting?: boolean } = {},
+  ): boolean {
     if (!text.trim() || !isCurrentAutoplayMediaPath(mediaPath)) {
       return false;
     }
-    if (!markAutoplaySubtitlePrimeConsumed(mediaPath)) {
+    if (autoplaySubtitlePrimedMediaPath === mediaPath) {
+      if (!options.replaceExisting || deps.getCurrentSubText() === text) {
+        return false;
+      }
+    } else if (!markAutoplaySubtitlePrimeConsumed(mediaPath)) {
       return false;
     }
 
@@ -252,11 +261,7 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     mediaPath: string,
     cues: SubtitleCue[],
   ): Promise<void> {
-    if (
-      cues.length === 0 ||
-      autoplaySubtitlePrimedMediaPath === mediaPath ||
-      !isCurrentAutoplayMediaPath(mediaPath)
-    ) {
+    if (cues.length === 0 || !isCurrentAutoplayMediaPath(mediaPath)) {
       return;
     }
 
@@ -265,16 +270,21 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     const currentTimeSeconds = Number(
       timePosRaw ?? client?.currentTimePos ?? deps.getLastObservedTimePos() ?? 0,
     );
+    const resolvedTimeSeconds = Number.isFinite(currentTimeSeconds) ? currentTimeSeconds : 0;
     const cue = selectAutoplayStartupCue(
       cues,
-      Number.isFinite(currentTimeSeconds) ? currentTimeSeconds : 0,
+      resolvedTimeSeconds,
       AUTOPLAY_SUBTITLE_PRIME_LOOKAHEAD_SECONDS,
     );
-    if (!cue) {
+    const liveText = client?.currentSubText ?? '';
+    const text = liveText.trim()
+      ? resolvePrimarySubtitleText({ liveText, currentTimeSec: resolvedTimeSeconds, cues })
+      : (cue?.text ?? '');
+    if (!text) {
       return;
     }
 
-    emitAutoplayPrimedSubtitle(mediaPath, cue.text);
+    emitAutoplayPrimedSubtitle(mediaPath, text, { replaceExisting: true });
   }
 
   function clearScheduledSubtitlePrefetchRefresh(): void {

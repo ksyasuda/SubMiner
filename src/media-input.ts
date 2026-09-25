@@ -11,6 +11,12 @@ export type MediaInput =
       source?: string;
       inputOptions?: MediaInputOptions;
       singleResolvedStream?: boolean;
+      /**
+       * The file keeps the original media timestamps instead of starting at zero (a
+       * stream-copied window of a longer source). Seek with `-ss` against those
+       * absolute timestamps rather than relative to the file's own start time.
+       */
+      absoluteTimestamps?: boolean;
     };
 
 export type NormalizedMediaInput = {
@@ -87,6 +93,10 @@ export function normalizeMediaInput(input: MediaInput): NormalizedMediaInput {
   const headers = serializeFfmpegHeaders(input.inputOptions?.headers);
   if (headers) {
     inputArgs.push('-headers', headers);
+  }
+
+  if (input.absoluteTimestamps) {
+    inputArgs.push('-seek_timestamp', '1');
   }
 
   return {

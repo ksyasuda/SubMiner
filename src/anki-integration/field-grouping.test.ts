@@ -21,14 +21,14 @@ function createHarness(
     manualHandled?: boolean;
     expression?: string | null;
     currentSentenceImageField?: string | undefined;
-    onProcessNewCard?: (noteId: number, options?: { skipKikuFieldGrouping?: boolean }) => void;
+    onProcessNewCard?: (noteId: number, options?: { skipFieldGrouping?: boolean }) => void;
   } = {},
 ) {
   const calls: string[] = [];
   const findNotesQueries: Array<{ query: string; maxRetries?: number }> = [];
   const noteInfoRequests: number[][] = [];
   const duplicateRequests: Array<{ expression: string; excludeNoteId: number }> = [];
-  const processCalls: Array<{ noteId: number; options?: { skipKikuFieldGrouping?: boolean } }> = [];
+  const processCalls: Array<{ noteId: number; options?: { skipFieldGrouping?: boolean } }> = [];
   const autoCalls: Array<{ originalNoteId: number; newNoteId: number; expression: string }> = [];
   const manualCalls: Array<{ originalNoteId: number; newNoteId: number; expression: string }> = [];
 
@@ -46,9 +46,8 @@ function createHarness(
       sentenceField: 'Sentence',
       audioField: 'SentenceAudio',
       lapisEnabled: false,
-      kikuEnabled: options.kikuEnabled ?? true,
-      kikuFieldGrouping: options.kikuFieldGrouping ?? 'auto',
-      kikuDeleteDuplicateInAuto: true,
+      fieldGroupingProvider: (options.kikuEnabled ?? true) ? ('kiku' as const) : null,
+      fieldGroupingMode: options.kikuFieldGrouping ?? 'auto',
     }),
     isUpdateInProgress: () => false,
     getDeck: options.deck ? () => options.deck : undefined,
@@ -134,7 +133,7 @@ test('triggerFieldGroupingForLastAddedCard stops when kiku mode is disabled', as
 
   await harness.service.triggerFieldGroupingForLastAddedCard();
 
-  assert.deepEqual(harness.calls, ['osd:Kiku mode is not enabled']);
+  assert.deepEqual(harness.calls, ['osd:Field grouping requires Kiku or Senren mode']);
   assert.equal(harness.findNotesQueries.length, 0);
 });
 
@@ -143,7 +142,7 @@ test('triggerFieldGroupingForLastAddedCard stops when field grouping is disabled
 
   await harness.service.triggerFieldGroupingForLastAddedCard();
 
-  assert.deepEqual(harness.calls, ['osd:Kiku field grouping is disabled']);
+  assert.deepEqual(harness.calls, ['osd:Field grouping is disabled']);
   assert.equal(harness.findNotesQueries.length, 0);
 });
 
@@ -155,9 +154,8 @@ test('triggerFieldGroupingForLastAddedCard stops when an update is already in pr
       sentenceField: 'Sentence',
       audioField: 'SentenceAudio',
       lapisEnabled: false,
-      kikuEnabled: true,
-      kikuFieldGrouping: 'auto',
-      kikuDeleteDuplicateInAuto: true,
+      fieldGroupingProvider: 'kiku' as const,
+      fieldGroupingMode: 'auto' as const,
     }),
     isUpdateInProgress: () => true,
     withUpdateProgress: async () => {
@@ -266,7 +264,7 @@ test('triggerFieldGroupingForLastAddedCard prefers tracked duplicate note ids be
 });
 
 test('triggerFieldGroupingForLastAddedCard refreshes the card when configured fields are missing', async () => {
-  const processCalls: Array<{ noteId: number; options?: { skipKikuFieldGrouping?: boolean } }> = [];
+  const processCalls: Array<{ noteId: number; options?: { skipFieldGrouping?: boolean } }> = [];
   const harness = createHarness({
     noteIds: [11],
     notesInfo: [
@@ -298,7 +296,7 @@ test('triggerFieldGroupingForLastAddedCard refreshes the card when configured fi
 
   await harness.service.triggerFieldGroupingForLastAddedCard();
 
-  assert.deepEqual(processCalls, [{ noteId: 11, options: { skipKikuFieldGrouping: true } }]);
+  assert.deepEqual(processCalls, [{ noteId: 11, options: { skipFieldGrouping: true } }]);
   assert.deepEqual(harness.manualCalls, []);
 });
 
@@ -352,9 +350,8 @@ test('buildFieldGroupingPreview returns merged compact and full previews', async
       sentenceField: 'Sentence',
       audioField: 'SentenceAudio',
       lapisEnabled: false,
-      kikuEnabled: true,
-      kikuFieldGrouping: 'auto',
-      kikuDeleteDuplicateInAuto: true,
+      fieldGroupingProvider: 'kiku' as const,
+      fieldGroupingMode: 'auto' as const,
     }),
     isUpdateInProgress: () => false,
     withUpdateProgress: async (_message, action) => action(),
@@ -417,9 +414,8 @@ test('buildFieldGroupingPreview reports missing notes cleanly', async () => {
       sentenceField: 'Sentence',
       audioField: 'SentenceAudio',
       lapisEnabled: false,
-      kikuEnabled: true,
-      kikuFieldGrouping: 'auto',
-      kikuDeleteDuplicateInAuto: true,
+      fieldGroupingProvider: 'kiku' as const,
+      fieldGroupingMode: 'auto' as const,
     }),
     isUpdateInProgress: () => false,
     withUpdateProgress: async (_message, action) => action(),

@@ -91,6 +91,10 @@ function M.create(ctx)
 	end
 
 	local function key_code_to_mpv_name(code)
+		local first, second = code:match("^Key([A-Z])%-Key([A-Z])$")
+		if first and second then
+			return string.lower(first) .. "-" .. string.lower(second)
+		end
 		if KEY_NAME_MAP[code] then
 			return KEY_NAME_MAP[code]
 		end
@@ -185,6 +189,110 @@ function M.create(ctx)
 		end
 
 		return bindings
+	end
+
+	-- Match letter strokes, including mpv's uppercase spelling for Shift.
+	local function letter_key_signature(value)
+		if type(value) ~= "string" then
+			return nil
+		end
+		local modifiers = {}
+		while true do
+			local modifier, rest = value:match("^([%a]+)%+(.+)$")
+			if not modifier then
+				break
+			end
+			modifier = string.lower(modifier)
+			if not MODIFIER_MAP[modifier] then
+				return nil
+			end
+			modifiers[modifier] = true
+			value = rest
+		end
+		if not value:match("^[a-zA-Z]$") then
+			return nil
+		end
+		if value:match("^[A-Z]$") then
+			modifiers.shift = true
+		end
+		local parts = {}
+		for _, modifier in ipairs({ "ctrl", "alt", "shift", "meta" }) do
+			if modifiers[modifier] then
+				parts[#parts + 1] = modifier
+			end
+		end
+		parts[#parts + 1] = string.lower(value)
+		return table.concat(parts, "+")
+	end
+
+	local function external_single_keys()
+		local keys = {}
+		local native = mp.get_property_native and mp.get_property_native("input-bindings") or {}
+		for _, entry in ipairs(native or {}) do
+			local signature = letter_key_signature(entry.key)
+			if
+				signature
+				and type(entry.cmd) == "string"
+				and type(entry.priority) == "number"
+				and entry.priority >= 0
+			then
+				local owned = entry.owner == "subminer"
+					or (
+						entry.owner == nil
+						and (
+							entry.cmd:match("script%-binding%s+['\"]?subminer/")
+							or entry.cmd:match("script%-message%s+['\"]?subminer%-")
+						)
+					)
+				local previous = keys[signature]
+				if
+					not previous
+					or entry.priority > previous.priority
+					or (entry.priority == previous.priority and owned)
+				then
+					local command = entry.cmd:match("^%s*(.-)%s*$")
+					local flags = {
+						["no-osd"] = true,
+						["osd-bar"] = true,
+						["osd-msg"] = true,
+						["osd-msg-bar"] = true,
+						["osd-auto"] = true,
+						["expand-properties"] = true,
+						["raw"] = true,
+						["repeatable"] = true,
+						["nonrepeatable"] = true,
+						["nonscalable"] = true,
+						["async"] = true,
+						["sync"] = true,
+					}
+					while true do
+						local flag, rest = command:match("^(%S+)%s+(.+)$")
+						if not flags[flag] then
+							break
+						end
+						command = rest
+					end
+					keys[signature] = { priority = entry.priority, owned = owned, ignored = command == "ignore" }
+				end
+			end
+		end
+		return keys
+	end
+
+	local function sequence_conflict(binding, singles)
+		local code = binding.key and binding.key.code
+		local prefix = type(code) == "string" and code:match("^(Key[A-Z])%-Key[A-Z]$")
+		if not prefix then
+			return nil
+		end
+		local names = key_spec_to_mpv_bindings({ code = prefix, modifiers = binding.key.modifiers }) or {}
+		for _, name in ipairs(names) do
+			local existing = singles[letter_key_signature(name)]
+			if existing and not existing.owned and not existing.ignored then
+				return name
+			end
+		end
+		return nil
 	end
 
 	local function normalize_cli_args(cli_args)
@@ -391,17 +499,23 @@ function M.create(ctx)
 		local next_binding_names = {}
 		state.session_binding_generation = (state.session_binding_generation or 0) + 1
 		local generation = state.session_binding_generation
+		local singles = external_single_keys()
 
 		for index, binding in ipairs(artifact.bindings) do
 			if not is_supported_binding(binding) then
-				subminer_log(
-					"warn",
-					"session-bindings",
-					"Skipped unsupported session binding from artifact"
-				)
+				subminer_log("warn", "session-bindings", "Skipped unsupported session binding from artifact")
 			else
 				local key_names = key_spec_to_mpv_bindings(binding.key)
-				if key_names then
+				local conflict = sequence_conflict(binding, singles)
+				if conflict then
+					local message = "Disabled sequence "
+						.. tostring(binding.originalKey or binding.key.code)
+						.. ": mpv already uses "
+						.. conflict
+						.. ". Single-key bindings take priority."
+					subminer_log("warn", "session-bindings", message)
+					show_osd(message)
+				elseif key_names then
 					for key_index, key_name in ipairs(key_names) do
 						local name = "subminer-session-binding-"
 							.. tostring(generation)
@@ -418,7 +532,8 @@ function M.create(ctx)
 					subminer_log(
 						"warn",
 						"session-bindings",
-						"Skipped unsupported key code from artifact: " .. tostring(binding.key and binding.key.code or "unknown")
+						"Skipped unsupported key code from artifact: "
+							.. tostring(binding.key and binding.key.code or "unknown")
 					)
 				end
 			end

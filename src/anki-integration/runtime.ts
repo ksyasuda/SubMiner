@@ -116,6 +116,10 @@ export function normalizeAnkiIntegrationConfig(config: AnkiConnectConfig): AnkiC
       ...DEFAULT_ANKI_CONNECT_CONFIG.isKiku,
       ...(config.isKiku ?? {}),
     },
+    isSenren: {
+      ...DEFAULT_ANKI_CONNECT_CONFIG.isSenren,
+      ...(config.isSenren ?? {}),
+    },
     lapisKiku: {
       ...DEFAULT_ANKI_CONNECT_CONFIG.lapisKiku,
       ...(config.lapisKiku ?? {}),
@@ -209,6 +213,10 @@ export class AnkiIntegrationRuntime {
         patch.isKiku !== undefined
           ? { ...this.config.isKiku, ...patch.isKiku }
           : this.config.isKiku,
+      isSenren:
+        patch.isSenren !== undefined
+          ? { ...this.config.isSenren, ...patch.isSenren }
+          : this.config.isSenren,
       lapisKiku:
         patch.lapisKiku !== undefined
           ? { ...this.config.lapisKiku, ...patch.lapisKiku }

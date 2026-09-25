@@ -113,6 +113,20 @@ test('findActiveSubtitleCueIndex prefers current subtitle timing over near-futur
   assert.equal(findActiveSubtitleCueIndex(cues, { text: 'previous', startTime: 231 }, 233, 0), 0);
 });
 
+test('findActiveSubtitleCueIndex follows playback through empty subtitle gaps', () => {
+  const cues = [
+    { startTime: 0, endTime: 2, text: 'first' },
+    { startTime: 100, endTime: 102, text: 'later' },
+    { startTime: 105, endTime: 107, text: 'next' },
+  ];
+
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: 'later', startTime: 100 }, 101, 1), 1);
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: '', startTime: 0 }, 103, 1), 2);
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: 'next', startTime: 105 }, 105, 2), 2);
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: '', startTime: 0 }, 108, 2), -1);
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: 'first', startTime: 0 }, 0, 2), 0);
+});
+
 test('subtitle sidebar mining context resolves selected row cue timing', () => {
   const globals = globalThis as typeof globalThis & {
     Element?: unknown;
@@ -239,15 +253,17 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
   const modalNotifications: string[] = [];
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [
-      { startTime: 1, endTime: 2, text: 'first' },
+      { startTime: 1, endTime: 3.4, text: 'first' },
       { startTime: 3, endTime: 4, text: 'second' },
     ],
     currentSubtitle: {
       text: 'second',
-      startTime: 3,
+      startTime: 3.5,
       endTime: 4,
     },
+    currentTimeSec: 3.5,
     config: {
       enabled: true,
       autoOpen: false,
@@ -361,6 +377,9 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
     modal.seekToCue(snapshot.cues[0]!);
     assert.deepEqual(mpvCommands.at(-1), ['seek', 1.08, 'absolute+exact']);
 
+    modal.seekToCue(snapshot.cues[1]!);
+    assert.deepEqual(mpvCommands.at(-1), ['seek', 3.48, 'absolute+exact']);
+
     modal.closeSubtitleSidebarModal();
     assert.deepEqual(visibilityChanges, [true, false]);
     assert.deepEqual(modalNotifications, ['open:subtitle-sidebar', 'close:subtitle-sidebar']);
@@ -370,13 +389,14 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
   }
 });
 
-test('subtitle sidebar rows support keyboard activation', async () => {
+test('subtitle sidebar rows seek with Enter and leave Space to playback shortcuts', async () => {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
   const previousWindow = globals.window;
   const previousDocument = globals.document;
   const mpvCommands: Array<Array<string | number>> = [];
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [
       { startTime: 1, endTime: 2, text: 'first' },
       { startTime: 3, endTime: 4, text: 'second' },
@@ -465,6 +485,18 @@ test('subtitle sidebar rows support keyboard activation', async () => {
     const keydownListeners = firstRow.listeners.get('keydown') ?? [];
     assert.equal(keydownListeners.length > 0, true);
 
+    mpvCommands.length = 0;
+    let spacePrevented = false;
+    keydownListeners[0]!({
+      key: ' ',
+      preventDefault: () => {
+        spacePrevented = true;
+      },
+    });
+
+    assert.deepEqual(mpvCommands, []);
+    assert.equal(spacePrevented, false);
+
     keydownListeners[0]!({
       key: 'Enter',
       preventDefault: () => {},
@@ -483,6 +515,7 @@ test('subtitle sidebar renders hour-long cue timestamps as HH:MM:SS', async () =
   const previousDocument = globals.document;
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 3665, endTime: 3670, text: 'long cue' }],
     currentSubtitle: {
       text: 'long cue',
@@ -576,6 +609,7 @@ test('subtitle sidebar does not open when the feature is disabled', async () => 
   const previousWindow = globals.window;
   const previousDocument = globals.document;
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [],
     currentSubtitle: {
       text: '',
@@ -672,6 +706,7 @@ test('subtitle sidebar auto-open on startup only opens when enabled and configur
   const previousDocument = globals.document;
 
   let snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -782,6 +817,7 @@ test('subtitle sidebar auto-open restores previously open sidebar after renderer
   const previousDocument = globals.document;
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -880,6 +916,7 @@ test('subtitle sidebar refresh closes and clears state when config becomes disab
   const previousDocument = globals.document;
   const bodyClassList = createClassList();
   let snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -1004,6 +1041,7 @@ test('subtitle sidebar keeps nearby repeated cue when subtitle update lacks timi
   const previousDocument = globals.document;
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [
       { startTime: 1, endTime: 2, text: 'same' },
       { startTime: 3, endTime: 4, text: 'other' },
@@ -1121,6 +1159,7 @@ test('subtitle sidebar does not regress to previous cue on text-only transition 
   const previousDocument = globals.document;
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [
       { startTime: 1, endTime: 2, text: 'first' },
       { startTime: 3, endTime: 4, text: 'second' },
@@ -1229,6 +1268,7 @@ test('subtitle sidebar jumps to first resolved active cue, then resumes smooth a
   const previousDocument = globals.document;
 
   let snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: Array.from({ length: 12 }, (_, index) => ({
       startTime: index * 2,
       endTime: index * 2 + 1.5,
@@ -1399,6 +1439,7 @@ test('subtitle sidebar polling schedules serialized timeouts instead of interval
   });
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -1511,6 +1552,7 @@ test('subtitle sidebar closes and resumes a hover pause', async () => {
   const contentListeners = new Map<string, Array<() => void>>();
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -1629,6 +1671,7 @@ test('subtitle sidebar hover pause ignores playback-state IPC failures', async (
   const contentListeners = new Map<string, Array<() => Promise<void> | void>>();
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -1748,6 +1791,7 @@ test('subtitle sidebar keeps hover pause while a Yomitan lookup popup remains op
   const windowListeners = new Map<string, Array<() => Promise<void> | void>>();
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -1877,6 +1921,7 @@ test('subtitle sidebar embedded layout reserves and releases mpv right margin', 
   const mpvCommands: Array<Array<string | number>> = [];
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -2036,6 +2081,7 @@ test('subtitle sidebar embedded layout measures reserved width after embedded cl
   const contentClassList = createClassList();
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -2157,6 +2203,7 @@ test('subtitle sidebar embedded layout restores macOS and Windows passthrough ou
   const contentListeners = new Map<string, Array<() => void>>();
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -2286,6 +2333,7 @@ test('subtitle sidebar overlay layout restores macOS and Windows passthrough out
   const contentListeners = new Map<string, Array<() => void>>();
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -2413,6 +2461,7 @@ test('subtitle sidebar overlay layout only stays interactive while focus remains
   const contentListeners = new Map<string, Array<(event?: FocusEvent) => void>>();
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -2528,6 +2577,7 @@ test('closing embedded subtitle sidebar recomputes passthrough from remaining su
   const ignoreMouseCalls: Array<[boolean, { forward?: boolean } | undefined]> = [];
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',
@@ -2636,6 +2686,7 @@ test('subtitle sidebar resets embedded mpv margin on startup while closed', asyn
   const mpvCommands: Array<Array<string | number>> = [];
 
   const snapshot: SubtitleSidebarSnapshot = {
+    sourceKey: 'test-subtitles',
     cues: [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: {
       text: 'first',

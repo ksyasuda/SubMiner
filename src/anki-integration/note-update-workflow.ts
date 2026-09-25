@@ -1,7 +1,12 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 import type { SubtitleMiningContext } from '../types/subtitle';
-import type { CardKind, WordCardKind } from '../types/anki';
+import type {
+  CardKind,
+  MediaTimingReviewDecision,
+  MediaTimingReviewRequest,
+  WordCardKind,
+} from '../types/anki';
 import { resolveWordCardKind } from './note-field-utils';
 
 export interface NoteUpdateWorkflowNoteInfo {
@@ -14,11 +19,13 @@ export interface NoteUpdateWorkflowDeps {
     notesInfo(noteIds: number[]): Promise<unknown>;
     updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void>;
     storeMediaFile(filename: string, data: Buffer): Promise<void>;
+    deleteNotes(noteIds: number[]): Promise<void>;
   };
   getConfig: () => {
     fields?: {
       word?: string;
       sentence?: string;
+      audio?: string;
       image?: string;
       miscInfo?: string;
     };
@@ -39,10 +46,11 @@ export interface NoteUpdateWorkflowDeps {
     sentenceField: string;
     lapisEnabled: boolean;
     kikuEnabled: boolean;
-    kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
+    fieldGroupingMode: 'auto' | 'manual' | 'disabled';
     wordCardKind?: WordCardKind;
   };
   appendKnownWordsFromNoteInfo: (noteInfo: NoteUpdateWorkflowNoteInfo) => void;
+  removeKnownWordNote: (noteId: number) => void;
   extractFields: (fields: Record<string, { value: string }>) => Record<string, string>;
   findDuplicateNote: (
     expression: string,
@@ -66,6 +74,10 @@ export interface NoteUpdateWorkflowDeps {
     sentenceFurigana: string,
     noteFields: Record<string, string>,
   ) => string;
+  generateSentenceFurigana?: (
+    text: string,
+    noteFields: Record<string, string>,
+  ) => Promise<string | null>;
   setCardTypeFields: (
     updatedFields: Record<string, string>,
     availableFieldNames: string[],
@@ -75,7 +87,6 @@ export interface NoteUpdateWorkflowDeps {
     noteInfo: NoteUpdateWorkflowNoteInfo,
     ...preferredNames: (string | undefined)[]
   ) => string | null;
-  getResolvedSentenceAudioFieldName: (noteInfo: NoteUpdateWorkflowNoteInfo) => string | null;
   getAnimatedImageLeadInSeconds: (noteInfo: NoteUpdateWorkflowNoteInfo) => Promise<number>;
   mergeFieldValue: (existing: string, newValue: string, overwrite: boolean) => string;
   generateAudioFilename: () => string;
@@ -102,6 +113,9 @@ export interface NoteUpdateWorkflowDeps {
   logWarn: (message: string, ...args: unknown[]) => void;
   logInfo: (message: string, ...args: unknown[]) => void;
   logError: (message: string, ...args: unknown[]) => void;
+  reviewMediaTiming?: (
+    request: Omit<MediaTimingReviewRequest, 'audioPadding' | 'maxMediaDuration'>,
+  ) => Promise<MediaTimingReviewDecision>;
 }
 
 function normalizeSubtitleContextText(text: string): string {
@@ -160,7 +174,7 @@ export class NoteUpdateWorkflow {
     return null;
   }
 
-  async execute(noteId: number, options?: { skipKikuFieldGrouping?: boolean }): Promise<void> {
+  async execute(noteId: number, options?: { skipFieldGrouping?: boolean }): Promise<void> {
     this.deps.beginUpdateProgress('Updating card');
     try {
       const notesInfoResult = await this.deps.client.notesInfo([noteId]);
@@ -171,7 +185,6 @@ export class NoteUpdateWorkflow {
       }
 
       const noteInfo = notesInfo[0]!;
-      this.deps.appendKnownWordsFromNoteInfo(noteInfo);
       const fields = this.deps.extractFields(noteInfo.fields);
       const config = this.deps.getConfig();
 
@@ -187,9 +200,7 @@ export class NoteUpdateWorkflow {
 
       const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
       const shouldRunFieldGrouping =
-        !options?.skipKikuFieldGrouping &&
-        sentenceCardConfig.kikuEnabled &&
-        sentenceCardConfig.kikuFieldGrouping !== 'disabled';
+        !options?.skipFieldGrouping && sentenceCardConfig.fieldGroupingMode !== 'disabled';
       let duplicateNoteId: number | null = null;
       if (shouldRunFieldGrouping && hasExpressionText) {
         duplicateNoteId = await this.deps.findDuplicateNote(expressionText, noteId, noteInfo);
@@ -198,20 +209,67 @@ export class NoteUpdateWorkflow {
       const updatedFields: Record<string, string> = {};
       let updatePerformed = false;
       let miscInfoFilename: string | null = null;
-      const sentenceField = sentenceCardConfig.sentenceField;
+      const configuredSentenceField =
+        config.fields?.sentence ?? DEFAULT_ANKI_CONNECT_CONFIG.fields.sentence;
+      const sentenceField = this.deps.resolveConfiguredFieldName(noteInfo, configuredSentenceField);
       const subtitleMiningContext = this.consumeMatchingSubtitleMiningContext(
         fields,
-        sentenceField,
-        config.fields?.sentence,
+        sentenceField ?? configuredSentenceField,
+        configuredSentenceField,
       );
       // Audio and image generation run sequentially and audio extraction can take tens of
       // seconds, so resolve the clip range exactly once up front; reading live mpv sub
       // timings per generator clips whichever line is on screen when each one starts.
-      const mediaTimingContext =
+      let mediaTimingContext =
         subtitleMiningContext ?? this.deps.captureSubtitleMediaContext?.() ?? null;
+      let skipMedia = false;
+      let reviewedSentenceText: string | undefined;
       const noteLabel = hasExpressionText ? expressionText : noteId;
 
-      const currentSubtitleText = subtitleMiningContext?.text ?? this.deps.getCurrentSubtitleText();
+      if (mediaTimingContext) {
+        const timingDecision = this.deps.reviewMediaTiming
+          ? await this.deps.reviewMediaTiming({
+              kind: 'word',
+              text: mediaTimingContext.text,
+              startTime: mediaTimingContext.startTime,
+              endTime: mediaTimingContext.endTime,
+              noteId,
+            })
+          : ({ action: 'use-original' } as const);
+        if (timingDecision.action === 'discard') {
+          try {
+            await this.deps.client.deleteNotes([noteId]);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.deps.logError('Failed to delete discarded card:', message);
+            this.deps.showOsdNotification(`Card deletion failed: ${message}`);
+            return;
+          }
+          this.deps.removeKnownWordNote(noteId);
+          this.deps.showOsdNotification('Card deleted.');
+          return;
+        }
+        if (timingDecision.action === 'confirm') {
+          reviewedSentenceText = timingDecision.text?.trim() || undefined;
+          mediaTimingContext = {
+            ...mediaTimingContext,
+            ...(reviewedSentenceText !== undefined ? { text: reviewedSentenceText } : {}),
+            startTime: timingDecision.startTime,
+            endTime: timingDecision.endTime,
+            mediaPaddingSeconds: 0,
+            ...(timingDecision.screenshotTime !== undefined
+              ? { screenshotTime: timingDecision.screenshotTime }
+              : {}),
+          };
+        } else if (timingDecision.action === 'skip-media') {
+          skipMedia = true;
+        }
+      }
+
+      this.deps.appendKnownWordsFromNoteInfo(noteInfo);
+
+      const currentSubtitleText =
+        reviewedSentenceText ?? subtitleMiningContext?.text ?? this.deps.getCurrentSubtitleText();
       if (sentenceField && currentSubtitleText) {
         const processedSentence = this.deps.processSentence(currentSubtitleText, fields);
         updatedFields[sentenceField] = processedSentence;
@@ -228,7 +286,27 @@ export class NoteUpdateWorkflow {
       const existingSentenceFurigana = sentenceFuriganaField
         ? noteInfo.fields[sentenceFuriganaField]?.value || ''
         : '';
-      if (sentenceFuriganaField && existingSentenceFurigana && this.deps.processSentenceFurigana) {
+      const sentenceChanged =
+        sentenceField &&
+        currentSubtitleText &&
+        normalizeSubtitleContextText(currentSubtitleText) !==
+          normalizeSubtitleContextText(noteInfo.fields[sentenceField]?.value ?? '');
+      if (sentenceFuriganaField && sentenceChanged) {
+        let furigana: string | null = null;
+        try {
+          furigana =
+            (await this.deps.generateSentenceFurigana?.(currentSubtitleText, fields)) ?? null;
+        } catch (error) {
+          this.deps.logWarn('Failed to regenerate sentence furigana:', error);
+        }
+        // Empty furigana lets card templates fall back to the updated Sentence field.
+        updatedFields[sentenceFuriganaField] = furigana ?? '';
+        updatePerformed = true;
+      } else if (
+        sentenceFuriganaField &&
+        existingSentenceFurigana &&
+        this.deps.processSentenceFurigana
+      ) {
         const processedSentenceFurigana = this.deps.processSentenceFurigana(
           existingSentenceFurigana,
           fields,
@@ -239,8 +317,8 @@ export class NoteUpdateWorkflow {
         }
       }
 
-      const generateAudio = config.media?.generateAudio !== false;
-      const generateImage = config.media?.generateImage !== false;
+      const generateAudio = !skipMedia && config.media?.generateAudio !== false;
+      const generateImage = !skipMedia && config.media?.generateImage !== false;
       const mediaCacheQueued =
         (generateAudio || generateImage) && this.deps.queuePendingYoutubeMediaUpdate
           ? await this.deps.queuePendingYoutubeMediaUpdate({
@@ -258,7 +336,10 @@ export class NoteUpdateWorkflow {
 
           if (audioBuffer) {
             await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
-            const sentenceAudioField = this.deps.getResolvedSentenceAudioFieldName(noteInfo);
+            const sentenceAudioField = this.deps.resolveConfiguredFieldName(
+              noteInfo,
+              config.fields?.audio ?? DEFAULT_ANKI_CONNECT_CONFIG.fields.audio,
+            );
             if (sentenceAudioField) {
               const existingAudio = noteInfo.fields[sentenceAudioField]?.value || '';
               updatedFields[sentenceAudioField] = this.deps.mergeFieldValue(
@@ -345,7 +426,7 @@ export class NoteUpdateWorkflow {
           noteInfoForGrouping = refreshedInfo[0]!;
         }
 
-        if (sentenceCardConfig.kikuFieldGrouping === 'auto') {
+        if (sentenceCardConfig.fieldGroupingMode === 'auto') {
           await this.deps.handleFieldGroupingAuto(
             duplicateNoteId,
             noteId,
@@ -354,7 +435,7 @@ export class NoteUpdateWorkflow {
           );
           return;
         }
-        if (sentenceCardConfig.kikuFieldGrouping === 'manual') {
+        if (sentenceCardConfig.fieldGroupingMode === 'manual') {
           await this.deps.handleFieldGroupingManual(
             duplicateNoteId,
             noteId,

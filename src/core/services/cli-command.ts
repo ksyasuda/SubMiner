@@ -107,7 +107,7 @@ export interface CliCommandServiceDeps {
     mode: NonNullable<CliArgs['youtubeMode']>;
     source: CliCommandSource;
   }) => Promise<void>;
-  ensureBackgroundStatsServer?: () => void;
+  ensureBackgroundStatsServer?: () => Promise<void> | void;
   printHelp: () => void;
   hasMainWindow: () => boolean;
   getMultiCopyTimeoutMs: () => number;
@@ -188,7 +188,7 @@ interface AnilistCliRuntime {
 interface AppCliRuntime {
   stop: () => void;
   hasMainWindow: () => boolean;
-  ensureBackgroundStatsServer?: () => void;
+  ensureBackgroundStatsServer?: () => Promise<void> | void;
   runUpdateCommand: CliCommandServiceDeps['runUpdateCommand'];
   runEnsureLinuxRuntimePluginAssetsCommand: CliCommandServiceDeps['runEnsureLinuxRuntimePluginAssetsCommand'];
   runYoutubePlaybackFlow: CliCommandServiceDeps['runYoutubePlaybackFlow'];
@@ -400,7 +400,14 @@ export function handleCliCommand(
   }
 
   if (args.start && args.background) {
-    deps.ensureBackgroundStatsServer?.();
+    runAsyncWithOsd(
+      async () => {
+        await deps.ensureBackgroundStatsServer?.();
+      },
+      deps,
+      'ensureBackgroundStatsServer',
+      'Stats server startup failed',
+    );
   }
 
   if (args.sessionAction) {

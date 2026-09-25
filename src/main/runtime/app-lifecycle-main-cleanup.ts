@@ -44,7 +44,8 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   clearReconnectTimerRef: () => void;
 
   getSubtitleTimingTracker: () => Destroyable | null;
-  getImmersionTracker: () => Destroyable | null;
+  getImmersionTracker: () => { destroy: () => void | Promise<void> } | null;
+  stopStatsServer: () => Promise<void> | void;
   clearImmersionTracker: () => void;
   getAnkiIntegration: () => Destroyable | null;
 
@@ -58,8 +59,10 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   clearYomitanSettingsWindow: () => void;
 
   stopJellyfinRemoteSession: () => void;
+  cleanupInternalSubtitleTrackCache: () => void;
   cleanupYoutubeSubtitleTempDirs: () => void;
   cleanupYoutubeMediaCache: () => void;
+  cleanupRemoteMediaWindows: () => void;
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
 }) {
@@ -118,10 +121,11 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     destroySubtitleTimingTracker: () => {
       deps.getSubtitleTimingTracker()?.destroy();
     },
-    destroyImmersionTracker: () => {
+    stopStatsServer: () => deps.stopStatsServer(),
+    destroyImmersionTracker: async () => {
       const tracker = deps.getImmersionTracker();
       if (!tracker) return;
-      tracker.destroy();
+      await tracker.destroy();
       deps.clearImmersionTracker();
     },
     destroyAnkiIntegration: () => {
@@ -144,8 +148,10 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     },
     clearYomitanSettingsWindow: () => deps.clearYomitanSettingsWindow(),
     stopJellyfinRemoteSession: () => deps.stopJellyfinRemoteSession(),
+    cleanupInternalSubtitleTrackCache: () => deps.cleanupInternalSubtitleTrackCache(),
     cleanupYoutubeSubtitleTempDirs: () => deps.cleanupYoutubeSubtitleTempDirs(),
     cleanupYoutubeMediaCache: () => deps.cleanupYoutubeMediaCache(),
+    cleanupRemoteMediaWindows: () => deps.cleanupRemoteMediaWindows(),
     cleanupJellyfinSubtitleCache: () => deps.cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => deps.stopDiscordPresenceService(),
   });

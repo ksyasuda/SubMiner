@@ -7,6 +7,9 @@ import { createLogger, setLogLevel } from './logger';
 import { ImmersionTrackerService } from './core/services/immersion-tracker-service';
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
+import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
+import { createTmdbClient, createTmdbApiKeyResolver } from './core/services/tmdb/tmdb-client';
+import { readBundledTmdbApiKey } from './core/services/tmdb/bundled-api-key';
 import { startStatsServer } from './core/services/stats-server';
 import {
   removeBackgroundStatsServerState,
@@ -124,10 +127,12 @@ const daemonUserDataPath = userDataPath;
 const statePath = path.join(userDataPath, 'stats-daemon.json');
 const knownWordCachePath = path.join(userDataPath, 'known-words-cache.json');
 const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
+const bundledTmdbApiKey = readBundledTmdbApiKey(__dirname);
 const wordHelperScriptPath = path.join(__dirname, 'stats-word-helper.js');
 
 let tracker: ImmersionTrackerService | null = null;
-let statsServer: ReturnType<typeof startStatsServer> | null = null;
+let statsServer: Awaited<ReturnType<typeof startStatsServer>> | null = null;
+let shutdownPromise: Promise<void> | null = null;
 
 function writeFailureResponse(message: string): void {
   if (!responsePath) return;
@@ -147,25 +152,32 @@ function clearOwnedState(): void {
   }
 }
 
-function shutdown(code = 0): void {
-  try {
-    statsServer?.close();
-  } catch {
-    // ignore
-  }
-  statsServer = null;
-  try {
-    tracker?.destroy();
-  } catch {
-    // ignore
-  }
-  tracker = null;
-  clearOwnedState();
-  process.exit(code);
+function shutdown(code = 0): Promise<void> {
+  shutdownPromise ??= (async () => {
+    try {
+      await statsServer?.close();
+    } catch {
+      // ignore
+    }
+    statsServer = null;
+    try {
+      await tracker?.destroy();
+    } catch {
+      // ignore
+    }
+    tracker = null;
+    clearOwnedState();
+    process.exit(code);
+  })();
+  return shutdownPromise;
 }
 
-process.on('SIGINT', () => shutdown(0));
-process.on('SIGTERM', () => shutdown(0));
+process.on('SIGINT', () => {
+  void shutdown(0);
+});
+process.on('SIGTERM', () => {
+  void shutdown(0);
+});
 
 async function main(): Promise<void> {
   try {
@@ -194,16 +206,25 @@ async function main(): Promise<void> {
         },
       },
     });
+    const tmdbClient = createTmdbClient({
+      resolveApiKey: createTmdbApiKeyResolver(
+        () => configService.reloadConfig().tmdb,
+        () => bundledTmdbApiKey,
+      ),
+    });
     tracker.setCoverArtFetcher(
-      createCoverArtFetcher(createAnilistRateLimiter(), createLogger('stats-daemon:cover-art')),
+      createCoverArtFetcher(createAnilistRateLimiter(), createLogger('stats-daemon:cover-art'), {
+        liveAction: createLiveActionMetadataResolver(tmdbClient, createLogger('stats-daemon:tmdb')),
+      }),
     );
 
-    statsServer = startStatsServer({
+    statsServer = await startStatsServer({
       port: config.stats.serverPort,
       staticDir: statsDistPath,
       tracker,
       knownWordCachePath,
       getAnkiConnectConfig: () => configService.reloadConfig().ankiConnect,
+      tmdbClient,
       getYomitanAnkiDeckName: async () =>
         await readStatsYomitanDeckName({
           helperScriptPath: wordHelperScriptPath,
@@ -237,7 +258,7 @@ async function main(): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     logger.error('Failed to start stats daemon', message);
     writeFailureResponse(message);
-    shutdown(1);
+    await shutdown(1);
   }
 }
 

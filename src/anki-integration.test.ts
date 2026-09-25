@@ -11,10 +11,12 @@ import type { MediaInput } from './media-input';
 import { AnkiConnectConfig } from './types';
 
 type TestOverlayNotificationPayload = {
+  id?: string;
   title: string;
   body?: string;
   image?: string;
   variant?: string;
+  persistent?: boolean;
   actions?: Array<{ id: string; label: string; noteId?: number }>;
 };
 
@@ -153,6 +155,7 @@ function createFieldGroupingMergeCollaborator(options?: {
     getEffectiveSentenceCardConfig: () => ({
       sentenceField: 'Sentence',
       audioField: 'SentenceAudio',
+      fieldGroupingProvider: 'kiku' as const,
     }),
     getCurrentSubtitleText: () => options?.currentSubtitleText,
     resolveFieldName,
@@ -606,6 +609,7 @@ test('AnkiIntegration applies ready YouTube cache media to every queued note id'
   const integration = new AnkiIntegration(
     {
       fields: {
+        audio: 'ExpressionAudio',
         image: 'Picture',
       },
       media: {
@@ -659,7 +663,7 @@ test('AnkiIntegration applies ready YouTube cache media to every queued note id'
       noteIds.map((noteId) => ({
         noteId,
         fields: {
-          SentenceAudio: { value: '' },
+          ExpressionAudio: { value: '' },
           Picture: { value: '' },
         },
       })),
@@ -944,7 +948,7 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
     noteInfo: {
       noteId: 404,
       fields: {
-        SentenceAudio: { value: '' },
+        ExpressionAudio: { value: '' },
         Picture: { value: '' },
       },
     },
@@ -956,7 +960,8 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
   assert.equal(queued, true);
   assert.equal(updatedNotes.length, 1);
   assert.equal(updatedNotes[0]?.noteId, 404);
-  assert.match(updatedNotes[0]?.fields.SentenceAudio ?? '', /^\[sound:audio_/);
+  assert.match(updatedNotes[0]?.fields.ExpressionAudio ?? '', /^\[sound:audio_/);
+  assert.equal(updatedNotes[0]?.fields.SentenceAudio, undefined);
   assert.match(updatedNotes[0]?.fields.Picture ?? '', /^<img src="image_/);
   assert.equal(storedMedia.length, 2);
   assert.deepEqual(audioVolumeScales, [0.3 ** 3]);
@@ -1180,6 +1185,117 @@ test('AnkiIntegration embeds generated notification image on overlay mined-card 
     },
   ]);
   assert.deepEqual(cleanupPaths, [notificationIconPath]);
+});
+
+test('AnkiIntegration keeps overlay card-update progress visible until the terminal notification', async () => {
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'overlay',
+      },
+    },
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload);
+    },
+  );
+  const updateNotifications = integration as unknown as {
+    beginUpdateProgress: (message: string) => void;
+    showNotification: (noteId: number, label: string | number) => Promise<void>;
+  };
+
+  updateNotifications.beginUpdateProgress('Updating card');
+  await updateNotifications.showNotification(42, '食べる');
+
+  assert.deepEqual(
+    overlayNotifications.map(({ id, variant, persistent }) => ({ id, variant, persistent })),
+    [
+      { id: 'anki-update-progress', variant: 'progress', persistent: true },
+      { id: 'anki-update-progress', variant: 'success', persistent: false },
+    ],
+  );
+});
+
+test('AnkiIntegration dismisses persistent overlay update progress when no terminal notification replaces it', () => {
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+  const dismissedIds: string[] = [];
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'overlay',
+      },
+    },
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload);
+    },
+    undefined,
+    undefined,
+    undefined,
+    (id) => {
+      dismissedIds.push(id);
+    },
+  );
+  const updateNotifications = integration as unknown as {
+    beginUpdateProgress: (message: string) => void;
+    endUpdateProgress: () => void;
+  };
+
+  updateNotifications.beginUpdateProgress('Updating card');
+  updateNotifications.endUpdateProgress();
+
+  assert.equal(overlayNotifications[0]?.persistent, true);
+  assert.deepEqual(dismissedIds, ['anki-update-progress']);
+});
+
+test('AnkiIntegration dismisses overlay update progress after notifications switch to OSD', () => {
+  const behavior: NonNullable<AnkiConnectConfig['behavior']> = {
+    notificationType: 'overlay',
+  };
+  const dismissedIds: string[] = [];
+  const integration = new AnkiIntegration(
+    { behavior },
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    () => {},
+    undefined,
+    undefined,
+    undefined,
+    (id) => {
+      dismissedIds.push(id);
+    },
+  );
+  const updateNotifications = integration as unknown as {
+    beginUpdateProgress: (message: string) => void;
+    endUpdateProgress: () => void;
+  };
+
+  updateNotifications.beginUpdateProgress('Updating card');
+  behavior.notificationType = 'osd';
+  updateNotifications.endUpdateProgress();
+
+  assert.deepEqual(dismissedIds, ['anki-update-progress']);
 });
 
 test('AnkiIntegration keeps overlay notification image when temp icon write fails', async () => {
@@ -1410,4 +1526,44 @@ test('AnkiIntegration.formatMiscInfoPattern avoids leaking Jellyfin api_key quer
 
   assert.equal(result, '[SubMiner] [Jellyfin/direct] Bocchi the Rock! - S01E02 (00:07:06)');
   assert.equal(result.includes('api_key='), false);
+});
+
+test('Anki metadata rejects a credential-bearing media title before metadata arrives', () => {
+  const integration = new AnkiIntegration(
+    { metadata: { pattern: '[SubMiner] %f | %F (%t)' } } as never,
+    {} as never,
+    {
+      currentVideoPath: 'https://jellyfin.example/Videos/item/stream?api_key=test-secret',
+      currentMediaTitle: 'stream?static=true&api_key=test-secret',
+      currentTimePos: 426,
+      send: () => true,
+    } as never,
+  );
+  const privateApi = integration as unknown as {
+    formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
+  };
+  const result = privateApi.formatMiscInfoPattern('stream?api_key=test-secret', 426);
+  assert.equal(result, '[SubMiner] Unknown media | Unknown media (00:07:06)');
+});
+
+test('AnkiIntegration.formatMiscInfoPattern treats ApiKey stream paths like legacy api_key ones', () => {
+  const integration = new AnkiIntegration(
+    { metadata: { pattern: '[SubMiner] %f (%t)' } } as never,
+    {} as never,
+    {
+      currentSubText: '',
+      currentVideoPath: 'stream?static=true&ApiKey=secret-token&MediaSourceId=ms-1',
+      currentTimePos: 426,
+      currentSubStart: 426,
+      currentSubEnd: 428,
+      currentMediaTitle: '[Jellyfin/direct] Bocchi the Rock! - S01E02',
+      send: () => true,
+    } as unknown as never,
+  );
+  const privateApi = integration as unknown as {
+    formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
+  };
+  const result = privateApi.formatMiscInfoPattern('audio_123.mp3', 426);
+  assert.equal(result, '[SubMiner] [Jellyfin/direct] Bocchi the Rock! - S01E02 (00:07:06)');
+  assert.equal(result.includes('ApiKey='), false);
 });

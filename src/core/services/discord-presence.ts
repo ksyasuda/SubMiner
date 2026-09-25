@@ -1,5 +1,6 @@
 import type { DiscordPresenceStylePreset } from '../../types/integrations';
 import type { ResolvedConfig } from '../../types';
+import { sanitizeMediaTitle } from '../../shared/media-identity';
 
 export interface DiscordPresenceSnapshot {
   mediaTitle: string | null;
@@ -140,7 +141,7 @@ export function buildDiscordPresenceActivity(
   const style = resolvePresenceStyle(config.presenceStyle);
   const status = buildStatus(snapshot);
   const title = sanitizeText(
-    snapshot.mediaTitle,
+    sanitizeMediaTitle(snapshot.mediaTitle),
     fallbackTitleFromMediaPath(snapshot.mediaPath) || 'Unknown media',
   );
   const details =

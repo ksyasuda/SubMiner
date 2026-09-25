@@ -20,6 +20,20 @@ export function buildRuntimeOptionRegistry(
       }),
     },
     {
+      id: 'anki.mediaReviewTiming',
+      path: 'ankiConnect.media.reviewTiming',
+      label: 'Review Media Timing',
+      scope: 'ankiConnect',
+      valueType: 'boolean',
+      allowedValues: [true, false],
+      defaultValue: defaultConfig.ankiConnect.media.reviewTiming,
+      requiresRestart: false,
+      formatValueForOsd: (value) => (value === true ? 'On' : 'Off'),
+      toAnkiPatch: (value) => ({
+        media: { reviewTiming: value === true },
+      }),
+    },
+    {
       id: 'subtitle.annotation.knownWords.highlightEnabled',
       path: 'ankiConnect.knownWords.highlightEnabled',
       label: 'Known Word Annotation',
@@ -121,6 +135,23 @@ export function buildRuntimeOptionRegistry(
         isKiku: {
           fieldGrouping:
             value === 'auto' || value === 'manual' || value === 'disabled' ? value : 'disabled',
+        },
+      }),
+    },
+    {
+      id: 'anki.senrenFieldGrouping',
+      path: 'ankiConnect.isSenren.fieldGrouping',
+      label: 'Senren Field Grouping',
+      scope: 'ankiConnect',
+      valueType: 'enum',
+      allowedValues: ['auto', 'manual', 'disabled'],
+      defaultValue: 'auto',
+      requiresRestart: false,
+      formatValueForOsd: (value) => String(value),
+      toAnkiPatch: (value) => ({
+        isSenren: {
+          fieldGrouping:
+            value === 'auto' || value === 'manual' || value === 'disabled' ? value : 'auto',
         },
       }),
     },

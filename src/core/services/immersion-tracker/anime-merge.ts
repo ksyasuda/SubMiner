@@ -1,3 +1,4 @@
+import { shareTitleNamespace, type MediaKind } from '../../../shared/media-kind';
 import type { DatabaseSync } from './sqlite';
 import { recomputeLifetimeAnimeAggregatesInTransaction } from './lifetime';
 import { toDbTimestamp } from './query-shared';
@@ -5,6 +6,12 @@ import { nowMs } from './time';
 
 /** Thrown when a move names an episode or destination entry that is not there. */
 export const UNKNOWN_MOVE_TARGET_MESSAGE = 'Unknown episode or target library entry';
+/** Thrown when a merge would combine an AniList-linked entry with a TMDB-linked one. */
+export const INCOMPATIBLE_PROVIDER_MERGE_MESSAGE =
+  'AniList-linked and TMDB-linked library entries cannot be merged together';
+/** Thrown when a merge or move would mix a YouTube channel with an anime or live-action entry. */
+export const MEDIA_KIND_MISMATCH_MESSAGE =
+  'YouTube channels cannot be combined with anime or live-action entries';
 
 export interface AnimeMergeSummary {
   /** Library entry that owns every moved episode once the merge finishes. */
@@ -30,6 +37,9 @@ interface AnimeMetadataRow {
   title_native: string | null;
   episodes_total: number | null;
   description: string | null;
+  media_kind: string;
+  tmdb_id: number | null;
+  tmdb_type: string | null;
 }
 
 function emptyMergeSummary(survivingAnimeId: number): AnimeMergeSummary {
@@ -52,7 +62,8 @@ function readAnimeMetadata(db: DatabaseSync, animeId: number): AnimeMetadataRow 
   return (db
     .prepare(
       `
-        SELECT normalized_title_key, anilist_id, title_romaji, title_english, title_native, episodes_total, description
+        SELECT normalized_title_key, anilist_id, title_romaji, title_english, title_native, episodes_total, description,
+               media_kind, tmdb_id, tmdb_type
         FROM imm_anime
         WHERE anime_id = ?
       `,
@@ -60,8 +71,11 @@ function readAnimeMetadata(db: DatabaseSync, animeId: number): AnimeMetadataRow 
     .get(animeId) ?? null) as AnimeMetadataRow | null;
 }
 
-function animeExists(db: DatabaseSync, animeId: number): boolean {
-  return Boolean(db.prepare('SELECT 1 FROM imm_anime WHERE anime_id = ?').get(animeId));
+function readMediaKind(db: DatabaseSync, animeId: number): MediaKind | null {
+  const row = db
+    .prepare('SELECT media_kind AS mediaKind FROM imm_anime WHERE anime_id = ?')
+    .get(animeId) as { mediaKind: MediaKind } | undefined;
+  return row?.mediaKind ?? null;
 }
 
 function hasAnimeReferences(db: DatabaseSync, animeId: number): boolean {
@@ -131,6 +145,12 @@ function absorbAnimeMetadata(
         title_native = COALESCE(title_native, ?),
         episodes_total = COALESCE(episodes_total, ?),
         description = COALESCE(description, ?),
+        tmdb_id = COALESCE(tmdb_id, ?),
+        tmdb_type = CASE WHEN tmdb_id IS NULL THEN ? ELSE tmdb_type END,
+        media_kind = CASE
+          WHEN anilist_id IS NULL AND tmdb_id IS NULL AND ? IS NOT NULL THEN ?
+          ELSE media_kind
+        END,
         LAST_UPDATE_DATE = ?
       WHERE anime_id = ?
     `,
@@ -141,6 +161,10 @@ function absorbAnimeMetadata(
     source.title_native,
     source.episodes_total,
     source.description,
+    source.tmdb_id,
+    source.tmdb_type,
+    source.tmdb_id,
+    source.media_kind,
     updatedAt,
     targetAnimeId,
   );
@@ -161,8 +185,21 @@ export function mergeAnimeRecordsInTransaction(
   sourceAnimeIds: number[],
 ): AnimeMergeSummary {
   const summary = emptyMergeSummary(targetAnimeId);
-  if (!animeExists(db, targetAnimeId)) {
+  const targetKind = readMediaKind(db, targetAnimeId);
+  if (targetKind === null) {
     return summary;
+  }
+
+  // Validate the whole group before moving anything, including when the
+  // unlinked target would inherit conflicting providers from two sources.
+  const metadata = [targetAnimeId, ...new Set(sourceAnimeIds)].map((id) =>
+    readAnimeMetadata(db, id),
+  );
+  if (
+    metadata.some((row) => row?.anilist_id != null) &&
+    metadata.some((row) => row?.tmdb_id != null)
+  ) {
+    throw new Error(INCOMPATIBLE_PROVIDER_MERGE_MESSAGE);
   }
 
   const updatedAt = toDbTimestamp(nowMs());
@@ -195,8 +232,13 @@ export function mergeAnimeRecordsInTransaction(
   const dropAnimeStmt = db.prepare('DELETE FROM imm_anime WHERE anime_id = ?');
 
   for (const sourceAnimeId of new Set(sourceAnimeIds)) {
-    if (sourceAnimeId === targetAnimeId || !animeExists(db, sourceAnimeId)) {
-      continue;
+    if (sourceAnimeId === targetAnimeId) continue;
+    const sourceKind = readMediaKind(db, sourceAnimeId);
+    if (sourceKind === null) continue;
+    // A channel folded into an anime would only be recreated on the next
+    // watch, because title lookups never cross namespaces; refuse instead.
+    if (!shareTitleNamespace(sourceKind, targetKind)) {
+      throw new Error(MEDIA_KIND_MISMATCH_MESSAGE);
     }
 
     const sourceMetadata = readAnimeMetadata(db, sourceAnimeId);
@@ -257,11 +299,16 @@ export function moveVideoToAnime(
     const videoRow = db
       .prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = ?')
       .get(videoId) as { animeId: number | null } | null;
-    if (!videoRow || !animeExists(db, targetAnimeId)) {
+    const targetKind = readMediaKind(db, targetAnimeId);
+    if (!videoRow || targetKind === null) {
       throw new Error(UNKNOWN_MOVE_TARGET_MESSAGE);
     }
 
     const previousAnimeId = videoRow.animeId;
+    const previousKind = previousAnimeId === null ? null : readMediaKind(db, previousAnimeId);
+    if (previousKind !== null && !shareTitleNamespace(previousKind, targetKind)) {
+      throw new Error(MEDIA_KIND_MISMATCH_MESSAGE);
+    }
     if (previousAnimeId === targetAnimeId) {
       db.prepare(
         'UPDATE imm_videos SET anime_assignment_locked = 1, LAST_UPDATE_DATE = ? WHERE video_id = ?',

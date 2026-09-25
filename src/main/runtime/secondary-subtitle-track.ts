@@ -1,4 +1,9 @@
 import type { SubtitleCue } from '../../types/subtitle';
+import { flattenedSecondarySubtitleLineIdentity } from '../../core/services/secondary-subtitle-line-identity';
+import {
+  removeAssControlDebrisLines,
+  removeLiveGlyphFragmentLines,
+} from '../../core/services/ass-text';
 
 type SecondarySubtitleMpvClient = {
   connected?: boolean;
@@ -21,6 +26,11 @@ type SecondarySubtitleSourceInput = {
 };
 
 const DEFAULT_REFRESH_DELAY_MS = 500;
+
+function sourceUsesAssSyntax(source: string): boolean {
+  const sourceWithoutQuery = source.split(/[?#]/u, 1)[0] ?? '';
+  return /\.(?:ass|ssa)$/iu.test(sourceWithoutQuery);
+}
 
 function finiteNumber(value: unknown, fallback = 0): number {
   const number = typeof value === 'number' ? value : Number(value);
@@ -58,17 +68,130 @@ function buildSelectedTrackIdentity(
   ]);
 }
 
+type IndexedSubtitleCue = { cue: SubtitleCue; index: number };
+
+function compareAuthoredSubtitleOrder(left: IndexedSubtitleCue, right: IndexedSubtitleCue): number {
+  const leftLayout = left.cue.assLayout;
+  const rightLayout = right.cue.assLayout;
+  if (leftLayout?.kind === 'positioned' && rightLayout?.kind === 'positioned') {
+    const verticalOrder = leftLayout.y - rightLayout.y;
+    if (verticalOrder !== 0) return verticalOrder;
+  }
+  if (leftLayout && rightLayout) {
+    const sourceOrder = leftLayout.sourceOrder - rightLayout.sourceOrder;
+    if (sourceOrder !== 0) return sourceOrder;
+  }
+  return left.index - right.index;
+}
+
 export function findActiveSubtitleText(cues: readonly SubtitleCue[], timeSeconds: number): string {
   if (!Number.isFinite(timeSeconds)) return '';
 
-  const seen = new Set<string>();
+  const authoredCanonical = cues.filter(
+    (cue) =>
+      cue.source === 'canonical-ass' && cue.startTime <= timeSeconds && cue.endTime > timeSeconds,
+  );
+  const enteringCanonical = cues.filter(
+    (cue) =>
+      cue.source === 'canonical-ass' &&
+      (cue.animationStartTime ?? cue.startTime) <= timeSeconds &&
+      cue.startTime > timeSeconds &&
+      (cue.animationEndTime ?? cue.endTime) > timeSeconds,
+  );
+  const nextAuthoredStart = enteringCanonical.reduce(
+    (earliest, cue) => Math.min(earliest, cue.startTime),
+    Infinity,
+  );
+  // Generated lyrics can begin drawing before their canonical Comment timing. Once that
+  // entrance starts, replace a preceding lyric that ends before the new authored span;
+  // genuinely concurrent subtitles that continue through the new span stay selected.
+  const selectedCanonical = new Set<SubtitleCue>([
+    ...authoredCanonical.filter(
+      (cue) => enteringCanonical.length === 0 || cue.endTime > nextAuthoredStart,
+    ),
+    ...enteringCanonical,
+  ]);
+  if (selectedCanonical.size === 0) {
+    const animatedCanonical = cues.filter(
+      (cue) =>
+        cue.source === 'canonical-ass' &&
+        (cue.animationStartTime ?? cue.startTime) <= timeSeconds &&
+        (cue.animationEndTime ?? cue.endTime) > timeSeconds,
+    );
+    const nearestDistance = animatedCanonical.reduce((nearest, cue) => {
+      const distance =
+        timeSeconds < cue.startTime
+          ? cue.startTime - timeSeconds
+          : Math.max(0, timeSeconds - cue.endTime);
+      return Math.min(nearest, distance);
+    }, Infinity);
+    for (const cue of animatedCanonical) {
+      const distance =
+        timeSeconds < cue.startTime
+          ? cue.startTime - timeSeconds
+          : Math.max(0, timeSeconds - cue.endTime);
+      if (distance === nearestDistance) {
+        selectedCanonical.add(cue);
+      }
+    }
+  }
+
+  const activeReconstructed = cues.filter(
+    (cue) =>
+      cue.source === 'reconstructed-ass' &&
+      cue.assLayout?.kind !== 'fragment-grid' &&
+      cue.startTime <= timeSeconds &&
+      cue.endTime > timeSeconds,
+  );
+  const reconstructedByStyle = new Map<string, SubtitleCue>();
+  for (const cue of activeReconstructed) {
+    const style = cue.assStyle ?? '';
+    const existing = reconstructedByStyle.get(style);
+    if (!existing) {
+      reconstructedByStyle.set(style, cue);
+      continue;
+    }
+    const duration = cue.endTime - cue.startTime;
+    const existingDuration = existing.endTime - existing.startTime;
+    if (
+      duration > existingDuration ||
+      (duration === existingDuration && cue.text.length > existing.text.length) ||
+      (duration === existingDuration &&
+        cue.text.length === existing.text.length &&
+        cue.startTime > existing.startTime)
+    ) {
+      reconstructedByStyle.set(style, cue);
+    }
+  }
+  const selectedReconstructed = new Set(reconstructedByStyle.values());
+
+  const seenExact = new Set<string>();
+  const seenFlattened = new Set<string>();
   const activeText: string[] = [];
-  for (const cue of cues) {
-    if (cue.startTime > timeSeconds || cue.endTime <= timeSeconds) continue;
-    const text = cue.text.trim();
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    activeText.push(text);
+  const activeCues: IndexedSubtitleCue[] = [];
+  cues.forEach((cue, index) => {
+    const active =
+      cue.source === 'canonical-ass'
+        ? selectedCanonical.has(cue)
+        : cue.source === 'reconstructed-ass'
+          ? selectedReconstructed.has(cue)
+          : cue.startTime <= timeSeconds && cue.endTime > timeSeconds;
+    if (active) activeCues.push({ cue, index });
+  });
+  activeCues.sort(compareAuthoredSubtitleOrder);
+
+  for (const { cue } of activeCues) {
+    for (const line of cue.text.split('\n')) {
+      const text = line.trim();
+      const compactText = text.normalize('NFKC').replace(/\s+/gu, '');
+      if (!compactText || seenExact.has(compactText)) continue;
+      seenExact.add(compactText);
+
+      const flattenedIdentity = flattenedSecondarySubtitleLineIdentity(text);
+      if (flattenedIdentity && seenFlattened.has(flattenedIdentity)) continue;
+      if (flattenedIdentity) seenFlattened.add(flattenedIdentity);
+      activeText.push(text);
+    }
   }
   return activeText.join('\n');
 }
@@ -89,6 +212,7 @@ export function createSecondarySubtitleTrackController(deps: {
   let parsedCues: SubtitleCue[] | null = null;
   let parsedSourceKey: string | null = null;
   let parsedTrackIdentity: string | null = null;
+  let activeSourceUsesAssSyntax = false;
   let secondaryDelaySeconds = 0;
   let lastLiveText = '';
   let lastBroadcastText: string | null = null;
@@ -118,6 +242,7 @@ export function createSecondarySubtitleTrackController(deps: {
     const generation = ++refreshGeneration;
     const client = deps.getMpvClient();
     if (!client?.connected) {
+      activeSourceUsesAssSyntax = false;
       useLiveFallback();
       return;
     }
@@ -134,6 +259,7 @@ export function createSecondarySubtitleTrackController(deps: {
 
       const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw.trim() : '';
       if (!videoPath || secondarySid === null || secondarySid === 'no') {
+        activeSourceUsesAssSyntax = false;
         useLiveFallback();
         return;
       }
@@ -155,10 +281,13 @@ export function createSecondarySubtitleTrackController(deps: {
       });
       if (generation !== refreshGeneration) return;
       if (!resolvedSource) {
+        activeSourceUsesAssSyntax = false;
         deps.logDebug?.('[secondary-subtitle-track] selected source is not readable');
         useLiveFallback();
         return;
       }
+
+      activeSourceUsesAssSyntax = sourceUsesAssSyntax(resolvedSource.path);
 
       if (resolvedSource.sourceKey === parsedSourceKey && parsedCues) {
         parsedTrackIdentity = selectedTrackIdentity;
@@ -181,6 +310,7 @@ export function createSecondarySubtitleTrackController(deps: {
       publish(resolveAtTime(deps.getCurrentTimePos()));
     } catch (error) {
       if (generation !== refreshGeneration) return;
+      activeSourceUsesAssSyntax = false;
       deps.logWarn?.('[secondary-subtitle-track] failed to parse selected source', error);
       useLiveFallback();
     } finally {
@@ -203,6 +333,7 @@ export function createSecondarySubtitleTrackController(deps: {
     parsedCues = null;
     parsedSourceKey = null;
     parsedTrackIdentity = null;
+    activeSourceUsesAssSyntax = false;
     secondaryDelaySeconds = 0;
     lastLiveText = '';
     publish('');
@@ -212,7 +343,9 @@ export function createSecondarySubtitleTrackController(deps: {
     refresh,
     scheduleRefresh,
     handleLiveText(text: string): void {
-      lastLiveText = text;
+      lastLiveText = removeLiveGlyphFragmentLines(
+        activeSourceUsesAssSyntax ? removeAssControlDebrisLines(text) : text,
+      );
       publish(resolveAtTime(deps.getCurrentTimePos()));
     },
     handleTimePos(timeSeconds: number): void {

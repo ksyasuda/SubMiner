@@ -1,5 +1,13 @@
 import * as fs from 'fs';
 import { ensureDirForFile } from '../../../shared/fs-utils';
+import { sanitizeMediaTitle, toMediaIdentityPath } from '../../../shared/media-identity';
+
+function normalizeAnilistRetryKey(key: string): string {
+  const parts = key.match(/^(.*)::(\d+)$/s);
+  const identity = toMediaIdentityPath(parts ? (parts[1] ?? '') : key);
+  if (!identity) return '';
+  return parts ? `${identity}::${parts[2]}` : identity;
+}
 
 const INITIAL_BACKOFF_MS = 30_000;
 const MAX_BACKOFF_MS = 6 * 60 * 60 * 1000;
@@ -105,6 +113,9 @@ export function createAnilistUpdateQueue(
             isValidPersistedMediaId(item.mediaId) &&
             (typeof item.lastError === 'string' || item.lastError === null),
         )
+        .filter((item) => sanitizeMediaTitle(item.title) !== null)
+        .map((item) => ({ ...item, key: normalizeAnilistRetryKey(item.key) }))
+        .filter((item) => item.key !== '')
         .slice(0, MAX_ITEMS);
       deadLetter = parsedDeadLetter
         .filter(
@@ -120,7 +131,11 @@ export function createAnilistUpdateQueue(
             isValidPersistedMediaId(item.mediaId) &&
             (typeof item.lastError === 'string' || item.lastError === null),
         )
+        .filter((item) => sanitizeMediaTitle(item.title) !== null)
+        .map((item) => ({ ...item, key: normalizeAnilistRetryKey(item.key) }))
+        .filter((item) => item.key !== '')
         .slice(0, MAX_ITEMS);
+      if (JSON.stringify({ pending, deadLetter }) !== JSON.stringify(parsed)) persist();
     } catch (error) {
       logger.error('Failed to load AniList retry queue.', error);
     }
@@ -136,6 +151,9 @@ export function createAnilistUpdateQueue(
       season: number | null = null,
       mediaId: number | null = null,
     ): void {
+      if (!sanitizeMediaTitle(title)) return;
+      key = normalizeAnilistRetryKey(key);
+      if (!key) return;
       const existing =
         pending.find((item) => item.key === key) || deadLetter.find((item) => item.key === key);
       if (existing) {
@@ -165,6 +183,8 @@ export function createAnilistUpdateQueue(
     },
 
     markSuccess(key: string): void {
+      key = normalizeAnilistRetryKey(key);
+      if (!key) return;
       const before = pending.length;
       pending = pending.filter((item) => item.key !== key);
       if (pending.length !== before) {
@@ -173,6 +193,8 @@ export function createAnilistUpdateQueue(
     },
 
     markFailure(key: string, reason: string, nowMs: number = Date.now()): void {
+      key = normalizeAnilistRetryKey(key);
+      if (!key) return;
       const item = pending.find((candidate) => candidate.key === key);
       if (!item) {
         return;

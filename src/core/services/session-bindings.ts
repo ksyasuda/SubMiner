@@ -12,6 +12,10 @@ import type {
   SessionKeySpec,
 } from '../../types/session-bindings';
 import { SPECIAL_COMMANDS } from '../../config';
+import {
+  resolveSessionSequenceConflicts,
+  type SessionKeyReservation,
+} from '../../shared/session-key-sequences';
 
 type PlatformKeyModel = 'darwin' | 'win32' | 'linux';
 
@@ -56,6 +60,8 @@ const SESSION_SHORTCUT_ACTIONS: Array<{
   { key: 'openRuntimeOptions', actionId: 'openRuntimeOptions' },
   { key: 'openJimaku', actionId: 'openJimaku' },
   { key: 'openTsukihime', actionId: 'openTsukihime' },
+  { key: 'openSubtitleSelection', actionId: 'openSubtitleSelection' },
+  { key: 'openSubtitleGeneration', actionId: 'openSubtitleGeneration' },
   { key: 'openSessionHelp', actionId: 'openSessionHelp' },
   { key: 'openControllerSelect', actionId: 'openControllerSelect' },
   { key: 'openControllerDebug', actionId: 'openControllerDebug' },
@@ -80,6 +86,13 @@ function normalizeCodeToken(
 ): string | null {
   const normalized = token.trim();
   if (!normalized) return null;
+  // Two lowercase letters use mpv's sequential-key syntax, for example g-s.
+  if (/^[a-z]-[a-z]$/.test(normalized)) {
+    return normalized
+      .split('-')
+      .map((letter) => `Key${letter.toUpperCase()}`)
+      .join('-');
+  }
   if (options.allowMouseButtons === true) {
     const normalizedMouse = normalized.toUpperCase();
     if (MPV_MOUSE_BUTTON_CODES.has(normalizedMouse)) {
@@ -211,7 +224,7 @@ function parseAccelerator(
   };
 }
 
-function parseDomKeyString(
+export function parseSessionBindingKey(
   key: string,
   platform: PlatformKeyModel,
 ): { key: SessionKeySpec | null; message?: string } {
@@ -435,7 +448,7 @@ export function compileSessionBindings(input: CompileSessionBindingsInput): {
   }
 
   if (statsToggleKey) {
-    const parsed = parseDomKeyString(statsToggleKey, input.platform);
+    const parsed = parseSessionBindingKey(statsToggleKey, input.platform);
     if (!parsed.key) {
       warnings.push({
         kind: 'unsupported',
@@ -462,7 +475,7 @@ export function compileSessionBindings(input: CompileSessionBindingsInput): {
   }
 
   if (statsMarkWatchedKey) {
-    const parsed = parseDomKeyString(statsMarkWatchedKey, input.platform);
+    const parsed = parseSessionBindingKey(statsMarkWatchedKey, input.platform);
     if (!parsed.key) {
       warnings.push({
         kind: 'unsupported',
@@ -490,7 +503,7 @@ export function compileSessionBindings(input: CompileSessionBindingsInput): {
 
   input.keybindings.forEach((binding, index) => {
     if (!binding.command) return;
-    const parsed = parseDomKeyString(binding.key, input.platform);
+    const parsed = parseSessionBindingKey(binding.key, input.platform);
     if (!parsed.key) {
       warnings.push({
         kind: 'unsupported',
@@ -542,7 +555,37 @@ export function compileSessionBindings(input: CompileSessionBindingsInput): {
   }
 
   bindings.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath));
-  return { bindings, warnings };
+  const reservations: SessionKeyReservation[] = [
+    { key: { code: 'KeyY', modifiers: [] }, path: 'built-in y sequences' },
+    { key: { code: 'KeyV', modifiers: [] }, path: 'primary subtitle visibility key' },
+    { key: { code: 'KeyY', modifiers: ['ctrl'] }, path: 'lookup window toggle' },
+    { key: { code: 'KeyY', modifiers: ['meta'] }, path: 'lookup window toggle' },
+    { key: { code: 'KeyY', modifiers: ['ctrl', 'shift'] }, path: 'keyboard-driven mode toggle' },
+    { key: { code: 'KeyY', modifiers: ['shift', 'meta'] }, path: 'keyboard-driven mode toggle' },
+    ...[...candidates.values()].flatMap((drafts) =>
+      drafts.map(({ binding }) => ({
+        key: binding.key,
+        path: binding.sourcePath,
+      })),
+    ),
+  ];
+  const sidebarKey = input.rawConfig?.subtitleSidebar?.toggleKey;
+  if (sidebarKey) {
+    const { key } = parseSessionBindingKey(sidebarKey, input.platform);
+    if (key) {
+      // The sidebar accepts DOM codes with either Shift state, or literal characters.
+      if (/^[A-Z]$/.test(sidebarKey)) key.modifiers = ['shift'];
+      reservations.push({ key, path: 'subtitleSidebar.toggleKey' });
+      if (/^Key[A-Z]$/.test(sidebarKey)) {
+        reservations.push({
+          key: { ...key, modifiers: ['shift'] },
+          path: 'subtitleSidebar.toggleKey',
+        });
+      }
+    }
+  }
+  const result = resolveSessionSequenceConflicts(bindings, reservations);
+  return { bindings: result.bindings, warnings: [...warnings, ...result.warnings] };
 }
 
 export function buildPluginSessionBindingsArtifact(input: {

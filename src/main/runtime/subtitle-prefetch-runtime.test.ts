@@ -101,6 +101,32 @@ test('subtitle prefetch runtime preserves parsed cues when YouTube active track 
   assert.deepEqual(calls, []);
 });
 
+test('subtitle prefetch runtime preserves parsed cues when a network mount source is unresolved', async () => {
+  const calls: string[] = [];
+  const refresh = createRefreshSubtitlePrefetchFromActiveTrackHandler({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => (name === 'path' ? '/Volumes/jellyfin/movie.mkv' : null),
+    }),
+    getLastObservedTimePos: () => 12,
+    subtitlePrefetchInitController: {
+      cancelPendingInit: () => {
+        calls.push('cancel');
+      },
+      initSubtitlePrefetch: async () => {
+        calls.push('init');
+      },
+    },
+    resolveActiveSubtitleSidebarSource: async () => null,
+    shouldKeepExistingCuesOnMissingSource: async (videoPath) =>
+      videoPath.startsWith('/Volumes/jellyfin/'),
+  });
+
+  await refresh();
+
+  assert.deepEqual(calls, []);
+});
+
 test('subtitle prefetch runtime does not extract internal subtitle tracks from remote media urls', async () => {
   let extracted = false;
   const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
@@ -129,6 +155,36 @@ test('subtitle prefetch runtime does not extract internal subtitle tracks from r
 
   assert.equal(resolved, null);
   assert.equal(extracted, false);
+});
+
+test('subtitle prefetch runtime extracts internal subtitle tracks from network-mounted media', async () => {
+  let extracted = false;
+  const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
+    getFfmpegPath: () => 'ffmpeg-custom',
+    extractInternalSubtitleTrack: async () => {
+      extracted = true;
+      return {
+        path: '/tmp/subminer-sidebar-123/track_7.ass',
+        cleanup: async () => {},
+      };
+    },
+  });
+
+  const resolved = await resolveSource({
+    currentExternalFilenameRaw: null,
+    currentTrackRaw: {
+      type: 'sub',
+      id: 3,
+      'ff-index': 7,
+      codec: 'ass',
+    },
+    trackListRaw: [],
+    sidRaw: 3,
+    videoPath: '/Volumes/jellyfin/movie.mkv',
+  });
+
+  assert.equal(resolved?.path, '/tmp/subminer-sidebar-123/track_7.ass');
+  assert.equal(extracted, true);
 });
 
 test('subtitle prefetch refresh logs a warning when source resolution throws', async () => {

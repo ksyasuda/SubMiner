@@ -1,4 +1,5 @@
 import type { AnkiConnectConfig, WordCardKind } from './anki';
+import type { SubtitleGenerationConfig } from '../shared/subtitle-generation';
 import type {
   AiConfig,
   AiFeatureConfig,
@@ -11,6 +12,7 @@ import type {
   ImmersionTrackingRetentionMode,
   ImmersionTrackingRetentionPreset,
   TsukihimeConfig,
+  TmdbConfig,
   JellyfinConfig,
   JimakuConfig,
   JimakuLanguagePreference,
@@ -124,6 +126,8 @@ export interface ShortcutsConfig {
   openRuntimeOptions?: string | null;
   openJimaku?: string | null;
   openTsukihime?: string | null;
+  openSubtitleSelection?: string | null;
+  openSubtitleGeneration?: string | null;
   openSessionHelp?: string | null;
   openControllerSelect?: string | null;
   openControllerDebug?: string | null;
@@ -149,6 +153,8 @@ export interface Config {
   shortcuts?: RawShortcutsConfig;
   secondarySub?: SecondarySubConfig;
   subsync?: SubsyncConfig;
+  subtitleSelection?: { enabled?: boolean };
+  subtitleGeneration?: Partial<SubtitleGenerationConfig>;
   startupWarmups?: StartupWarmupsConfig;
   subtitleStyle?: SubtitleStyleConfig;
   subtitleSidebar?: SubtitleSidebarConfig;
@@ -157,6 +163,7 @@ export interface Config {
   /** @deprecated Use tsukihime. */
   animetosho?: TsukihimeConfig;
   tsukihime?: TsukihimeConfig;
+  tmdb?: TmdbConfig;
   anilist?: AnilistConfig;
   yomitan?: YomitanConfig;
   jellyfin?: JellyfinConfig;
@@ -225,6 +232,7 @@ export interface ResolvedConfig {
     fields: {
       word: string;
       audio: string;
+      wordAudio: string;
       image: string;
       sentence: string;
       miscInfo: string;
@@ -248,6 +256,7 @@ export interface ResolvedConfig {
       syncAnimatedImageToWordAudio: boolean;
       normalizeAudio: boolean;
       mirrorMpvVolume: boolean;
+      reviewTiming: boolean;
       audioPadding: number;
       fallbackDuration: number;
       maxMediaDuration: number;
@@ -285,6 +294,11 @@ export interface ResolvedConfig {
       fieldGrouping: 'auto' | 'manual' | 'disabled';
       deleteDuplicateInAuto: boolean;
     };
+    isSenren: {
+      enabled: boolean;
+      fieldGrouping: 'auto' | 'manual' | 'disabled';
+      deleteDuplicateInAuto: boolean;
+    };
     lapisKiku: {
       wordCardKind: WordCardKind;
     };
@@ -292,6 +306,8 @@ export interface ResolvedConfig {
   shortcuts: Required<ShortcutsConfig>;
   secondarySub: Required<SecondarySubConfig>;
   subsync: Required<SubsyncConfig>;
+  subtitleSelection: { enabled: boolean };
+  subtitleGeneration: SubtitleGenerationConfig;
   startupWarmups: {
     lowPowerMode: boolean;
     mecab: boolean;
@@ -321,6 +337,10 @@ export interface ResolvedConfig {
   tsukihime: TsukihimeConfig & {
     apiBaseUrl: string;
     maxSearchResults: number;
+  };
+  tmdb: {
+    apiKey: string;
+    apiKeyCommand: string;
   };
   anilist: {
     enabled: boolean;

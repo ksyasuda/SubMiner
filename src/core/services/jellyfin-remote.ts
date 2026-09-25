@@ -45,7 +45,20 @@ interface JellyfinRemoteSocket {
   on(event: 'close', listener: () => void): this;
   on(event: 'error', listener: (error: Error) => void): this;
   on(event: 'message', listener: (data: unknown) => void): this;
+  send(data: string): void;
+  terminate?(): void;
   close(): void;
+}
+
+// Jellyfin advertises its keep-alive timeout in the ForceKeepAlive message (60s by default),
+// drops sockets that stay silent past it, and since 12.0 also detaches the session's remote
+// controller when that happens. The drop never reaches the client as a close frame, so the
+// client has to keep sending KeepAlive and treat missing replies as a dead connection.
+const DEFAULT_KEEP_ALIVE_TIMEOUT_MS = 60_000;
+const KEEP_ALIVE_LOST_FACTOR = 1.5;
+
+function unrefTimer(timer: ReturnType<typeof setTimeout>): void {
+  (timer as unknown as { unref?: () => void }).unref?.();
 }
 
 type JellyfinRemoteSocketHeaders = Record<string, string>;
@@ -77,6 +90,9 @@ export interface JellyfinRemoteSessionServiceOptions {
   deviceName?: string;
   onConnected?: () => void;
   onDisconnected?: () => void;
+  logWarn?: (message: string, details?: unknown) => void;
+  keepAliveTimeoutMs?: number;
+  getNow?: () => number;
 }
 
 function normalizeServerUrl(serverUrl: string): string {
@@ -196,6 +212,12 @@ export class JellyfinRemoteSessionService {
   private readonly authHeader: string;
   private readonly onConnected?: () => void;
   private readonly onDisconnected?: () => void;
+  private readonly logWarn?: (message: string, details?: unknown) => void;
+  private readonly now: () => number;
+  private keepAliveTimeoutMs: number;
+  private keepAliveTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastInboundAtMs = 0;
+  private readonly failedRequestPaths = new Set<string>();
 
   private readonly reconnectBaseDelayMs: number;
   private readonly reconnectMaxDelayMs: number;
@@ -233,6 +255,12 @@ export class JellyfinRemoteSessionService {
     });
     this.onConnected = options.onConnected;
     this.onDisconnected = options.onDisconnected;
+    this.logWarn = options.logWarn;
+    this.now = options.getNow ?? Date.now;
+    this.keepAliveTimeoutMs = Math.max(
+      1000,
+      options.keepAliveTimeoutMs ?? DEFAULT_KEEP_ALIVE_TIMEOUT_MS,
+    );
     this.reconnectBaseDelayMs = Math.max(100, options.reconnectBaseDelayMs ?? 500);
     this.reconnectMaxDelayMs = Math.max(
       this.reconnectBaseDelayMs,
@@ -250,6 +278,7 @@ export class JellyfinRemoteSessionService {
   public stop(): void {
     this.running = false;
     this.connected = false;
+    this.stopKeepAlive();
     if (this.reconnectTimer) {
       this.clearTimer(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -298,12 +327,16 @@ export class JellyfinRemoteSessionService {
       if (this.socket !== socket || !this.running) return;
       this.connected = true;
       this.reconnectAttempt = 0;
+      this.lastInboundAtMs = this.now();
+      this.startKeepAlive(socket, this.keepAliveTimeoutMs);
       this.onConnected?.();
       void this.postCapabilities();
     });
 
     socket.on('message', (rawData) => {
-      this.handleInboundMessage(rawData);
+      if (this.socket !== socket || !this.running) return;
+      this.lastInboundAtMs = this.now();
+      this.handleInboundMessage(socket, rawData);
     });
 
     const handleDisconnect = () => {
@@ -311,6 +344,7 @@ export class JellyfinRemoteSessionService {
       disconnected = true;
       if (this.socket === socket) {
         this.socket = null;
+        this.stopKeepAlive();
       }
       this.connected = false;
       this.onDisconnected?.();
@@ -321,6 +355,51 @@ export class JellyfinRemoteSessionService {
 
     socket.on('close', handleDisconnect);
     socket.on('error', handleDisconnect);
+  }
+
+  private startKeepAlive(socket: JellyfinRemoteSocket, timeoutMs: number): void {
+    this.stopKeepAlive();
+    this.keepAliveTimeoutMs = timeoutMs;
+    this.sendKeepAlive(socket);
+    this.scheduleKeepAliveTick(socket);
+  }
+
+  private scheduleKeepAliveTick(socket: JellyfinRemoteSocket): void {
+    const intervalMs = Math.max(1000, Math.floor(this.keepAliveTimeoutMs / 2));
+    const timer = this.setTimer(() => {
+      this.keepAliveTimer = null;
+      if (this.socket !== socket || !this.running) return;
+      const silentForMs = this.now() - this.lastInboundAtMs;
+      if (silentForMs >= this.keepAliveTimeoutMs * KEEP_ALIVE_LOST_FACTOR) {
+        this.logWarn?.('Jellyfin remote websocket stopped answering keep-alives; reconnecting.');
+        // Dropping the socket raises 'close', which schedules the reconnect.
+        if (socket.terminate) {
+          socket.terminate();
+        } else {
+          socket.close();
+        }
+        return;
+      }
+      this.sendKeepAlive(socket);
+      this.scheduleKeepAliveTick(socket);
+    }, intervalMs);
+    unrefTimer(timer);
+    this.keepAliveTimer = timer;
+  }
+
+  private stopKeepAlive(): void {
+    if (this.keepAliveTimer) {
+      this.clearTimer(this.keepAliveTimer);
+      this.keepAliveTimer = null;
+    }
+  }
+
+  private sendKeepAlive(socket: JellyfinRemoteSocket): void {
+    try {
+      socket.send(JSON.stringify({ MessageType: 'KeepAlive' }));
+    } catch (error) {
+      this.logWarn?.('Failed to send Jellyfin remote keep-alive.', error);
+    }
   }
 
   private scheduleReconnect(): void {
@@ -342,7 +421,7 @@ export class JellyfinRemoteSessionService {
     const baseUrl = new URL(`${this.serverUrl}/`);
     const socketUrl = new URL('/socket', baseUrl);
     socketUrl.protocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-    socketUrl.searchParams.set('api_key', this.accessToken);
+    socketUrl.searchParams.set('ApiKey', this.accessToken);
     socketUrl.searchParams.set('deviceId', this.deviceId);
     return socketUrl.toString();
   }
@@ -350,8 +429,6 @@ export class JellyfinRemoteSessionService {
   private createSocket(url: string): JellyfinRemoteSocket {
     const headers: JellyfinRemoteSocketHeaders = {
       Authorization: this.authHeader,
-      'X-Emby-Authorization': this.authHeader,
-      'X-Emby-Token': this.accessToken,
     };
     if (this.socketHeadersFactory) {
       return this.socketHeadersFactory(url, headers);
@@ -375,8 +452,6 @@ export class JellyfinRemoteSessionService {
         method: 'GET',
         headers: {
           Authorization: this.authHeader,
-          'X-Emby-Authorization': this.authHeader,
-          'X-Emby-Token': this.accessToken,
         },
       });
       if (!response.ok) return false;
@@ -398,21 +473,41 @@ export class JellyfinRemoteSessionService {
         headers: {
           'Content-Type': 'application/json',
           Authorization: this.authHeader,
-          'X-Emby-Authorization': this.authHeader,
-          'X-Emby-Token': this.accessToken,
         },
         body: JSON.stringify(payload),
       });
+      this.noteRequestOutcome(path, response.ok ? null : `HTTP ${response.status}`);
       return response.ok;
-    } catch {
+    } catch (error) {
+      this.noteRequestOutcome(path, error);
       return false;
     }
   }
 
-  private handleInboundMessage(rawData: unknown): void {
+  // Warn once per path while it keeps failing so a rejected stop report is visible in the
+  // log without a warning per progress tick.
+  private noteRequestOutcome(path: string, failure: unknown): void {
+    if (failure === null) {
+      this.failedRequestPaths.delete(path);
+      return;
+    }
+    if (this.failedRequestPaths.has(path)) return;
+    this.failedRequestPaths.add(path);
+    this.logWarn?.(`Jellyfin remote request failed: POST ${path}`, failure);
+  }
+
+  private handleInboundMessage(socket: JellyfinRemoteSocket, rawData: unknown): void {
     const message = parseInboundMessage(rawData);
     if (!message) return;
     const messageType = message.MessageType;
+    if (messageType === 'ForceKeepAlive') {
+      const seconds = Number(message.Data);
+      const timeoutMs =
+        Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : this.keepAliveTimeoutMs;
+      this.startKeepAlive(socket, timeoutMs);
+      return;
+    }
+    if (messageType === 'KeepAlive') return;
     const payload = parseMessageData(message.Data);
     if (messageType === 'Play') {
       this.onPlay?.(payload);

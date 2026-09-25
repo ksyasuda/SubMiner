@@ -40,7 +40,7 @@ function toBashPath(filePath: string): string {
   return `${drive.toUpperCase()}:/${rest}`;
 }
 
-test('mkv-to-readme-video accepts libwebp_anim when libwebp is unavailable', () => {
+test('mkv-to-readme-video builds every output with the scaled mpv crop', () => {
   withTempDir((root) => {
     const binDir = path.join(root, 'bin');
     const inputPath = path.join(root, 'sample.mkv');
@@ -104,5 +104,9 @@ touch "$output"
 
     const ffmpegLog = fs.readFileSync(ffmpegLogPath, 'utf8');
     assert.match(ffmpegLog, /-c:v libwebp_anim/);
+    const scaledCropUses = ffmpegLog.match(
+      /-vf crop=1920\*iw\/3440:1080\*ih\/1440:760\*iw\/3440:205\*ih\/1440,scale=1920:1080:flags=lanczos/g,
+    );
+    assert.equal(scaledCropUses?.length, 4);
   });
 });

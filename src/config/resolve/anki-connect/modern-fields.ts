@@ -7,7 +7,15 @@ export function applyModernFieldsResolution(
   context: ResolveContext,
   fields: Record<string, unknown>,
 ): void {
-  for (const key of ['word', 'audio', 'image', 'sentence', 'miscInfo', 'translation'] as const) {
+  for (const key of [
+    'word',
+    'audio',
+    'wordAudio',
+    'image',
+    'sentence',
+    'miscInfo',
+    'translation',
+  ] as const) {
     applyModernValue(
       context,
       fields,

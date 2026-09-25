@@ -1,50 +1,34 @@
-# Anki Integration
+# Anki integration
 
-SubMiner uses the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on to create and update Anki cards with sentence context, audio, and screenshots.
-This project is built primarily for [Kiku](https://kiku.youyoumu.my.id/) and [Lapis](https://github.com/donkuri/lapis) note types, including sentence-card and field-grouping behavior.
+SubMiner talks to Anki through the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on. It fills new cards with the sentence, an audio clip, and a screenshot, and can create sentence cards and merge duplicate words. It is built for the [Lapis](https://github.com/donkuri/lapis), [Kiku](https://kiku.youyoumu.my.id/), and [Senren](https://github.com/BrenoAqua/Senren) note types, but works with any note type once you map its fields.
 
-::: tip New to these terms?
-
-- **Anki** is the flashcard app where your study cards live.
-- **AnkiConnect** is a free add-on that lets other programs (like SubMiner) talk to Anki over a local connection. SubMiner needs it installed to add or edit cards.
-- A **note type** (also called a "model") is the template that defines what a card looks like - for example the Kiku or Lapis templates many Japanese learners use.
-- A **field** is one labeled slot in that template, such as `Sentence`, `Expression`, or `Picture`. SubMiner fills these fields when it mines a card.
-  :::
+For the day-to-day flow, see [Mining workflow](/mining-workflow). Every key on this page, with its default, is listed in the [AnkiConnect config reference](/configuration#ankiconnect).
 
 ## Prerequisites
 
 1. Install [Anki](https://apps.ankiweb.net/).
-2. Install the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on (code: `2055492159`).
-3. Keep Anki running while using SubMiner.
+2. Install AnkiConnect (add-on code `2055492159`).
+3. Install FFmpeg and make sure it is on your `PATH`. SubMiner uses it for audio and images.
+4. Keep Anki running while you mine.
 
-AnkiConnect listens on `http://127.0.0.1:8765` by default. If you changed the port in AnkiConnect's settings, update `ankiConnect.url` in your SubMiner config.
+If you changed AnkiConnect's port, set `ankiConnect.url` to match.
 
-## Auto-Enrichment Transport
+## How cards get filled
 
-When you add a word via Yomitan, SubMiner detects the new card and fills in the sentence, audio, image, and translation fields automatically. Two detection methods are available:
+When Yomitan adds a note, SubMiner fills the sentence, audio, image, and MiscInfo fields. It finds new notes in one of two ways:
 
-**Proxy mode** (default) - SubMiner runs a local _proxy_: a small middleman server that sits between Yomitan and Anki. Yomitan sends new cards to SubMiner, SubMiner enriches them, then passes them along to Anki. This makes enrichment instant.
+- **Proxy (default).** SubMiner runs a local AnkiConnect-compatible server. Yomitan sends notes through it, and SubMiner fills each one right after Anki accepts it.
+- **Polling.** With `ankiConnect.proxy.enabled` set to `false`, SubMiner asks AnkiConnect for recently added notes every `ankiConnect.pollingRate` milliseconds.
 
-**Polling mode** (fallback, when the proxy is disabled) - SubMiner asks AnkiConnect every few seconds whether any new cards were added, then enriches them. Simpler setup, but with a short delay (~3 seconds).
+Set `ankiConnect.behavior.autoUpdateNewCards` to `false` to stop automatic filling and update cards by hand with `Ctrl/Cmd+V` instead.
 
-Use proxy mode if you want immediate enrichment. Use polling mode if your Yomitan instance is external (browser-based) or you prefer minimal configuration.
+`ankiConnect.deck` limits enrichment and duplicate checks to one deck. If it is empty, SubMiner uses Yomitan's mining deck when it can read it, and otherwise searches all decks.
 
-In both modes, the enrichment workflow is the same:
-
-1. Checks if a duplicate expression already exists (for field grouping).
-2. Updates the sentence field with the current subtitle.
-3. Generates and uploads audio and image media.
-4. Fills the translation field from the secondary subtitle or AI.
-5. Writes metadata to the miscInfo field.
-
-Polling mode uses the query `"deck:<ankiConnect.deck>" added:1` to find recently added cards. If no deck is configured, it searches all decks (`added:1`). In Settings, the AnkiConnect deck dropdown auto-fills and persists Yomitan's current mining deck when available, then falls back to the decks reported by AnkiConnect; stats-dashboard mining also falls back to Yomitan's mining deck when `ankiConnect.deck` is empty.
-Known-word sync scope is controlled by `ankiConnect.knownWords.decks`.
-
-### Proxy Mode Setup (Yomitan / Texthooker)
+### Proxy mode setup (Yomitan / texthooker) {#proxy-mode-setup-yomitan-texthooker}
 
 ```jsonc
 "ankiConnect": {
-  "url": "http://127.0.0.1:8765", // real AnkiConnect
+  "url": "http://127.0.0.1:8765",
   "proxy": {
     "enabled": true,
     "host": "127.0.0.1",
@@ -54,363 +38,183 @@ Known-word sync scope is controlled by `ankiConnect.knownWords.decks`.
 }
 ```
 
-Then point Yomitan/clients to `http://127.0.0.1:8766` instead of `8765`.
+Clients must send notes to the proxy (`http://127.0.0.1:8766` here), not to AnkiConnect directly.
 
-When SubMiner loads the bundled Yomitan extension, it also attempts to update the **currently active Yomitan profile**'s Anki server to the active SubMiner endpoint (falling back to `profiles[0]` if the active-profile index is invalid):
+- **Bundled Yomitan.** SubMiner sets the active Yomitan profile's Anki server for you. With the proxy on, it always points the profile at the proxy. With the proxy off, it sets `ankiConnect.url`, but only if the profile's server is blank or the stock `http://127.0.0.1:8765`.
+- **Browser Yomitan or other clients.** Set the Anki server to the proxy URL yourself. To leave your main profile alone, create a separate Yomitan profile for SubMiner, set its Anki server (Settings, Anki) to the proxy URL, and make it active while you mine.
 
-- proxy URL when `ankiConnect.proxy.enabled` is `true`
-- direct `ankiConnect.url` when proxy mode is disabled
+### Proxy troubleshooting
 
-To avoid clobbering custom setups, this auto-update only changes the profile when its current server is blank or the stock Yomitan default (`http://127.0.0.1:8765`).
+If cards are not getting filled:
 
-For browser-based Yomitan or other external clients (for example Texthooker in a normal browser profile), set their Anki server to the same proxy URL separately: `http://127.0.0.1:8766` (or your configured `proxy.host` + `proxy.port`).
+1. Check that the proxy is listening while SubMiner runs:
 
-### Browser/Yomitan external setup (separate profile)
+   ```bash
+   ss -ltnp | grep 8766
+   ```
 
-If you want SubMiner to use proxy mode without touching your main/default Yomitan profile, create or select a separate Yomitan profile just for SubMiner and set its Anki server to the proxy URL.
+2. Check that requests pass through to Anki:
 
-That profile isolation gives you both benefits:
+   ```bash
+   curl -sS http://127.0.0.1:8766 \
+     -H 'content-type: application/json' \
+     -d '{"action":"version","version":2}'
+   ```
 
-- SubMiner can auto-enrich immediately via proxy.
-- Your default Yomitan profile keeps its existing Anki server setting.
+3. Read the app log (`app-YYYY-MM-DD.log`) in the logs folder. See [Troubleshooting](/troubleshooting) for where logs live.
 
-In Yomitan, go to Settings → Profile and:
+## Field mapping
 
-1. Create a profile for SubMiner (or choose one dedicated profile).
-2. Open Anki settings for that profile.
-3. Set server to `http://127.0.0.1:8766` (or your configured proxy URL).
-4. Save and make that profile active when using SubMiner.
+`ankiConnect.fields` maps SubMiner's data to fields on your note type.
 
-This is only for non-bundled, external/browser Yomitan or other clients. The bundled profile auto-update logic only targets the active profile when its server is blank or still default.
-
-### Proxy Troubleshooting (quick checks)
-
-If auto-enrichment appears to do nothing:
-
-1. Confirm proxy listener is running while SubMiner is active:
-
-```bash
-ss -ltnp | rg 8766
-```
-
-2. Confirm requests can pass through the proxy:
-
-```bash
-curl -sS http://127.0.0.1:8766 \
-  -H 'content-type: application/json' \
-  -d '{"action":"version","version":2}'
-```
-
-3. Check the log sinks in `~/.config/SubMiner/logs/`:
-
-- App runtime log: `app-YYYY-MM-DD.log`
-- Launcher log: `launcher-YYYY-MM-DD.log`
-- mpv log: `mpv-YYYY-MM-DD.log`
-
-4. Ensure config JSONC is valid and logging shape is correct:
-
-```jsonc
-"logging": {
-  "level": "debug"
-}
-```
-
-`"logging": "debug"` is invalid for current schema and can break reload/start behavior.
-
-## Field Mapping
-
-SubMiner maps its data to your Anki note fields. Configure these under `ankiConnect.fields`:
+| Key                | Receives                                                                  |
+| ------------------ | ------------------------------------------------------------------------- |
+| `fields.word`      | The mined word                                                            |
+| `fields.audio`     | Sentence audio cut from the video                                         |
+| `fields.wordAudio` | Read only: Yomitan's word audio, used to time animated images (see below) |
+| `fields.image`     | Screenshot or animated clip                                               |
+| `fields.sentence`  | Subtitle text                                                             |
+| `fields.miscInfo`  | Text from `ankiConnect.metadata.pattern`                                  |
 
 ```jsonc
 "ankiConnect": {
   "fields": {
-    "word": "Expression",           // mined word / expression text
-    "audio": "ExpressionAudio",    // audio clip from the video
-    "image": "Picture",             // screenshot or animated clip
-    "sentence": "Sentence",         // subtitle text
-    "miscInfo": "MiscInfo",         // metadata (filename, timestamp)
-    "translation": "SelectionText"  // secondary sub or AI translation
+    "audio": "SentenceAudio",
+    "sentence": "Sentence"
   }
 }
 ```
 
-Field names are matched against your Anki note type case-insensitively (an exact match wins, then a lowercase comparison). If a configured field does not exist on the note type, SubMiner skips it without error.
+Field names are matched case-insensitively. A mapped field that is missing from the note type is skipped.
 
-Two related options live alongside `fields`: `ankiConnect.deck` (target deck; empty falls back as described above) and `ankiConnect.tags` (tags added to mined cards, default `["SubMiner"]`; set `[]` to disable tagging). The `miscInfo` content is controlled by `ankiConnect.metadata.pattern` (default `[SubMiner] %f (%t)`; tokens: `%f` filename, `%F` filename with extension, `%t` timestamp, `%T` timestamp with milliseconds, `<br>` newline).
+`fields.audio` gets sentence audio, not word audio. Yomitan writes its own dictionary audio into your note, so point `fields.audio` at a separate field such as `SentenceAudio`. The default, `ExpressionAudio`, is the field many note types use for Yomitan's word audio, so leaving it would overwrite that audio.
 
-### Minimal Config
+`ankiConnect.tags` adds tags to every mined or updated card. Set it to `[]` to add none.
 
-If you only want sentence and audio on your cards:
+`ankiConnect.metadata.pattern` builds the MiscInfo text. Tokens: `%f` file name, `%F` file name with extension, `%t` timestamp, `%T` timestamp with milliseconds, `<br>` line break.
 
-```jsonc
-"ankiConnect": {
-  "enabled": true,
-  "fields": {
-    "sentence": "Sentence",
-    "audio": "ExpressionAudio"
-  }
-}
-```
+## Media
 
-## Media Generation
+| Key                                  | What it does                                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `media.generateAudio`                | Cut sentence audio (MP3) from the subtitle's start and end time                                                           |
+| `media.audioPadding`                 | Seconds added before and after the clip                                                                                   |
+| `media.fallbackDuration`             | Clip length when the subtitle has no timing                                                                               |
+| `media.maxMediaDuration`             | Longest allowed clip, in seconds (`0` removes the cap)                                                                    |
+| `media.normalizeAudio`               | Normalize clip loudness                                                                                                   |
+| `media.mirrorMpvVolume`              | Scale the clip by mpv's current volume, so quiet playback gives quiet clips                                               |
+| `media.generateImage`                | Capture an image                                                                                                          |
+| `media.imageType`                    | `static` for one frame, `avif` for an animated clip of the line                                                           |
+| `media.imageFormat`                  | Static format: `jpg`, `png`, or `webp`                                                                                    |
+| `media.imageQuality`                 | Static image quality                                                                                                      |
+| `media.imageMaxWidth` / `Height`     | Static size limit (`0` keeps source size)                                                                                 |
+| `media.animatedFps`                  | Animated clip frame rate                                                                                                  |
+| `media.animatedMaxWidth` / `Height`  | Animated size limit (`0` keeps aspect ratio)                                                                              |
+| `media.animatedCrf`                  | Animated quality, `0` to `63`, lower is better                                                                            |
+| `media.syncAnimatedImageToWordAudio` | Hold the first frame for the length of the word audio in `fields.wordAudio`, so the motion starts with the sentence audio |
+| `media.reviewTiming`                 | Pause and let you adjust the clip before media is made (see below)                                                        |
 
-SubMiner uses FFmpeg to generate audio and image media from the video. FFmpeg must be installed and on `PATH`.
+Animated AVIF needs an FFmpeg build with an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`).
 
-### Audio
+Media settings apply to the next card without a restart.
 
-Audio is extracted from the video file using the subtitle's start and end timestamps. Padding is opt-in; keep it at `0` when you want sentence audio to start exactly at the mined sentence.
+### Review media timing
 
-```jsonc
-"ankiConnect": {
-  "media": {
-    "generateAudio": true,
-    "normalizeAudio": true,      // normalize generated clip loudness
-    "mirrorMpvVolume": true,     // apply the current mpv volume level
-    "audioPadding": 0,           // optional seconds before and after subtitle timing
-    "maxMediaDuration": 30       // cap total duration in seconds
-  }
-}
-```
+With `media.reviewTiming` on, SubMiner pauses before making media for word, sentence, and audio cards and opens a review dialog. You can also toggle it for the current session with **Review Media Timing** in the runtime options palette (`Ctrl/Cmd+Shift+O`). Clipboard updates and stats-dashboard mining skip the review.
 
-Output format: MP3 at 44100 Hz. If the video has multiple audio streams, SubMiner uses the active stream. Generated sentence audio is loudness-normalized to -23 LUFS by default during extraction; set `normalizeAudio` to `false` to keep raw source loudness. When subtitle timing is missing, clips fall back to `media.fallbackDuration` seconds (default `3`). Changing these settings applies to the next extraction without restarting SubMiner.
+The dialog shows the clip over a speech waveform. When the waveform loads, an untouched clip end moves back to just after the last speech in the line. The Line end rail still marks the subtitle's own end.
 
-`mirrorMpvVolume` is also enabled by default. Immediately before extracting each playback-overlay card's audio, SubMiner reads mpv's numeric `volume` and applies mpv's cubic software-volume curve after loudness normalization. For example, mpv volume `50` produces `0.5³ = 0.125` gain. Amplified output above mpv volume `100` is limited to a `-1 dBFS` ceiling before MP3 encoding to prevent clipping. It ignores mpv's separate `mute` state. If the volume property is missing, invalid, or unavailable, extraction continues with unity scaling; disabling this option skips the query and volume filter. Changing this setting applies to the next extraction without restarting SubMiner. YouTube cards queued for a background media-cache download retain the volume captured when the card was mined. Stats-dashboard mining does not currently have access to the active mpv property client, so it does not apply mpv volume scaling.
+| Action                   | How                                                                   |
+| ------------------------ | --------------------------------------------------------------------- |
+| Trim                     | Drag either edge, or click the waveform to move the nearer edge there |
+| Nudge an edge            | Arrow keys on a focused edge (100 ms, `Shift` for 500 ms)             |
+| Slide the clip           | Drag the middle                                                       |
+| Show more timeline       | Earlier / Later                                                       |
+| Pick the screenshot      | Screenshot slider or Frame buttons (static images only)               |
+| Add previous / next line | `P` / `N` (`Shift+P` / `Shift+N` removes)                             |
+| Preview                  | `Space`                                                               |
+| Confirm                  | `Enter`                                                               |
+| Cancel                   | `Escape`                                                              |
 
-The audio is uploaded to Anki's media folder and inserted as `[sound:audio_<timestamp>.mp3]`.
+The confirmed range is used as is, with no extra padding. Added lines go into the sentence field. Reset restores the original timing and removes added lines.
 
-### Screenshots (Static)
+When you cancel, you can go back to editing, keep the original timing, create the card without media, or discard it. Discard deletes the Yomitan note or audio card, and skips creation for a sentence card.
 
-A single frame is captured at the current playback position.
+### Update behavior
 
-```jsonc
-"ankiConnect": {
-  "media": {
-    "generateImage": true,
-    "imageType": "static",
-    "imageFormat": "jpg",        // "jpg", "png", or "webp"
-    "imageQuality": 92,          // 1–100
-    "imageMaxWidth": 0,          // 0 = preserve source resolution
-    "imageMaxHeight": 0
-  }
-}
-```
+| Key                           | What it does                                         |
+| ----------------------------- | ---------------------------------------------------- |
+| `behavior.overwriteAudio`     | Replace existing audio instead of adding to it       |
+| `behavior.overwriteImage`     | Replace the existing image instead of adding to it   |
+| `behavior.mediaInsertMode`    | `append` or `prepend` new media when not overwriting |
+| `behavior.autoUpdateNewCards` | Fill new Yomitan notes automatically                 |
+| `behavior.highlightWord`      | Bold the mined word in the sentence field            |
+| `behavior.notificationType`   | `overlay`, `system`, `both`, or `none`               |
 
-### Animated Clips (AVIF)
+Manual clipboard updates (`Ctrl/Cmd+V`) always replace the sentence audio, whatever `overwriteAudio` says.
 
-Instead of a static screenshot, SubMiner can generate an animated AVIF covering the subtitle duration.
+## Sentence cards (Lapis) {#sentence-cards-lapis}
 
-```jsonc
-"ankiConnect": {
-  "media": {
-    "generateImage": true,
-    "imageType": "avif",
-    "animatedFps": 10,
-    "animatedMaxWidth": 640,
-    "animatedMaxHeight": 0,      // 0 = preserve aspect ratio
-    "animatedCrf": 35            // 0–63, lower = better quality
-  }
-}
-```
-
-Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`) in your FFmpeg build. Generation timeout is 60 seconds. `media.syncAnimatedImageToWordAudio` (default `true`) prepends a frozen first frame matching the existing word-audio duration, so the motion starts together with the sentence audio.
-
-### Behavior Options
-
-```jsonc
-"ankiConnect": {
-  "behavior": {
-    "overwriteAudio": true,         // replace existing audio, or append
-    "overwriteImage": true,         // replace existing image, or append
-    "mediaInsertMode": "append",    // "append" or "prepend" to field content
-    "autoUpdateNewCards": true,     // auto-update when new card detected
-    "highlightWord": true,          // bold the mined word inside the sentence field
-    "notificationType": "overlay"   // "overlay", "system", "both", or "none"
-  }
-}
-```
-
-`both` now means overlay + system notification. `osd` and `osd-system` are legacy config-file-only values; set `notificationType` to `"osd-system"` in `config.jsonc` if you previously used `both` and want to keep mpv OSD + system notifications. The Settings window shows `osd` or `osd-system` when already configured, but only offers `overlay`, `system`, `both`, and `none` as normal choices.
-
-When media is available, mined-card overlay and system notifications include the same current-frame thumbnail.
-
-`overwriteAudio` applies to automatic card updates and duplicate-card enrichment. Manual clipboard subtitle updates (`Ctrl/Cmd+C`, then `Ctrl/Cmd+V`) always replace generated sentence audio, while leaving the word audio field unchanged.
-
-## AI Translation
-
-SubMiner can auto-translate the mined sentence and fill the translation field.
-Secondary subtitle text still wins when present. AI translation is only attempted when `ankiConnect.ai.enabled` is `true` and no secondary subtitle exists.
-
-```jsonc
-"ai": {
-  "enabled": true,
-  "apiKey": "sk-...",
-  "apiKeyCommand": "",
-  "baseUrl": "https://openrouter.ai/api",
-  "requestTimeoutMs": 15000
-},
-"ankiConnect": {
-  "ai": {
-    "enabled": true,
-    "model": "openai/gpt-4o-mini",
-    "systemPrompt": "Translate mined sentence text only."
-  }
-}
-```
-
-`ankiConnect.ai` controls feature-local enablement plus optional `model` / `systemPrompt` overrides.
-Provider credentials and request transport settings live in top-level `ai`.
-
-Translation priority:
-
-1. If a secondary subtitle is available, use it as the translation.
-2. If `ankiConnect.ai.enabled` is `true` and top-level `ai.enabled` is `true`, call the shared AI provider.
-3. If AI translation fails and no secondary subtitle exists, fall back to the original sentence text.
-
-The built-in translation request asks for English output by default. Customize that behavior through `ankiConnect.ai.systemPrompt`.
-
-## Sentence Cards (Lapis)
-
-SubMiner can create standalone sentence cards (without a word/expression) using a separate note type. This is designed for use with [Lapis](https://github.com/donkuri/Lapis) and similar sentence-focused note types.
-
-::: warning Required config
-Sentence card creation and audio card marking require a non-empty `ankiConnect.isLapis.sentenceCardModel` naming a note type that exists in Anki (default: `"Lapis"`). If the model is empty or missing, the `Ctrl/Cmd+S` and `Ctrl/Cmd+Shift+A` shortcuts will not create cards.
-:::
+`Ctrl/Cmd+S` creates a standalone sentence card from the current line, and `Ctrl/Cmd+Shift+S` then a digit combines several lines. The card uses the note type named in `ankiConnect.isLapis.sentenceCardModel`, which must exist in Anki. If it is empty, no card is created.
 
 ```jsonc
 "ankiConnect": {
   "isLapis": {
     "enabled": true,
-    "sentenceCardModel": "Lapis" // default; point at your Lapis/Kiku note type
+    "sentenceCardModel": "Lapis"
   }
 }
 ```
 
-Trigger with the mine sentence shortcut (`Ctrl/Cmd+S` by default). The card is created directly via AnkiConnect with the sentence, audio, and image filled in.
+Sentence cards and audio cards (`Ctrl/Cmd+Shift+A`) always write to the `Sentence` and `SentenceAudio` fields. Normal word cards keep using your `ankiConnect.fields` mapping.
 
-To mine multiple subtitle lines as one sentence card, use `Ctrl/Cmd+Shift+S` followed by a digit (1–9) to select how many recent lines to combine.
+## Word card type (Kiku/Lapis)
 
-## Word Card Type (Kiku/Lapis)
+When `isKiku` or `isLapis` is enabled, SubMiner sets a card-type flag on word cards it fills. Choose the flag with `ankiConnect.lapisKiku.wordCardKind`:
 
-Word cards get a card-type flag when SubMiner fills their sentence, whether that comes from Yomitan auto-enrichment, a manual clipboard update, or stats-dashboard word mining. By default the flag is `IsWordAndSentenceCard`; pick a different one with `ankiConnect.lapisKiku.wordCardKind`.
+| Value               | Flag                    |
+| ------------------- | ----------------------- |
+| `word-and-sentence` | `IsWordAndSentenceCard` |
+| `click`             | `IsClickCard`           |
+| `sentence`          | `IsSentenceCard`        |
+| `audio`             | `IsAudioCard`           |
+| `none`              | Leaves flags alone      |
 
-```jsonc
-"ankiConnect": {
-  "isKiku": { "enabled": true },
-  "lapisKiku": {
-    "wordCardKind": "click" // word-and-sentence (default), click, sentence, audio, none
-  }
-}
-```
+The other card-type flags are cleared. Sentence cards and audio cards keep their own flag.
 
-`click` marks `IsClickCard`, `sentence` marks `IsSentenceCard`, `audio` marks `IsAudioCard`, and `none` leaves the flags untouched for templates that manage them elsewhere. Whichever flag is chosen, the other card-type flags are cleared so the note never claims two card types. The setting is only read when `isKiku` or `isLapis` is enabled, and cards mined with Mine Sentence or Mine Audio keep their own flag.
+## Field grouping (Kiku/Senren) {#field-grouping-kiku-senren}
 
-## Field Grouping (Kiku)
+When you mine a word that already has a card, SubMiner can merge the new card into the old one. The sentence, audio, image, and MiscInfo from both cards are kept as grouped entries, and the template lets you switch between them. This works with [Kiku](https://github.com/youyoumu/kiku) and [Senren](https://github.com/BrenoAqua/Senren) (which calls it [scene switching](https://github.com/BrenoAqua/Senren/blob/main/docs/scene_switching.md)).
 
-When you mine the same word multiple times, SubMiner can merge the cards instead of creating duplicates. This is designed for note types like [Kiku](https://github.com/youyoumu/kiku) that support grouped sentence/audio/image fields.
+Enable one of them. They write different markup to the same fields, so only one can be on. If both are enabled, Kiku is used and SubMiner logs a config warning.
 
 ```jsonc
 "ankiConnect": {
   "isKiku": {
     "enabled": true,
-    "fieldGrouping": "manual",         // "auto", "manual", or "disabled"
-    "deleteDuplicateInAuto": true      // delete new card after auto-merge
+    "fieldGrouping": "manual",
+    "deleteDuplicateInAuto": true
   }
 }
 ```
 
-### Modes
+For Senren, use the same keys under `isSenren`.
 
-**Disabled** (`"disabled"`): No duplicate detection. Each card is independent.
+| `fieldGrouping` | Behavior                                                                        |
+| --------------- | ------------------------------------------------------------------------------- |
+| `disabled`      | No duplicate check                                                              |
+| `auto`          | Merge into the existing card. With `deleteDuplicateInAuto`, delete the new card |
+| `manual`        | Show both cards, let you choose which to keep and preview the merge             |
 
-**Auto** (`"auto"`): When a duplicate expression is found, SubMiner merges the new card into the existing one automatically. Both cards' sentences, audio clips, and images are preserved as grouped entries. If `deleteDuplicateInAuto` is true, the new card is deleted after merging.
+The manual dialog cancels itself after 90 seconds. Identical entries are not deduplicated. Press `Ctrl/Cmd+G` to run the duplicate check on the last card yourself.
 
-**Manual** (`"manual"`): A modal appears in the overlay showing both cards. You choose which card to keep, preview the merge result, then confirm. The modal has a 90-second timeout, after which it cancels automatically.
+| Key         | Action                                |
+| ----------- | ------------------------------------- |
+| `1` / `2`   | Keep card 1 or card 2                 |
+| `Enter`     | Confirm                               |
+| `Backspace` | Back from the merge preview           |
+| `Esc`       | Cancel and leave both cards unchanged |
 
-### What Gets Merged
+## Config validation
 
-| Field    | Merge behavior                                |
-| -------- | --------------------------------------------- |
-| Sentence | Both cards' sentences kept as grouped entries |
-| Audio    | Both cards' `[sound:...]` entries kept        |
-| Image    | Both cards' images kept                       |
-
-Identical values from both cards are kept as separate grouped entries; the merge does not deduplicate.
-
-### Keyboard Shortcuts in the Modal
-
-| Key         | Action                             |
-| ----------- | ---------------------------------- |
-| `1` / `2`   | Select card 1 or card 2 to keep    |
-| `Enter`     | Confirm selection                  |
-| `Backspace` | Go back from the merge preview     |
-| `Esc`       | Cancel (keep both cards unchanged) |
-
-## Full Config Example
-
-```jsonc
-{
-  "ankiConnect": {
-    "enabled": true,
-    "url": "http://127.0.0.1:8765",
-    "pollingRate": 3000,
-    "deck": "",
-    "tags": ["SubMiner"],
-    "proxy": {
-      "enabled": true, // default
-      "host": "127.0.0.1",
-      "port": 8766,
-      "upstreamUrl": "http://127.0.0.1:8765",
-    },
-    "fields": {
-      "word": "Expression",
-      "audio": "ExpressionAudio",
-      "image": "Picture",
-      "sentence": "Sentence",
-      "miscInfo": "MiscInfo",
-      "translation": "SelectionText",
-    },
-    "media": {
-      "generateAudio": true,
-      "generateImage": true,
-      "imageType": "static",
-      "imageFormat": "jpg",
-      "imageQuality": 92,
-      "normalizeAudio": true,
-      "mirrorMpvVolume": true,
-      "audioPadding": 0,
-      "maxMediaDuration": 30,
-    },
-    "behavior": {
-      "overwriteAudio": true,
-      "overwriteImage": true,
-      "mediaInsertMode": "append",
-      "autoUpdateNewCards": true,
-      "notificationType": "overlay",
-    },
-    "metadata": {
-      "pattern": "[SubMiner] %f (%t)",
-    },
-    "ai": {
-      "enabled": false,
-      "model": "", // e.g. "openai/gpt-4o-mini"
-      "systemPrompt": "",
-    },
-    "isKiku": {
-      "enabled": false,
-      "fieldGrouping": "disabled",
-      "deleteDuplicateInAuto": true,
-    },
-    "isLapis": {
-      "enabled": false,
-      "sentenceCardModel": "Lapis",
-    },
-  },
-  "ai": {
-    "enabled": false,
-    "apiKey": "",
-    "apiKeyCommand": "",
-    "baseUrl": "https://openrouter.ai/api",
-    "requestTimeoutMs": 15000,
-  },
-}
-```
+Invalid `ankiConnect` values produce a warning and fall back to the default. Use JSON booleans (`true`, not `"true"`) and a positive number for `pollingRate`.

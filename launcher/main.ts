@@ -25,6 +25,7 @@ import { runHistorySession } from './commands/history-command.js';
 import { runSyncCommand } from './commands/sync-command.js';
 import { runPlaybackCommand } from './commands/playback-command.js';
 import { runUpdateCommand } from './commands/update-command.js';
+import { runGenerateSubtitlesCommand } from './commands/generate-subtitles-command.js';
 
 const APP_VERSION =
   typeof packageJson.version === 'string' && packageJson.version.trim()
@@ -109,6 +110,10 @@ async function main(): Promise<void> {
   }
 
   if (await runSyncCommand(context)) {
+    return;
+  }
+
+  if (await runGenerateSubtitlesCommand(context)) {
     return;
   }
 

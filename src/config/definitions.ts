@@ -1,4 +1,5 @@
 import { RawConfig, ResolvedConfig } from '../types/config';
+import { DEFAULT_SUBTITLE_GENERATION_CONFIG } from '../shared/subtitle-generation';
 import { CORE_DEFAULT_CONFIG } from './definitions/defaults-core';
 import { IMMERSION_DEFAULT_CONFIG } from './definitions/defaults-immersion';
 import { INTEGRATIONS_DEFAULT_CONFIG } from './definitions/defaults-integrations';
@@ -41,6 +42,7 @@ const {
   ankiConnect,
   jimaku,
   tsukihime,
+  tmdb,
   anilist,
   mpv,
   yomitan,
@@ -54,6 +56,8 @@ const { immersionTracking } = IMMERSION_DEFAULT_CONFIG;
 const { stats } = STATS_DEFAULT_CONFIG;
 
 export const DEFAULT_CONFIG: ResolvedConfig = {
+  subtitleSelection: { enabled: false },
+  subtitleGeneration: { ...DEFAULT_SUBTITLE_GENERATION_CONFIG },
   subtitlePosition,
   keybindings,
   websocket,
@@ -74,6 +78,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   auto_start_overlay,
   jimaku,
   tsukihime,
+  tmdb,
   anilist,
   mpv,
   yomitan,

@@ -1,6 +1,7 @@
 import type { ResolveContext } from '../context';
 import { isObject } from '../shared';
 import { applyAiResolution } from './ai';
+import { applyAnkiBaseResolution } from './base';
 import { applyLapisResolution } from './lapis';
 import { applyModernBehaviorResolution } from './modern-behavior';
 import { applyModernFieldsResolution } from './modern-fields';
@@ -18,6 +19,7 @@ export function applyAnkiModernResolution(
   const fields = isObject(ankiConnect.fields) ? ankiConnect.fields : {};
   const metadata = isObject(ankiConnect.metadata) ? ankiConnect.metadata : {};
 
+  applyAnkiBaseResolution(context, ankiConnect);
   applyModernFieldsResolution(context, fields);
   applyModernMediaResolution(context, media);
   applyModernBehaviorResolution(context, behavior);

@@ -156,6 +156,7 @@ test('createConfigHotReloadAppliedHandler applies only changed Anki media option
   const config = deepCloneConfig(DEFAULT_CONFIG);
   config.ankiConnect.media.normalizeAudio = false;
   config.ankiConnect.media.mirrorMpvVolume = false;
+  config.ankiConnect.media.reviewTiming = true;
   const ankiPatches: unknown[] = [];
 
   const applyHotReload = createConfigHotReloadAppliedHandler({
@@ -181,10 +182,18 @@ test('createConfigHotReloadAppliedHandler applies only changed Anki media option
     },
     config,
   );
+  applyHotReload(
+    {
+      hotReloadFields: ['ankiConnect.media.reviewTiming'],
+      restartRequiredFields: [],
+    },
+    config,
+  );
 
   assert.deepEqual(ankiPatches, [
     { media: { normalizeAudio: false } },
     { media: { mirrorMpvVolume: false } },
+    { media: { reviewTiming: true } },
   ]);
 });
 

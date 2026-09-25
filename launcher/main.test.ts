@@ -73,20 +73,21 @@ function makeTestEnv(homeDir: string, xdgConfigHome: string): NodeJS.ProcessEnv 
   };
 }
 
-// On Linux the playback path runs `ensureLinuxRuntimePluginAvailable`, which —
-// when the runtime plugin/theme are missing — spawns the app with
-// `--ensure-linux-runtime-plugin-assets` and polls up to 30s
+// On Linux the playback path runs `ensureLinuxRuntimePluginAvailable`, which
+// spawns the app with `--ensure-linux-runtime-plugin-assets` when managed
+// support assets are missing and polls up to 30s
 // (RESPONSE_TIMEOUT_MS) for an install response. A fake app that just exits
 // never writes that response, so the launcher hangs and the test times out on
 // Linux CI (the preflight is a no-op on macOS/Windows). This shell prelude makes
-// the fake app install the managed plugin/theme and write the response, matching
+// the fake app install the managed support assets and write the response, matching
 // launcher/smoke.e2e.test.ts. Prepend it to each fake app that reaches playback.
 const RUNTIME_PLUGIN_PREFLIGHT_SH = `if [ "$1" = "--ensure-linux-runtime-plugin-assets" ]; then
   data="\${XDG_DATA_HOME:-$HOME/.local/share}/SubMiner"
-  mkdir -p "$data/plugin/subminer" "$data/themes"
+  mkdir -p "$data/plugin/subminer" "$data/themes" "$data/thumbnailers"
   printf -- '-- test plugin\\n' > "$data/plugin/subminer/main.lua"
   printf 'test=true\\n' > "$data/plugin/subminer.conf"
   printf '/* test theme */\\n' > "$data/themes/subminer.rasi"
+  printf '[Thumbnailer Entry]\\n' > "$data/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer"
   if [ "$2" = "--ensure-linux-runtime-plugin-assets-response-path" ] && [ -n "$3" ]; then
     mkdir -p "$(dirname "$3")"
     printf '{"ok":true,"status":"installed","path":"%s"}' "$data/plugin/subminer/main.lua" > "$3"

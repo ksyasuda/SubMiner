@@ -183,7 +183,10 @@ test('remote media keeps parsed cues when the active subtitle source cannot be r
   )?.groups?.body;
 
   assert.ok(actionBlock);
-  assert.match(actionBlock, /isYoutubeMediaPath\(videoPath\) \|\| isRemoteMediaPath\(videoPath\)/);
+  assert.match(
+    actionBlock,
+    /isYoutubeMediaPath\(videoPath\) \|\| \(await detectRemoteMediaPath\(videoPath\)\)/,
+  );
 });
 
 test('jellyfin subtitle preload seeds the tokenization prefetch directly', () => {
@@ -430,11 +433,11 @@ test('warm tokenization release can signal readiness before the first subtitle a
 
 test('stats server Yomitan note creation honors configured Anki server override policy', () => {
   const source = readSource('src/main/runtime/stats-server-runtime.ts');
-  const startStatsServerBlock = source.match(
-    /statsServer = startStatsServer\(\{(?<body>[\s\S]*?)\n      \}\);/,
+  const statsServerConfigBlock = source.match(
+    /const buildStatsServerConfig[\s\S]*?return \{(?<body>[\s\S]*?)\n    \};\n  \};/,
   )?.groups?.body;
-  const addYomitanNoteBlock = startStatsServerBlock?.match(
-    /addYomitanNote:\s*async\s*\(word: string\)\s*=>\s*\{(?<body>[\s\S]*?)\n        \},/,
+  const addYomitanNoteBlock = statsServerConfigBlock?.match(
+    /addYomitanNote:\s*async\s*\(word: string\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
   )?.groups?.body;
 
   assert.ok(addYomitanNoteBlock);
@@ -450,7 +453,7 @@ test('Linux visible overlay recreation clears stale input state before creating 
   const source = readMainSource();
   const runtimeSource = readSource('src/main/runtime/visible-overlay-interaction-runtime.ts');
   const actionBlock = source.match(
-    /function createLinuxVisibleOverlayWindowForCurrentMode\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
+    /const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime\(\{[\s\S]*?createWindow: \(\) => \{(?<body>[\s\S]*?)\n  \},/,
   )?.groups?.body;
   const resetBlock = runtimeSource.match(
     /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n  \}/,
@@ -469,7 +472,7 @@ test('Linux visible overlay recreation clears stale input state before creating 
 test('Linux visible overlay recreation avoids display fallback before tracked geometry exists', () => {
   const source = readMainSource();
   const actionBlock = source.match(
-    /function createLinuxVisibleOverlayWindowForCurrentMode\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
+    /const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime\(\{[\s\S]*?refreshWindow: \(\) => \{(?<body>[\s\S]*?)\n  \},/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -477,15 +480,18 @@ test('Linux visible overlay recreation avoids display fallback before tracked ge
     actionBlock,
     /const trackedGeometry = overlayGeometryRuntime\.getCurrentTrackedOverlayGeometry\(\);/,
   );
-  assert.match(actionBlock, /if \(trackedGeometry\) \{/);
+  assert.match(
+    actionBlock,
+    /if \(trackedGeometry\) overlayManager\.setOverlayWindowBounds\(trackedGeometry\);/,
+  );
   assert.match(actionBlock, /overlayManager\.setOverlayWindowBounds\(trackedGeometry\);/);
   assert.doesNotMatch(actionBlock, /setOverlayWindowBounds\(getCurrentOverlayGeometry\(\)\)/);
 });
 
-test('known-word updates invalidate prefetched tokenizations before refreshing current subtitle', () => {
+test('subtitle annotation updates invalidate prefetched tokenizations before refreshing current subtitle', () => {
   const source = readMainSource();
   const actionBlock = source.match(
-    /const refreshCurrentSubtitleAfterKnownWordUpdate = \(\): void => \{(?<body>[\s\S]*?)\n\};/,
+    /function refreshCurrentSubtitleAnnotations\(\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -500,6 +506,20 @@ test('known-word updates invalidate prefetched tokenizations before refreshing c
       actionBlock.indexOf(
         'subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText)',
       ),
+  );
+});
+
+test('character portrait index readiness refreshes cached subtitle annotations', () => {
+  const source = readMainSource();
+  const lookupDeps = source.match(
+    /const characterDictionaryImageLookup = createCharacterDictionaryImageLookup\(\{(?<body>[\s\S]*?)\n\}\);/,
+  )?.groups?.body;
+
+  assert.ok(lookupDeps);
+  assert.match(lookupDeps, /onIndexReady: \(\) => refreshCurrentSubtitleAnnotations\(\),/);
+  assert.match(
+    lookupDeps,
+    /onIndexReadyError: \(error\) =>[\s\S]*?logger\.warn\([\s\S]*?character portrait index became ready\.[\s\S]*?error,/,
   );
 });
 
@@ -844,5 +864,21 @@ test('subtitle sidebar snapshot prefers cached YouTube parsed cues before active
   assert.ok(
     snapshotBlock.indexOf('shouldUseCachedYoutubeParsedCues(') <
       snapshotBlock.indexOf('resolveActiveSubtitleSidebarSourceHandler'),
+  );
+});
+
+test('main process extracts internal subtitle tracks without a network-mount guard', () => {
+  const source = readMainSource();
+  const resolverWiring = source.match(
+    /const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler\(\{(?<body>[\s\S]*?)\n\}\);/,
+  )?.groups?.body;
+
+  assert.ok(resolverWiring);
+  // Network-mounted files are extracted like local ones; only remote URLs skip
+  // extraction, handled inside the resolver itself.
+  assert.doesNotMatch(resolverWiring, /isRemoteMediaPath/);
+  assert.match(
+    resolverWiring,
+    /extractInternalSubtitleTrack:[\s\S]*cachedInternalSubtitleTrackExtractor\.extract/,
   );
 });

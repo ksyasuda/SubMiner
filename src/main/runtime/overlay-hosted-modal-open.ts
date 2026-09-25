@@ -38,20 +38,24 @@ export async function retryOverlayModalOpen(
     timeoutMs: number;
     retryWarning: string;
     sendOpen: () => boolean;
+    signal?: AbortSignal;
   },
 ): Promise<boolean> {
-  if (!input.sendOpen()) {
+  if (input.signal?.aborted || !input.sendOpen()) {
     return false;
   }
 
-  if (await deps.waitForModalOpen(input.modal, input.timeoutMs)) {
+  const opened = await deps.waitForModalOpen(input.modal, input.timeoutMs);
+  if (input.signal?.aborted) return false;
+  if (opened) {
     return true;
   }
 
   deps.logWarn(input.retryWarning);
-  if (!input.sendOpen()) {
+  if (input.signal?.aborted || !input.sendOpen()) {
     return false;
   }
 
-  return await deps.waitForModalOpen(input.modal, input.timeoutMs);
+  const retryOpened = await deps.waitForModalOpen(input.modal, input.timeoutMs);
+  return !input.signal?.aborted && retryOpened;
 }

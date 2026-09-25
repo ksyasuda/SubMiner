@@ -6,6 +6,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   | 'ankiConnect'
   | 'jimaku'
   | 'tsukihime'
+  | 'tmdb'
   | 'anilist'
   | 'mpv'
   | 'yomitan'
@@ -29,6 +30,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     fields: {
       word: 'Expression',
       audio: 'ExpressionAudio',
+      wordAudio: 'ExpressionAudio',
       image: 'Picture',
       sentence: 'Sentence',
       miscInfo: 'MiscInfo',
@@ -54,6 +56,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       syncAnimatedImageToWordAudio: true,
       normalizeAudio: true,
       mirrorMpvVolume: true,
+      reviewTiming: false,
       audioPadding: 0,
       fallbackDuration: 3.0,
       maxMediaDuration: 30,
@@ -91,6 +94,11 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       fieldGrouping: 'disabled',
       deleteDuplicateInAuto: true,
     },
+    isSenren: {
+      enabled: false,
+      fieldGrouping: 'auto',
+      deleteDuplicateInAuto: true,
+    },
     lapisKiku: {
       wordCardKind: 'word-and-sentence',
     },
@@ -105,6 +113,10 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   tsukihime: {
     apiBaseUrl: 'https://api.tsukihime.org/v1',
     maxSearchResults: 10,
+  },
+  tmdb: {
+    apiKey: '',
+    apiKeyCommand: '',
   },
   mpv: {
     executablePath: '',

@@ -17,199 +17,21 @@ jobs:
       contents: read
     uses: ./.github/workflows/quality-gate.yml
 
-  build-linux:
+  package:
     needs: [quality-gate]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.5
-
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            stats/node_modules
-            vendor/texthooker-ui/node_modules
-            vendor/subminer-yomitan/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'stats/bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: |
-          bun install --frozen-lockfile
-          cd stats && bun install --frozen-lockfile
-
-      - name: Build texthooker-ui
-        run: |
-          cd vendor/texthooker-ui
-          bun install
-          bun run build
-
-      - name: Build AppImage
-        run: bun run build:appimage
-
-      - name: Build unversioned AppImage
-        run: |
-          shopt -s nullglob
-          appimages=(release/SubMiner-*.AppImage)
-          if [ "${#appimages[@]}" -eq 0 ]; then
-            echo "No versioned AppImage found to create unversioned artifact."
-            ls -la release
-            exit 1
-          fi
-          cp "${appimages[0]}" release/SubMiner.AppImage
-
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: appimage
-          path: |
-            release/*.AppImage
-            release/latest*.yml
-            release/*.blockmap
-
-  build-macos:
-    needs: [quality-gate]
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.5
-
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            stats/node_modules
-            vendor/texthooker-ui/node_modules
-            vendor/subminer-yomitan/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'stats/bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Validate macOS signing/notarization secrets
-        run: |
-          missing=0
-          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
-            if [ -z "${!name}" ]; then
-              echo "Missing required secret: $name"
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            echo "Set all required macOS signing/notarization secrets and rerun."
-            exit 1
-          fi
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-      - name: Install dependencies
-        run: |
-          bun install --frozen-lockfile
-          cd stats && bun install --frozen-lockfile
-
-      - name: Build texthooker-ui
-        run: |
-          cd vendor/texthooker-ui
-          bun install
-          bun run build
-
-      - name: Build signed + notarized macOS artifacts
-        run: bun run build:mac
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos
-          path: |
-            release/*.dmg
-            release/*.zip
-            release/latest*.yml
-            release/*.blockmap
-
-  build-windows:
-    needs: [quality-gate]
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.5
-
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            stats/node_modules
-            vendor/texthooker-ui/node_modules
-            vendor/subminer-yomitan/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'stats/bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: |
-          bun install --frozen-lockfile
-          cd stats && bun install --frozen-lockfile
-
-      - name: Build texthooker-ui
-        shell: powershell
-        run: |
-          Set-Location vendor/texthooker-ui
-          bun install
-          bun run build
-
-      - name: Build unsigned Windows artifacts
-        run: bun run build:win:unsigned
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: |
-            release/*.exe
-            release/*.zip
-            release/latest*.yml
-            release/*.blockmap
-          if-no-files-found: error
+    permissions:
+      contents: read
+    uses: ./.github/workflows/package-release.yml
+    secrets:
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      SUBMINER_TMDB_API_KEY: ${{ secrets.SUBMINER_TMDB_API_KEY }}
 
   release:
-    needs: [build-linux, build-macos, build-windows]
+    needs: [package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -255,11 +77,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build Bun subminer wrapper
+      - name: Build launcher runtime artifacts
         run: make build-launcher
 
-      - name: Verify Bun subminer wrapper
-        run: dist/launcher/subminer --help >/dev/null
+      - name: Smoke launcher bundle
+        run: bun dist/launcher/subminer.js --help >/dev/null
 
       - name: Enforce generated launcher workflow
         run: bash scripts/verify-generated-launcher.sh
@@ -273,12 +95,17 @@ jobs:
             config.example.jsonc \
             plugin/subminer \
             plugin/subminer.conf \
-            assets/themes/subminer.rasi
+            assets/themes/subminer.rasi \
+            assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer \
+            resources/bun/licenses
+
+      - name: Package Bun corresponding source
+        run: bun scripts/package-bun-source.mjs
 
       - name: Generate checksums
         run: |
           shopt -s nullglob
-          files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz release/latest*.yml release/*.blockmap dist/launcher/subminer)
+          files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz release/latest*.yml release/*.blockmap dist/launcher/subminer dist/launcher/subminer.cmd)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
@@ -295,33 +122,40 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Guard against pending changelog fragments
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           if find changes -maxdepth 1 -name '*.md' -not -name README.md -print -quit | grep -q .; then
-            echo "::error::Pending changelog fragments detected. Run 'bun run changelog:build --version ${{ steps.version.outputs.VERSION }}' locally and commit the polished CHANGELOG.md before tagging. CI no longer auto-builds the changelog because the polish step requires the local 'claude' CLI."
+            echo "::error::Pending changelog fragments detected. Run 'bun run changelog:build --version $RELEASE_VERSION' locally and commit the polished CHANGELOG.md before tagging. CI no longer auto-builds the changelog because the polish step requires the local 'claude' CLI."
             exit 1
           fi
 
       - name: Verify changelog is ready for tagged release
-        run: bun run changelog:check --version "${{ steps.version.outputs.VERSION }}"
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: bun run changelog:check --version "$RELEASE_VERSION"
 
       - name: Generate release notes from changelog
-        run: bun run changelog:release-notes --version "${{ steps.version.outputs.VERSION }}"
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: bun run changelog:release-notes --version "$RELEASE_VERSION"
 
       - name: Publish Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
 
-          if gh release view "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
             # Do not pass the prerelease flag here; gh defaults to a normal release.
-            gh release edit "${{ steps.version.outputs.VERSION }}" \
+            gh release edit "$RELEASE_VERSION" \
               --draft=false \
-              --title "${{ steps.version.outputs.VERSION }}" \
+              --title "$RELEASE_VERSION" \
               --notes-file release/release-notes.md
           else
-            gh release create "${{ steps.version.outputs.VERSION }}" \
-              --title "${{ steps.version.outputs.VERSION }}" \
+            gh release create "$RELEASE_VERSION" \
+              --title "$RELEASE_VERSION" \
               --notes-file release/release-notes.md
           fi
 
@@ -332,10 +166,12 @@ jobs:
             release/*.exe
             release/*.zip
             release/*.tar.gz
+            release/*.tar.gz.sha256
             release/latest*.yml
             release/*.blockmap
             release/SHA256SUMS.txt
             dist/launcher/subminer
+            dist/launcher/subminer.cmd
           )
 
           if [ "${#artifacts[@]}" -eq 0 ]; then
@@ -344,7 +180,7 @@ jobs:
           fi
 
           for asset in "${artifacts[@]}"; do
-            gh release upload "${{ steps.version.outputs.VERSION }}" "$asset" --clobber
+            gh release upload "$RELEASE_VERSION" "$asset" --clobber
           done
 
   aur-publish:
@@ -417,39 +253,52 @@ jobs:
           echo "skip=true" >> "$GITHUB_OUTPUT"
 
       - name: Download release assets for AUR
+        id: aur_assets
         if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.VERSION }}"
+          version="$RELEASE_VERSION"
           install -dm755 .tmp/aur-release-assets
-          gh release download "$version" \
-            --dir .tmp/aur-release-assets \
-            --pattern "SubMiner-${version#v}.AppImage" \
-            --pattern "subminer" \
-            --pattern "subminer-assets.tar.gz"
+          for asset in "SubMiner-${version#v}.AppImage" subminer subminer-assets.tar.gz; do
+            destination=".tmp/aur-release-assets/$asset"
+            if ! curl --fail --silent --show-error --location \
+              --retry 3 --retry-delay 1 --retry-all-errors \
+              --connect-timeout 30 --max-time 600 \
+              --output "$destination.partial" \
+              "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$version/$asset"; then
+              echo "::warning::Unable to download $asset after retries; skipping automated AUR publish."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            mv "$destination.partial" "$destination"
+          done
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Update AUR packaging metadata
-        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
+        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true' && steps.aur_assets.outputs.skip != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
-          version_no_v="${{ steps.version.outputs.VERSION }}"
+          version_no_v="$RELEASE_VERSION"
           version_no_v="${version_no_v#v}"
           cp packaging/aur/subminer-bin/PKGBUILD aur-subminer-bin/PKGBUILD
           cp packaging/aur/subminer-bin/.SRCINFO aur-subminer-bin/.SRCINFO
           bash scripts/update-aur-package.sh \
             --pkg-dir aur-subminer-bin \
-            --version "${{ steps.version.outputs.VERSION }}" \
+            --version "$RELEASE_VERSION" \
             --appimage ".tmp/aur-release-assets/SubMiner-${version_no_v}.AppImage" \
             --wrapper ".tmp/aur-release-assets/subminer" \
             --assets ".tmp/aur-release-assets/subminer-assets.tar.gz"
 
       - name: Commit and push AUR update
-        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
+        if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true' && steps.aur_assets.outputs.skip != 'true'
         working-directory: aur-subminer-bin
         env:
           GIT_SSH_COMMAND: ssh -i ~/.ssh/aur -o IdentitiesOnly=yes
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
           if git diff --quiet -- PKGBUILD .SRCINFO; then
@@ -459,7 +308,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add PKGBUILD .SRCINFO
-          git commit -m "Update to ${{ steps.version.outputs.VERSION }}"
+          git commit -m "Update to $RELEASE_VERSION"
 
           attempts=3
           for attempt in $(seq 1 "$attempts"); do

@@ -1,3 +1,5 @@
+import { sanitizeMediaTitle } from '../../../shared/media-identity';
+
 /**
  * AniList has no concept of "season N": sequels are separate media with their own
  * titles (Zoku, Kan, 2nd Season, ...). Searching "<title> Season 3" therefore returns
@@ -348,7 +350,9 @@ export async function resolveAnilistSeasonMedia(
   input: ResolveAnilistSeasonMediaInput,
   deps: ResolveAnilistSeasonMediaDeps,
 ): Promise<AnilistSeasonResolution | null> {
-  const searchTitle = stripSeasonSuffix(input.title).trim() || input.title.trim();
+  const safeTitle = sanitizeMediaTitle(input.title);
+  if (!safeTitle) return null;
+  const searchTitle = stripSeasonSuffix(safeTitle).trim() || safeTitle;
   if (!searchTitle) return null;
 
   const season =

@@ -1,4 +1,8 @@
-import type { SubtitleCue } from '../../types';
+import type { AssVerticalBand, SubtitleCue } from '../../types';
+import {
+  removeAssControlDebrisLines,
+  removeLiveGlyphFragmentLines,
+} from '../../core/services/ass-text';
 
 // Slack on top of each cue's recorded animation envelope, for time-pos observation
 // staleness and small user sub-delay offsets. The envelope itself covers how far
@@ -13,6 +17,22 @@ export interface ResolvedPrimarySubtitle {
   cues: SubtitleCue[];
 }
 
+function cuesUseAssSyntax(cues: readonly SubtitleCue[] | null | undefined): boolean {
+  return (cues ?? []).some(
+    (cue) =>
+      cue.source === 'canonical-ass' ||
+      cue.source === 'reconstructed-ass' ||
+      cue.assLayout !== undefined,
+  );
+}
+
+function decodedLiveText(
+  liveText: string,
+  cues: readonly SubtitleCue[] | null | undefined,
+): string {
+  return cuesUseAssSyntax(cues) ? removeAssControlDebrisLines(liveText) : liveText;
+}
+
 function animationSpan(cue: SubtitleCue): { start: number; end: number } {
   return {
     start: cue.animationStartTime ?? cue.startTime,
@@ -23,9 +43,13 @@ function animationSpan(cue: SubtitleCue): { start: number; end: number } {
 function nearbyCanonicalCues(
   cues: readonly SubtitleCue[] | null | undefined,
   currentTimeSec: number,
+  includeFragmentGrids = false,
 ): SubtitleCue[] {
   return (cues ?? []).filter((cue) => {
-    if (cue.source !== 'canonical-ass') {
+    if (
+      (cue.source !== 'canonical-ass' && cue.source !== 'reconstructed-ass') ||
+      (!includeFragmentGrids && cue.assLayout?.kind === 'fragment-grid')
+    ) {
       return false;
     }
     const span = animationSpan(cue);
@@ -37,7 +61,55 @@ function nearbyCanonicalCues(
 }
 
 function compactWhitespace(text: string): string {
-  return text.replace(/\s+/gu, '');
+  return text.normalize('NFKC').replace(/\s+/gu, '');
+}
+
+/**
+ * Distinct simultaneous cues are separated by a blank line so the display layer can tell
+ * a wrap inside one utterance from the boundary between two of them. Consumers that read
+ * the text rather than display it fold these back to single breaks.
+ */
+const CUE_BOUNDARY = '\n\n';
+
+const VERTICAL_BAND_RANK: Record<AssVerticalBand, number> = { top: 0, middle: 1, bottom: 2 };
+
+/**
+ * Stack simultaneous cues the way they sit on screen: mpv keeps a top-anchored lyric or
+ * sign above bottom dialogue for its whole run, while cue-list order follows start time
+ * and would swap the pair whenever one side is replaced mid-overlap. The band is
+ * constant per event, so a line never changes rows while it is displayed.
+ *
+ * A cue whose placement could not be read -- an unknown style, a script with no styles
+ * section -- sorts to the top. Dialogue is the case that reliably declares a bottom
+ * alignment, so what is left unresolved is more often a sign or a song line, and keeping
+ * the dialogue on the bottom row means the line worth reading stays where the eye
+ * already is. Sort is stable, so cues sharing a rank keep their existing order.
+ */
+function orderCuesForDisplay(cues: readonly SubtitleCue[]): SubtitleCue[] {
+  const rank = (cue: SubtitleCue): number =>
+    VERTICAL_BAND_RANK[cue.assLayout?.verticalBand ?? 'top'];
+  return [...cues].sort((a, b) => rank(a) - rank(b));
+}
+
+// ASS layers can encode the same visible spacing with ordinary, hard, or
+// ideographic spaces. Matching and emission must use the same identity or each
+// layer reappears as a copy.
+function uniqueCueTextGroups(cues: readonly SubtitleCue[]): string[] {
+  const groups: string[] = [];
+  const seen = new Set<string>();
+  for (const cue of cues) {
+    const lines: string[] = [];
+    for (const line of cue.text.split('\n')) {
+      const compactText = compactWhitespace(line);
+      if (!compactText || seen.has(compactText)) continue;
+      seen.add(compactText);
+      lines.push(line);
+    }
+    if (lines.length > 0) {
+      groups.push(lines.join('\n'));
+    }
+  }
+  return groups;
 }
 
 function compactLineSegments(text: string): string[] {
@@ -72,30 +144,58 @@ function resolveActiveParsedPrimarySubtitle(options: {
       return false;
     }
     const cueSegments = compactLineSegments(cue.text);
-    return cueSegments.length > 0 && cueSegments.every((segment) => liveSegmentSet.has(segment));
+    if (cueSegments.length === 0) return false;
+    if (cue.source === 'canonical-ass' || cue.source === 'reconstructed-ass') {
+      return liveSegments.some((segment) =>
+        cueSegments.some((cueSegment) => cueSegment.includes(segment)),
+      );
+    }
+    return cueSegments.every((segment) => liveSegmentSet.has(segment));
   });
   if (selected.length === 0) {
     return null;
   }
 
-  const parsedSegmentSet = new Set(selected.flatMap((cue) => compactLineSegments(cue.text)));
-  if (!liveSegments.every((segment) => parsedSegmentSet.has(segment))) {
+  const parsedSegments = selected.flatMap((cue) => {
+    const recovered = cue.source === 'canonical-ass' || cue.source === 'reconstructed-ass';
+    return [
+      ...compactLineSegments(cue.text).map((segment) => ({ segment, recovered })),
+      ...(cue.assFurigana ?? []).flatMap((text) =>
+        compactLineSegments(text).map((segment) => ({ segment, recovered: false })),
+      ),
+    ];
+  });
+  if (
+    !liveSegments.every((liveSegment) =>
+      parsedSegments.some(({ segment, recovered }) =>
+        recovered ? segment.includes(liveSegment) : segment === liveSegment,
+      ),
+    )
+  ) {
     return null;
   }
 
-  const texts: string[] = [];
-  const seen = new Set<string>();
-  for (const cue of selected) {
-    if (!seen.has(cue.text)) {
-      seen.add(cue.text);
-      texts.push(cue.text);
-    }
-  }
+  // A cue selected only through the edge tolerance on its end has already finished by
+  // its published timing: a lyric whose exit ghosts linger into the next line. It still
+  // explains those live fragments above, but must not re-surface beside cues that are
+  // still running. The start side keeps the tolerance: mpv publishes the combined
+  // sub-text the moment a joining line's first frame renders, while the observed
+  // time-pos still sits just before that line's start, and the selection above already
+  // required the cue's text to be on screen (#220). With every selected cue finished,
+  // the edge cues remain the display fallback for stale time-pos readings.
+  const unfinished = selected.filter((cue) => cue.endTime > options.currentTimeSec);
+  const displayCues = unfinished.length > 0 ? unfinished : selected;
+
+  // Dense sign grids still explain their raw mpv fragments, but are visual
+  // typesetting rather than a publishable subtitle line.
+  const groups = uniqueCueTextGroups(
+    orderCuesForDisplay(displayCues.filter((cue) => cue.assLayout?.kind !== 'fragment-grid')),
+  );
   return {
-    text: texts.join('\n'),
-    startTime: Math.min(...selected.map((cue) => cue.startTime)),
-    endTime: Math.max(...selected.map((cue) => cue.endTime)),
-    cues: selected,
+    text: groups.join(CUE_BOUNDARY),
+    startTime: Math.min(...displayCues.map((cue) => cue.startTime)),
+    endTime: Math.max(...displayCues.map((cue) => cue.endTime)),
+    cues: displayCues,
   };
 }
 
@@ -159,16 +259,9 @@ export function resolveCanonicalPrimarySubtitle(options: {
     return null;
   }
 
-  const texts: string[] = [];
-  const seen = new Set<string>();
-  for (const cue of selected) {
-    if (!seen.has(cue.text)) {
-      seen.add(cue.text);
-      texts.push(cue.text);
-    }
-  }
+  const groups = uniqueCueTextGroups(orderCuesForDisplay(selected));
   return {
-    text: texts.join('\n'),
+    text: groups.join(CUE_BOUNDARY),
     startTime: Math.min(...selected.map((cue) => cue.startTime)),
     endTime: Math.max(...selected.map((cue) => cue.endTime)),
     cues: selected,
@@ -178,8 +271,9 @@ export function resolveCanonicalPrimarySubtitle(options: {
 /**
  * Live text with generated-animation fragment lines removed. Recording paths use this
  * when full canonical substitution declined -- concurrent dialogue during an insert
- * song: the dialogue is worth recording, the glyph fragments beside it are not. Returns
- * the input unchanged when no canonical cue is near or nothing non-fragment remains.
+ * song: the dialogue is worth recording, the glyph fragments beside it are not. An
+ * all-fragment visual grid becomes empty; other all-matched input remains unchanged as a
+ * defensive fallback.
  */
 export function stripCanonicalFragmentLines(options: {
   liveText: string;
@@ -187,18 +281,62 @@ export function stripCanonicalFragmentLines(options: {
   cues: readonly SubtitleCue[] | null | undefined;
 }): string {
   if (!Number.isFinite(options.currentTimeSec)) {
-    return options.liveText;
+    return removeLiveGlyphFragmentLines(options.liveText);
   }
-  const nearby = nearbyCanonicalCues(options.cues, options.currentTimeSec);
+  const nearby = nearbyCanonicalCues(options.cues, options.currentTimeSec, true);
   if (nearby.length === 0) {
-    return options.liveText;
+    return removeLiveGlyphFragmentLines(options.liveText);
   }
   const compactCues = nearby.map((cue) => compactWhitespace(cue.text));
   const kept = options.liveText.split('\n').filter((line) => {
     const compact = compactWhitespace(line);
     return compact && !compactCues.some((cueText) => cueText.includes(compact));
   });
-  return kept.length > 0 ? kept.join('\n') : options.liveText;
+  if (kept.length > 0) return removeLiveGlyphFragmentLines(kept.join('\n'));
+  if (nearby.some((cue) => cue.assLayout?.kind === 'fragment-grid')) return '';
+  return removeLiveGlyphFragmentLines(options.liveText);
+}
+
+/**
+ * Recording text for a live sample. Callers substitute canonical cues themselves and
+ * record those cue by cue, so what is resolved here is the parsed view -- the one that
+ * folds ASS furigana events back into their base line. Its text is already a complete
+ * line, while fragment stripping takes raw mpv text and would discard a resolved line
+ * whole while a fragment grid is on screen, so only one of the two ever runs.
+ */
+export function resolveRecordedPrimarySubtitleText(options: {
+  liveText: string;
+  currentTimeSec: number;
+  cues: readonly SubtitleCue[] | null | undefined;
+}): string {
+  const liveText = decodedLiveText(options.liveText, options.cues);
+  if (!liveText.trim()) {
+    return liveText;
+  }
+  return (
+    resolveActiveParsedPrimarySubtitle({ ...options, liveText })?.text ??
+    stripCanonicalFragmentLines({ ...options, liveText })
+  );
+}
+
+/**
+ * The parsed view of the live text with its cue timings: a canonical animation when one
+ * explains the live lines, otherwise the active parsed cues. Null when the parsed cues
+ * cannot account for every live line, in which case callers keep the raw mpv text.
+ */
+export function resolvePrimarySubtitle(options: {
+  liveText: string;
+  currentTimeSec: number;
+  cues: readonly SubtitleCue[] | null | undefined;
+}): ResolvedPrimarySubtitle | null {
+  const liveText = decodedLiveText(options.liveText, options.cues);
+  if (!liveText.trim()) {
+    return null;
+  }
+  return (
+    resolveCanonicalPrimarySubtitle({ ...options, liveText }) ??
+    resolveActiveParsedPrimarySubtitle({ ...options, liveText })
+  );
 }
 
 export function resolvePrimarySubtitleText(options: {
@@ -206,16 +344,9 @@ export function resolvePrimarySubtitleText(options: {
   currentTimeSec: number;
   cues: readonly SubtitleCue[] | null | undefined;
 }): string {
-  if (!options.liveText.trim()) {
-    return options.liveText;
+  const liveText = decodedLiveText(options.liveText, options.cues);
+  if (!liveText.trim()) {
+    return liveText;
   }
-  return (
-    resolveCanonicalPrimarySubtitle({
-      liveText: options.liveText,
-      currentTimeSec: options.currentTimeSec,
-      cues: options.cues,
-    })?.text ??
-    resolveActiveParsedPrimarySubtitle(options)?.text ??
-    options.liveText
-  );
+  return resolvePrimarySubtitle(options)?.text ?? removeLiveGlyphFragmentLines(liveText);
 }

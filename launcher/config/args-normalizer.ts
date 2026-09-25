@@ -248,6 +248,7 @@ export function applyRootOptionsToArgs(
 }
 
 export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations): void {
+  if (invocations.generateSubtitles) parsed.generateSubtitles = invocations.generateSubtitles;
   if (invocations.dictionaryTriggered) parsed.dictionary = true;
   if (invocations.dictionaryCandidates) parsed.dictionaryCandidates = true;
   if (invocations.dictionarySelect) parsed.dictionarySelect = true;

@@ -22,6 +22,8 @@ test('build initialize overlay runtime options maps dependencies', () => {
     getRuntimeOptionsManager: () => null,
     setAnkiIntegration: () => calls.push('set-anki'),
     showDesktopNotification: () => calls.push('notify'),
+    showOverlayNotification: () => calls.push('show-overlay'),
+    dismissOverlayNotification: () => calls.push('dismiss-overlay'),
     createFieldGroupingCallback: () => async () => ({
       keepNoteId: 1,
       deleteNoteId: 2,
@@ -47,6 +49,8 @@ test('build initialize overlay runtime options maps dependencies', () => {
   options.setWindowTracker(null);
   options.setAnkiIntegration(null);
   options.showDesktopNotification('title', {});
+  options.showOverlayNotification?.({ title: 'title' });
+  options.dismissOverlayNotification?.('notification-id');
 
   assert.deepEqual(calls, [
     'create-main',
@@ -58,5 +62,7 @@ test('build initialize overlay runtime options maps dependencies', () => {
     'set-tracker',
     'set-anki',
     'notify',
+    'show-overlay',
+    'dismiss-overlay',
   ]);
 });

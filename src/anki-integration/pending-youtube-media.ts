@@ -10,6 +10,8 @@ export interface PendingYoutubeMediaUpdate {
   generateAudio: boolean;
   generateImage: boolean;
   volumeScale?: number;
+  mediaPaddingSeconds?: number;
+  screenshotTime?: number;
 }
 
 function trimToNonEmptyString(value: unknown): string | null {

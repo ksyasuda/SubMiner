@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import { spawn, spawnSync } from 'node:child_process';
 import { isLogFileEnabled } from '../../shared/log-files';
 import { canConnectSocket } from '../../shared/socket-probe';
 import { buildMpvLaunchModeArgs } from '../../shared/mpv-launch-mode';
@@ -8,11 +6,19 @@ import { buildSubminerPluginRuntimeScriptOptParts } from '../../shared/subminer-
 import type { MpvLaunchMode } from '../../types/config';
 import type { SubminerPluginRuntimeScriptOptConfig } from '../../shared/subminer-plugin-script-opts';
 import type { InstalledMpvPluginDetection } from './first-run-setup-plugin';
+import {
+  createWindowsMpvPathDeps,
+  resolveWindowsMpvPath,
+  spawnMpvProcess,
+  type WindowsMpvPathDeps,
+} from './mpv-process';
+export {
+  getConfiguredWindowsMpvPathStatus,
+  resolveWindowsMpvPath,
+  type ConfiguredWindowsMpvPathStatus,
+} from './mpv-process';
 
-export interface WindowsMpvLaunchDeps {
-  getEnv: (name: string) => string | undefined;
-  runWhere: () => { status: number | null; stdout: string; error?: Error };
-  fileExists: (candidate: string) => boolean;
+export interface WindowsMpvLaunchDeps extends WindowsMpvPathDeps {
   spawnDetached: (command: string, args: string[], env?: NodeJS.ProcessEnv) => Promise<void>;
   isAppControlServerAvailable?: () => Promise<boolean>;
   sendAppControlCommand?: (
@@ -22,8 +28,6 @@ export interface WindowsMpvLaunchDeps {
   showError: (title: string, content: string) => void;
   logInfo?: (message: string) => void;
 }
-
-export type ConfiguredWindowsMpvPathStatus = 'blank' | 'configured' | 'invalid';
 
 export interface WindowsMpvRuntimePluginPolicy {
   detectInstalledMpvPlugin?: (mpvPath: string) => InstalledMpvPluginDetection;
@@ -36,54 +40,6 @@ export interface WindowsMpvRuntimePluginPolicy {
 
 function normalizeCandidate(candidate: string | undefined): string {
   return typeof candidate === 'string' ? candidate.trim() : '';
-}
-
-function defaultWindowsMpvFileExists(candidate: string): boolean {
-  try {
-    return fs.statSync(candidate).isFile();
-  } catch {
-    return false;
-  }
-}
-
-export function getConfiguredWindowsMpvPathStatus(
-  configuredMpvPath = '',
-  fileExists: (candidate: string) => boolean = defaultWindowsMpvFileExists,
-): ConfiguredWindowsMpvPathStatus {
-  const configPath = normalizeCandidate(configuredMpvPath);
-  if (!configPath) {
-    return 'blank';
-  }
-  return fileExists(configPath) ? 'configured' : 'invalid';
-}
-
-export function resolveWindowsMpvPath(deps: WindowsMpvLaunchDeps, configuredMpvPath = ''): string {
-  const configPath = normalizeCandidate(configuredMpvPath);
-  const configuredPathStatus = getConfiguredWindowsMpvPathStatus(configPath, deps.fileExists);
-  if (configuredPathStatus === 'configured') {
-    return configPath;
-  }
-  if (configuredPathStatus === 'invalid') {
-    return '';
-  }
-
-  const envPath = normalizeCandidate(deps.getEnv('SUBMINER_MPV_PATH'));
-  if (envPath && deps.fileExists(envPath)) {
-    return envPath;
-  }
-
-  const whereResult = deps.runWhere();
-  if (whereResult.status === 0) {
-    const firstPath = whereResult.stdout
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find((line) => line.length > 0 && deps.fileExists(line));
-    if (firstPath) {
-      return firstPath;
-    }
-  }
-
-  return '';
 }
 
 const DEFAULT_WINDOWS_MPV_SOCKET = '\\\\.\\pipe\\subminer-socket';
@@ -332,19 +288,7 @@ export function createWindowsMpvLaunchDeps(options: {
   logInfo?: (message: string) => void;
 }): WindowsMpvLaunchDeps {
   return {
-    getEnv: options.getEnv ?? ((name) => process.env[name]),
-    runWhere: () => {
-      const result = spawnSync('where.exe', ['mpv.exe'], {
-        encoding: 'utf8',
-        windowsHide: true,
-      });
-      return {
-        status: result.status,
-        stdout: result.stdout ?? '',
-        error: result.error ?? undefined,
-      };
-    },
-    fileExists: options.fileExists ?? defaultWindowsMpvFileExists,
+    ...createWindowsMpvPathDeps(options),
     isAppControlServerAvailable: options.isAppControlServerAvailable,
     sendAppControlCommand: options.sendAppControlCommand,
     waitForSocketReady,
@@ -352,12 +296,11 @@ export function createWindowsMpvLaunchDeps(options: {
     spawnDetached: (command, args, env) =>
       new Promise((resolve, reject) => {
         try {
-          const child = spawn(command, args, {
-            detached: true,
-            stdio: 'ignore',
-            windowsHide: true,
-            env: env ? { ...process.env, ...env } : process.env,
-          });
+          const child = spawnMpvProcess(
+            command,
+            args,
+            env ? { ...process.env, ...env } : process.env,
+          );
           let settled = false;
           child.once('error', (error) => {
             if (settled) return;

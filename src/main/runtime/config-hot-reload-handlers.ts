@@ -100,6 +100,9 @@ function buildAnkiRuntimeConfigPatch(
   if (diff.hotReloadFields.includes('ankiConnect.media.mirrorMpvVolume')) {
     mediaPatch.mirrorMpvVolume = config.ankiConnect.media.mirrorMpvVolume;
   }
+  if (diff.hotReloadFields.includes('ankiConnect.media.reviewTiming')) {
+    mediaPatch.reviewTiming = config.ankiConnect.media.reviewTiming;
+  }
   if (Object.keys(mediaPatch).length > 0) {
     patch.media = mediaPatch;
   }
@@ -134,6 +137,9 @@ function buildAnkiRuntimeConfigPatch(
   if (diff.hotReloadFields.includes('ankiConnect.isKiku.fieldGrouping')) {
     patch.isKiku = { fieldGrouping: config.ankiConnect.isKiku.fieldGrouping };
   }
+  if (diff.hotReloadFields.includes('ankiConnect.isSenren.fieldGrouping')) {
+    patch.isSenren = { fieldGrouping: config.ankiConnect.isSenren.fieldGrouping };
+  }
   if (diff.hotReloadFields.includes('ankiConnect.lapisKiku.wordCardKind')) {
     patch.lapisKiku = { wordCardKind: config.ankiConnect.lapisKiku.wordCardKind };
   }
@@ -157,7 +163,10 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
     deps.setKeybindings(payload.keybindings);
     deps.setSessionBindings(payload.sessionBindings, payload.sessionBindingWarnings);
 
-    if (diff.hotReloadFields.includes('shortcuts')) {
+    if (
+      diff.hotReloadFields.includes('shortcuts') ||
+      diff.hotReloadFields.includes('subtitleSelection')
+    ) {
       deps.refreshGlobalAndOverlayShortcuts();
     }
 

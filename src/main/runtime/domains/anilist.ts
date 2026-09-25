@@ -13,4 +13,3 @@ export * from '../anilist-state';
 export * from '../anilist-token-refresh';
 export * from '../anilist-token-refresh-main-deps';
 export * from '../protocol-url-handlers';
-export * from '../protocol-url-handlers-main-deps';

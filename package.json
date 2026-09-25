@@ -2,7 +2,7 @@
   "name": "subminer",
   "productName": "SubMiner",
   "desktopName": "SubMiner.desktop",
-  "version": "0.19.4-beta.1",
+  "version": "0.20.0",
   "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "packageManager": "bun@1.3.5",
   "main": "dist/main-entry.js",
@@ -18,7 +18,7 @@
     "compare-yomitan-api:electron": "bun run build:yomitan && bun build scripts/compare-yomitan-api.ts --format=cjs --target=node --outfile dist/scripts/compare-yomitan-api.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/compare-yomitan-api.js",
     "build:yomitan": "bun scripts/build-yomitan.mjs",
     "build:assets": "bun scripts/prepare-build-assets.mjs",
-    "build:launcher": "bun build ./launcher/main.ts --target=bun --packages=bundle --banner='#!/usr/bin/env bun' --outfile=dist/launcher/subminer",
+    "build:launcher": "bun run scripts/build-launcher.ts",
     "build:stats": "cd stats && bun run build",
     "dev:stats": "cd stats && bun run dev",
     "build": "bun run build:yomitan && bun run build:stats && tsc -p tsconfig.json && bun run build:renderer && bun run build:settings && bun run build:syncui && bun run build:launcher && bun run build:assets",
@@ -32,6 +32,7 @@
     "changelog:pr-check": "bun run scripts/build-changelog.ts pr-check",
     "changelog:release-notes": "bun run scripts/build-changelog.ts release-notes",
     "changelog:prerelease-notes": "bun run scripts/build-changelog.ts prerelease-notes",
+    "changelog:check-prerelease-notes": "bun run scripts/build-changelog.ts check-prerelease-notes",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "format:src": "bash scripts/prettier-scope.sh --write",
@@ -50,7 +51,7 @@
     "test:docs:kb": "bun test scripts/docs-knowledge-base.test.ts",
     "test:plugin:src": "lua scripts/test-plugin-lua-compat.lua && lua scripts/test-plugin-start-gate.lua && lua scripts/test-plugin-process-start-retries.lua && lua scripts/test-plugin-restart-feedback.lua && lua scripts/test-plugin-session-bindings.lua && lua scripts/test-plugin-binary-windows.lua",
     "test:launcher:smoke:src": "bun test launcher/smoke.e2e.test.ts",
-    "test:smoke:dist": "bun scripts/run-test-lane.mjs bun-src-full",
+    "test:smoke:dist": "env ELECTRON_RUN_AS_NODE=1 electron scripts/compiled-runtime-smoke.mjs",
     "test:subtitle:src": "bun test src/core/services/subsync.test.ts src/subsync/utils.test.ts",
     "test:immersion:sqlite:src": "bun test src/core/services/immersion-tracker-service.test.ts src/core/services/immersion-tracker/storage-session.test.ts",
     "test:immersion:sqlite:dist": "bun test dist/core/services/immersion-tracker-service.test.js dist/core/services/immersion-tracker/storage-session.test.js",
@@ -62,7 +63,7 @@
     "test:scripts": "bun scripts/run-test-lane.mjs scripts",
     "test:stats": "bun scripts/run-test-lane.mjs stats",
     "test:env": "bun run test:launcher:smoke:src && bun run test:plugin:src && bun run test:immersion:sqlite:src",
-    "test:runtime:compat": "bun run tsc && bun scripts/run-test-lane.mjs bun-src-full",
+    "test:runtime:compat": "bun run test:smoke:dist",
     "test": "bun run test:fast",
     "test:config": "bun scripts/run-test-lane.mjs config",
     "test:launcher": "bun scripts/run-test-lane.mjs launcher && bun run test:plugin:src",
@@ -79,17 +80,18 @@
     "build:mac:unsigned": "bun run build && env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u CSC_LINK -u CSC_KEY_PASSWORD CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --publish never",
     "build:mac:zip": "bun run build && electron-builder --mac zip --publish never",
     "build:win": "bun run build && electron-builder --win nsis zip --publish never",
-    "build:win:unsigned": "bun run build && node scripts/build-win-unsigned.mjs"
+    "build:win:unsigned": "bun run build && node scripts/build-win-unsigned.mjs",
+    "test:package": "bun scripts/run-package-smoke.mjs"
   },
   "overrides": {
-    "@xmldom/xmldom": "0.8.13",
-    "app-builder-lib": "26.15.3",
+    "@xmldom/xmldom": "0.8.15",
+    "app-builder-lib": "26.16.1",
     "brace-expansion": "5.0.9",
-    "electron-builder-squirrel-windows": "26.15.3",
-    "fast-uri": "3.1.5",
+    "electron-builder-squirrel-windows": "26.16.1",
+    "fast-uri": "3.1.6",
     "form-data": "4.0.6",
     "ip-address": "10.2.0",
-    "js-yaml": "4.3.1",
+    "js-yaml": "4.3.2",
     "lodash": "4.18.0",
     "minimatch": "10.2.5",
     "picomatch": "4.0.4",
@@ -123,15 +125,16 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@types/node": "^24.10.0",
     "@types/ws": "^8.18.1",
-    "electron": "43.4.1",
-    "electron-builder": "26.15.3",
-    "undici": "7.29.0",
+    "electron": "43.7.2",
+    "electron-builder": "26.16.1",
     "esbuild": "^0.25.12",
     "eslint": "^10.8.0",
     "prettier": "^3.8.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "undici": "7.29.0"
   },
   "build": {
     "appId": "com.sudacode.SubMiner",
@@ -158,6 +161,10 @@
       "category": "AudioVideo",
       "executableArgs": [
         "--background"
+      ],
+      "files": [
+        "package.json",
+        "!node_modules/koffi{,/**/*}"
       ]
     },
     "mac": {
@@ -176,6 +183,10 @@
           "from": "dist/scripts/get-mpv-window-macos",
           "to": "scripts/get-mpv-window-macos"
         }
+      ],
+      "files": [
+        "package.json",
+        "!node_modules/koffi{,/**/*}"
       ]
     },
     "dmg": {
@@ -187,7 +198,11 @@
         "nsis",
         "zip"
       ],
-      "icon": "assets/SubMiner.ico"
+      "icon": "assets/SubMiner.ico",
+      "files": [
+        "package.json",
+        "!node_modules/koffi/build/koffi/!(win32_${arch}){,/**/*}"
+      ]
     },
     "nsis": {
       "artifactName": "SubMiner-${version}.${ext}",
@@ -197,43 +212,19 @@
       "include": "build/installer.nsh"
     },
     "files": [
-      "**/*",
-      "!assets{,/**/*}",
-      "!src{,/**/*}",
-      "!launcher{,/**/*}",
-      "!docs{,/**/*}",
-      "!tests{,/**/*}",
-      "!packaging{,/**/*}",
-      "!README.md",
-      "!CHANGELOG.md",
-      "!AGENTS.md",
-      "!CLAUDE.md",
-      "!stats/src{,/**/*}",
-      "!stats/index.html",
-      "!stats/public{,/**/*}",
-      "!stats/package.json",
-      "!stats/tsconfig.json",
-      "!stats/vite.config.ts",
-      "!docs-site{,/**/*}",
-      "!changes{,/**/*}",
-      "!.tmp{,/**/*}",
-      "!release-*{,/**/*}",
-      "!dist/**/*.map",
-      "!dist/**/*.test.*",
-      "!dist/**/__tests__{,/**/*}",
-      "!scripts/**/*.test.*",
-      "!plugin{,/**/*}",
-      "!vendor/subminer-yomitan{,/**/*}",
-      "!vendor/yomitan-jlpt-vocab{,/**/*}",
-      "!vendor/texthooker-ui/src{,/**/*}",
-      "!vendor/texthooker-ui/node_modules{,/**/*}",
-      "!vendor/texthooker-ui/.svelte-kit{,/**/*}",
-      "!vendor/texthooker-ui/.vscode{,/**/*}",
-      "!vendor/texthooker-ui/public{,/**/*}",
-      "!vendor/texthooker-ui/README.md",
-      "!vendor/texthooker-ui/package.json",
-      "!vendor/texthooker-ui/package-lock.json",
-      "!vendor/texthooker-ui/tsconfig*.json",
+      "dist/**/*",
+      "stats/dist/**/*",
+      "vendor/texthooker-ui/docs/**/*",
+      "config.example.jsonc",
+      "LICENSE",
+      "!**/*.map",
+      "!**/*.{ts,tsx,mts,cts}",
+      "!**/*.{test,spec}.*",
+      "!**/{test,tests,__tests__,fixture,fixtures,__fixtures__}{,/**/*}",
+      "!dist/launcher{,/**/*}",
+      "!dist/scripts{,/**/*}",
+      "!dist/{renderer,settings,syncui}/fonts{,/**/*}",
+      "!node_modules/koffi/{src,vendor,doc}{,/**/*}",
       "!node_modules/@libsql/linux-x64-musl{,/**/*}"
     ],
     "extraResources": [
@@ -247,7 +238,13 @@
       },
       {
         "from": "assets",
-        "to": "assets"
+        "to": "assets",
+        "filter": [
+          "SubMiner*.png",
+          "SubMiner.ico",
+          "themes/**/*",
+          "thumbnailers/**/*"
+        ]
       },
       {
         "from": "plugin/subminer",
@@ -258,8 +255,15 @@
         "to": "plugin/subminer.conf"
       },
       {
-        "from": "dist/launcher/subminer",
-        "to": "launcher/subminer"
+        "from": "dist/launcher",
+        "to": "launcher",
+        "filter": [
+          "subminer",
+          "subminer.cmd",
+          "subminer.js",
+          "prepare.cjs",
+          "version"
+        ]
       },
       {
         "from": "CHANGELOG.md",

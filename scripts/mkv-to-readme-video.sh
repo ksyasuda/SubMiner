@@ -19,7 +19,8 @@ Options:
   -w, --webp   Generate animated WebP preview
 
 Encoding profile:
-  - Crop: 1920x1080 at x=760 y=200
+  - Crop: mpv region at 1920x1080, x=760 y=205 on a 3440x1440 canvas
+  - Output size: 1920x1080
   - MP4:  H.264 + AAC
   - WebM: AV1/VP9 + Opus at 30 fps
 USAGE
@@ -148,7 +149,8 @@ pick_webp_encoder() {
 	return 1
 }
 
-crop_vf="crop=1920:1080:760:205"
+# OBS may resize the 3440x1440 canvas, so scale the mpv bounds with the input.
+crop_vf="crop=1920*iw/3440:1080*ih/1440:760*iw/3440:205*ih/1440,scale=1920:1080:flags=lanczos"
 webm_vf="${crop_vf},fps=30"
 
 echo "Generating MP4: $mp4_out"

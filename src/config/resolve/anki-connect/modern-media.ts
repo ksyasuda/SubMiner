@@ -19,6 +19,7 @@ export function applyModernMediaResolution(
     'syncAnimatedImageToWordAudio',
     'normalizeAudio',
     'mirrorMpvVolume',
+    'reviewTiming',
   ] as const) {
     applyModernValue(
       context,
@@ -128,18 +129,28 @@ export function applyModernMediaResolution(
     'Expected non-negative number.',
   );
 
-  for (const key of ['fallbackDuration', 'maxMediaDuration'] as const) {
-    applyModernValue(
-      context,
-      media,
-      key,
-      `ankiConnect.media.${key}`,
-      asPositiveNumber,
-      DEFAULT_CONFIG.ankiConnect.media[key],
-      (value) => {
-        context.resolved.ankiConnect.media[key] = value;
-      },
-      'Expected positive number.',
-    );
-  }
+  applyModernValue(
+    context,
+    media,
+    'fallbackDuration',
+    'ankiConnect.media.fallbackDuration',
+    asPositiveNumber,
+    DEFAULT_CONFIG.ankiConnect.media.fallbackDuration,
+    (value) => {
+      context.resolved.ankiConnect.media.fallbackDuration = value;
+    },
+    'Expected positive number.',
+  );
+  applyModernValue(
+    context,
+    media,
+    'maxMediaDuration',
+    'ankiConnect.media.maxMediaDuration',
+    asNonNegativeNumber,
+    DEFAULT_CONFIG.ankiConnect.media.maxMediaDuration,
+    (value) => {
+      context.resolved.ankiConnect.media.maxMediaDuration = value;
+    },
+    'Expected non-negative number.',
+  );
 }

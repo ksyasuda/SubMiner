@@ -134,6 +134,29 @@ function isSeekLikePositionJump(
   return Math.abs(nextPositionSeconds - previousPositionSeconds) >= thresholdSeconds;
 }
 
+// Jellyfin re-creates a session's NowPlayingItem from any progress report, so a progress
+// tick that lands after the stop report leaves the server showing playback forever. The
+// tracker lets the stop handler wait for reports that are already in flight.
+export type JellyfinRemoteReportTracker = {
+  track: (report: Promise<void>) => void;
+  settled: () => Promise<void>;
+};
+
+export function createJellyfinRemoteReportTracker(): JellyfinRemoteReportTracker {
+  const active = new Set<Promise<void>>();
+  return {
+    track: (report) => {
+      active.add(report);
+      void report.finally(() => active.delete(report));
+    },
+    settled: async () => {
+      while (active.size > 0) {
+        await Promise.allSettled([...active]);
+      }
+    },
+  };
+}
+
 export type JellyfinRemoteProgressReporterDeps = {
   getActivePlayback: () => ActiveJellyfinRemotePlaybackState | null;
   clearActivePlayback: () => void;
@@ -145,6 +168,7 @@ export type JellyfinRemoteProgressReporterDeps = {
   progressIntervalMs: number;
   ticksPerSecond: number;
   logDebug: (message: string, error: unknown) => void;
+  reportTracker?: JellyfinRemoteReportTracker;
 };
 
 export function createReportJellyfinRemoteProgressHandler(
@@ -152,7 +176,7 @@ export function createReportJellyfinRemoteProgressHandler(
 ) {
   let lastReportedPositionSeconds: number | null = null;
 
-  return async (force = false): Promise<void> => {
+  const report = async (force: boolean): Promise<void> => {
     const playback = deps.getActivePlayback();
     if (!playback) return;
     const session = deps.getSession();
@@ -193,6 +217,12 @@ export function createReportJellyfinRemoteProgressHandler(
       deps.logDebug('Failed to report Jellyfin remote progress', error);
     }
   };
+
+  return async (force = false): Promise<void> => {
+    const pending = report(force);
+    deps.reportTracker?.track(pending);
+    await pending;
+  };
 }
 
 export type JellyfinRemoteStoppedReporterDeps = {
@@ -203,6 +233,8 @@ export type JellyfinRemoteStoppedReporterDeps = {
   getNow?: () => number;
   ticksPerSecond: number;
   logDebug: (message: string, error: unknown) => void;
+  logWarn?: (message: string) => void;
+  reportTracker?: JellyfinRemoteReportTracker;
 };
 
 export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteStoppedReporterDeps) {
@@ -226,6 +258,10 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
       deps.clearActivePlayback();
       return;
     }
+    // Clear before any network call so progress ticks fired during the stop find nothing to
+    // report, then let reports already in flight finish so none can arrive after the stop.
+    deps.clearActivePlayback();
+    await deps.reportTracker?.settled();
     try {
       const observedPositionSeconds = await readMpvPositionSecondsOrFallback(deps.getMpvClient());
       const positionSeconds = resolveReportablePositionSeconds(playback, observedPositionSeconds);
@@ -244,7 +280,7 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
       } catch (error) {
         deps.logDebug('Failed to report Jellyfin remote final progress', error);
       }
-      await session.reportStopped({
+      const reported = await session.reportStopped({
         itemId: playback.itemId,
         mediaSourceId: playback.mediaSourceId,
         positionTicks,
@@ -254,10 +290,13 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
         subtitleStreamIndex: playback.subtitleStreamIndex,
         eventName: 'stop',
       });
+      if (reported === false) {
+        deps.logWarn?.(
+          `Jellyfin did not accept the playback stop report for item ${playback.itemId}; the server may keep showing it as playing.`,
+        );
+      }
     } catch (error) {
       deps.logDebug('Failed to report Jellyfin remote stop', error);
-    } finally {
-      deps.clearActivePlayback();
     }
   };
 }

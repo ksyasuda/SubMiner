@@ -119,30 +119,3 @@ function removeEmptyDirectories(root: string) {
     rmSync(root, { recursive: true, force: true });
   }
 }
-
-export function pruneArchiveCacheGenerations(options: {
-  cacheRoot: string;
-  activeCacheKey: string;
-}): string[] {
-  if (!existsSync(options.cacheRoot)) {
-    return [];
-  }
-
-  const activePrefix = options.activeCacheKey.slice(0, 12);
-  const removed: string[] = [];
-
-  for (const entry of readdirSync(options.cacheRoot)) {
-    const path = join(options.cacheRoot, entry);
-    if (!lstatSync(path).isDirectory()) {
-      continue;
-    }
-    if (entry.startsWith(`${activePrefix}-`)) {
-      continue;
-    }
-
-    rmSync(path, { recursive: true, force: true });
-    removed.push(path);
-  }
-
-  return removed;
-}

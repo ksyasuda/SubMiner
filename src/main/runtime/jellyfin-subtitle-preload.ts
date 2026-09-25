@@ -1,6 +1,3 @@
-import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
-import { estimateSubtitleTimingOffset } from '../../core/services/subtitle-timing-offset';
-
 type JellyfinSession = {
   serverUrl: string;
   accessToken: string;
@@ -33,11 +30,6 @@ type CachedSubtitleTrack = {
 
 type CachedExternalSubtitleTrack = CachedSubtitleTrack & {
   source: JellyfinSubtitleTrack;
-};
-
-type JellyfinSubtitleDelayKey = {
-  itemId: string;
-  streamIndex: number;
 };
 
 type MpvSubtitleTrack = {
@@ -137,22 +129,46 @@ function pickBestCachedTrackId(
         : false,
     )
     .filter(({ track }) => track.id !== excludeId)
-    .map(({ track, cached }) => {
-      const title = cached?.source.title || track.title;
-      return {
-        track,
-        score:
-          (track.external ? 100 : 0) +
-          (cached?.source.isDefault ? 35 : 0) +
-          (cached?.source.isExternal === false ? 25 : 0) +
-          (cached?.source.isExternal === true ? -10 : 0) +
-          (cached?.source.isForced ? -25 : 0) +
-          (isLikelyHearingImpaired(title) ? -10 : 10) +
-          (/\bdefault\b/i.test(title) ? 3 : 0),
-      };
-    })
+    .flatMap(({ track, cached }) =>
+      cached
+        ? [
+            {
+              track,
+              score:
+                (track.external ? 100 : 0) +
+                scoreJellyfinSource(cached.source, cached.source.title || track.title),
+            },
+          ]
+        : [],
+    )
     .sort((a, b) => b.score - a.score);
   return ranked[0]?.track.id ?? null;
+}
+
+// Ranks Jellyfin subtitle sources by metadata alone, so the preferred track is known before download.
+function scoreJellyfinSource(source: JellyfinSubtitleTrack, title: string): number {
+  return (
+    (source.isDefault ? 35 : 0) +
+    (source.isExternal === false ? 25 : 0) +
+    (source.isExternal === true ? -10 : 0) +
+    (source.isForced ? -25 : 0) +
+    (isLikelyHearingImpaired(title) ? -10 : 10) +
+    (/\bdefault\b/i.test(title) ? 3 : 0)
+  );
+}
+
+function pickPreferredJapaneseSource(
+  sources: JellyfinSubtitleTrack[],
+): JellyfinSubtitleTrack | null {
+  const ranked = sources
+    .filter((source) => isJapanese(source.language || '') || isJapanese(source.title || ''))
+    .map((source) => ({ source, score: scoreJellyfinSource(source, source.title || '') }))
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.source ?? null;
+}
+
+function findMpvTrackIdByPath(tracks: MpvSubtitleTrack[], filePath: string): number | null {
+  return tracks.find((track) => track.externalFilename === filePath)?.id ?? null;
 }
 
 function findCachedTrackForMpvTrackId(
@@ -257,54 +273,6 @@ async function waitForPreferredSubtitleTracks(
   return subtitleTracks;
 }
 
-async function estimateSubtitleDelayFromReference(
-  deps: {
-    loadSubtitleSourceText?: (source: string) => Promise<string>;
-    logDebug: (message: string, error: unknown) => void;
-  },
-  primaryTrack: CachedExternalSubtitleTrack | null,
-  referenceTrack: CachedExternalSubtitleTrack | null,
-): Promise<number | null> {
-  if (!deps.loadSubtitleSourceText || !primaryTrack || !referenceTrack) {
-    return null;
-  }
-
-  try {
-    const [primaryContent, referenceContent] = await Promise.all([
-      deps.loadSubtitleSourceText(primaryTrack.path),
-      deps.loadSubtitleSourceText(referenceTrack.path),
-    ]);
-    const primaryCues = parseSubtitleCues(primaryContent, primaryTrack.path);
-    const referenceCues = parseSubtitleCues(referenceContent, referenceTrack.path);
-    return estimateSubtitleTimingOffset(primaryCues, referenceCues)?.offsetSeconds ?? null;
-  } catch (error) {
-    deps.logDebug('Failed to auto-align Jellyfin subtitle timing', error);
-    return null;
-  }
-}
-
-function saveEstimatedSubtitleDelay(
-  deps: {
-    saveSubtitleDelay?: (
-      itemId: string,
-      streamIndex: number,
-      delaySeconds: number,
-    ) => boolean | void;
-    logDebug: (message: string, error: unknown) => void;
-  },
-  key: JellyfinSubtitleDelayKey,
-  delaySeconds: number,
-): void {
-  try {
-    const saved = deps.saveSubtitleDelay?.(key.itemId, key.streamIndex, delaySeconds);
-    if (saved === false) {
-      deps.logDebug('Failed to save Jellyfin auto subtitle delay', key);
-    }
-  } catch (error) {
-    deps.logDebug('Failed to save Jellyfin auto subtitle delay', error);
-  }
-}
-
 export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
   listJellyfinSubtitleTracks: (
     session: JellyfinSession,
@@ -316,10 +284,6 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
   wait: (ms: number) => Promise<void>;
   cacheSubtitleTrack: (track: JellyfinSubtitleTrack) => Promise<CachedSubtitleTrack>;
   cleanupCachedSubtitles: (dirs: string[]) => void;
-  getSavedSubtitleDelay?: (itemId: string, streamIndex: number) => number | null;
-  setActiveSubtitleDelayKey?: (key: JellyfinSubtitleDelayKey | null) => void;
-  loadSubtitleSourceText?: (source: string) => Promise<string>;
-  saveSubtitleDelay?: (itemId: string, streamIndex: number, delaySeconds: number) => boolean | void;
   initSubtitlePrefetch?: (sourcePath: string) => void | Promise<void>;
   logDebug: (message: string, error: unknown) => void;
 }): PreloadJellyfinExternalSubtitlesHandler {
@@ -342,6 +306,22 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
       });
   }
 
+  function selectJapanesePrimary(
+    subtitleTracks: MpvSubtitleTrack[],
+    cachedTracks: CachedExternalSubtitleTrack[],
+    trackId: number | null,
+  ): void {
+    if (trackId === null) {
+      deps.sendMpvCommand(['set_property', 'sid', 'no']);
+      return;
+    }
+    deps.sendMpvCommand(['set_property', 'sid', trackId]);
+    const selectedCachedTrack = findCachedTrackForMpvTrackId(subtitleTracks, cachedTracks, trackId);
+    if (selectedCachedTrack) {
+      startSubtitlePrefetchForCachedTrack(selectedCachedTrack.path);
+    }
+  }
+
   function cleanupActiveCache(): void {
     const dirs = [...activeCacheDirs];
     if (dirs.length === 0) return;
@@ -357,6 +337,7 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
     itemId: string;
   }): Promise<void> => {
     try {
+      resetManagedSubtitleDelay();
       try {
         cleanupActiveCache();
       } catch (error) {
@@ -369,8 +350,6 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
       );
       const externalTracks = tracks.filter((track) => Boolean(track.deliveryUrl));
       if (externalTracks.length === 0) {
-        deps.setActiveSubtitleDelayKey?.(null);
-        resetManagedSubtitleDelay();
         return;
       }
 
@@ -380,91 +359,93 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
       deps.sendMpvCommand(['set_property', 'secondary-sub-visibility', 'no']);
       await deps.wait(300);
       const seenUrls = new Set<string>();
-      const cachedTracks: CachedExternalSubtitleTrack[] = [];
-      for (const track of externalTracks) {
-        if (!track.deliveryUrl || seenUrls.has(track.deliveryUrl)) {
-          continue;
-        }
+      const uniqueTracks = externalTracks.filter((track) => {
+        if (!track.deliveryUrl || seenUrls.has(track.deliveryUrl)) return false;
         seenUrls.add(track.deliveryUrl);
-        const labelBase = (track.title || track.language || '').trim();
-        const label = labelBase || `Jellyfin Subtitle ${track.index}`;
-        const cached = await deps.cacheSubtitleTrack(track);
-        activeCacheDirs.add(cached.cleanupDir);
-        cachedTracks.push({ ...cached, source: track });
-        deps.sendMpvCommand(['sub-add', cached.path, 'auto', label, track.language || '']);
-      }
+        return true;
+      });
 
-      await deps.wait(TRACK_SELECTION_INITIAL_WAIT_MS);
-      const shouldWaitForExternalJapanese = externalTracks.some(
-        (track) => isJapanese(track.language || '') || isJapanese(track.title || ''),
-      );
-      const subtitleTracks = await waitForPreferredSubtitleTracks(
-        deps,
-        shouldWaitForExternalJapanese,
-        cachedTracks.map((track) => track.path),
-      );
-      if (
-        shouldWaitForExternalJapanese &&
-        (!subtitleTracks || !hasExternalJapaneseTrack(subtitleTracks))
-      ) {
-        deps.logDebug('Timed out waiting for Jellyfin Japanese subtitle track', {
-          itemId: params.itemId,
-        });
-        return;
-      }
-
-      const resolvedSubtitleTracks = subtitleTracks ?? [];
-      const japanesePrimaryId =
-        pickBestCachedTrackId(resolvedSubtitleTracks, cachedTracks, isJapanese) ??
-        pickBestTrackId(resolvedSubtitleTracks, isJapanese);
-      const englishSecondaryId =
-        pickBestCachedTrackId(resolvedSubtitleTracks, cachedTracks, isEnglish, japanesePrimaryId) ??
-        pickBestTrackId(resolvedSubtitleTracks, isEnglish, japanesePrimaryId);
-      if (japanesePrimaryId !== null) {
-        const selectedCachedTrack = findCachedTrackForMpvTrackId(
-          resolvedSubtitleTracks,
-          cachedTracks,
-          japanesePrimaryId,
-        );
-        if (selectedCachedTrack) {
-          const delayKey = { itemId: params.itemId, streamIndex: selectedCachedTrack.source.index };
-          deps.setActiveSubtitleDelayKey?.(delayKey);
-          const savedDelay = deps.getSavedSubtitleDelay?.(delayKey.itemId, delayKey.streamIndex);
-          if (typeof savedDelay === 'number' && Number.isFinite(savedDelay)) {
-            deps.sendMpvCommand(['set_property', 'sub-delay', savedDelay]);
-          } else {
-            const referenceCachedTrack = findCachedTrackForMpvTrackId(
-              resolvedSubtitleTracks,
-              cachedTracks,
-              englishSecondaryId,
-            );
-            const estimatedDelay = await estimateSubtitleDelayFromReference(
-              deps,
-              selectedCachedTrack,
-              referenceCachedTrack,
-            );
-            if (estimatedDelay !== null) {
-              deps.sendMpvCommand(['set_property', 'sub-delay', estimatedDelay]);
-              saveEstimatedSubtitleDelay(deps, delayKey, estimatedDelay);
-            } else {
-              resetManagedSubtitleDelay();
+      // Download every track at once and add each to mpv as soon as it lands. Jellyfin has
+      // to extract embedded tracks from the container, so one slow track must not hold up
+      // the Japanese primary that annotations depend on. A failed track is skipped rather
+      // than failing the whole preload, so the remaining tracks still get selected.
+      const cachedTracks: CachedExternalSubtitleTrack[] = [];
+      const downloads = new Map(
+        uniqueTracks.map((track) => [
+          track,
+          (async (): Promise<CachedExternalSubtitleTrack | null> => {
+            const labelBase = (track.title || track.language || '').trim();
+            const label = labelBase || `Jellyfin Subtitle ${track.index}`;
+            let cached: CachedExternalSubtitleTrack;
+            try {
+              cached = { ...(await deps.cacheSubtitleTrack(track)), source: track };
+            } catch (error) {
+              deps.logDebug(`Failed to download Jellyfin subtitle track ${track.index}`, error);
+              return null;
             }
-          }
-          deps.sendMpvCommand(['set_property', 'sid', japanesePrimaryId]);
-          startSubtitlePrefetchForCachedTrack(selectedCachedTrack.path);
-        } else {
-          deps.setActiveSubtitleDelayKey?.(null);
-          resetManagedSubtitleDelay();
-          deps.sendMpvCommand(['set_property', 'sid', japanesePrimaryId]);
-        }
-      } else {
-        deps.sendMpvCommand(['set_property', 'sid', 'no']);
-        deps.setActiveSubtitleDelayKey?.(null);
-        resetManagedSubtitleDelay();
-      }
+            activeCacheDirs.add(cached.cleanupDir);
+            cachedTracks.push(cached);
+            deps.sendMpvCommand(['sub-add', cached.path, 'auto', label, track.language || '']);
+            return cached;
+          })(),
+        ]),
+      );
+      const allDownloads = Promise.all(downloads.values());
 
-      if (englishSecondaryId !== null) {
-        deps.sendMpvCommand(['set_property', 'secondary-sid', englishSecondaryId]);
+      try {
+        let subtitleTracks: MpvSubtitleTrack[] = [];
+        let japanesePrimaryId: number | null | undefined;
+
+        const preferredJapaneseSource = pickPreferredJapaneseSource(uniqueTracks);
+        const preferredJapanese = preferredJapaneseSource
+          ? await downloads.get(preferredJapaneseSource)
+          : null;
+        if (preferredJapanese) {
+          await deps.wait(TRACK_SELECTION_INITIAL_WAIT_MS);
+          subtitleTracks =
+            (await waitForPreferredSubtitleTracks(deps, true, [preferredJapanese.path])) ?? [];
+          if (!hasExternalJapaneseTrack(subtitleTracks)) {
+            deps.logDebug('Timed out waiting for Jellyfin Japanese subtitle track', {
+              itemId: params.itemId,
+            });
+            return;
+          }
+          // Only commit early to the preferred track. If mpv has not listed it yet, leave the
+          // choice to the full ranking below instead of locking in a lower-ranked fallback.
+          const preferredJapaneseTrackId = findMpvTrackIdByPath(
+            subtitleTracks,
+            preferredJapanese.path,
+          );
+          if (preferredJapaneseTrackId !== null) {
+            japanesePrimaryId = preferredJapaneseTrackId;
+            selectJapanesePrimary(subtitleTracks, cachedTracks, japanesePrimaryId);
+          }
+        }
+
+        await allDownloads;
+        const cachedPaths = cachedTracks.map((track) => track.path);
+        if (!hasExpectedExternalSubtitleTracks(subtitleTracks, cachedPaths)) {
+          await deps.wait(TRACK_SELECTION_INITIAL_WAIT_MS);
+          subtitleTracks = (await waitForPreferredSubtitleTracks(deps, false, cachedPaths)) ?? [];
+        }
+
+        if (japanesePrimaryId === undefined) {
+          japanesePrimaryId =
+            pickBestCachedTrackId(subtitleTracks, cachedTracks, isJapanese) ??
+            pickBestTrackId(subtitleTracks, isJapanese);
+          selectJapanesePrimary(subtitleTracks, cachedTracks, japanesePrimaryId);
+        }
+
+        const englishSecondaryId =
+          pickBestCachedTrackId(subtitleTracks, cachedTracks, isEnglish, japanesePrimaryId) ??
+          pickBestTrackId(subtitleTracks, isEnglish, japanesePrimaryId);
+        if (englishSecondaryId !== null) {
+          deps.sendMpvCommand(['set_property', 'secondary-sid', englishSecondaryId]);
+        }
+      } finally {
+        // Keep this run in the queue until every download has registered its cache dir, so
+        // the next run's cleanup sees them all.
+        await allDownloads;
       }
     } catch (error) {
       deps.logDebug('Failed to preload Jellyfin external subtitles', error);

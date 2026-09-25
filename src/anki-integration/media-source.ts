@@ -400,12 +400,15 @@ export async function resolveMediaGenerationInput(
       return result;
     }
     if (streamOpenFilename) {
+      // A URL that yt-dlp resolved (e.g. youtube.com -> googlevideo) is one picked stream.
+      // When mpv opens the path as-is (e.g. Jellyfin direct play), it is the full container,
+      // so mpv's audio stream index still applies.
       const result = await toResolvedMediaGenerationInput(
         mpvClient,
         streamOpenFilename,
         kind,
         'stream-open-filename',
-        isRemoteMediaPath(streamOpenFilename),
+        isRemoteMediaPath(streamOpenFilename) && streamOpenFilename !== currentVideoPath,
       );
       logResolvedMediaGenerationInput(options, currentVideoPath, result);
       return result;

@@ -7,6 +7,7 @@ import type {
   TsukihimeEntry,
   TsukihimeSubtitleFile,
   JimakuEntry,
+  JimakuSearchCategory,
   JimakuFileEntry,
   KikuDuplicateCardInfo,
   KikuFieldGroupingChoice,
@@ -43,6 +44,7 @@ export type RendererState = {
   persistedSubtitlePosition: SubtitlePosition;
 
   jimakuModalOpen: boolean;
+  jimakuActiveTab: JimakuSearchCategory;
   jimakuEntries: JimakuEntry[];
   jimakuFiles: JimakuFileEntry[];
   selectedEntryIndex: number;
@@ -63,6 +65,8 @@ export type RendererState = {
   youtubePickerPrimaryTrackId: string | null;
   youtubePickerSecondaryTrackId: string | null;
   youtubePickerStatus: string;
+
+  mediaTimingReviewModalOpen: boolean;
 
   kikuModalOpen: boolean;
   kikuSelectedCard: 1 | 2;
@@ -85,6 +89,8 @@ export type RendererState = {
   characterDictionaryStatus: string;
 
   subsyncModalOpen: boolean;
+  subtitleSelectionModalOpen: boolean;
+  subtitleGenerationModalOpen: boolean;
   subsyncSubtitleTracks: SubsyncSubtitleTrack[];
   subsyncSubmitting: boolean;
 
@@ -173,6 +179,7 @@ export function createRendererState(): RendererState {
     persistedSubtitlePosition: { yPercent: 10 },
 
     jimakuModalOpen: false,
+    jimakuActiveTab: 'anime',
     jimakuEntries: [],
     jimakuFiles: [],
     selectedEntryIndex: 0,
@@ -193,6 +200,8 @@ export function createRendererState(): RendererState {
     youtubePickerPrimaryTrackId: null,
     youtubePickerSecondaryTrackId: null,
     youtubePickerStatus: '',
+
+    mediaTimingReviewModalOpen: false,
 
     kikuModalOpen: false,
     kikuSelectedCard: 1,
@@ -215,6 +224,8 @@ export function createRendererState(): RendererState {
     characterDictionaryStatus: '',
 
     subsyncModalOpen: false,
+    subtitleSelectionModalOpen: false,
+    subtitleGenerationModalOpen: false,
     subsyncSubtitleTracks: [],
     subsyncSubmitting: false,
 

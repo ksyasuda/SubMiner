@@ -27,6 +27,7 @@ import type {
   WatchTimePerAnime,
   WordDetailData,
 } from './stats-wire';
+import type { TmdbMediaType } from '../shared/media-kind';
 
 export type StatsTrendRange = '7d' | '30d' | '90d' | '365d' | 'all';
 export type StatsTrendGroupBy = 'day' | 'month';
@@ -76,6 +77,25 @@ export interface StatsAnilistSearchResult {
   description: string | null;
   coverImage: { large: string | null; medium: string | null } | null;
   title: { romaji: string | null; english: string | null; native: string | null } | null;
+}
+
+export interface StatsTmdbSearchResult {
+  tmdbId: number;
+  tmdbType: TmdbMediaType;
+  /** English title when TMDB has one, otherwise the original title. */
+  title: string;
+  originalTitle: string;
+  originalLanguage: string;
+  overview: string | null;
+  posterUrl: string | null;
+  year: number | null;
+  /** True when TMDB tags the title with the Animation genre. */
+  isAnimation: boolean;
+}
+
+export interface StatsTmdbAssignment {
+  tmdbId: number;
+  tmdbType: TmdbMediaType;
 }
 
 export interface StatsAnilistAssignment {
@@ -209,11 +229,13 @@ export interface StatsJsonResponseMap {
   moveVideoToAnime: StatsMoveVideoResponse;
   dismissAnimeMergeRecommendation: StatsOkResponse;
   anilistSearch: StatsAnilistSearchResult[];
+  tmdbSearch: StatsTmdbSearchResult[];
   knownWords: string[];
   knownWordsSummary: StatsKnownWordsSummary;
   animeKnownWordsSummary: StatsKnownWordsSummary;
   mediaKnownWordsSummary: StatsKnownWordsSummary;
   reassignAnimeAnilist: StatsOkResponse;
+  reassignAnimeTmdb: StatsOkResponse;
   coverImages: StatsCoverImagesData;
   episodeDetail: EpisodeDetailData;
   ankiBrowse: StatsAnkiBrowseResponse;
@@ -302,6 +324,8 @@ export interface StatsHttpClient {
   getMediaKnownWordsSummary: (videoId: number) => Promise<StatsKnownWordsSummary>;
   searchAnilist: (query: string) => Promise<StatsAnilistSearchResult[]>;
   reassignAnimeAnilist: (animeId: number, info: StatsAnilistAssignment) => Promise<void>;
+  searchTmdb: (query: string) => Promise<StatsTmdbSearchResult[]>;
+  reassignAnimeTmdb: (animeId: number, info: StatsTmdbAssignment) => Promise<void>;
   mineCard: (params: StatsMineCardParams) => Promise<StatsMineCardResponse>;
   ankiBrowse: (noteId: number) => Promise<void>;
   ankiNotesInfo: (noteIds: number[]) => Promise<StatsAnkiNoteInfo[]>;

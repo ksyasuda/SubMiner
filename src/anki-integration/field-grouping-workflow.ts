@@ -24,7 +24,7 @@ export interface FieldGroupingWorkflowDeps {
   getEffectiveSentenceCardConfig: () => {
     sentenceField: string;
     audioField: string;
-    kikuDeleteDuplicateInAuto: boolean;
+    fieldGroupingDeleteDuplicateInAuto: boolean;
   };
   getCurrentSubtitleText: () => string | undefined;
   getFieldGroupingCallback:
@@ -75,7 +75,7 @@ export class FieldGroupingWorkflow {
         originalNoteId,
         newNoteId,
         this.getExpression(newNoteInfo),
-        sentenceCardConfig.kikuDeleteDuplicateInAuto,
+        sentenceCardConfig.fieldGroupingDeleteDuplicateInAuto,
       );
     } catch (error) {
       this.deps.logError('Field grouping auto merge failed:', (error as Error).message);

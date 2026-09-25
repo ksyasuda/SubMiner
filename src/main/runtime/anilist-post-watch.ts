@@ -1,4 +1,5 @@
 import { isYoutubeMediaPath } from './youtube-playback';
+import { toMediaIdentityPath } from '../../shared/media-identity';
 
 type AnilistGuess = {
   title: string;
@@ -31,8 +32,9 @@ type AnilistDurationProbeOptions = {
   force?: boolean;
 };
 
-export function buildAnilistAttemptKey(mediaKey: string, episode: number): string {
-  return `${mediaKey}::${episode}`;
+export function buildAnilistAttemptKey(mediaKey: string, episode: number): string | null {
+  const identity = toMediaIdentityPath(mediaKey);
+  return identity ? `${identity}::${episode}` : null;
 }
 
 export function rememberAnilistAttemptedUpdateKey(
@@ -214,6 +216,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
       }
 
       const attemptKey = buildAnilistAttemptKey(mediaKey, guess.episode);
+      if (!attemptKey) return;
       if (deps.hasAttemptedUpdateKey(attemptKey)) {
         return;
       }

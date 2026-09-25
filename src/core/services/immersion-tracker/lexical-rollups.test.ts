@@ -306,9 +306,11 @@ test('vocabulary charts use complete top-word and lexical rollup data', () => {
       `INSERT INTO imm_words(headword, word, reading, first_seen, last_seen, frequency)
        VALUES (?, ?, '', 1700000000, 1700000000, ?)`,
     );
+    db.exec('BEGIN');
     for (let index = 0; index < 501; index += 1) {
       insertWord.run(`語${index}`, `語${index}`, index === 500 ? 10_000 : 1);
     }
+    db.exec('COMMIT');
 
     const charts = getVocabularyChartData(db);
 

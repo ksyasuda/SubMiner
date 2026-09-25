@@ -213,6 +213,30 @@ test('resolveMediaGenerationInput reads file-local mpv request options', async (
   });
 });
 
+test('resolveMediaGenerationInput keeps stream selection for a directly played remote container', async () => {
+  const resolver = (
+    mediaSource as typeof mediaSource & {
+      resolveMediaGenerationInput?: StructuredMediaResolver;
+    }
+  ).resolveMediaGenerationInput;
+  assert.equal(typeof resolver, 'function');
+
+  // Jellyfin direct play: mpv opens the URL as-is, so it can hold several audio streams.
+  const jellyfinUrl = 'http://jellyfin.local:8096/Videos/abc/stream?static=true';
+  const result = await resolver!(
+    {
+      currentVideoPath: jellyfinUrl,
+      requestProperty: async (name: string) =>
+        name === 'stream-open-filename' ? jellyfinUrl : null,
+    },
+    'audio',
+  );
+
+  assert.equal(result?.path, jellyfinUrl);
+  assert.equal(result?.source, 'stream-open-filename');
+  assert.equal(result?.singleResolvedStream, false);
+});
+
 test('resolveMediaGenerationInput prefers a ready cached media file for YouTube extraction', async () => {
   const resolver = (
     mediaSource as typeof mediaSource & {

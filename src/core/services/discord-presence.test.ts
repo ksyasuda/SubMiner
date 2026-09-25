@@ -91,6 +91,21 @@ test('buildDiscordPresenceActivity shows media title regardless of style', () =>
   }
 });
 
+test('buildDiscordPresenceActivity rejects stream URLs supplied as titles', () => {
+  for (const mediaTitle of [
+    'https://example.com/stream?api_key=test-secret',
+    'stream?api_key=test-secret',
+  ]) {
+    const activity = buildDiscordPresenceActivity(baseConfig, {
+      ...baseSnapshot,
+      mediaPath: 'https://example.com/stream?api_key=test-secret',
+      mediaTitle,
+    });
+    assert.equal(activity.details, 'Unknown media');
+    assert.equal(JSON.stringify(activity).includes('test-secret'), false);
+  }
+});
+
 test('buildDiscordPresenceActivity never falls back to remote stream URLs', () => {
   const payload = buildDiscordPresenceActivity(baseConfig, {
     ...baseSnapshot,

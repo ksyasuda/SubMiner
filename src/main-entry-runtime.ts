@@ -277,6 +277,8 @@ export function configureEarlyAppPaths(app: EarlyAppLike, options?: EarlyAppPath
     ? platformPath.join(platformPath.dirname(configDir), DEVELOPMENT_APP_NAME)
     : configDir;
 
+  // The entry process requests its singleton lock before main-process config bootstrap.
+  fs.mkdirSync(userDataPath, { recursive: true });
   app.setName(APP_NAME);
   app.setPath('userData', userDataPath);
 

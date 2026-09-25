@@ -24,6 +24,8 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     openRuntimeOptions: null,
     openJimaku: null,
     openTsukihime: null,
+    openSubtitleSelection: null,
+    openSubtitleGeneration: null,
     openSessionHelp: null,
     openControllerSelect: null,
     openControllerDebug: null,

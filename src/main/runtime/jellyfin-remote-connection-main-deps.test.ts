@@ -32,6 +32,7 @@ test('launch mpv for jellyfin main deps builder maps callbacks', () => {
     },
   };
   const deps = createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler({
+    getMpvExecutablePath: () => '/usr/local/bin/mpv',
     getSocketPath: () => '/tmp/mpv.sock',
     getLaunchMode: () => 'fullscreen',
     platform: 'darwin',
@@ -47,8 +48,8 @@ test('launch mpv for jellyfin main deps builder maps callbacks', () => {
     getDefaultMpvLogPath: () => '/tmp/mpv.log',
     defaultMpvArgs: ['--no-config'],
     removeSocketPath: (socketPath) => calls.push(`rm:${socketPath}`),
-    spawnMpv: (args) => {
-      calls.push(`spawn:${args.join(' ')}`);
+    spawnMpv: (executablePath, args) => {
+      calls.push(`spawn:${executablePath} ${args.join(' ')}`);
       return proc;
     },
     logWarn: (message) => calls.push(`warn:${message}`),
@@ -60,14 +61,20 @@ test('launch mpv for jellyfin main deps builder maps callbacks', () => {
   assert.equal(deps.platform, 'darwin');
   assert.equal(deps.execPath, '/tmp/subminer');
   assert.equal(deps.getRuntimePluginEntrypoint?.(), '/tmp/plugin/subminer/main.lua');
-  assert.equal(deps.getInstalledPluginDetection?.().installed, false);
+  assert.equal(deps.getMpvExecutablePath(), '/usr/local/bin/mpv');
+  assert.equal(deps.getInstalledPluginDetection?.('/usr/local/bin/mpv').installed, false);
   assert.equal(deps.getDefaultMpvLogPath(), '/tmp/mpv.log');
   assert.deepEqual(deps.defaultMpvArgs, ['--no-config']);
   deps.removeSocketPath('/tmp/mpv.sock');
-  deps.spawnMpv(['--idle=yes']);
+  deps.spawnMpv('/usr/local/bin/mpv', ['--idle=yes']);
   deps.logInfo('launched');
   deps.logWarn('bad', null);
-  assert.deepEqual(calls, ['rm:/tmp/mpv.sock', 'spawn:--idle=yes', 'info:launched', 'warn:bad']);
+  assert.deepEqual(calls, [
+    'rm:/tmp/mpv.sock',
+    'spawn:/usr/local/bin/mpv --idle=yes',
+    'info:launched',
+    'warn:bad',
+  ]);
 });
 
 test('ensure mpv connected for jellyfin main deps builder maps callbacks', async () => {

@@ -1,5 +1,6 @@
 import {
   MPV_REQUEST_ID_AID,
+  MPV_REQUEST_ID_MEDIA_TITLE,
   MPV_REQUEST_ID_OSD_DIMENSIONS,
   MPV_REQUEST_ID_OSD_HEIGHT,
   MPV_REQUEST_ID_PATH,
@@ -85,6 +86,7 @@ const MPV_INITIAL_PROPERTY_REQUESTS: Array<MpvProtocolCommand> = [
   },
   {
     command: ['get_property', 'media-title'],
+    request_id: MPV_REQUEST_ID_MEDIA_TITLE,
   },
   {
     command: ['get_property', 'pause'],

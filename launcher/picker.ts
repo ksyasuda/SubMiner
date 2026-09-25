@@ -159,6 +159,9 @@ interface RofiIconEntry {
   iconPath?: string;
 }
 
+const ROFI_THUMBNAILER_FILE = 'subminer-ffmpegthumbnailer.thumbnailer';
+const DEFAULT_XDG_DATA_DIRS = ['/usr/local/share', '/usr/share'];
+
 function showRofiIconMenu(
   entries: RofiIconEntry[],
   prompt: string,
@@ -225,7 +228,7 @@ export function pickLibrary(
     commandExists('chafa') && commandExists('curl')
       ? `
 id={1}
-url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&api_key=${escapeShellSingle(session.accessToken)}
+url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&ApiKey=${escapeShellSingle(session.accessToken)}
 curl -fsSL "$url" 2>/dev/null | chafa --format=symbols --symbols=vhalf+wide --size=${'${FZF_PREVIEW_COLUMNS}'}x${'${FZF_PREVIEW_LINES}'} - 2>/dev/null
 `.trim()
       : 'echo "Install curl + chafa for image preview"';
@@ -263,7 +266,7 @@ export function pickItem(
     commandExists('chafa') && commandExists('curl')
       ? `
 id={1}
-url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&api_key=${escapeShellSingle(session.accessToken)}
+url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&ApiKey=${escapeShellSingle(session.accessToken)}
 curl -fsSL "$url" 2>/dev/null | chafa --format=symbols --symbols=vhalf+wide --size=${'${FZF_PREVIEW_COLUMNS}'}x${'${FZF_PREVIEW_LINES}'} - 2>/dev/null
 `.trim()
       : 'echo "Install curl + chafa for image preview"';
@@ -301,7 +304,7 @@ export function pickGroup(
     commandExists('chafa') && commandExists('curl')
       ? `
 id={1}
-url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&api_key=${escapeShellSingle(session.accessToken)}
+url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&ApiKey=${escapeShellSingle(session.accessToken)}
 curl -fsSL "$url" 2>/dev/null | chafa --format=symbols --symbols=vhalf+wide --size=${'${FZF_PREVIEW_COLUMNS}'}x${'${FZF_PREVIEW_LINES}'} - 2>/dev/null
 `.trim()
       : 'echo "Install curl + chafa for image preview"';
@@ -389,6 +392,47 @@ export function findRofiTheme(scriptPath: string): string | null {
   return null;
 }
 
+export function findRofiThumbnailerDataRoot(scriptPath: string): string | null {
+  if (process.platform !== 'linux') return null;
+
+  const scriptDir = path.dirname(realpathMaybe(scriptPath));
+  const xdgDataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local/share');
+  const roots = [
+    path.join(xdgDataHome, 'SubMiner'),
+    path.posix.join('/usr/local/share/SubMiner'),
+    path.posix.join('/usr/share/SubMiner'),
+    path.join(scriptDir, 'assets'),
+    path.join(scriptDir, '..', 'assets'),
+  ];
+
+  for (const root of roots) {
+    if (fs.existsSync(path.join(root, 'thumbnailers', ROFI_THUMBNAILER_FILE))) {
+      return root;
+    }
+  }
+
+  return null;
+}
+
+export function prependXdgDataDir(dataRoot: string, currentValue?: string): string {
+  const currentDirs = currentValue
+    ? currentValue.split(path.delimiter).filter(Boolean)
+    : DEFAULT_XDG_DATA_DIRS;
+  return [dataRoot, ...currentDirs.filter((candidate) => candidate !== dataRoot)].join(
+    path.delimiter,
+  );
+}
+
+function buildRofiThumbnailEnvironment(scriptPath: string): NodeJS.ProcessEnv {
+  if (!commandExists('ffmpegthumbnailer')) return process.env;
+  const dataRoot = findRofiThumbnailerDataRoot(scriptPath);
+  if (!dataRoot) return process.env;
+  return {
+    ...process.env,
+    XDG_DATA_DIRS: prependXdgDataDir(dataRoot, process.env.XDG_DATA_DIRS),
+  };
+}
+
 export function showRofiMenu(
   videos: string[],
   dir: string,
@@ -420,6 +464,7 @@ export function showRofiMenu(
   const result = spawnSync('rofi', args, {
     input: buildRofiMenu(videos, dir, recursive),
     encoding: 'utf8',
+    env: buildRofiThumbnailEnvironment(scriptPath),
     stdio: ['pipe', 'pipe', 'ignore'],
   });
   if (result.error) {

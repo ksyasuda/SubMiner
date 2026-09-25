@@ -358,6 +358,30 @@ test('time-pos handler forces Jellyfin progress when mpv position jumps', () => 
   ]);
 });
 
+test('time-pos handler treats an explicit short jump as a seek', () => {
+  const updateKinds: string[] = [];
+  let explicitSeekPending = false;
+  const timeHandler = createHandleMpvTimePosChangeHandler({
+    recordPlaybackPosition: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    refreshDiscordPresence: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    consumeExplicitSeek: () => {
+      const pending = explicitSeekPending;
+      explicitSeekPending = false;
+      return pending;
+    },
+    onTimePosUpdate: (_time, kind) => updateKinds.push(kind),
+  });
+
+  timeHandler({ time: 10 });
+  explicitSeekPending = true;
+  timeHandler({ time: 11.5 });
+  timeHandler({ time: 11.6 });
+
+  assert.deepEqual(updateKinds, ['initial', 'seek', 'playback']);
+});
+
 test('time-pos handler passes fresh playback time to AniList post-watch', async () => {
   const watchedSeconds: unknown[] = [];
   const timeHandler = createHandleMpvTimePosChangeHandler({

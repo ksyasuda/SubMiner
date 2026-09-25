@@ -10,6 +10,9 @@ import {
   MediaGenerator,
   type MediaGeneratorOptions,
 } from './media-generator';
+import { RemoteMediaWindowCache } from './core/services/remote-media-window-cache';
+
+const REMOTE_STREAM_URL = 'https://jellyfin.example/Videos/abc/stream?static=true';
 
 async function withStubbedFfmpeg(
   run: (generator: MediaGenerator, argsPath: string) => Promise<void>,
@@ -21,6 +24,7 @@ async function withStubbedFfmpeg(
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-media-generator-test-'));
   const binDir = path.join(root, 'bin');
   const tempDir = path.join(root, 'media');
+  const windowsDir = path.join(root, 'windows');
   const argsPath = path.join(root, 'ffmpeg-args.txt');
   fs.mkdirSync(binDir, { recursive: true });
   const ffmpegStubPath = path.join(binDir, 'ffmpeg-stub.cjs');
@@ -34,7 +38,7 @@ async function withStubbedFfmpeg(
       "  console.log(' V..... libaom-av1');",
       '  process.exit(0);',
       '}',
-      "fs.writeFileSync(process.env.SUBMINER_TEST_FFMPEG_ARGS, JSON.stringify(args), 'utf8');",
+      "fs.appendFileSync(process.env.SUBMINER_TEST_FFMPEG_ARGS, JSON.stringify(args) + '\\n', 'utf8');",
       'const outputPath = args.at(-1);',
       "if (process.env.SUBMINER_TEST_FFMPEG_SKIP_OUTPUT !== '1') {",
       "  fs.writeFileSync(outputPath, 'avif', 'utf8');",
@@ -61,12 +65,18 @@ async function withStubbedFfmpeg(
   } else {
     delete process.env.SUBMINER_TEST_FFMPEG_SKIP_OUTPUT;
   }
-  const generator = new MediaGenerator(tempDir, options);
+  // Each test gets its own window cache so remote inputs never leak windows between tests.
+  const remoteMediaWindows = new RemoteMediaWindowCache({ tempDir: windowsDir, idleTtlMs: 0 });
+  const generator = new MediaGenerator(tempDir, {
+    remoteMediaWindows,
+    ...options,
+  });
 
   try {
     await run(generator, argsPath);
   } finally {
     generator.cleanup();
+    remoteMediaWindows.cleanup();
     process.env.PATH = originalPath;
     if (originalArgsPath === undefined) {
       delete process.env.SUBMINER_TEST_FFMPEG_ARGS;
@@ -82,8 +92,17 @@ async function withStubbedFfmpeg(
   }
 }
 
+function readAllFfmpegArgs(argsPath: string): string[][] {
+  return fs
+    .readFileSync(argsPath, 'utf8')
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as string[]);
+}
+
+/** Arguments of the most recent ffmpeg invocation. */
 function readFfmpegArgs(argsPath: string): string[] {
-  return JSON.parse(fs.readFileSync(argsPath, 'utf8')) as string[];
+  return readAllFfmpegArgs(argsPath).at(-1) ?? [];
 }
 
 test('buildAnimatedImageVideoFilter holds lead-in until the next frame after the audio boundary', () => {
@@ -272,39 +291,129 @@ test('generateAudio recreates missing temp directory before invoking ffmpeg', as
 });
 
 test('generateAudio adds remote input options before the ffmpeg input', async () => {
-  await withStubbedFfmpeg(async (generator, argsPath) => {
-    await generator.generateAudio(
-      {
-        path: 'https://rr1---sn.example.googlevideo.com/videoplayback?mime=audio%2Fwebm',
-        inputOptions: {
-          reconnect: true,
-          userAgent: 'Mozilla/5.0',
-          headers: {
-            Referer: 'https://www.youtube.com/',
-            Origin: 'https://www.youtube.com',
+  await withStubbedFfmpeg(
+    async (generator, argsPath) => {
+      await generator.generateAudio(
+        {
+          path: 'https://rr1---sn.example.googlevideo.com/videoplayback?mime=audio%2Fwebm',
+          inputOptions: {
+            reconnect: true,
+            userAgent: 'Mozilla/5.0',
+            headers: {
+              Referer: 'https://www.youtube.com/',
+              Origin: 'https://www.youtube.com',
+            },
           },
         },
-      },
+        10,
+        12,
+      );
+
+      const args = readFfmpegArgs(argsPath);
+      const inputIndex = args.indexOf('-i');
+      assert.ok(inputIndex > 0);
+      assert.ok(args.indexOf('-reconnect') > -1);
+      assert.ok(args.indexOf('-reconnect') < inputIndex);
+      assert.equal(args[args.indexOf('-reconnect') + 1], '1');
+      assert.equal(args[args.indexOf('-reconnect_streamed') + 1], '1');
+      assert.equal(args[args.indexOf('-reconnect_on_network_error') + 1], '1');
+      assert.equal(args[args.indexOf('-reconnect_on_http_error') + 1], '403,5xx');
+      assert.equal(args[args.indexOf('-reconnect_delay_max') + 1], '5');
+      assert.equal(args[args.indexOf('-user_agent') + 1], 'Mozilla/5.0');
+      assert.equal(
+        args[args.indexOf('-headers') + 1],
+        'Referer: https://www.youtube.com/\r\nOrigin: https://www.youtube.com\r\n',
+      );
+    },
+    { remoteMediaWindows: null },
+  );
+});
+
+test('generateAudio downloads a remote window once and extracts from it with absolute seeks', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAudio(
+      { path: REMOTE_STREAM_URL, inputOptions: { reconnect: true } },
       10,
       12,
+      0.5,
+      2,
     );
 
-    const args = readFfmpegArgs(argsPath);
-    const inputIndex = args.indexOf('-i');
-    assert.ok(inputIndex > 0);
-    assert.ok(args.indexOf('-reconnect') > -1);
-    assert.ok(args.indexOf('-reconnect') < inputIndex);
-    assert.equal(args[args.indexOf('-reconnect') + 1], '1');
-    assert.equal(args[args.indexOf('-reconnect_streamed') + 1], '1');
-    assert.equal(args[args.indexOf('-reconnect_on_network_error') + 1], '1');
-    assert.equal(args[args.indexOf('-reconnect_on_http_error') + 1], '403,5xx');
-    assert.equal(args[args.indexOf('-reconnect_delay_max') + 1], '5');
-    assert.equal(args[args.indexOf('-user_agent') + 1], 'Mozilla/5.0');
-    assert.equal(
-      args[args.indexOf('-headers') + 1],
-      'Referer: https://www.youtube.com/\r\nOrigin: https://www.youtube.com\r\n',
-    );
+    const calls = readAllFfmpegArgs(argsPath);
+    assert.equal(calls.length, 2);
+    const [fetchArgs, audioArgs] = calls as [string[], string[]];
+    assert.equal(fetchArgs[fetchArgs.indexOf('-i') + 1], REMOTE_STREAM_URL);
+    assert.ok(fetchArgs.indexOf('-reconnect') < fetchArgs.indexOf('-i'));
+    assert.equal(fetchArgs[fetchArgs.indexOf('-ss') + 1], '9.25');
+    assert.equal(fetchArgs[fetchArgs.lastIndexOf('-map') + 1], '0:2');
+    assert.ok(fetchArgs.includes('-copyts'));
+
+    const windowPath = audioArgs[audioArgs.indexOf('-i') + 1];
+    assert.ok(windowPath?.endsWith('.mkv'));
+    assert.notEqual(windowPath, REMOTE_STREAM_URL);
+    assert.equal(audioArgs[audioArgs.indexOf('-ss') + 1], '9.5');
+    assert.equal(audioArgs[audioArgs.indexOf('-seek_timestamp') + 1], '1');
+    assert.ok(audioArgs.indexOf('-seek_timestamp') < audioArgs.indexOf('-i'));
+    assert.equal(audioArgs.includes('-reconnect'), false);
+    assert.equal(audioArgs.includes('-map'), false);
+    assert.equal(audioArgs.includes('-probesize'), false);
+    assert.ok(audioArgs.includes('loudnorm=I=-23:TP=-2:LRA=11'));
   });
+});
+
+test('generateScreenshot reuses a downloaded window but never downloads one itself', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateScreenshot(REMOTE_STREAM_URL, 11, { format: 'jpg' });
+    let calls = readAllFfmpegArgs(argsPath);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]![calls[0]!.indexOf('-i') + 1], REMOTE_STREAM_URL);
+
+    await generator.generateAudio(REMOTE_STREAM_URL, 10, 12);
+    await generator.generateScreenshot(REMOTE_STREAM_URL, 11, { format: 'jpg' });
+    await generator.generateScreenshot(REMOTE_STREAM_URL, 40, { format: 'jpg' });
+
+    calls = readAllFfmpegArgs(argsPath);
+    assert.equal(calls.length, 5);
+    const insideWindow = calls[3]!;
+    assert.ok(insideWindow[insideWindow.indexOf('-i') + 1]?.endsWith('.mkv'));
+    assert.equal(insideWindow[insideWindow.indexOf('-seek_timestamp') + 1], '1');
+    const outsideWindow = calls[4]!;
+    assert.equal(outsideWindow[outsideWindow.indexOf('-i') + 1], REMOTE_STREAM_URL);
+  });
+});
+
+test('generateAnimatedImage downloads the clip window before encoding', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAnimatedImage(REMOTE_STREAM_URL, 10, 12, 0, { fps: 10 });
+
+    const calls = readAllFfmpegArgs(argsPath).filter(
+      (args) => args[0] !== '-hide_banner' || args[1] !== '-encoders',
+    );
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0]![calls[0]!.indexOf('-i') + 1], REMOTE_STREAM_URL);
+    assert.ok(calls[1]![calls[1]!.indexOf('-i') + 1]?.endsWith('.mkv'));
+    assert.equal(calls[1]![calls[1]!.indexOf('-seek_timestamp') + 1], '1');
+  });
+});
+
+test('generateAudio reads the remote source directly when the window download fails', async () => {
+  await withStubbedFfmpeg(
+    async (generator, argsPath) => {
+      await generator.generateAudio(REMOTE_STREAM_URL, 10, 12);
+
+      const args = readFfmpegArgs(argsPath);
+      assert.equal(args[args.indexOf('-i') + 1], REMOTE_STREAM_URL);
+      assert.equal(args.includes('-seek_timestamp'), false);
+    },
+    {
+      remoteMediaWindows: new RemoteMediaWindowCache({
+        execFile: (_file, _args, _options, callback) =>
+          queueMicrotask(() => callback(Object.assign(new Error('offline'), { code: 1 }))),
+        idleTtlMs: 0,
+        logDebug: () => undefined,
+      }),
+    },
+  );
 });
 
 test('generateAudio skips stale audio stream maps for single resolved streams', async () => {
@@ -320,8 +429,9 @@ test('generateAudio skips stale audio stream maps for single resolved streams', 
       22,
     );
 
-    const args = readFfmpegArgs(argsPath);
-    assert.equal(args.includes('-map'), false);
+    const [fetchArgs, audioArgs] = readAllFfmpegArgs(argsPath) as [string[], string[]];
+    assert.equal(fetchArgs[fetchArgs.lastIndexOf('-map') + 1], '0:a');
+    assert.equal(audioArgs.includes('-map'), false);
   });
 });
 

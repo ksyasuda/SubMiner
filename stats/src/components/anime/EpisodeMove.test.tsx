@@ -63,9 +63,12 @@ function episode(videoId: number, title: string): AnimeEpisode {
 
 function libraryItem(animeId: number, title: string): AnimeLibraryItem {
   return {
+    mediaKind: 'anime',
     animeId,
     canonicalTitle: title,
     anilistId: null,
+    tmdbId: null,
+    tmdbType: null,
     totalSessions: 1,
     totalActiveMs: 1000,
     totalCards: 0,

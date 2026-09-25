@@ -23,6 +23,8 @@ export type SessionActionId =
   | 'openControllerDebug'
   | 'openJimaku'
   | 'openTsukihime'
+  | 'openSubtitleSelection'
+  | 'openSubtitleGeneration'
   | 'openYoutubePicker'
   | 'openPlaylistBrowser'
   | 'replayCurrentSubtitle'
@@ -32,6 +34,11 @@ export type SessionActionId =
 export interface SessionKeySpec {
   code: string;
   modifiers: SessionKeyModifier[];
+}
+
+export interface MpvInputBindingsSnapshot {
+  keys: string[];
+  blockedKeys: SessionKeySpec[];
 }
 
 export interface SessionBindingWarning {

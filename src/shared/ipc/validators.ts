@@ -44,6 +44,8 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'openControllerDebug',
   'openJimaku',
   'openTsukihime',
+  'openSubtitleSelection',
+  'openSubtitleGeneration',
   'openYoutubePicker',
   'openPlaylistBrowser',
   'replayCurrentSubtitle',
@@ -53,12 +55,14 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
 
 const RUNTIME_OPTION_IDS: RuntimeOptionId[] = [
   'anki.autoUpdateNewCards',
+  'anki.mediaReviewTiming',
   'subtitle.annotation.knownWords.highlightEnabled',
   'subtitle.annotation.knownWords.maturityEnabled',
   'subtitle.annotation.nPlusOne',
   'subtitle.annotation.jlpt',
   'subtitle.annotation.frequency',
   'anki.kikuFieldGrouping',
+  'anki.senrenFieldGrouping',
   'anki.nPlusOneMatchMode',
 ];
 
@@ -390,7 +394,14 @@ export function parseKikuMergePreviewRequest(value: unknown): KikuMergePreviewRe
 
 export function parseJimakuSearchQuery(value: unknown): JimakuSearchQuery | null {
   if (!isObject(value) || typeof value.query !== 'string') return null;
-  return { query: value.query };
+  if (
+    value.category !== undefined &&
+    value.category !== 'anime' &&
+    value.category !== 'liveAction'
+  ) {
+    return null;
+  }
+  return { query: value.query, category: value.category };
 }
 
 export function parseJimakuFilesQuery(value: unknown): JimakuFilesQuery | null {

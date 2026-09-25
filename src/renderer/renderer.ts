@@ -40,11 +40,15 @@ import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
 import { createSessionHelpModal } from './modals/session-help.js';
 import { createChangelogModal } from './modals/changelog.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
+import { wireSubtitleSidebarSelection } from './modals/subtitle-sidebar-selection.js';
 import { isControllerInteractionBlocked } from './controller-interaction-blocking.js';
 import { createCharacterDictionaryModal } from './modals/character-dictionary.js';
 import { createRuntimeOptionsModal } from './modals/runtime-options.js';
+import { createSubtitleSelectionModal } from './modals/subtitle-selection';
 import { createSubsyncModal } from './modals/subsync.js';
+import { createSubtitleGenerationModal } from './modals/subtitle-generation.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
+import { createMediaTimingReviewModal } from './modals/media-timing-review.js';
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
@@ -78,6 +82,12 @@ const ctx = {
 };
 
 const modalDescriptors = [
+  {
+    id: 'subtitle-generation',
+    isOpen: () => ctx.state.subtitleGenerationModalOpen,
+    close: () => subtitleGenerationModal.close(),
+    suppressesSubtitles: true,
+  },
   {
     id: 'controller-select',
     isOpen: () => ctx.state.controllerSelectModalOpen,
@@ -115,6 +125,12 @@ const modalDescriptors = [
     suppressesSubtitles: true,
   },
   {
+    id: 'media-timing-review',
+    isOpen: () => ctx.state.mediaTimingReviewModalOpen,
+    close: () => mediaTimingReviewModal.requestCancel(),
+    suppressesSubtitles: true,
+  },
+  {
     id: 'playlist-browser',
     isOpen: () => ctx.state.playlistBrowserModalOpen,
     close: () => playlistBrowserModal.closePlaylistBrowserModal(),
@@ -136,6 +152,12 @@ const modalDescriptors = [
     id: 'character-dictionary',
     isOpen: () => ctx.state.characterDictionaryModalOpen,
     close: () => characterDictionaryModal.closeCharacterDictionaryModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'subtitle-selection',
+    isOpen: () => ctx.state.subtitleSelectionModalOpen,
+    close: () => subtitleSelectionModal.close(),
     suppressesSubtitles: true,
   },
   {
@@ -201,7 +223,14 @@ const characterDictionaryModal = createCharacterDictionaryModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const subtitleSelectionModal = createSubtitleSelectionModal(ctx, {
+  syncSettingsModalSubtitleSuppression,
+});
 const subsyncModal = createSubsyncModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
+const subtitleGenerationModal = createSubtitleGenerationModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
@@ -232,6 +261,8 @@ const subtitleSidebarModal = createSubtitleSidebarModal(ctx, {
     measurementReporter.emitNow();
   },
 });
+const disposeSubtitleSidebarSelection = wireSubtitleSidebarSelection(ctx);
+window.addEventListener('beforeunload', disposeSubtitleSidebarSelection, { once: true });
 const kikuModal = createKikuModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -265,14 +296,21 @@ const playlistBrowserModal = createPlaylistBrowserModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const mediaTimingReviewModal = createMediaTimingReviewModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
+  handleSubtitleSelectionKeydown: subtitleSelectionModal.handleKeydown,
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
+  handleSubtitleGenerationKeydown: subtitleGenerationModal.handleKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
   handleTsukihimeKeydown: tsukihimeModal.handleTsukihimeKeydown,
   handleYoutubePickerKeydown: youtubePickerModal.handleYoutubePickerKeydown,
+  handleMediaTimingReviewKeydown: mediaTimingReviewModal.handleMediaTimingReviewKeydown,
   handlePlaylistBrowserKeydown: playlistBrowserModal.handlePlaylistBrowserKeydown,
   handleControllerSelectKeydown: controllerSelectModal.handleControllerSelectKeydown,
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
@@ -520,6 +558,9 @@ const recovery = createRendererRecoveryController({
 registerRendererGlobalErrorHandlers(window, recovery);
 
 function registerModalOpenHandlers(): void {
+  window.electronAPI.onSubtitleGenerationOpen(() => {
+    runGuarded('subtitle-generation:open', () => subtitleGenerationModal.open());
+  });
   window.electronAPI.onOpenRuntimeOptions(() => {
     runGuarded('runtime-options:open', () => {
       runtimeOptionsModal.openRuntimeOptionsModal();
@@ -574,6 +615,16 @@ function registerModalOpenHandlers(): void {
       youtubePickerModal.openYoutubePickerModal(payload);
     });
   });
+  window.electronAPI.onOpenMediaTimingReview((payload) => {
+    runGuarded('media-timing-review:open', () => {
+      mediaTimingReviewModal.openMediaTimingReviewModal(payload);
+    });
+  });
+  window.electronAPI.onMediaTimingReviewPreviewEnded((reviewId) => {
+    runGuarded('media-timing-review:preview-ended', () => {
+      mediaTimingReviewModal.handlePreviewEnded(reviewId);
+    });
+  });
   window.electronAPI.onOpenPlaylistBrowser(() => {
     runGuardedAsync('playlist-browser:open', async () => {
       await playlistBrowserModal.openPlaylistBrowserModal();
@@ -583,6 +634,9 @@ function registerModalOpenHandlers(): void {
     runGuarded('youtube:picker-cancel', () => {
       youtubePickerModal.closeYoutubePickerModal();
     });
+  });
+  window.electronAPI.onSubtitleSelectionOpen(() => {
+    runGuarded('subtitle-selection:open', () => subtitleSelectionModal.open());
   });
   window.electronAPI.onSubsyncManualOpen((payload: SubsyncManualPayload) => {
     runGuarded('subsync:manual-open', () => {
@@ -805,10 +859,13 @@ async function init(): Promise<void> {
   jimakuModal.wireDomEvents();
   tsukihimeModal.wireDomEvents();
   youtubePickerModal.wireDomEvents();
+  mediaTimingReviewModal.wireDomEvents();
   playlistBrowserModal.wireDomEvents();
   kikuModal.wireDomEvents();
   runtimeOptionsModal.wireDomEvents();
+  subtitleSelectionModal.wireDomEvents();
   subsyncModal.wireDomEvents();
+  subtitleGenerationModal.wireDomEvents();
   controllerSelectModal.wireDomEvents();
   controllerDebugModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
@@ -816,6 +873,8 @@ async function init(): Promise<void> {
   subtitleSidebarModal.wireDomEvents();
   characterDictionaryModal.wireDomEvents();
   window.addEventListener('beforeunload', () => {
+    subtitleSelectionModal.dispose();
+    subtitleGenerationModal.dispose();
     subtitleSidebarModal.disposeDomEvents();
   });
 
@@ -824,9 +883,13 @@ async function init(): Promise<void> {
       runtimeOptionsModal.updateRuntimeOptions(options);
     });
   });
+  window.electronAPI.onSessionBindingsChanged(keyboardHandlers.updateSessionBindings);
   window.electronAPI.onConfigHotReload((payload: ConfigHotReloadPayload) => {
     runGuarded('config:hot-reload', () => {
-      keyboardHandlers.updateSessionBindings(payload.sessionBindings);
+      void window.electronAPI
+        .getSessionBindings()
+        .then(keyboardHandlers.updateSessionBindings)
+        .catch((error: unknown) => console.error('Could not refresh session bindings', error));
       void keyboardHandlers.refreshConfiguredShortcuts();
       subtitleRenderer.applySubtitleStyle(payload.subtitleStyle);
       subtitleRenderer.updatePrimarySubMode(payload.primarySubMode);

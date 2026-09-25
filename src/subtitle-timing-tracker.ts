@@ -67,8 +67,13 @@ export class SubtitleTimingTracker {
 
     // Check for duplicate of most recent entry (deduplicate adjacent repeats)
     const lastEntry = this.history[this.history.length - 1];
-    if (lastEntry && lastEntry.timingKey === timingKey) {
-      // Update timing to most recent occurrence
+    if (
+      lastEntry &&
+      lastEntry.timingKey === timingKey &&
+      lastEntry.startTime === startTime &&
+      lastEntry.endTime === endTime
+    ) {
+      // Refresh metadata for repeated notifications of the same subtitle event.
       lastEntry.startTime = startTime;
       lastEntry.endTime = endTime;
       lastEntry.secondaryText = displaySecondaryText;
@@ -107,28 +112,20 @@ export class SubtitleTimingTracker {
   }
 
   /**
-   * Get recent subtitle blocks in chronological order.
-   * Returns the last `count` subtitle events (oldest → newest).
+   * Get recent subtitle blocks in timeline order.
+   * Returns up to `count` known subtitle events ending at the current event.
    * Blocks preserve internal line breaks and are joined with blank lines.
    */
   getRecentBlocks(count: number): string[] {
-    if (count <= 0) return [];
-    if (count > this.history.length) {
-      count = this.history.length;
-    }
-    return this.history.slice(-count).map((entry) => entry.displayText);
+    return this.getRecentTimelineEntries(count).map((entry) => entry.displayText);
   }
 
   /**
-   * Get recent subtitle blocks with their original event timings.
-   * Returns the last `count` subtitle events (oldest → newest).
+   * Get recent subtitle blocks with their original event timings in timeline order.
+   * Returns up to `count` known subtitle events ending at the current event.
    */
   getRecentEntries(count: number): SubtitleTimingBlock[] {
-    if (count <= 0) return [];
-    if (count > this.history.length) {
-      count = this.history.length;
-    }
-    return this.history.slice(-count).map((entry) => ({
+    return this.getRecentTimelineEntries(count).map((entry) => ({
       displayText: entry.displayText,
       startTime: entry.startTime,
       endTime: entry.endTime,
@@ -142,6 +139,43 @@ export class SubtitleTimingTracker {
   getCurrentSubtitle(): string | null {
     const lastEntry = this.history[this.history.length - 1];
     return lastEntry ? lastEntry.displayText : null;
+  }
+
+  private getRecentTimelineEntries(count: number): HistoryEntry[] {
+    if (count <= 0) return [];
+
+    const currentEntry = this.history[this.history.length - 1];
+    if (!currentEntry) return [];
+
+    const timelineEntries: HistoryEntry[] = [];
+    for (const entry of this.history) {
+      const existingIndex = timelineEntries.findIndex((candidate) =>
+        this.isSameSubtitleEvent(candidate, entry),
+      );
+      if (existingIndex === -1) {
+        timelineEntries.push(entry);
+      } else {
+        timelineEntries[existingIndex] = entry;
+      }
+    }
+
+    timelineEntries.sort(
+      (left, right) => left.startTime - right.startTime || left.endTime - right.endTime,
+    );
+    const currentIndex = timelineEntries.findIndex((entry) =>
+      this.isSameSubtitleEvent(entry, currentEntry),
+    );
+    if (currentIndex === -1) return [];
+
+    return timelineEntries.slice(Math.max(0, currentIndex - count + 1), currentIndex + 1);
+  }
+
+  private isSameSubtitleEvent(left: HistoryEntry, right: HistoryEntry): boolean {
+    return (
+      left.timingKey === right.timingKey &&
+      left.startTime === right.startTime &&
+      left.endTime === right.endTime
+    );
   }
 
   private findFuzzyMatch(text: string): { startTime: number; endTime: number } | null {
