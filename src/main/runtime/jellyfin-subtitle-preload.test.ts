@@ -422,6 +422,55 @@ test('preload jellyfin subtitles selects japanese before slower tracks finish do
   ]);
 });
 
+test('preload jellyfin subtitles does not lock in a fallback japanese track during early selection', async () => {
+  const commands: Array<Array<string | number>> = [];
+  let requestCount = 0;
+  const fallbackJapanese = {
+    type: 'sub',
+    id: 5,
+    lang: 'jpn',
+    title: 'Japanese SDH',
+    external: true,
+    'external-filename': '/tmp/subminer-jellyfin-subtitles/0.srt',
+  };
+  const preferredJapanese = {
+    type: 'sub',
+    id: 6,
+    lang: 'jpn',
+    title: 'Japanese',
+    external: true,
+    'external-filename': '/tmp/subminer-jellyfin-subtitles/1.srt',
+  };
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'jpn', title: 'Japanese SDH', deliveryUrl: 'https://sub/sdh.srt' },
+        {
+          index: 1,
+          language: 'jpn',
+          title: 'Japanese',
+          isDefault: true,
+          deliveryUrl: 'https://sub/jpn.srt',
+        },
+      ],
+      getMpvClient: () => ({
+        requestProperty: async () => {
+          requestCount += 1;
+          // mpv lists the preferred track only after the early selection poll gives up.
+          return requestCount <= 10 ? [fallbackJapanese] : [fallbackJapanese, preferredJapanese];
+        },
+      }),
+      sendMpvCommand: (command) => commands.push(command),
+    }),
+  );
+
+  await preload({ session, clientInfo, itemId: 'item-1' });
+
+  assert.deepEqual(setPropertyCommandsExceptTrackAutoSelection(commands), [
+    ['set_property', 'sid', 6],
+  ]);
+});
+
 test('preload jellyfin subtitles clears managed delay when no external tracks are available', async () => {
   const commands: Array<Array<string | number>> = [];
   const preload = createPreloadJellyfinExternalSubtitlesHandler(

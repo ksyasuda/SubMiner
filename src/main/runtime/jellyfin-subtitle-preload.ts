@@ -406,10 +406,16 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
             });
             return;
           }
-          japanesePrimaryId =
-            findMpvTrackIdByPath(subtitleTracks, preferredJapanese.path) ??
-            pickBestTrackId(subtitleTracks, isJapanese);
-          selectJapanesePrimary(subtitleTracks, cachedTracks, japanesePrimaryId);
+          // Only commit early to the preferred track. If mpv has not listed it yet, leave the
+          // choice to the full ranking below instead of locking in a lower-ranked fallback.
+          const preferredJapaneseTrackId = findMpvTrackIdByPath(
+            subtitleTracks,
+            preferredJapanese.path,
+          );
+          if (preferredJapaneseTrackId !== null) {
+            japanesePrimaryId = preferredJapaneseTrackId;
+            selectJapanesePrimary(subtitleTracks, cachedTracks, japanesePrimaryId);
+          }
         }
 
         const results = await allDownloads;
