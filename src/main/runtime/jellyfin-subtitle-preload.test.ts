@@ -363,6 +363,114 @@ test('preload jellyfin subtitles waits for delayed external japanese track inste
   ]);
 });
 
+test('preload jellyfin subtitles selects japanese before slower tracks finish downloading', async () => {
+  const commands: Array<Array<string | number>> = [];
+  let releaseSlowTrack!: () => void;
+  const slowTrackBlocked = new Promise<void>((resolve) => {
+    releaseSlowTrack = resolve;
+  });
+  const mpvTracks: Array<Record<string, unknown>> = [];
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'eng', title: 'English', deliveryUrl: 'https://sub/eng.ass' },
+        { index: 1, language: 'jpn', title: 'Japanese', deliveryUrl: 'https://sub/jpn.srt' },
+      ],
+      getMpvClient: () => ({ requestProperty: async () => mpvTracks }),
+      cacheSubtitleTrack: async (track) => {
+        if (track.index === 0) {
+          await slowTrackBlocked;
+        }
+        return {
+          path: `/tmp/subminer-jellyfin-subtitles/${track.index}.srt`,
+          cleanupDir: '/tmp/subminer-jellyfin-subtitles',
+        };
+      },
+      sendMpvCommand: (command) => {
+        commands.push(command);
+        if (command[0] === 'sub-add') {
+          mpvTracks.push({
+            type: 'sub',
+            id: mpvTracks.length + 1,
+            lang: command[4],
+            title: command[3],
+            external: true,
+            'external-filename': command[1],
+          });
+        }
+      },
+    }),
+  );
+
+  const done = preload({ session, clientInfo, itemId: 'item-1' });
+  const hasJapanesePrimary = () =>
+    commands.some(
+      (command) => command[0] === 'set_property' && command[1] === 'sid' && command[2] === 1,
+    );
+  for (let tick = 0; tick < 1000 && !hasJapanesePrimary(); tick += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  const selectedBeforeSlowTrack = setPropertyCommandsExceptTrackAutoSelection(commands);
+  // Release before asserting so a regression fails here instead of leaving the preload hanging.
+  releaseSlowTrack();
+  await done;
+
+  assert.deepEqual(selectedBeforeSlowTrack, [['set_property', 'sid', 1]]);
+  assert.deepEqual(setPropertyCommandsExceptTrackAutoSelection(commands), [
+    ['set_property', 'sid', 1],
+    ['set_property', 'secondary-sid', 2],
+  ]);
+});
+
+test('preload jellyfin subtitles does not lock in a fallback japanese track during early selection', async () => {
+  const commands: Array<Array<string | number>> = [];
+  let requestCount = 0;
+  const fallbackJapanese = {
+    type: 'sub',
+    id: 5,
+    lang: 'jpn',
+    title: 'Japanese SDH',
+    external: true,
+    'external-filename': '/tmp/subminer-jellyfin-subtitles/0.srt',
+  };
+  const preferredJapanese = {
+    type: 'sub',
+    id: 6,
+    lang: 'jpn',
+    title: 'Japanese',
+    external: true,
+    'external-filename': '/tmp/subminer-jellyfin-subtitles/1.srt',
+  };
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'jpn', title: 'Japanese SDH', deliveryUrl: 'https://sub/sdh.srt' },
+        {
+          index: 1,
+          language: 'jpn',
+          title: 'Japanese',
+          isDefault: true,
+          deliveryUrl: 'https://sub/jpn.srt',
+        },
+      ],
+      getMpvClient: () => ({
+        requestProperty: async () => {
+          requestCount += 1;
+          // mpv lists the preferred track only after the early selection poll gives up.
+          return requestCount <= 10 ? [fallbackJapanese] : [fallbackJapanese, preferredJapanese];
+        },
+      }),
+      sendMpvCommand: (command) => commands.push(command),
+    }),
+  );
+
+  await preload({ session, clientInfo, itemId: 'item-1' });
+
+  assert.deepEqual(setPropertyCommandsExceptTrackAutoSelection(commands), [
+    ['set_property', 'sid', 6],
+  ]);
+});
+
 test('preload jellyfin subtitles clears managed delay when no external tracks are available', async () => {
   const commands: Array<Array<string | number>> = [];
   const preload = createPreloadJellyfinExternalSubtitlesHandler(
