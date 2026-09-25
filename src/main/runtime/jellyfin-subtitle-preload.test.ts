@@ -363,6 +363,66 @@ test('preload jellyfin subtitles waits for delayed external japanese track inste
   ]);
 });
 
+test('preload jellyfin subtitles selects japanese before slower tracks finish downloading', async () => {
+  const commands: Array<Array<string | number>> = [];
+  let releaseSlowTrack!: () => void;
+  const slowTrackBlocked = new Promise<void>((resolve) => {
+    releaseSlowTrack = resolve;
+  });
+  const mpvTracks: Array<Record<string, unknown>> = [];
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'eng', title: 'English', deliveryUrl: 'https://sub/eng.ass' },
+        { index: 1, language: 'jpn', title: 'Japanese', deliveryUrl: 'https://sub/jpn.srt' },
+      ],
+      getMpvClient: () => ({ requestProperty: async () => mpvTracks }),
+      cacheSubtitleTrack: async (track) => {
+        if (track.index === 0) {
+          await slowTrackBlocked;
+        }
+        return {
+          path: `/tmp/subminer-jellyfin-subtitles/${track.index}.srt`,
+          cleanupDir: '/tmp/subminer-jellyfin-subtitles',
+        };
+      },
+      sendMpvCommand: (command) => {
+        commands.push(command);
+        if (command[0] === 'sub-add') {
+          mpvTracks.push({
+            type: 'sub',
+            id: mpvTracks.length + 1,
+            lang: command[4],
+            title: command[3],
+            external: true,
+            'external-filename': command[1],
+          });
+        }
+      },
+    }),
+  );
+
+  const done = preload({ session, clientInfo, itemId: 'item-1' });
+  while (
+    !commands.some(
+      (command) => command[0] === 'set_property' && command[1] === 'sid' && command[2] === 1,
+    )
+  ) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+
+  assert.deepEqual(setPropertyCommandsExceptTrackAutoSelection(commands), [
+    ['set_property', 'sid', 1],
+  ]);
+  releaseSlowTrack();
+  await done;
+
+  assert.deepEqual(setPropertyCommandsExceptTrackAutoSelection(commands), [
+    ['set_property', 'sid', 1],
+    ['set_property', 'secondary-sid', 2],
+  ]);
+});
+
 test('preload jellyfin subtitles clears managed delay when no external tracks are available', async () => {
   const commands: Array<Array<string | number>> = [];
   const preload = createPreloadJellyfinExternalSubtitlesHandler(
