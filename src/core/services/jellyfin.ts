@@ -146,6 +146,17 @@ function setApiKeyParam(url: URL, accessToken: string): void {
   url.searchParams.set('ApiKey', accessToken);
 }
 
+const IMAGE_SUBTITLE_CODECS = new Set([
+  'pgssub',
+  'pgs',
+  'hdmv_pgs_subtitle',
+  'dvdsub',
+  'dvd_subtitle',
+  'dvbsub',
+  'dvb_subtitle',
+  'xsub',
+]);
+
 function resolveDeliveryUrl(
   session: JellyfinAuthSession,
   stream: JellyfinMediaStream,
@@ -163,6 +174,8 @@ function resolveDeliveryUrl(
   const streamIndex = asIntegerOrNull(stream.Index);
   if (streamIndex === null || !itemId || !mediaSourceId) return null;
   const codec = ensureString(stream.Codec).toLowerCase();
+  // Jellyfin cannot convert bitmap subtitles to text, so requesting them always fails.
+  if (IMAGE_SUBTITLE_CODECS.has(codec)) return null;
   const ext =
     codec === 'subrip'
       ? 'srt'

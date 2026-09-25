@@ -471,6 +471,56 @@ test('preload jellyfin subtitles does not lock in a fallback japanese track duri
   ]);
 });
 
+test('preload jellyfin subtitles still selects remaining tracks when one download fails', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'eng', title: 'English', deliveryUrl: 'https://sub/eng.srt' },
+        { index: 1, language: 'jpn', title: 'Japanese', deliveryUrl: 'https://sub/jpn.srt' },
+        { index: 5, language: 'eng', title: 'English PGS', deliveryUrl: 'https://sub/pgs.srt' },
+      ],
+      getMpvClient: () => ({
+        requestProperty: async () => [
+          {
+            type: 'sub',
+            id: 1,
+            lang: 'eng',
+            title: 'English',
+            external: true,
+            'external-filename': '/tmp/subminer-jellyfin-subtitles/0.srt',
+          },
+          {
+            type: 'sub',
+            id: 2,
+            lang: 'jpn',
+            title: 'Japanese',
+            external: true,
+            'external-filename': '/tmp/subminer-jellyfin-subtitles/1.srt',
+          },
+        ],
+      }),
+      cacheSubtitleTrack: async (track) => {
+        if (track.index === 5) {
+          throw new Error('Failed to download Jellyfin subtitle (HTTP 400)');
+        }
+        return {
+          path: `/tmp/subminer-jellyfin-subtitles/${track.index}.srt`,
+          cleanupDir: '/tmp/subminer-jellyfin-subtitles',
+        };
+      },
+      sendMpvCommand: (command) => commands.push(command),
+    }),
+  );
+
+  await preload({ session, clientInfo, itemId: 'item-1' });
+
+  assert.deepEqual(setPropertyCommandsExceptTrackAutoSelection(commands), [
+    ['set_property', 'sid', 2],
+    ['set_property', 'secondary-sid', 1],
+  ]);
+});
+
 test('preload jellyfin subtitles clears managed delay when no external tracks are available', async () => {
   const commands: Array<Array<string | number>> = [];
   const preload = createPreloadJellyfinExternalSubtitlesHandler(
