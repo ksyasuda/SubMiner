@@ -22,6 +22,8 @@ export type {
 } from './definitions/shared';
 
 const {
+  dictionaryBackend,
+  hachidori,
   subtitlePosition,
   keybindings,
   websocket,
@@ -58,6 +60,8 @@ const { stats } = STATS_DEFAULT_CONFIG;
 export const DEFAULT_CONFIG: ResolvedConfig = {
   subtitleSelection: { enabled: false },
   subtitleGeneration: { ...DEFAULT_SUBTITLE_GENERATION_CONFIG },
+  dictionaryBackend,
+  hachidori,
   subtitlePosition,
   keybindings,
   websocket,

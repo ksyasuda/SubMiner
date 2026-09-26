@@ -30,8 +30,17 @@ export function createDeps(
 }
 
 function createYomitanScriptSandbox(handler: (action: string, params: unknown) => unknown) {
+  const storage: Record<string, unknown> = {};
   return {
     chrome: {
+      storage: {
+        local: {
+          get: async () => ({ ...storage }),
+          set: async (value: Record<string, unknown>) => {
+            Object.assign(storage, value);
+          },
+        },
+      },
       runtime: {
         lastError: null,
         sendMessage: (

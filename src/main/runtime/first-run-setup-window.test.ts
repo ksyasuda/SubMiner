@@ -779,3 +779,51 @@ test('closing completed first-run setup quits app when completion policy allows 
 
   assert.deepEqual(calls, ['set', 'clear', 'quit']);
 });
+
+test('Hachidori setup names the active dictionary backend', () => {
+  const html = buildFirstRunSetupHtml({
+    dictionaryBackend: 'hachidori',
+    configReady: true,
+    dictionaryCount: 0,
+    canFinish: false,
+    externalYomitanConfigured: false,
+    pluginStatus: 'installed',
+    pluginInstallPathSummary: null,
+    mpvExecutablePath: '',
+    mpvExecutablePathStatus: 'blank',
+    windowsMpvShortcuts: {
+      supported: false,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
+    commandLineLauncher: createCommandLineLauncherSnapshot(),
+    message: null,
+  });
+  assert.match(html, /Hachidori dictionaries/);
+  assert.match(html, /Open Hachidori Settings/);
+  assert.match(html, /Install at least one Hachidori dictionary/);
+  assert.doesNotMatch(html, /Open Yomitan Settings/);
+  assert.match(html, /Link host/);
+  assert.match(html, /<details class="external-host">/);
+  assert.match(html, /Use an external dictionary host/);
+  assert.match(html, /keep the browser and its sharing relay running/);
+  assert.match(html, /You can close its browser management page/);
+});
+
+test('setup parses link and unlink actions without losing the host address', () => {
+  const address = 'ws://127.0.0.1:38771/link';
+  assert.deepEqual(
+    parseFirstRunSetupSubmissionUrl(
+      'subminer://first-run-setup?action=link-hachidori-host&address=' +
+        encodeURIComponent(address),
+    ),
+    { action: 'link-hachidori-host', address },
+  );
+  assert.deepEqual(
+    parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=unlink-hachidori-host'),
+    { action: 'unlink-hachidori-host' },
+  );
+});

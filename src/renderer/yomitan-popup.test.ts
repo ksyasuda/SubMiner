@@ -5,7 +5,32 @@ import {
   YOMITAN_POPUP_VISIBLE_HOST_SELECTOR,
   isYomitanPopupVisible,
   registerYomitanLookupListener,
+  registerDictionaryPopupVisibilityListener,
 } from './yomitan-popup.js';
+
+test('native popup attention events from either backend have the same lifecycle', () => {
+  for (const backend of ['yomitan', 'hachidori']) {
+    const target = new EventTarget();
+    const calls: string[] = [];
+    const disposeShown = registerDictionaryPopupVisibilityListener(
+      'shown',
+      () => calls.push('shown'),
+      target,
+    );
+    const disposeHidden = registerDictionaryPopupVisibilityListener(
+      'hidden',
+      () => calls.push('hidden'),
+      target,
+    );
+    target.dispatchEvent(new CustomEvent(`${backend}-popup-shown`));
+    target.dispatchEvent(new CustomEvent(`${backend}-popup-hidden`));
+    disposeShown();
+    disposeHidden();
+    target.dispatchEvent(new CustomEvent(`${backend}-popup-shown`));
+    target.dispatchEvent(new CustomEvent(`${backend}-popup-hidden`));
+    assert.deepEqual(calls, ['shown', 'hidden']);
+  }
+});
 
 test('registerYomitanLookupListener forwards the SubMiner Yomitan lookup event', () => {
   const target = new EventTarget();

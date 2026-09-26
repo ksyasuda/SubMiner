@@ -241,6 +241,10 @@ export function applyRootOptionsToArgs(
   if (options.update === true) parsed.update = true;
   if (options.version === true) parsed.version = true;
   if (options.settings === true) parsed.settings = true;
+  if (options.yomitan === true || options.hachidori === true) {
+    parsed.appPassthrough = true;
+    parsed.appArgs = [options.yomitan === true ? '--yomitan' : '--hachidori'];
+  }
   if (options.startOverlay === true) parsed.autoStartOverlay = true;
   if (options.texthooker === false) parsed.useTexthooker = false;
   if (typeof options.args === 'string') parsed.mpvArgs = options.args;

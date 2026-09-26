@@ -206,6 +206,7 @@ export function createOverlayModalRuntimeService(
     if (!modalWindowPrimeListenersRegistered.has(modalWindow)) {
       modalWindowPrimeListenersRegistered.add(modalWindow);
       modalWindow.webContents.once('did-finish-load', () => markModalWindowPrimed(modalWindow));
+      modalWindow.webContents.once('did-stop-loading', () => markModalWindowPrimed(modalWindow));
       modalWindow.once('ready-to-show', () => markModalWindowPrimed(modalWindow));
     }
     return true;
@@ -281,7 +282,11 @@ export function createOverlayModalRuntimeService(
 
     // A hidden macOS panel may not emit ready-to-show until it is presented. The
     // renderer can safely receive IPC as soon as its document has finished loading.
+    // Electron still reports isLoading() inside did-finish-load (and ready-to-show can
+    // fire even earlier), so a window created for this send would drop the message
+    // without the did-stop-loading pass that follows once the load state settles.
     window.webContents.once('did-finish-load', () => deliver(() => isWindowLoadedForIpc(window)));
+    window.webContents.once('did-stop-loading', () => deliver(() => isWindowLoadedForIpc(window)));
     window.once('ready-to-show', () => deliver(() => isWindowReadyForIpc(window)));
     deliver(() => isWindowLoadedForIpc(window));
   };

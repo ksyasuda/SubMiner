@@ -4,6 +4,11 @@ import test from 'node:test';
 import type { SubtitleSidebarConfig } from '../../types';
 import { createMouseHandlers } from './mouse.js';
 import {
+  HACHIDORI_HOST_SELECTOR,
+  HACHIDORI_POPUP_HIDDEN_EVENT,
+  HACHIDORI_POPUP_SELECTOR,
+  HACHIDORI_POPUP_SHOWN_EVENT,
+  YOMITAN_LOOKUP_EVENT,
   YOMITAN_POPUP_HIDDEN_EVENT,
   YOMITAN_POPUP_HOST_SELECTOR,
   YOMITAN_POPUP_MOUSE_ENTER_EVENT,
@@ -720,6 +725,210 @@ test('popup open pauses and popup close resumes when yomitan popup auto-pause is
     });
     Object.defineProperty(globalThis, 'Node', { configurable: true, value: previousNode });
   }
+});
+
+// Hachidori publishes one attention signal for an open popup and for a press on
+// subtitle text that may become a selection, so its popup pane is the stub's
+// source of truth for what is on screen.
+async function withHachidoriReader(
+  run: (reader: {
+    emit: (event: string) => void;
+    setAttention: (active: boolean) => void;
+    setPopupOpen: (open: boolean) => void;
+    setHostAttached: (attached: boolean) => void;
+  }) => Promise<void>,
+): Promise<void> {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousDocument = (globalThis as { document?: unknown }).document;
+  const previousMutationObserver = (globalThis as { MutationObserver?: unknown }).MutationObserver;
+  const previousNode = (globalThis as { Node?: unknown }).Node;
+  const windowListeners = new Map<string, Array<() => void>>();
+  const pane = { hidden: true };
+  let attention = false;
+  let hostAttached = true;
+  const host = {
+    tagName: 'HACHIDORI-HOST',
+    getAttribute: (name: string) =>
+      name === 'data-subminer-yomitan-popup-visible' ? String(attention) : null,
+    shadowRoot: {
+      querySelectorAll: (selector: string) => (selector === HACHIDORI_POPUP_SELECTOR ? [pane] : []),
+    },
+  };
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      addEventListener: (type: string, listener: () => void) => {
+        const bucket = windowListeners.get(type) ?? [];
+        bucket.push(listener);
+        windowListeners.set(type, bucket);
+      },
+      electronAPI: {
+        setIgnoreMouseEvents: () => {},
+      },
+      focus: () => {},
+      innerHeight: 1000,
+      getSelection: () => null,
+      setTimeout,
+      clearTimeout,
+    },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      querySelector: () => null,
+      querySelectorAll: (selector: string) => {
+        if (!hostAttached) return [];
+        if (selector === HACHIDORI_HOST_SELECTOR || selector === YOMITAN_POPUP_HOST_SELECTOR) {
+          return [host];
+        }
+        if (selector === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR) {
+          return attention ? [host] : [];
+        }
+        return [];
+      },
+      body: {},
+      elementFromPoint: () => null,
+      addEventListener: () => {},
+    },
+  });
+  Object.defineProperty(globalThis, 'MutationObserver', {
+    configurable: true,
+    value: class {
+      observe() {}
+    },
+  });
+  Object.defineProperty(globalThis, 'Node', {
+    configurable: true,
+    value: {
+      ELEMENT_NODE: 1,
+    },
+  });
+
+  try {
+    await run({
+      emit: (event) => {
+        for (const listener of windowListeners.get(event) ?? []) {
+          listener();
+        }
+      },
+      setAttention: (active) => {
+        attention = active;
+      },
+      setPopupOpen: (open) => {
+        pane.hidden = !open;
+      },
+      setHostAttached: (attached) => {
+        hostAttached = attached;
+      },
+    });
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    Object.defineProperty(globalThis, 'MutationObserver', {
+      configurable: true,
+      value: previousMutationObserver,
+    });
+    Object.defineProperty(globalThis, 'Node', { configurable: true, value: previousNode });
+  }
+}
+
+function createPopupAutoPauseHandlers(
+  ctx: ReturnType<typeof createMouseTestContext>,
+  mpvCommands: Array<(string | number)[]>,
+) {
+  return createMouseHandlers(ctx as never, {
+    modalStateReader: {
+      isAnySettingsModalOpen: () => false,
+      isAnyModalOpen: () => false,
+    },
+    applyYPercent: () => {},
+    getCurrentYPercent: () => 10,
+    persistSubtitlePositionPatch: () => {},
+    getSubtitleHoverAutoPauseEnabled: () => false,
+    getYomitanPopupAutoPauseEnabled: () => true,
+    getPlaybackPaused: async () => false,
+    sendMpvCommand: (command: (string | number)[]) => {
+      mpvCommands.push(command);
+    },
+  });
+}
+
+test('Hachidori press on subtitle text does not pause before a popup opens', async () => {
+  await withHachidoriReader(async (reader) => {
+    const mpvCommands: Array<(string | number)[]> = [];
+    const handlers = createPopupAutoPauseHandlers(createMouseTestContext(), mpvCommands);
+    handlers.setupYomitanObserver();
+
+    reader.setAttention(true);
+    reader.emit(HACHIDORI_POPUP_SHOWN_EVENT);
+    await waitForNextTick();
+    reader.setAttention(false);
+    reader.emit(HACHIDORI_POPUP_HIDDEN_EVENT);
+    await waitForNextTick();
+
+    assert.deepEqual(mpvCommands, []);
+  });
+});
+
+test('Hachidori press before any lookup does not pause while its host is unattached', async () => {
+  await withHachidoriReader(async (reader) => {
+    const mpvCommands: Array<(string | number)[]> = [];
+    const handlers = createPopupAutoPauseHandlers(createMouseTestContext(), mpvCommands);
+    handlers.setupYomitanObserver();
+
+    // Hachidori attaches its host on the first lookup, so a press anywhere on
+    // the overlay before that claims attention with nothing in the DOM.
+    reader.setHostAttached(false);
+    reader.emit(HACHIDORI_POPUP_SHOWN_EVENT);
+    await waitForNextTick();
+    reader.emit(HACHIDORI_POPUP_HIDDEN_EVENT);
+    await waitForNextTick();
+
+    assert.deepEqual(mpvCommands, []);
+  });
+});
+
+test('Hachidori selection lookup pauses once its popup opens and resumes on close', async () => {
+  await withHachidoriReader(async (reader) => {
+    const mpvCommands: Array<(string | number)[]> = [];
+    const handlers = createPopupAutoPauseHandlers(createMouseTestContext(), mpvCommands);
+    handlers.setupYomitanObserver();
+
+    reader.setAttention(true);
+    reader.emit(HACHIDORI_POPUP_SHOWN_EVENT);
+    await waitForNextTick();
+    assert.deepEqual(mpvCommands, []);
+
+    // The drag's attention carries over to its lookup, so no second shown event arrives.
+    reader.setPopupOpen(true);
+    reader.emit(YOMITAN_LOOKUP_EVENT);
+    await waitForNextTick();
+    assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+
+    reader.setPopupOpen(false);
+    reader.setAttention(false);
+    reader.emit(HACHIDORI_POPUP_HIDDEN_EVENT);
+    assert.deepEqual(mpvCommands, [
+      ['set_property', 'pause', 'yes'],
+      ['set_property', 'pause', 'no'],
+    ]);
+  });
+});
+
+test('Hachidori hover popup pauses when shown', async () => {
+  await withHachidoriReader(async (reader) => {
+    const mpvCommands: Array<(string | number)[]> = [];
+    const handlers = createPopupAutoPauseHandlers(createMouseTestContext(), mpvCommands);
+    handlers.setupYomitanObserver();
+
+    reader.setPopupOpen(true);
+    reader.setAttention(true);
+    reader.emit(HACHIDORI_POPUP_SHOWN_EVENT);
+    await waitForNextTick();
+
+    assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+  });
 });
 
 test('nested popup close reasserts interactive state and focus when another popup remains visible on Windows', async () => {

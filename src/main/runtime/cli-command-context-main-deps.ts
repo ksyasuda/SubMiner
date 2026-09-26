@@ -64,6 +64,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   ensureBackgroundStatsServer?: CliCommandContextFactoryDeps['ensureBackgroundStatsServer'];
 
   openYomitanSettings: () => void;
+  openHachidoriSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
   cycleSecondarySubMode: () => void;
@@ -144,6 +145,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     runYoutubePlaybackFlow: (request) => deps.runYoutubePlaybackFlow(request),
     ensureBackgroundStatsServer: deps.ensureBackgroundStatsServer,
     openYomitanSettings: () => deps.openYomitanSettings(),
+    openHachidoriSettings: () => deps.openHachidoriSettings(),
     openConfigSettingsWindow: () => deps.openConfigSettingsWindow(),
     openSyncUiWindow: () => deps.openSyncUiWindow(),
     cycleSecondarySubMode: () => deps.cycleSecondarySubMode(),

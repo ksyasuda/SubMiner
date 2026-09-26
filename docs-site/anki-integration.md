@@ -15,9 +15,9 @@ If you changed AnkiConnect's port, set `ankiConnect.url` to match.
 
 ## How cards get filled
 
-When Yomitan adds a note, SubMiner fills the sentence, audio, image, and MiscInfo fields. It finds new notes in one of two ways:
+When Yomitan or Hachidori adds a note, SubMiner fills the sentence, audio, image, and MiscInfo fields. It finds new notes in one of two ways:
 
-- **Proxy (default).** SubMiner runs a local AnkiConnect-compatible server. Yomitan sends notes through it, and SubMiner fills each one right after Anki accepts it.
+- **Proxy (default).** SubMiner runs a local AnkiConnect-compatible server. The dictionary sends notes through it, and SubMiner fills each one right after Anki accepts it.
 - **Polling.** With `ankiConnect.proxy.enabled` set to `false`, SubMiner asks AnkiConnect for recently added notes every `ankiConnect.pollingRate` milliseconds.
 
 Set `ankiConnect.behavior.autoUpdateNewCards` to `false` to stop automatic filling and update cards by hand with `Ctrl/Cmd+V` instead.
@@ -42,6 +42,20 @@ Clients must send notes to the proxy (`http://127.0.0.1:8766` here), not to Anki
 
 - **Bundled Yomitan.** SubMiner sets the active Yomitan profile's Anki server for you. With the proxy on, it always points the profile at the proxy. With the proxy off, it sets `ankiConnect.url`, but only if the profile's server is blank or the stock `http://127.0.0.1:8765`.
 - **Browser Yomitan or other clients.** Set the Anki server to the proxy URL yourself. To leave your main profile alone, create a separate Yomitan profile for SubMiner, set its Anki server (Settings, Anki) to the proxy URL, and make it active while you mine.
+- **Hachidori.** SubMiner routes Hachidori to the proxy while it is active. Keep the proxy on for screenshots and sentence audio.
+
+### Hachidori settings from SubMiner
+
+With the [Hachidori backend](/usage#hachidori-setup), SubMiner fills Hachidori's first Anki template from your `ankiConnect` settings on startup and whenever you open Hachidori Settings:
+
+- The deck always follows `ankiConnect.deck`, because polling only looks for new cards in that deck.
+- Configured tags go into untouched defaults.
+- Missing word, sentence, pronunciation-audio, and picture mappings are filled with fields that exist in Anki. Pronunciation uses `fields.wordAudio`, or `fields.audio` when no word-audio field is set.
+- If the note type is unset, SubMiner picks the one note type that has your word and sentence fields. Enabled Lapis, Kiku, or Senren narrows the search. A fresh mapping also gets Hachidori's matching preset for readings, definitions, and other known fields.
+
+Apart from the deck, SubMiner only fills missing settings. Custom tags, field mappings, advanced templates, and extra templates stay as you set them. If several note types match, pick one in Hachidori Settings. If Anki was closed, start it and open Hachidori Settings again to retry.
+
+Sentence audio, image timing, translation, metadata, and field grouping stay under SubMiner's control. Pronunciation sources are set in Hachidori. Linking an external dictionary host does not change any of this.
 
 ### Proxy troubleshooting
 
@@ -87,6 +101,8 @@ If cards are not getting filled:
 
 Field names are matched case-insensitively. A mapped field that is missing from the note type is skipped.
 
+Hachidori prepares downloadable word audio before it saves a note through the proxy, so the animated image delay works on the first mine. Set a downloadable pronunciation source in Hachidori's Audio settings. Browser speech cannot be saved to Anki. Without word audio, Hachidori shows a warning and the card gets no word-audio hold.
+
 `fields.audio` gets sentence audio, not word audio. Yomitan writes its own dictionary audio into your note, so point `fields.audio` at a separate field such as `SentenceAudio`. The default, `ExpressionAudio`, is the field many note types use for Yomitan's word audio, so leaving it would overwrite that audio.
 
 `ankiConnect.tags` adds tags to every mined or updated card. Set it to `[]` to add none.
@@ -121,6 +137,8 @@ Media settings apply to the next card without a restart.
 ### Review media timing
 
 With `media.reviewTiming` on, SubMiner pauses before making media for word, sentence, and audio cards and opens a review dialog. You can also toggle it for the current session with **Review Media Timing** in the runtime options palette (`Ctrl/Cmd+Shift+O`). Clipboard updates and stats-dashboard mining skip the review.
+
+Playback stays paused while the dialog is open, even if the popup or hover that paused it goes away. When the dialog closes, playback resumes if it was playing before, or if the popup closed in the meantime. A popup that is still open keeps it paused.
 
 The dialog shows the clip over a speech waveform. When the waveform loads, an untouched clip end moves back to just after the last speech in the line. The Line end rail still marks the subtitle's own end.
 
@@ -205,6 +223,8 @@ For Senren, use the same keys under `isSenren`.
 | `disabled`      | No duplicate check                                                              |
 | `auto`          | Merge into the existing card. With `deleteDuplicateInAuto`, delete the new card |
 | `manual`        | Show both cards, let you choose which to keep and preview the merge             |
+
+Grouping runs when a new note is added while duplicates exist. With Hachidori, that is the popup's **Add anyway** choice. **Overwrite** updates the existing note in place and only gets media.
 
 The manual dialog cancels itself after 90 seconds. Identical entries are not deduplicated. Press `Ctrl/Cmd+G` to run the duplicate check on the last card yourself.
 

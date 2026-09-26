@@ -15,6 +15,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
     yomitan: false,
+    hachidori: false,
     settings: false,
     syncWindow: false,
     setup: false,

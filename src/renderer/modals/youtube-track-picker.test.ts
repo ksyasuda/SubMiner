@@ -274,7 +274,7 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
     assert.equal(state.youtubePickerModalOpen, false);
     assert.deepEqual(syncCalls, ['sync', 'sync', 'restore-pointer']);
     assert.deepEqual(notifications, ['youtube-track-picker']);
-    assert.deepEqual(frontendCommands, [{ type: 'refreshOptions' }]);
+    assert.deepEqual(frontendCommands, []);
     assert.equal(overlay.classList.contains('interactive'), false);
     assert.equal(focusMainWindowCalls.length > 0, true);
     assert.equal(overlayFocusCalls.length > 0, true);

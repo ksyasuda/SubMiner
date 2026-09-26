@@ -18,6 +18,7 @@ type MockWindow = {
   contentReady: boolean;
   documentLoaded: boolean;
   loadCallbacks: Array<() => void>;
+  stopLoadingCallbacks: Array<() => void>;
   readyToShowCallbacks: Array<() => void>;
 };
 
@@ -37,6 +38,7 @@ function createMockWindow(): MockWindow & {
   destroy: () => void;
   focus: () => void;
   emitDidFinishLoad: () => void;
+  emitDidStopLoading: () => void;
   emitReadyToShow: () => void;
   once: (event: 'ready-to-show', cb: () => void) => void;
   webContents: {
@@ -45,7 +47,7 @@ function createMockWindow(): MockWindow & {
     getURL: () => string;
     send: (channel: string, payload?: unknown) => void;
     isFocused: () => boolean;
-    once: (event: 'did-finish-load', cb: () => void) => void;
+    once: (event: 'did-finish-load' | 'did-stop-loading', cb: () => void) => void;
     focus: () => void;
   };
 } {
@@ -65,6 +67,7 @@ function createMockWindow(): MockWindow & {
     contentReady: true,
     documentLoaded: true,
     loadCallbacks: [],
+    stopLoadingCallbacks: [],
     readyToShowCallbacks: [],
   };
   const window = {
@@ -112,6 +115,13 @@ function createMockWindow(): MockWindow & {
         callback();
       }
     },
+    emitDidStopLoading: () => {
+      state.loading = false;
+      const callbacks = state.stopLoadingCallbacks.splice(0);
+      for (const callback of callbacks) {
+        callback();
+      }
+    },
     emitReadyToShow: () => {
       const callbacks = state.readyToShowCallbacks.splice(0);
       for (const callback of callbacks) {
@@ -133,7 +143,11 @@ function createMockWindow(): MockWindow & {
       },
       focused: false,
       isFocused: () => state.webContentsFocused,
-      once: (_event: 'did-finish-load', cb: () => void) => {
+      once: (event: 'did-finish-load' | 'did-stop-loading', cb: () => void) => {
+        if (event === 'did-stop-loading') {
+          state.stopLoadingCallbacks.push(cb);
+          return;
+        }
         state.loadCallbacks.push(cb);
       },
       focus: () => {
@@ -890,6 +904,44 @@ test('sendToActiveOverlayWindow delivers on first modal load without waiting for
   window.contentReady = true;
   window.emitReadyToShow();
   assert.deepEqual(window.sent, [['runtime-options:open']]);
+});
+
+test('sendToActiveOverlayWindow delivers to a modal window created for the send', () => {
+  // Electron keeps isLoading() true inside did-finish-load, and ready-to-show can fire
+  // before it; only did-stop-loading sees the settled state.
+  const window = createMockWindow();
+  window.loading = true;
+  window.url = '';
+  window.contentReady = false;
+  window.documentLoaded = false;
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => null,
+    getModalWindow: () => null,
+    createModalWindow: () => window as never,
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  assert.equal(
+    runtime.sendToActiveOverlayWindow(
+      'media-timing-review:open',
+      { reviewId: 'r1' },
+      {
+        restoreOnModalClose: 'media-timing-review',
+        preferModalWindow: true,
+      },
+    ),
+    true,
+  );
+  assert.deepEqual(window.sent, []);
+  window.contentReady = true;
+  window.emitReadyToShow();
+  window.url = 'file:///overlay/index.html?layer=modal';
+  window.documentLoaded = true;
+  window.emitDidFinishLoad();
+  assert.deepEqual(window.sent, []);
+  window.emitDidStopLoading();
+  assert.deepEqual(window.sent, [['media-timing-review:open', { reviewId: 'r1' }]]);
 });
 
 test('sendToActiveOverlayWindow delivers when the modal loaded before listeners were registered', () => {

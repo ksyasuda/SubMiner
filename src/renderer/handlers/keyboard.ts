@@ -2,9 +2,9 @@ import type { CompiledSessionBinding, PrimarySubMode, ShortcutsConfig } from '..
 import type { RendererContext } from '../context';
 import { createMpvInputForwarding } from './mpv-input-forwarding';
 import {
-  YOMITAN_POPUP_HIDDEN_EVENT,
-  YOMITAN_POPUP_SHOWN_EVENT,
+  registerDictionaryPopupVisibilityListener,
   YOMITAN_POPUP_COMMAND_EVENT,
+  YOMITAN_POPUP_HOST_SELECTOR,
   isYomitanPopupVisible,
   isYomitanPopupIframe,
 } from '../yomitan-popup.js';
@@ -83,6 +83,8 @@ export function createKeyboardHandlers(
     if (target.closest('.modal')) return true;
     if (ctx.dom.subtitleContainer.contains(target)) return true;
     if (isYomitanPopupIframe(target)) return true;
+    // Hachidori's popup lives in a shadow root, so its events arrive retargeted to the host.
+    if (target.closest(YOMITAN_POPUP_HOST_SELECTOR)) return true;
     if (target.closest && target.closest('iframe.yomitan-popup, iframe[id^="yomitan-popup"]'))
       return true;
     return false;
@@ -1071,7 +1073,7 @@ export function createKeyboardHandlers(
       subtree: true,
     });
 
-    window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
+    registerDictionaryPopupVisibilityListener('hidden', () => {
       clearNativeSubtitleSelection();
       if (!ctx.state.keyboardDrivenModeEnabled) {
         syncKeyboardTokenSelection();
@@ -1079,7 +1081,7 @@ export function createKeyboardHandlers(
       }
       restoreOverlayKeyboardFocus();
     });
-    window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
+    registerDictionaryPopupVisibilityListener('shown', () => {
       if (!ctx.state.keyboardDrivenModeEnabled) {
         return;
       }

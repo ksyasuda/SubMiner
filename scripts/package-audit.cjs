@@ -25,6 +25,14 @@ const REQUIRED_APP_FILES = [
   ]),
 ];
 const REQUIRED_RESOURCES = [
+  'hachidori/manifest.json',
+  'hachidori/settings.html',
+  'hachidori/subminer-host.js',
+  'hachidori/vendor/hoshidicts.wasm',
+  'hachidori/vendor/hoshidicts-threaded.wasm',
+  'hachidori/vendor/hoshidicts-threaded-idbfs.wasm',
+  'hachidori/LICENSE',
+  'hachidori/SOURCE.json',
   'yomitan/manifest.json',
   'yomitan/data/fonts/kanji-stroke-orders.ttf',
   'yomitan/fonts/NotoSansJP-Regular.ttf',

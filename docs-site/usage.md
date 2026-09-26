@@ -16,9 +16,40 @@ Run `subminer` with no file to pick one from the current directory instead. See 
 
 ### Yomitan setup
 
-Lookups need at least one dictionary in SubMiner's bundled Yomitan. First-run setup asks you to import one. To add more later, open Yomitan settings with `Alt+Shift+Y` or `subminer app --yomitan`.
+Lookups need at least one dictionary in SubMiner's bundled Yomitan (or in Hachidori, if you [switched backends](#hachidori-setup)). First-run setup asks you to import one. To add more later, open Yomitan settings with `Alt+Shift+Y` or `subminer app --yomitan`.
 
 The bundled Yomitan is separate from any Yomitan in your browser. It has its own dictionaries and settings.
+
+### Hachidori setup
+
+Hachidori is an alternative lookup backend. Set `dictionaryBackend` to `"hachidori"` in settings or `config.jsonc`, then restart SubMiner. Set it back to `"yomitan"` and restart to switch back.
+
+Open Hachidori settings with `Alt+Shift+Y`, the tray's **Open Hachidori Settings**, or `subminer app --hachidori`. Import dictionary ZIPs or use Hachidori's recommended dictionary installer, then set up its Anki template (SubMiner [fills in what it can](/anki-integration#hachidori-settings-from-subminer)). Yomitan and Hachidori keep separate dictionaries and settings. Yomitan profiles, custom Handlebars templates, and `yomitan.externalProfilePath` do not carry over.
+
+Hachidori uses SubMiner's subtitle scanning, popup pause, controller commands, character dictionaries, and Anki media. Keep the [Anki proxy](/anki-integration#proxy-mode-setup-yomitan-texthooker) on for screenshots and sentence audio. Hachidori's own screen recorder and screenshot capture are off inside SubMiner. `startupWarmups.yomitanExtension` and `subtitleStyle.autoPauseVideoOnYomitanPopup` apply to whichever backend is selected.
+
+Switching backends:
+
+- First-run setup asks for dictionaries the first time you switch to a backend. Switching back to a backend that already finished setup skips it.
+- Until you restart, SubMiner keeps running the backend it started with. The launcher waits for that backend before playback and logs a restart reminder.
+- `--yomitan` and `--hachidori` both work whichever backend is selected. Opening settings does not switch backends.
+- When `yomitan.externalProfilePath` is set, `--yomitan` is disabled to keep the external profile read-only. Hachidori settings still open.
+
+#### External dictionary host
+
+First-run setup can link a Hachidori host instead of using local dictionaries: **Dictionary source → Use an external dictionary host → Link host**. Turn on sharing in the other Hachidori app or browser, or start a compatible Docker host, then enter its sharing address, for example `127.0.0.1:8771` or `ws://host:8771/link`. Use the WebSocket sharing port, not the management page or HTTP API port.
+
+| Host     | Must be running                             |
+| -------- | ------------------------------------------- |
+| Browser  | The browser, the Hachidori extension, relay |
+| Electron | The host app and any relay it needs         |
+| Docker   | The container only                          |
+
+Setup checks the connection and the host's dictionaries before **Finish** unlocks, so import at least one dictionary on the host and refresh. The link survives restarts. **Unlink and use local dictionaries** goes back to local.
+
+While linked, dictionaries and dictionary settings come from the host. Anki templates, pronunciation sources, custom buttons, and SubMiner's audio and image processing stay local. Frequency annotations use ranks returned with dictionary entries, and SubMiner asks the host for missing ones. Words with no matching definition entry may stay unranked even if a frequency dictionary lists them.
+
+To sync [character dictionaries](/character-dictionary) to a Docker host, set `hachidori.externalHostManagementUrl` to the same host's management origin, for example `"http://127.0.0.1:8780"`. This is not the WebSocket sharing address. SubMiner uploads the ZIP and replaces its previous dictionary once the import succeeds, retrying while the host is busy. Keep the URL pointed at the linked host. Leaving it empty turns off uploads and reports a config error when sync runs. Browser and app hosts have no management API, so automatic upload does not work with them. Local Hachidori does not need this setting.
 
 ## Picking files
 
@@ -33,15 +64,15 @@ See [Launcher script](/launcher-script#video-picker) for picker and history deta
 
 ## Overlay basics
 
-| Key           | Action                                                                |
-| ------------- | --------------------------------------------------------------------- |
-| `Alt+Shift+O` | Show or hide the overlay (works while the overlay or mpv has focus)   |
-| `Alt+Shift+Y` | Open Yomitan settings (works from any window, not configurable)       |
-| `V`           | Cycle the subtitle bar through hidden, visible, and hover-only        |
-| `Ctrl+Alt+P`  | Open the playlist browser to queue, reorder, or jump between episodes |
-| `Ctrl/Cmd+/`  | Show every overlay and mpv keybinding for this session                |
+| Key           | Action                                                                       |
+| ------------- | ---------------------------------------------------------------------------- |
+| `Alt+Shift+O` | Show or hide the overlay (works while the overlay or mpv has focus)          |
+| `Alt+Shift+Y` | Open Yomitan or Hachidori settings (works from any window, not configurable) |
+| `V`           | Cycle the subtitle bar through hidden, visible, and hover-only               |
+| `Ctrl+Alt+P`  | Open the playlist browser to queue, reorder, or jump between episodes        |
+| `Ctrl/Cmd+/`  | Show every overlay and mpv keybinding for this session                       |
 
-Hovering subtitle text pauses mpv, and moving away resumes it. An open Yomitan popup also keeps playback paused. Turn these off with `subtitleStyle.autoPauseVideoOnHover` and `subtitleStyle.autoPauseVideoOnYomitanPopup`.
+Hovering subtitle text pauses mpv, and moving away resumes it. An open dictionary popup also keeps playback paused. Turn these off with `subtitleStyle.autoPauseVideoOnHover` and `subtitleStyle.autoPauseVideoOnYomitanPopup`.
 
 You can drop files onto the overlay:
 

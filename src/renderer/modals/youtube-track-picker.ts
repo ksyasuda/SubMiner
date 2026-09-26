@@ -1,6 +1,5 @@
 import type { YoutubePickerOpenPayload } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
-import { YOMITAN_POPUP_COMMAND_EVENT } from '../yomitan-popup.js';
 
 function createOption(value: string, label: string): HTMLOptionElement {
   const option = document.createElement('option');
@@ -197,13 +196,6 @@ export function createYoutubeTrackPickerModal(
     ctx.dom.youtubePickerModal.classList.add('hidden');
     ctx.dom.youtubePickerModal.setAttribute('aria-hidden', 'true');
     window.electronAPI.notifyOverlayModalClosed('youtube-track-picker');
-    window.dispatchEvent(
-      new CustomEvent(YOMITAN_POPUP_COMMAND_EVENT, {
-        detail: {
-          type: 'refreshOptions',
-        },
-      }),
-    );
     if (!options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove('interactive');
     }

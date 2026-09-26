@@ -494,6 +494,7 @@ function buildYomitanFrequencyTermReadingList(
 ): Array<{ term: string; reading: string | null }> {
   const termReadingList: Array<{ term: string; reading: string | null }> = [];
   for (const token of tokens) {
+    if (normalizePositiveFrequencyRank(token.frequencyRank) !== null) continue;
     const readingRaw =
       token.reading && token.reading.trim().length > 0 ? token.reading.trim() : null;
     for (const term of resolveYomitanFrequencyLookupTexts(token, matchMode)) {

@@ -12,6 +12,7 @@
     "get-frequency": "bun run scripts/get_frequency.ts --pretty --color-top-x 10000 --yomitan-user-data ~/.config/SubMiner --colorized-line",
     "get-frequency:electron": "bun run build:yomitan && bun build scripts/get_frequency.ts --format=cjs --target=node --outfile dist/scripts/get_frequency.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/get_frequency.js --pretty --color-top-x 10000 --yomitan-user-data ~/.config/SubMiner --colorized-line",
     "test-yomitan-parser": "bun run scripts/test-yomitan-parser.ts",
+    "test:dictionary:electron": "bun scripts/run-dictionary-settings-smoke.mjs && bun scripts/run-dictionary-settings-smoke.mjs --backend=yomitan && env -u ELECTRON_RUN_AS_NODE electron --no-sandbox --ozone-platform=x11 scripts/check-hachidori-parser.cjs",
     "test-yomitan-parser:electron": "bun run build:yomitan && bun build scripts/test-yomitan-parser.ts --format=cjs --target=node --outfile dist/scripts/test-yomitan-parser.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/test-yomitan-parser.js",
     "verify-known-word-highlights:electron": "bun run build:yomitan && bun build scripts/verify-known-word-highlights.ts --format=cjs --target=node --outfile dist/scripts/verify-known-word-highlights.js --packages=external && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/verify-known-word-highlights.js",
     "record-tokenizer-fixture:electron": "bun run build:yomitan && bun build scripts/record-tokenizer-fixture.ts --format=cjs --target=node --outfile dist/scripts/record-tokenizer-fixture.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/record-tokenizer-fixture.js",
@@ -21,7 +22,7 @@
     "build:launcher": "bun run scripts/build-launcher.ts",
     "build:stats": "cd stats && bun run build",
     "dev:stats": "cd stats && bun run dev",
-    "build": "bun run build:yomitan && bun run build:stats && tsc -p tsconfig.json && bun run build:renderer && bun run build:settings && bun run build:syncui && bun run build:launcher && bun run build:assets",
+    "build": "bun run build:yomitan && bun run build:hachidori && bun run build:stats && tsc -p tsconfig.json && bun run build:renderer && bun run build:settings && bun run build:syncui && bun run build:launcher && bun run build:assets",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js --sourcemap",
     "build:settings": "esbuild src/settings/settings.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/settings/settings.js --sourcemap",
     "build:syncui": "esbuild src/syncui/syncui.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/syncui/syncui.js --sourcemap && esbuild src/preload-syncui.ts --bundle --platform=node --format=cjs --target=node20 --external:electron --outfile=dist/preload-syncui.js --sourcemap",
@@ -81,7 +82,8 @@
     "build:mac:zip": "bun run build && electron-builder --mac zip --publish never",
     "build:win": "bun run build && electron-builder --win nsis zip --publish never",
     "build:win:unsigned": "bun run build && node scripts/build-win-unsigned.mjs",
-    "test:package": "bun scripts/run-package-smoke.mjs"
+    "test:package": "bun scripts/run-package-smoke.mjs",
+    "build:hachidori": "bun scripts/build-hachidori.mjs"
   },
   "overrides": {
     "@xmldom/xmldom": "0.8.15",
@@ -231,6 +233,10 @@
       {
         "from": "build/yomitan",
         "to": "yomitan"
+      },
+      {
+        "from": "build/hachidori",
+        "to": "hachidori"
       },
       {
         "from": "vendor/yomitan-jlpt-vocab",

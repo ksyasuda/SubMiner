@@ -86,6 +86,8 @@ function applyRootOptions(program: Command): void {
     .option('--log-level <level>', 'Log level')
     .option('-v, --version', 'Show SubMiner version')
     .option('--settings', 'Open settings window')
+    .option('--yomitan', 'Open Yomitan settings window')
+    .option('--hachidori', 'Open Hachidori settings window')
     .option('-u, --update', 'Check for updates')
     .option('-R, --rofi', 'Use rofi picker')
     .option('-H, --history', 'Browse local watch history')

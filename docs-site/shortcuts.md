@@ -6,12 +6,12 @@ Shortcuts work when the overlay has focus. With the [mpv plugin](/mpv-plugin), `
 
 ## Global
 
-| Shortcut      | Action                 | Config key                             |
-| ------------- | ---------------------- | -------------------------------------- |
-| `Alt+Shift+O` | Toggle visible overlay | `shortcuts.toggleVisibleOverlayGlobal` |
-| `Alt+Shift+Y` | Open Yomitan settings  | Fixed                                  |
+| Shortcut      | Action                          | Config key                             |
+| ------------- | ------------------------------- | -------------------------------------- |
+| `Alt+Shift+O` | Toggle visible overlay          | `shortcuts.toggleVisibleOverlayGlobal` |
+| `Alt+Shift+Y` | Open active dictionary settings | Fixed                                  |
 
-`Alt+Shift+Y` is registered with the OS and works from any app. If another app already uses it, SubMiner cannot take it and you cannot rebind it.
+`Alt+Shift+Y` opens Yomitan or Hachidori settings, whichever backend is running. It is registered with the OS and works from any app. If another app already uses it, SubMiner cannot take it and you cannot rebind it.
 
 ## Mining
 
@@ -96,17 +96,17 @@ The subtitle picker (`g` then `s`) is off until you turn it on in **Settings, Be
 
 Press `y`, then the second key.
 
-| Keys  | Action                     |
-| ----- | -------------------------- |
-| `y-y` | Open the SubMiner menu     |
-| `y-s` | Start the overlay          |
-| `y-S` | Stop the overlay           |
-| `y-t` | Toggle the visible overlay |
-| `y-o` | Open Yomitan settings      |
-| `y-r` | Restart the overlay        |
-| `y-c` | Show overlay status        |
-| `y-h` | Open session help          |
-| `v`   | Cycle primary subtitle bar |
+| Keys  | Action                          |
+| ----- | ------------------------------- |
+| `y-y` | Open the SubMiner menu          |
+| `y-s` | Start the overlay               |
+| `y-S` | Stop the overlay                |
+| `y-t` | Toggle the visible overlay      |
+| `y-o` | Open active dictionary settings |
+| `y-r` | Restart the overlay             |
+| `y-c` | Show overlay status             |
+| `y-h` | Open session help               |
+| `v`   | Cycle primary subtitle bar      |
 
 The plugin's `v` replaces mpv's own subtitle visibility toggle. When the overlay has focus, `y` then `d` toggles DevTools.
 

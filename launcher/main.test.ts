@@ -282,29 +282,31 @@ test('doctor refresh-known-words forwards app refresh command without requiring 
   });
 });
 
-test('launcher settings option forwards app settings window command', () => {
-  withTempDir((root) => {
-    const homeDir = path.join(root, 'home');
-    const xdgConfigHome = path.join(root, 'xdg');
-    const appPath = path.join(root, 'fake-subminer.sh');
-    const capturePath = path.join(root, 'captured-args.txt');
-    fs.writeFileSync(
-      appPath,
-      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
-    );
-    fs.chmodSync(appPath, 0o755);
+for (const flag of ['--settings', '--yomitan', '--hachidori']) {
+  test(`launcher ${flag} forwards the matching app settings command`, () => {
+    withTempDir((root) => {
+      const homeDir = path.join(root, 'home');
+      const xdgConfigHome = path.join(root, 'xdg');
+      const appPath = path.join(root, 'fake-subminer.sh');
+      const capturePath = path.join(root, 'captured-args.txt');
+      fs.writeFileSync(
+        appPath,
+        `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
+      );
+      fs.chmodSync(appPath, 0o755);
 
-    const env = {
-      ...makeTestEnv(homeDir, xdgConfigHome),
-      SUBMINER_APPIMAGE_PATH: appPath,
-      SUBMINER_TEST_CAPTURE: capturePath,
-    };
-    const result = runLauncher(['--settings'], env);
+      const env = {
+        ...makeTestEnv(homeDir, xdgConfigHome),
+        SUBMINER_APPIMAGE_PATH: appPath,
+        SUBMINER_TEST_CAPTURE: capturePath,
+      };
+      const result = runLauncher([flag], env);
 
-    assert.equal(result.status, 0);
-    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--settings\n');
+      assert.equal(result.status, 0);
+      assert.equal(fs.readFileSync(capturePath, 'utf8'), `${flag}\n`);
+    });
   });
-});
+}
 
 test('launcher settings command forwards app settings window command', () => {
   withTempDir((root) => {
@@ -1108,5 +1110,56 @@ test('classifyJellyfinChildSelection keeps container drilldown state instead of 
   assert.deepEqual(next, {
     kind: 'container',
     id: 'season-2',
+  });
+});
+
+test('external Yomitan profile remains available while a running app awaits a backend switch', () => {
+  withTempDir((dir) => {
+    const env = makeTestEnv(dir, path.join(dir, 'config'));
+    const configPath = resolveConfigFilePath({
+      appDataDir: env.APPDATA,
+      xdgConfigHome: env.XDG_CONFIG_HOME,
+      homeDir: dir,
+      existsSync: () => false,
+    });
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        dictionaryBackend: 'hachidori',
+        yomitan: { externalProfilePath: '/external/yomitan-profile' },
+      }),
+    );
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--eval',
+        `
+      import assert from 'node:assert/strict';
+      import { hasLauncherExternalYomitanProfileConfig } from './launcher/config.ts';
+      import { ensureLauncherSetupReady } from './launcher/setup-gate.ts';
+      import { createDefaultSetupState } from './src/shared/setup-state.ts';
+      for (const running of [true, false]) {
+        let launches = 0;
+        let tick = 0;
+        const ready = await ensureLauncherSetupReady({
+          dictionaryBackend: 'hachidori',
+          isAppRunning: async () => running,
+          readSetupState: () => ({ ...createDefaultSetupState(), dictionaryBackend: 'yomitan' }),
+          isExternalYomitanConfigured: hasLauncherExternalYomitanProfileConfig,
+          launchSetupApp: () => { launches += 1; },
+          sleep: async () => {},
+          now: () => tick++,
+          timeoutMs: 2,
+          pollIntervalMs: 1,
+        });
+        assert.equal(ready, running);
+        assert.equal(launches, running ? 0 : 1);
+      }
+    `,
+      ],
+      { cwd: process.cwd(), env, encoding: 'utf8', timeout: LAUNCHER_RUN_TIMEOUT_MS },
+    );
+    assert.equal(result.status, 0, result.stderr);
   });
 });

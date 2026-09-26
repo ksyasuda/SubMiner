@@ -1,11 +1,12 @@
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 import {
-  YOMITAN_POPUP_HIDDEN_EVENT,
   YOMITAN_POPUP_MOUSE_ENTER_EVENT,
   YOMITAN_POPUP_MOUSE_LEAVE_EVENT,
-  YOMITAN_POPUP_SHOWN_EVENT,
+  registerDictionaryPopupVisibilityListener,
+  registerYomitanLookupListener,
   PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS,
+  isHachidoriPopupOpen,
   isYomitanPopupVisible,
   isYomitanPopupIframe,
 } from '../yomitan-popup.js';
@@ -35,6 +36,7 @@ export function createMouseHandlers(
   let yomitanPopupVisible = false;
   let hoverPauseRequestId = 0;
   let popupPauseRequestId = 0;
+  let hachidoriReaderSeen = false;
   let pausedBySubtitleHover = false;
   let pausedByYomitanPopup = false;
   let lastPointerPosition: { clientX: number; clientY: number } | null = null;
@@ -257,8 +259,19 @@ export function createMouseHandlers(
     options.sendMpvCommand(['set_property', 'pause', 'no']);
   }
 
+  // Hachidori also claims attention for a left press anywhere on the overlay
+  // that may become a selection, so once its events identify the reader only
+  // an open popup pane should pause playback.
+  function canPauseForYomitanPopup(): boolean {
+    return (
+      yomitanPopupVisible &&
+      options.getYomitanPopupAutoPauseEnabled() &&
+      (!hachidoriReaderSeen || (typeof document !== 'undefined' && isHachidoriPopupOpen(document)))
+    );
+  }
+
   async function maybePauseForYomitanPopup(): Promise<void> {
-    if (!yomitanPopupVisible || !options.getYomitanPopupAutoPauseEnabled()) {
+    if (!canPauseForYomitanPopup()) {
       return;
     }
 
@@ -278,11 +291,7 @@ export function createMouseHandlers(
       return;
     }
 
-    if (
-      requestId !== popupPauseRequestId ||
-      !yomitanPopupVisible ||
-      !options.getYomitanPopupAutoPauseEnabled()
-    ) {
+    if (requestId !== popupPauseRequestId || !canPauseForYomitanPopup()) {
       return;
     }
     if (paused !== false) return;
@@ -470,7 +479,8 @@ export function createMouseHandlers(
   function setupYomitanObserver(): void {
     reconcilePopupInteraction({ allowPause: true });
 
-    window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
+    registerDictionaryPopupVisibilityListener('shown', (reader) => {
+      if (reader === 'hachidori') hachidoriReaderSeen = true;
       reconcilePopupInteraction({
         assumeVisible: true,
         allowPause: true,
@@ -478,8 +488,14 @@ export function createMouseHandlers(
       });
     });
 
-    window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
+    registerDictionaryPopupVisibilityListener('hidden', () => {
       disablePopupInteractionIfIdle();
+    });
+
+    // A Hachidori selection opens its popup while the drag's attention claim is
+    // still held, so no second shown event arrives; its lookup marks the open.
+    registerYomitanLookupListener(window, () => {
+      reconcilePopupInteraction({ allowPause: true });
     });
 
     window.addEventListener(YOMITAN_POPUP_MOUSE_ENTER_EVENT, () => {

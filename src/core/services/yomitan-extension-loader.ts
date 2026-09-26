@@ -188,6 +188,11 @@ export async function loadYomitanExtension(
   deps.setYomitanSession(targetSession);
 
   try {
+    if (!externalProfilePath) {
+      // Electron may retain old extension scripts after an update, across app restarts.
+      // Keep dictionaries/settings while ensuring the bundled worker loads current code.
+      await targetSession.clearStorageData({ storages: ['serviceworkers'] });
+    }
     const extensions = targetSession.extensions;
     const extension = await withSuppressedYomitanExtensionWarnings(() =>
       extensions

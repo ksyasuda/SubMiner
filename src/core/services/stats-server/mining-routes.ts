@@ -7,6 +7,7 @@ import { resolveAnimatedImageLeadInSeconds } from '../../../anki-integration/ani
 import { clampMediaEndTime } from '../../../anki-integration/media-duration.js';
 import { MediaGenerator } from '../../../media-generator.js';
 import { statsJson } from '../../../types/stats-http-contract.js';
+import { STATS_MINING_TAG } from '../../../shared/anki-source.js';
 import {
   resolveRetimedSecondarySubtitleTextFromSidecar,
   resolveSecondarySubtitleTextFromSidecar,
@@ -368,7 +369,7 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
     }
 
     const model = ankiConfig.isLapis?.sentenceCardModel || 'Basic';
-    const tags = ankiConfig.tags ?? ['SubMiner'];
+    const tags = [...new Set([...(ankiConfig.tags ?? ['SubMiner']), STATS_MINING_TAG])];
 
     const addNotePromise = timeMiningPhase(
       mode,

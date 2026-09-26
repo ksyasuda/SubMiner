@@ -2,9 +2,36 @@ import { ResolveContext } from './context';
 import { applyControllerConfig } from './controller';
 import { isNotificationType, isOverlayNotificationPosition } from '../../types/notification';
 import { asBoolean, asNumber, asString, isObject } from './shared';
+import { parseHachidoriManagementUrl } from '../../shared/hachidori-sharing';
 
 export function applyCoreDomainConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
+
+  if (isObject(src.hachidori) && src.hachidori.externalHostManagementUrl !== undefined) {
+    try {
+      resolved.hachidori.externalHostManagementUrl = parseHachidoriManagementUrl(
+        src.hachidori.externalHostManagementUrl,
+      );
+    } catch {
+      warn(
+        'hachidori.externalHostManagementUrl',
+        src.hachidori.externalHostManagementUrl,
+        resolved.hachidori.externalHostManagementUrl,
+        'Expected an HTTP(S) origin or an empty string.',
+      );
+    }
+  }
+
+  if (src.dictionaryBackend === 'yomitan' || src.dictionaryBackend === 'hachidori') {
+    resolved.dictionaryBackend = src.dictionaryBackend;
+  } else if (src.dictionaryBackend !== undefined) {
+    warn(
+      'dictionaryBackend',
+      src.dictionaryBackend,
+      resolved.dictionaryBackend,
+      "Expected 'yomitan' or 'hachidori'.",
+    );
+  }
 
   if (isObject(src.subtitleSelection)) {
     const enabled = asBoolean(src.subtitleSelection.enabled);

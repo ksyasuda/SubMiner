@@ -344,3 +344,12 @@ test('parseArgs requires an explicit logs action', () => {
   assert.equal(exit.code, 1);
   assert.match(exit.stderr, /Logs command requires -e or --export/);
 });
+
+for (const flag of ['--yomitan', '--hachidori']) {
+  test(`parseArgs forwards ${flag} to the app`, () => {
+    const parsed = parseArgs([flag], 'subminer', {});
+    assert.equal(parsed.appPassthrough, true);
+    assert.deepEqual(parsed.appArgs, [flag]);
+    assert.equal(parsed.settings, false);
+  });
+}

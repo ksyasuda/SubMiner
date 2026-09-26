@@ -152,6 +152,7 @@ const SECTION_ORDER = new Map<string, number>(
     'Discord Rich Presence',
     'Jellyfin',
     'Texthooker',
+    'Dictionary Lookup',
     'Yomitan',
     'Stats dashboard',
     'Startup warmups',
@@ -234,8 +235,8 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'shortcuts.openCharacterDictionaryManager': 'Open Character Dictionary Manager',
   'subtitleSidebar.pauseVideoOnHover': 'Pause Video On Hover - Sidebar',
   'subtitleStyle.autoPauseVideoOnHover': 'Pause Video On Hover - Subtitles',
-  'subtitleStyle.autoPauseVideoOnYomitanPopup': 'Pause Video On Yomitan Popup',
-  'subtitleStyle.primaryVisibleOnYomitanPopup': 'Keep Primary Visible On Yomitan Popup',
+  'subtitleStyle.autoPauseVideoOnYomitanPopup': 'Pause Video On Dictionary Popup',
+  'subtitleStyle.primaryVisibleOnYomitanPopup': 'Keep Primary Visible On Dictionary Popup',
   'subtitleStyle.primaryDefaultMode': 'Primary Subtitle Visibility Mode',
   'subtitleStyle.frequencyDictionary.mode': 'Frequency Mode',
   'subtitleStyle.css': 'CSS Declarations',
@@ -276,7 +277,7 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
   'subtitleSidebar.css':
     'CSS declarations applied to the subtitle sidebar. Includes color, background-color, all font properties, and sidebar CSS variables.',
   'subtitleStyle.primaryVisibleOnYomitanPopup':
-    'When primary subtitles are in hover mode, keep the primary subtitle bar visible while a Yomitan popup is open.',
+    'When primary subtitles are in hover mode, keep the primary subtitle bar visible while a dictionary popup is open.',
   'websocket.enabled':
     'Built-in subtitle WebSocket server mode. Auto starts the built-in server only when mpv_websocket is not detected; otherwise it defers to the plugin.',
   'discordPresence.updateIntervalMs':
@@ -340,6 +341,9 @@ function humanizePath(path: string): string {
 }
 
 function categoryAndSection(path: string): { category: ConfigSettingsCategory; section: string } {
+  if (path === 'dictionaryBackend' || path.startsWith('hachidori.')) {
+    return { category: 'integrations', section: 'Dictionary Lookup' };
+  }
   if (
     path === 'subtitleStyle.autoPauseVideoOnHover' ||
     path === 'subtitleStyle.autoPauseVideoOnYomitanPopup' ||

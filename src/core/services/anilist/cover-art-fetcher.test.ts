@@ -6,6 +6,7 @@ import test from 'node:test';
 import { createCoverArtFetcher, stripFilenameTags } from './cover-art-fetcher.js';
 import { Database } from '../immersion-tracker/sqlite.js';
 import {
+  applyPragmas,
   ensureSchema,
   getOrCreateAnimeRecord,
   getOrCreateVideoRecord,
@@ -50,6 +51,7 @@ test('stripFilenameTags normalizes common media-title formats', () => {
 test('fetchIfMissing backfills a missing blob from an existing cover URL', async () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
+  applyPragmas(db);
   ensureSchema(db);
   const videoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-test.mkv', {
     canonicalTitle: 'Cover Fetcher Test',
@@ -108,6 +110,7 @@ test('fetchIfMissing backfills a missing blob from an existing cover URL', async
 test('fetchIfMissing reuses cached cover art from another video in the same anime', async () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
+  applyPragmas(db);
   ensureSchema(db);
   const firstVideoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-cache-1.mkv', {
     canonicalTitle: 'Shared Cover Show',
@@ -191,6 +194,7 @@ function createJsonResponse(payload: unknown): Response {
 test('fetchIfMissing uses guessit primary title and season when available', async () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
+  applyPragmas(db);
   ensureSchema(db);
   const videoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-season-test.mkv', {
     canonicalTitle:
@@ -296,6 +300,7 @@ test('fetchIfMissing uses guessit primary title and season when available', asyn
 test('fetchIfMissing falls back to internal parser when guessit throws', async () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
+  applyPragmas(db);
   ensureSchema(db);
   const videoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-fallback-test.mkv', {
     canonicalTitle: 'School Vlog S01E01',
@@ -360,6 +365,7 @@ test('fetchIfMissing falls back to internal parser when guessit throws', async (
 test('fetchIfMissing caches a no-match when the season cannot be resolved', async () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
+  applyPragmas(db);
   ensureSchema(db);
   const videoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-unresolved.mkv', {
     canonicalTitle: 'Unresolved Show (2013) - S03E01 - Something [1080p].mkv',
@@ -438,6 +444,7 @@ test('fetchIfMissing caches a no-match when the season cannot be resolved', asyn
 test('fetchIfMissing re-resolves an unresolved season once AniList publishes the relation', async () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
+  applyPragmas(db);
   ensureSchema(db);
   const videoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-recovers.mkv', {
     canonicalTitle: 'Recovering Show (2013) - S02E01 - Something [1080p].mkv',
@@ -545,6 +552,7 @@ for (const linkedToAnilist of [false, true]) {
   test(`TMDB fallback preserves AniList identity when linked=${linkedToAnilist}`, async () => {
     const dbPath = makeDbPath();
     const db = new Database(dbPath);
+    applyPragmas(db);
     ensureSchema(db);
     const videoId = getOrCreateVideoRecord(db, 'local:/tmp/hanzawa-01.mkv', {
       canonicalTitle: 'Hanzawa Naoki - 01.mkv',
@@ -662,6 +670,7 @@ for (const linkedToAnilist of [false, true]) {
 test('fetchIfMissing skips AniList for an entry already linked to TMDB', async () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
+  applyPragmas(db);
   ensureSchema(db);
   const videoId = getOrCreateVideoRecord(db, 'local:/tmp/hanzawa-02.mkv', {
     canonicalTitle: 'Hanzawa Naoki - 02.mkv',

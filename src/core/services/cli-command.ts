@@ -43,6 +43,7 @@ export interface CliCommandServiceDeps {
   togglePrimarySubtitleBar: () => void;
   openFirstRunSetup: (force?: boolean) => void;
   openYomitanSettingsDelayed: (delayMs: number) => void;
+  openHachidoriSettingsDelayed: (delayMs: number) => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
@@ -170,6 +171,7 @@ interface MiningCliRuntime {
 interface UiCliRuntime {
   openFirstRunSetup: (force?: boolean) => void;
   openYomitanSettings: () => void;
+  openHachidoriSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
   cycleSecondarySubMode: () => void;
@@ -273,6 +275,11 @@ export function createCliCommandDepsRuntime(
     openYomitanSettingsDelayed: (delayMs) => {
       options.schedule(() => {
         options.ui.openYomitanSettings();
+      }, delayMs);
+    },
+    openHachidoriSettingsDelayed: (delayMs) => {
+      options.schedule(() => {
+        options.ui.openHachidoriSettings();
       }, delayMs);
     },
     openConfigSettingsWindow: options.ui.openConfigSettingsWindow,
@@ -425,6 +432,8 @@ export function handleCliCommand(
     deps.logDebug('Opened first-run setup flow.');
   } else if (args.yomitan) {
     deps.openYomitanSettingsDelayed(1000);
+  } else if (args.hachidori) {
+    deps.openHachidoriSettingsDelayed(1000);
   } else if (args.settings) {
     deps.openConfigSettingsWindow();
   } else if (args.syncWindow) {

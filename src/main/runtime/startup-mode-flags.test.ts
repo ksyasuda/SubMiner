@@ -37,3 +37,10 @@ test('managed background playback handles initial args before deferred overlay w
   );
   assert.equal(shouldHandleInitialArgsBeforeDeferredOverlayWarmup(null), false);
 });
+
+for (const flag of ['--yomitan', '--hachidori']) {
+  test(`${flag} settings startup skips heavy startup`, () => {
+    assert.equal(getStartupModeFlags(parseArgs([flag])).shouldSkipHeavyStartup, true);
+    assert.equal(getStartupModeFlags(parseArgs([flag, '--start'])).shouldSkipHeavyStartup, false);
+  });
+}

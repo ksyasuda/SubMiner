@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import type { DictionaryBackend } from '../types/config';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveConfigDir } from '../config/path-resolution';
@@ -18,6 +19,10 @@ export interface SetupWindowsMpvShortcutPreferences {
 
 export interface SetupState {
   version: 4;
+  /** Backend the recorded status belongs to. Missing in legacy state files, which belong to Yomitan. */
+  dictionaryBackend?: DictionaryBackend;
+  /** Backends whose setup finished at least once, so switching back never repeats setup. */
+  completedDictionaryBackends?: DictionaryBackend[];
   status: SetupStateStatus;
   completedAt: string | null;
   completionSource: SetupCompletionSource;
@@ -49,6 +54,10 @@ export interface MpvInstallPaths {
 
 function getPlatformPath(platform: NodeJS.Platform): typeof path.posix | typeof path.win32 {
   return platform === 'win32' ? path.win32 : path.posix;
+}
+
+function isDictionaryBackend(value: unknown): value is DictionaryBackend {
+  return value === 'yomitan' || value === 'hachidori';
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -93,6 +102,7 @@ export function normalizeSetupState(value: unknown): SetupState | null {
 
   if (
     (version !== 1 && version !== 2 && version !== 3 && version !== 4) ||
+    (record.dictionaryBackend !== undefined && !isDictionaryBackend(record.dictionaryBackend)) ||
     (status !== 'incomplete' &&
       status !== 'in_progress' &&
       status !== 'completed' &&
@@ -127,8 +137,18 @@ export function normalizeSetupState(value: unknown): SetupState | null {
     return null;
   }
 
+  const completedDictionaryBackends = Array.isArray(record.completedDictionaryBackends)
+    ? record.completedDictionaryBackends.filter(isDictionaryBackend)
+    : [];
+
   return {
     version: 4,
+    ...(isDictionaryBackend(record.dictionaryBackend)
+      ? { dictionaryBackend: record.dictionaryBackend }
+      : {}),
+    ...(completedDictionaryBackends.length > 0
+      ? { completedDictionaryBackends: [...new Set(completedDictionaryBackends)] }
+      : {}),
     status,
     completedAt: typeof record.completedAt === 'string' ? record.completedAt : null,
     completionSource,
@@ -191,8 +211,28 @@ export function normalizeSetupState(value: unknown): SetupState | null {
   };
 }
 
-export function isSetupCompleted(state: SetupState | null | undefined): boolean {
-  return state?.status === 'completed';
+export function getSetupStateDictionaryBackend(state: SetupState): DictionaryBackend {
+  return state.dictionaryBackend ?? 'yomitan';
+}
+
+/** Current status takes precedence; completion history applies only to other backends. */
+export function hasCompletedSetupForBackend(
+  state: SetupState,
+  dictionaryBackend: DictionaryBackend,
+): boolean {
+  if (getSetupStateDictionaryBackend(state) === dictionaryBackend) {
+    return state.status === 'completed';
+  }
+  return (state.completedDictionaryBackends ?? []).includes(dictionaryBackend);
+}
+
+export function isSetupCompleted(
+  state: SetupState | null | undefined,
+  dictionaryBackend?: DictionaryBackend,
+): boolean {
+  if (!state) return false;
+  if (dictionaryBackend === undefined) return state.status === 'completed';
+  return hasCompletedSetupForBackend(state, dictionaryBackend);
 }
 
 export function getDefaultConfigDir(options?: {

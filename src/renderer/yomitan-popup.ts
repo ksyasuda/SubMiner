@@ -10,6 +10,41 @@ export const YOMITAN_POPUP_MOUSE_LEAVE_EVENT = 'yomitan-popup-mouse-leave';
 export const YOMITAN_POPUP_COMMAND_EVENT = 'subminer-yomitan-popup-command';
 export const YOMITAN_LOOKUP_EVENT = 'subminer-yomitan-lookup';
 export const PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS = 'primary-sub-visible-on-yomitan-popup';
+// Hachidori's shown/hidden pair means "the reader needs mouse events", which
+// also covers a left press on subtitle text that may start a selection. Its
+// popup panes live in the host's open shadow root.
+export const HACHIDORI_POPUP_SHOWN_EVENT = 'hachidori-popup-shown';
+export const HACHIDORI_POPUP_HIDDEN_EVENT = 'hachidori-popup-hidden';
+export const HACHIDORI_HOST_SELECTOR = 'hachidori-host';
+export const HACHIDORI_POPUP_SELECTOR = '.gsm-hoshidicts-popup';
+
+export type DictionaryReader = 'yomitan' | 'hachidori';
+
+// Only the active backend injects a reader. Consume its native attention events.
+export function registerDictionaryPopupVisibilityListener(
+  state: 'shown' | 'hidden',
+  listener: (reader: DictionaryReader) => void,
+  target: EventTarget = window,
+): () => void {
+  const events: Array<[string, DictionaryReader]> =
+    state === 'shown'
+      ? [
+          [YOMITAN_POPUP_SHOWN_EVENT, 'yomitan'],
+          [HACHIDORI_POPUP_SHOWN_EVENT, 'hachidori'],
+        ]
+      : [
+          [YOMITAN_POPUP_HIDDEN_EVENT, 'yomitan'],
+          [HACHIDORI_POPUP_HIDDEN_EVENT, 'hachidori'],
+        ];
+  const wrapped = events.map(([event, reader]) => {
+    const handler = (): void => listener(reader);
+    target.addEventListener(event, handler);
+    return [event, handler] as const;
+  });
+  return () => {
+    for (const [event, handler] of wrapped) target.removeEventListener(event, handler);
+  };
+}
 
 export function registerYomitanLookupListener(
   target: EventTarget = window,
@@ -71,6 +106,20 @@ function queryPopupElements<T extends Element>(
     return first ? [first] : [];
   }
   return [];
+}
+
+/**
+ * Whether a Hachidori popup pane is on screen. Auto-pause reads this because
+ * the host's visible marker only tracks Hachidori's attention signal. Hachidori
+ * attaches its host on the first lookup, so no host means no popup.
+ */
+export function isHachidoriPopupOpen(root: ParentNode | null | undefined = document): boolean {
+  const hosts = queryPopupElements<HTMLElement>(root, HACHIDORI_HOST_SELECTOR);
+  return hosts.some((host) =>
+    queryPopupElements<HTMLElement>(host.shadowRoot, HACHIDORI_POPUP_SELECTOR).some(
+      (pane) => !pane.hidden,
+    ),
+  );
 }
 
 export function isYomitanPopupVisible(root: ParentNode | null | undefined = document): boolean {

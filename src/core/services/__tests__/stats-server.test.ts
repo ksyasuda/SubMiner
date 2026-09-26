@@ -2525,6 +2525,8 @@ Aligned English subtitle
           await new Promise((resolve) => setTimeout(resolve, 1));
         }
         const addedBeforeMediaFinished = requests.some((request) => request.action === 'addNote');
+        const addRequest = requests.find((request) => request.action === 'addNote');
+        assert.deepEqual(addRequest?.params?.note?.tags, ['SubMiner', 'SubMiner::Stats']);
         mediaRelease.audio?.();
         mediaRelease.image?.();
 

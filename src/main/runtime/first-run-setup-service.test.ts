@@ -6,6 +6,11 @@ import path from 'node:path';
 import { createFirstRunSetupService, shouldAutoOpenFirstRunSetup } from './first-run-setup-service';
 import type { CliArgs } from '../../cli/args';
 import type { CommandLineLauncherSnapshot } from './command-line-launcher';
+import {
+  createDefaultSetupState,
+  getSetupStatePath,
+  readSetupState,
+} from '../../shared/setup-state';
 
 function withTempDir(fn: (dir: string) => Promise<void> | void): Promise<void> | void {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-first-run-service-test-'));
@@ -30,6 +35,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
     yomitan: false,
+    hachidori: false,
     settings: false,
     syncWindow: false,
     setup: false,
@@ -760,5 +766,151 @@ test('setup service reports failed legacy mpv plugin trash paths', async () => {
       '/tmp/mpv/scripts/subminer',
       '/tmp/mpv/scripts/subminer.lua',
     ]);
+  });
+});
+
+test('switching to Hachidori requires its own dictionaries and persists backend readiness', async () => {
+  await withTempDir(async (configDir) => {
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+    const yomitan = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => false,
+    });
+    assert.equal((await yomitan.ensureSetupStateInitialized()).state.status, 'completed');
+    let dictionaryCount = 0;
+    const hachidori = createFirstRunSetupService({
+      configDir,
+      getDictionaryBackend: () => 'hachidori',
+      getYomitanDictionaryCount: async () => dictionaryCount,
+      isExternalYomitanConfigured: () => true,
+      detectPluginInstalled: () => false,
+    });
+    const initial = await hachidori.ensureSetupStateInitialized();
+    assert.equal(initial.dictionaryBackend, 'hachidori');
+    assert.equal(initial.state.dictionaryBackend, 'hachidori');
+    assert.equal(initial.canFinish, false);
+    assert.equal(initial.externalYomitanConfigured, false);
+    assert.equal(initial.state.status, 'incomplete');
+    dictionaryCount = 1;
+    const completed = await hachidori.markSetupCompleted();
+    assert.equal(completed.state.status, 'completed');
+    assert.equal(completed.state.dictionaryBackend, 'hachidori');
+    assert.equal(completed.state.lastSeenYomitanDictionaryCount, 1);
+    assert.equal(hachidori.isSetupCompleted(), true);
+    assert.deepEqual(completed.state.completedDictionaryBackends, ['yomitan', 'hachidori']);
+
+    // Switching back never repeats setup for a backend that already finished.
+    const yomitanAgain = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => false,
+    });
+    const restored = await yomitanAgain.ensureSetupStateInitialized();
+    assert.equal(restored.state.status, 'completed');
+    assert.equal(restored.state.dictionaryBackend, 'yomitan');
+    assert.equal(yomitanAgain.isSetupCompleted(), true);
+    assert.equal(readSetupState(getSetupStatePath(configDir))?.dictionaryBackend, 'yomitan');
+    assert.deepEqual(restored.state.completedDictionaryBackends, ['hachidori', 'yomitan']);
+  });
+});
+
+test('reopening setup for legacy plugin cleanup preserves both backend completions', async () => {
+  await withTempDir(async (configDir) => {
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+    const yomitan = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => false,
+      detectLegacyMpvPluginCandidates: () => [
+        { path: '/tmp/mpv/scripts/subminer.lua', kind: 'file' },
+      ],
+    });
+    await yomitan.ensureSetupStateInitialized();
+    const reopened = await yomitan.markSetupInProgress();
+    assert.equal(reopened.state.status, 'in_progress');
+    assert.deepEqual(reopened.state.completedDictionaryBackends, ['yomitan']);
+    assert.equal(yomitan.isSetupCompleted(), false);
+
+    const hachidori = createFirstRunSetupService({
+      configDir,
+      getDictionaryBackend: () => 'hachidori',
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => false,
+    });
+    const switched = await hachidori.ensureSetupStateInitialized();
+    assert.deepEqual(switched.state.completedDictionaryBackends, ['yomitan', 'hachidori']);
+    const restored = await yomitan.getSetupStatus();
+    assert.equal(restored.state.status, 'completed');
+  });
+});
+
+test('a legacy completed Yomitan state file survives a first Hachidori run', async () => {
+  await withTempDir(async (configDir) => {
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+    fs.writeFileSync(
+      getSetupStatePath(configDir),
+      JSON.stringify({ ...createDefaultSetupState(), status: 'completed', completedAt: 'x' }),
+    );
+    const hachidori = createFirstRunSetupService({
+      configDir,
+      getDictionaryBackend: () => 'hachidori',
+      getYomitanDictionaryCount: async () => 0,
+      detectPluginInstalled: () => false,
+    });
+    const initial = await hachidori.ensureSetupStateInitialized();
+    assert.equal(initial.state.status, 'incomplete');
+    const stored = readSetupState(getSetupStatePath(configDir));
+    assert.equal(stored?.dictionaryBackend, 'hachidori');
+    assert.deepEqual(stored?.completedDictionaryBackends, ['yomitan']);
+    const yomitan = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 1,
+      detectPluginInstalled: () => false,
+    });
+    assert.equal((await yomitan.ensureSetupStateInitialized()).state.status, 'completed');
+  });
+});
+
+test('Hachidori setup gates on the linked host instead of local dictionaries', async () => {
+  await withTempDir(async (dir) => {
+    fs.writeFileSync(path.join(dir, 'config.json'), '{}');
+    let host: import('../../shared/hachidori-sharing').HachidoriHostStatus = {
+      kind: 'connected',
+      address: 'ws://127.0.0.1:8771/link',
+      name: 'Docker',
+      dictionaryCount: 2,
+    };
+    const service = createFirstRunSetupService({
+      configDir: dir,
+      getDictionaryBackend: () => 'hachidori',
+      getHachidoriHostStatus: async () => host,
+      getYomitanDictionaryCount: async () => 7,
+      detectPluginInstalled: () => false,
+    });
+    let snapshot = await service.getSetupStatus();
+    assert.equal(snapshot.dictionaryCount, 2);
+    assert.equal(snapshot.canFinish, true);
+    assert.equal((await service.markSetupCompleted()).state.status, 'completed');
+    // The link is still connecting at startup; that must not undo a finished setup.
+    host = { kind: 'disconnected', address: 'ws://127.0.0.1:8771/link', message: 'Connecting' };
+    snapshot = await service.ensureSetupStateInitialized();
+    assert.equal(snapshot.canFinish, false);
+    assert.equal(snapshot.dictionaryCount, 0);
+    assert.equal(snapshot.state.status, 'completed');
+    assert.equal(service.isSetupCompleted(), true);
+    host = {
+      kind: 'connected',
+      address: 'ws://127.0.0.1:8771/link',
+      name: 'Docker',
+      dictionaryCount: 0,
+    };
+    assert.equal((await service.getSetupStatus()).canFinish, false);
+    // A reachable host with no dictionaries does reopen setup.
+    assert.equal((await service.ensureSetupStateInitialized()).state.status, 'incomplete');
+    assert.notEqual((await service.markSetupCompleted()).state.status, 'completed');
+    host = { kind: 'local' };
+    assert.equal((await service.getSetupStatus()).dictionaryCount, 7);
+    assert.equal((await service.getSetupStatus()).canFinish, true);
   });
 });

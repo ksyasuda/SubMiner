@@ -1,3 +1,5 @@
+import type { HachidoriHostStatus } from '../../shared/hachidori-sharing';
+import type { DictionaryBackend } from '../../types/config';
 import { getFirstRunSetupCompletionMessage } from './first-run-setup-service';
 import type { CommandLineLauncherSnapshot, LauncherSnapshot } from './command-line-launcher';
 
@@ -18,25 +20,31 @@ type FirstRunSetupWindowLike = FocusableWindowLike & {
   close: () => void;
 };
 
-export type FirstRunSetupAction =
-  | 'configure-mpv-executable-path'
-  | 'remove-legacy-plugin'
-  | 'configure-windows-mpv-shortcuts'
-  | 'install-bun'
-  | 'install-command-line-launcher'
-  | 'open-yomitan-settings'
-  | 'open-config-settings'
-  | 'refresh'
-  | 'finish';
+export type FirstRunSetupSubmission =
+  | { action: 'configure-mpv-executable-path'; mpvExecutablePath: string }
+  | {
+      action: 'configure-windows-mpv-shortcuts';
+      startMenuEnabled: boolean;
+      desktopEnabled: boolean;
+    }
+  | { action: 'link-hachidori-host'; address: string }
+  | {
+      action:
+        | 'unlink-hachidori-host'
+        | 'remove-legacy-plugin'
+        | 'install-bun'
+        | 'install-command-line-launcher'
+        | 'open-yomitan-settings'
+        | 'open-config-settings'
+        | 'refresh'
+        | 'finish';
+    };
 
-export interface FirstRunSetupSubmission {
-  action: FirstRunSetupAction;
-  mpvExecutablePath?: string;
-  startMenuEnabled?: boolean;
-  desktopEnabled?: boolean;
-}
+export type FirstRunSetupAction = FirstRunSetupSubmission['action'];
 
 export interface FirstRunSetupHtmlModel {
+  dictionaryBackend?: DictionaryBackend;
+  hachidoriHost?: HachidoriHostStatus;
   configReady: boolean;
   dictionaryCount: number;
   canFinish: boolean;
@@ -249,9 +257,47 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     </div>`
       : '';
 
-  const yomitanMeta = model.externalYomitanConfigured
-    ? 'External profile configured. SubMiner is reusing that Yomitan profile for this setup run.'
-    : `${model.dictionaryCount} installed`;
+  const dictionaryName = model.dictionaryBackend === 'hachidori' ? 'Hachidori' : 'Yomitan';
+  const host = model.hachidoriHost;
+  const linked = host?.kind === 'connected' || host?.kind === 'disconnected';
+  const hostAddress = linked ? host.address : '';
+  const hostCard =
+    model.dictionaryBackend === 'hachidori'
+      ? `
+    <div class="card block">
+      <strong>Dictionary source</strong>
+      <p class="meta">Import dictionaries through Hachidori Settings to keep them in SubMiner, or connect to an existing library below.</p>
+      <details class="external-host"${linked ? ' open' : ''}>
+      <summary>Use an external dictionary host</summary>
+      <p class="meta">Connect to Hachidori in another app, browser, or Docker container to use the dictionaries already installed there. You won't need to import a second copy into SubMiner.</p>
+      <p class="meta">Dictionaries and their settings are shared. You still mine cards in SubMiner, using its own Anki settings, audio, and screenshots.</p>
+      <ul class="meta host-requirements">
+        <li>Browser: keep the browser and its sharing relay running. If the relay runs through Anki, keep Anki open too.</li>
+        <li>Desktop app: keep the app sharing your dictionaries and any required relay running.</li>
+        <li>Docker: keep the dictionary container running. You can close its browser management page.</li>
+      </ul>
+      <p class="meta">If that app or container stops or loses its connection, dictionary lookups will be unavailable until it reconnects.</p>
+      <form class="path-form" onsubmit="event.preventDefault(); const address = document.getElementById('hachidori-host-address').value; window.location.href='subminer://first-run-setup?action=link-hachidori-host&amp;address='+encodeURIComponent(address)">
+        <label for="hachidori-host-address">Host address</label>
+        <input id="hachidori-host-address" type="text" value="${escapeHtml(hostAddress)}" placeholder="127.0.0.1:8771 or ws://host:8771/link" required />
+        <div class="meta">Use the address from Hachidori's Sharing settings or your container's WebSocket sharing address, rather than its management page URL.</div>
+        <div class="inline-actions">
+          <button type="submit">${linked ? 'Change host' : 'Link host'}</button>
+          ${linked ? `<button type="button" class="ghost" onclick="window.location.href='subminer://first-run-setup?action=unlink-hachidori-host'">Unlink and use local dictionaries</button>` : ''}
+        </div>
+      </form>
+      ${host?.kind === 'disconnected' || host?.kind === 'unavailable' ? `<p class="meta">${escapeHtml(host.message)}</p>` : ''}
+      </details>
+    </div>`
+      : '';
+  const yomitanMeta =
+    host?.kind === 'connected'
+      ? `${host.dictionaryCount} ${host.dictionaryCount === 1 ? 'dictionary' : 'dictionaries'} from ${host.name} at ${host.address}`
+      : host?.kind === 'disconnected'
+        ? `Host unavailable: ${host.address}`
+        : model.externalYomitanConfigured
+          ? 'External profile configured. SubMiner is reusing that Yomitan profile for this setup run.'
+          : `${model.dictionaryCount} installed`;
   const yomitanBadgeLabel = model.externalYomitanConfigured
     ? 'External'
     : model.dictionaryCount >= 1
@@ -268,8 +314,8 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     : model.canFinish
       ? model.externalYomitanConfigured
         ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
-        : 'Finish stays unlocked once Yomitan reports at least one installed dictionary.'
-      : 'Finish stays locked until Yomitan reports at least one installed dictionary.';
+        : `Finish stays unlocked once ${dictionaryName} reports at least one installed dictionary.`
+      : `Finish stays locked until ${dictionaryName} reports at least one installed dictionary.`;
 
   return `<!doctype html>
 <html>
@@ -337,6 +383,21 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     .meta {
       color: var(--muted);
       font-size: 12px;
+    }
+    .external-host summary {
+      cursor: pointer;
+      color: var(--blue);
+      font-weight: 700;
+    }
+    .external-host[open] summary {
+      margin-bottom: 10px;
+    }
+    .host-requirements {
+      padding-left: 20px;
+      margin: 0 0 12px;
+    }
+    .host-requirements li + li {
+      margin-top: 4px;
     }
     .shortcut-form {
       display: grid;
@@ -466,17 +527,18 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     </div>
     <div class="card">
       <div>
-        <strong>Yomitan dictionaries</strong>
+        <strong>${dictionaryName} dictionaries</strong>
         <div class="meta">${escapeHtml(yomitanMeta)}</div>
       </div>
       ${renderStatusBadge(yomitanBadgeLabel, yomitanBadgeTone)}
     </div>
+    ${hostCard}
     ${mpvExecutablePathCard}
     ${windowsShortcutCard}
     ${renderCommandLineLauncherSection(model.commandLineLauncher)}
     ${legacyPluginCard}
     <div class="actions">
-      <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open Yomitan Settings</button>
+      <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open ${dictionaryName} Settings</button>
       <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh status</button>
       <button onclick="window.location.href='subminer://first-run-setup?action=open-config-settings'">Open SubMiner Settings</button>
       <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">${finishButtonLabel}</button>
@@ -495,6 +557,8 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
   const parsed = new URL(rawUrl);
   const action = parsed.searchParams.get('action');
   if (
+    action !== 'link-hachidori-host' &&
+    action !== 'unlink-hachidori-host' &&
     action !== 'configure-mpv-executable-path' &&
     action !== 'remove-legacy-plugin' &&
     action !== 'configure-windows-mpv-shortcuts' &&
@@ -506,6 +570,9 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
     action !== 'finish'
   ) {
     return null;
+  }
+  if (action === 'link-hachidori-host') {
+    return { action, address: parsed.searchParams.get('address')?.trim() ?? '' };
   }
   if (action === 'configure-mpv-executable-path') {
     return {

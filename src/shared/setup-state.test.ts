@@ -9,6 +9,7 @@ import {
   getDefaultConfigDir,
   getDefaultConfigFilePaths,
   getSetupStatePath,
+  isSetupCompleted,
   normalizeSetupState,
   readSetupState,
   resolveDefaultMpvInstallPaths,
@@ -332,4 +333,43 @@ test('resolveDefaultMpvInstallPaths resolves linux, macOS, and Windows defaults'
       'subminer.conf',
     ),
   });
+});
+
+test('setup state keeps backend identity and reads legacy completion as Yomitan', () => {
+  const legacy = { ...createDefaultSetupState(), status: 'completed' as const };
+  assert.equal(isSetupCompleted(normalizeSetupState(legacy), 'yomitan'), true);
+  assert.equal(isSetupCompleted(normalizeSetupState(legacy), 'hachidori'), false);
+  const hachidori = normalizeSetupState({ ...legacy, dictionaryBackend: 'hachidori' });
+  assert.equal(hachidori?.dictionaryBackend, 'hachidori');
+  assert.equal(isSetupCompleted(hachidori, 'hachidori'), true);
+  assert.equal(isSetupCompleted(hachidori, 'yomitan'), false);
+  assert.equal(normalizeSetupState({ ...legacy, dictionaryBackend: 'unknown' }), null);
+});
+
+test('setup state remembers every backend that finished setup', () => {
+  const state = normalizeSetupState({
+    ...createDefaultSetupState(),
+    status: 'completed',
+    dictionaryBackend: 'hachidori',
+    completedDictionaryBackends: ['yomitan', 'yomitan', 'bogus'],
+  });
+  assert.deepEqual(state?.completedDictionaryBackends, ['yomitan']);
+  assert.equal(isSetupCompleted(state, 'yomitan'), true);
+  assert.equal(isSetupCompleted(state, 'hachidori'), true);
+  const reopened = normalizeSetupState({ ...state, status: 'incomplete' });
+  assert.equal(isSetupCompleted(reopened, 'hachidori'), false);
+  assert.equal(isSetupCompleted(reopened, 'yomitan'), true);
+  for (const status of ['incomplete', 'in_progress', 'cancelled']) {
+    const staleHistory = normalizeSetupState({
+      ...state,
+      status,
+      completedDictionaryBackends: ['yomitan', 'hachidori'],
+    });
+    assert.equal(isSetupCompleted(staleHistory, 'hachidori'), false);
+    assert.equal(isSetupCompleted(staleHistory, 'yomitan'), true);
+  }
+  assert.equal(
+    normalizeSetupState({ ...state, completedDictionaryBackends: [] })?.completedDictionaryBackends,
+    undefined,
+  );
 });

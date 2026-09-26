@@ -8,6 +8,7 @@ import {
   isStandaloneTexthookerCommand,
   parseArgs,
   shouldRunYomitanOnlyStartup,
+  shouldRunDictionarySettingsOnlyStartup,
   shouldStartApp,
 } from './args';
 
@@ -474,4 +475,22 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal((setup as typeof setup & { setup?: boolean }).setup, true);
   assert.equal(hasExplicitCommand(setup), true);
   assert.equal(shouldStartApp(setup), true);
+});
+
+test('Hachidori settings starts the app without overlay or mpv prerequisites', () => {
+  const args = parseArgs(['--hachidori']);
+  assert.equal(args.hachidori, true);
+  assert.equal(args.yomitan, false);
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), true);
+  assert.equal(shouldRunDictionarySettingsOnlyStartup(args), true);
+  assert.equal(shouldRunYomitanOnlyStartup(args), false);
+  assert.equal(commandNeedsOverlayRuntime(args), false);
+  assert.equal(commandNeedsOverlayStartupPrereqs(args), false);
+  assert.equal(isStandaloneTexthookerCommand(parseArgs(['--texthooker', '--hachidori'])), false);
+  assert.equal(
+    shouldRunDictionarySettingsOnlyStartup(parseArgs(['--hachidori', '--start'])),
+    false,
+  );
+  assert.equal(shouldRunDictionarySettingsOnlyStartup(parseArgs(['--yomitan'])), true);
 });

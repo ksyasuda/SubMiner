@@ -1,3 +1,5 @@
+import type { DictionaryBackend } from '../../types/config';
+
 export function resolveTrayIconPathRuntime(deps: {
   platform: string;
   resourcesPath: string;
@@ -39,6 +41,8 @@ export type TrayMenuActionHandlers = {
   showFirstRunSetup: boolean;
   openWindowsMpvLauncherSetup: () => void;
   showWindowsMpvLauncherSetup: boolean;
+  dictionaryBackend: DictionaryBackend;
+  openHachidoriSettings: () => void;
   openYomitanSettings: () => void;
   openConfigSettings: () => void;
   openSyncUi: () => void;
@@ -102,8 +106,14 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
         ]
       : []),
     {
-      label: 'Open Yomitan Settings',
-      click: handlers.openYomitanSettings,
+      label:
+        handlers.dictionaryBackend === 'hachidori'
+          ? 'Open Hachidori Settings'
+          : 'Open Yomitan Settings',
+      click:
+        handlers.dictionaryBackend === 'hachidori'
+          ? handlers.openHachidoriSettings
+          : handlers.openYomitanSettings,
     },
     {
       label: 'Open SubMiner Settings',

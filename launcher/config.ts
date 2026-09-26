@@ -1,4 +1,5 @@
 import { fail } from './log.js';
+import type { DictionaryBackend } from '../src/types/config.js';
 import type {
   Args,
   LauncherLoggingConfig,
@@ -98,6 +99,12 @@ export function loadLauncherLoggingConfig(): LauncherLoggingConfig {
         }
       : undefined,
   };
+}
+
+export function loadLauncherDictionaryBackend(): DictionaryBackend {
+  return readLauncherMainConfigObject()?.dictionaryBackend === 'hachidori'
+    ? 'hachidori'
+    : 'yomitan';
 }
 
 export function hasLauncherExternalYomitanProfileConfig(): boolean {

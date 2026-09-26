@@ -13,6 +13,7 @@ export interface CliArgs {
   toggleVisibleOverlay: boolean;
   togglePrimarySubtitleBar: boolean;
   yomitan: boolean;
+  hachidori: boolean;
   settings: boolean;
   syncWindow: boolean;
   setup: boolean;
@@ -134,6 +135,7 @@ export function parseArgs(argv: string[]): CliArgs {
     toggleVisibleOverlay: false,
     togglePrimarySubtitleBar: false,
     yomitan: false,
+    hachidori: false,
     settings: false,
     syncWindow: false,
     setup: false,
@@ -285,6 +287,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
     else if (arg === '--toggle-primary-subtitle-bar') args.togglePrimarySubtitleBar = true;
     else if (arg === '--yomitan') args.yomitan = true;
+    else if (arg === '--hachidori') args.hachidori = true;
     else if (arg === '--settings') args.settings = true;
     else if (arg === '--sync-window') args.syncWindow = true;
     else if (arg === '--setup') args.setup = true;
@@ -568,6 +571,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.toggleVisibleOverlay ||
     args.togglePrimarySubtitleBar ||
     args.yomitan ||
+    args.hachidori ||
     args.settings ||
     args.syncWindow ||
     args.setup ||
@@ -647,6 +651,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.toggleVisibleOverlay &&
     !args.togglePrimarySubtitleBar &&
     !args.yomitan &&
+    !args.hachidori &&
     !args.settings &&
     !args.syncWindow &&
     !args.setup &&
@@ -719,6 +724,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.toggleVisibleOverlay ||
     args.togglePrimarySubtitleBar ||
     args.yomitan ||
+    args.hachidori ||
     args.settings ||
     args.syncWindow ||
     args.setup ||
@@ -769,8 +775,12 @@ export function shouldStartApp(args: CliArgs): boolean {
 }
 
 export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
+  return args.yomitan && !args.hachidori && shouldRunDictionarySettingsOnlyStartup(args);
+}
+
+export function shouldRunDictionarySettingsOnlyStartup(args: CliArgs): boolean {
   return (
-    args.yomitan &&
+    (args.yomitan || args.hachidori) &&
     !args.background &&
     !args.start &&
     !args.stop &&

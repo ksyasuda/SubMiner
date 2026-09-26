@@ -2,6 +2,22 @@ import { ConfigTemplateSection } from './shared';
 
 const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
+    title: 'Dictionary Backend',
+    description: ['Select the dictionary lookup backend: yomitan or hachidori.'],
+    notes: [
+      'Restart SubMiner after changing the backend. Each backend keeps separate settings and dictionaries.',
+    ],
+    key: 'dictionaryBackend',
+  },
+  {
+    title: 'Hachidori External Dictionary Imports',
+    description: [
+      'Configure the linked Docker host management URL, for example http://127.0.0.1:8780.',
+    ],
+    notes: ['Used only while Hachidori is linked to an external host.'],
+    key: 'hachidori',
+  },
+  {
     title: 'Subtitle Selection',
     description: ['Select primary and secondary mpv subtitle tracks from the overlay.'],
     notes: ['Hot-reload: enabling or disabling updates the session shortcut immediately.'],

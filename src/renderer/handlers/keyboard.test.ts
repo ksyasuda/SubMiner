@@ -5,6 +5,7 @@ import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
 import { createRendererState } from '../state.js';
+import { YOMITAN_POPUP_HOST_SELECTOR } from '../yomitan-popup.js';
 import type { CompiledSessionBinding } from '../../types';
 import type { MpvInputBindingsSnapshot } from '../../types/session-bindings';
 import { DEFAULT_KEYBINDINGS, SPECIAL_COMMANDS } from '../../config/definitions';
@@ -442,6 +443,13 @@ function installKeyboardTestGlobals() {
       target.closest = (selector: string) => (selector.includes('.modal') ? target : null);
       return target;
     },
+    // Events inside Hachidori's shadow root reach the document retargeted to its host.
+    createDictionaryPopupHostTarget: () => {
+      const target = new TestElement();
+      target.closest = (selector: string) =>
+        selector === YOMITAN_POPUP_HOST_SELECTOR ? target : null;
+      return target;
+    },
     setGetSessionBindings: (value: () => Promise<CompiledSessionBinding[]>) => {
       getSessionBindingsImpl = value;
     },
@@ -674,6 +682,23 @@ test('right-clicking interactive overlay controls does not raise playback window
     await handlers.setupMpvInputForwarding();
 
     testGlobals.dispatchDocumentMouseDown({ button: 2, target: interactiveTarget });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.interactionActivations, []);
+    assert.deepEqual(testGlobals.mpvCommands, []);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('right-clicking inside a dictionary popup host does not raise playback window or toggle pause', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  const popupHost = testGlobals.createDictionaryPopupHostTarget();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchDocumentMouseDown({ button: 2, target: popupHost });
     await wait(0);
 
     assert.deepEqual(testGlobals.interactionActivations, []);

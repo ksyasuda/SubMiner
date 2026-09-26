@@ -19,7 +19,10 @@ import {
   writeBackgroundStatsServerState,
 } from './stats-daemon';
 import { createEnsureStatsServerUrlHandler } from './stats-server-routing';
-import { shouldForceOverrideYomitanAnkiServer } from './yomitan-anki-server';
+import {
+  getPreferredYomitanAnkiServerUrl,
+  shouldForceOverrideYomitanAnkiServer,
+} from './yomitan-anki-server';
 
 export function isSelfOwnedBackgroundStatsDaemonState(state: {
   pid: number;
@@ -171,10 +174,11 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
         generateSentenceFurigana(text, highlightedText, yomitanDeps, yomitanLogger),
       addYomitanNote: async (word: string) => {
         const ankiConnectConfig = deps.getResolvedConfig().ankiConnect;
-        const ankiUrl = ankiConnectConfig.url || 'http://127.0.0.1:8765';
+        const ankiUrl = getPreferredYomitanAnkiServerUrl(ankiConnectConfig);
         await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
           forceOverride: shouldForceOverrideYomitanAnkiServer(ankiConnectConfig),
           deck: ankiConnectConfig.deck,
+          ankiConfig: ankiConnectConfig,
         });
         const result = await addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
         if (result.noteId && result.duplicateNoteIds.length > 0) {

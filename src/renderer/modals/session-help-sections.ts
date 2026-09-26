@@ -371,7 +371,7 @@ function buildFixedOverlaySections(): SessionHelpSection[] {
         { shortcut: 'Y then S', action: 'Start overlay' },
         { shortcut: 'Y then Shift + S', action: 'Stop overlay' },
         { shortcut: 'Y then T', action: 'Toggle visible overlay' },
-        { shortcut: 'Y then O', action: 'Open Yomitan settings' },
+        { shortcut: 'Y then O', action: 'Open dictionary settings' },
         { shortcut: 'Y then R', action: 'Restart overlay' },
         { shortcut: 'Y then C', action: 'Check overlay status' },
         { shortcut: 'Y then H/K', action: 'Open session help' },
@@ -380,7 +380,7 @@ function buildFixedOverlaySections(): SessionHelpSection[] {
     },
     {
       title: 'Global shortcuts',
-      rows: [{ shortcut: 'Alt + Shift + Y', action: 'Open Yomitan settings' }],
+      rows: [{ shortcut: 'Alt + Shift + Y', action: 'Open dictionary settings' }],
     },
   ];
 }

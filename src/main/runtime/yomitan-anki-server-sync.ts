@@ -1,5 +1,6 @@
 import { syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore } from '../../core/services';
 import type { ResolvedConfig } from '../../types';
+import { buildHachidoriAnkiHints } from '../../core/services/tokenizer/hachidori-anki-settings';
 import {
   getPreferredYomitanAnkiServerUrl as getPreferredYomitanAnkiServerUrlRuntime,
   shouldForceOverrideYomitanAnkiServer,
@@ -17,8 +18,9 @@ export function buildYomitanAnkiSettingsKey(options: {
   targetUrl: string;
   targetDeck: string;
   forceOverride: boolean;
+  hachidoriHints?: ReturnType<typeof buildHachidoriAnkiHints>;
 }): string {
-  return `${options.targetUrl}\n${options.targetDeck}\nforceOverride:${options.forceOverride}`;
+  return `${options.targetUrl}\n${options.targetDeck}\nforceOverride:${options.forceOverride}\n${JSON.stringify(options.hachidoriHints)}`;
 }
 
 export function createYomitanAnkiServerSyncRuntime(deps: YomitanAnkiServerSyncRuntimeDeps): {
@@ -45,6 +47,7 @@ export function createYomitanAnkiServerSyncRuntime(deps: YomitanAnkiServerSyncRu
       targetUrl,
       targetDeck,
       forceOverride,
+      hachidoriHints: buildHachidoriAnkiHints(ankiConnectConfig),
     });
     if (!targetUrl || targetSettingsKey === lastSyncedYomitanAnkiSettingsKey) {
       return;
@@ -64,6 +67,7 @@ export function createYomitanAnkiServerSyncRuntime(deps: YomitanAnkiServerSyncRu
       {
         forceOverride,
         deck: targetDeck,
+        ankiConfig: ankiConnectConfig,
       },
     );
 

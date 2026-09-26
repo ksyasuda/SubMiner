@@ -103,6 +103,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
     runYoutubePlaybackFlow: async () => {
       calls.push('run-youtube-playback');
     },
+    openHachidoriSettings: () => {},
     openYomitanSettings: () => calls.push('open-yomitan'),
     openConfigSettingsWindow: () => calls.push('open-config-settings'),
     openSyncUiWindow: () => {},

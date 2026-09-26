@@ -1,3 +1,5 @@
+import type { DictionaryBackend } from '../../types/config';
+
 export function createResolveTrayIconPathHandler(deps: {
   resolveTrayIconPathRuntime: (options: {
     platform: string;
@@ -46,6 +48,8 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
     showFirstRunSetup: boolean;
     openWindowsMpvLauncherSetup: () => void;
     showWindowsMpvLauncherSetup: boolean;
+    dictionaryBackend: DictionaryBackend;
+    openHachidoriSettings: () => void;
     openYomitanSettings: () => void;
     openConfigSettings: () => void;
     openSyncUi: () => void;
@@ -67,6 +71,8 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   showFirstRunSetup: () => boolean;
   openFirstRunSetupWindow: (force?: boolean) => void;
   showWindowsMpvLauncherSetup: () => boolean;
+  getDictionaryBackend: () => DictionaryBackend;
+  openHachidoriSettings: () => void;
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
@@ -107,6 +113,8 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
         deps.openFirstRunSetupWindow(true);
       },
       showWindowsMpvLauncherSetup: deps.showWindowsMpvLauncherSetup(),
+      dictionaryBackend: deps.getDictionaryBackend(),
+      openHachidoriSettings: deps.openHachidoriSettings,
       openYomitanSettings: () => {
         deps.openYomitanSettings();
       },
