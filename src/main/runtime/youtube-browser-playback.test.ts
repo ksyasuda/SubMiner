@@ -24,6 +24,7 @@ function createHarness(overrides: Partial<YoutubeBrowserPlaybackDeps> = {}) {
     appendToMpvPlaylist: (url) => calls.push(`append:${url}`),
     notifyFailure: (message) => calls.push(`notify:${message}`),
     logWarn: () => {},
+    onStartupFailed: () => calls.push('startup-failed'),
     ...overrides,
   });
   return {
@@ -97,11 +98,13 @@ test('queue requests play instead when the first video fails to start', async ()
         throw new Error('no formats');
       }
     },
+    // The fallback play for the queued video must already count as starting.
+    onStartupFailed: () => calls.push(`startup-failed:${runtime.isStartingPlayback()}`),
   });
   await runtime.openVideo({ action: 'play', url: VIDEO_A });
   await runtime.openVideo({ action: 'queue', url: VIDEO_B });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(calls, [`flow:${VIDEO_A}`, `flow:${VIDEO_B}`]);
+  assert.deepEqual(calls, [`flow:${VIDEO_A}`, 'startup-failed:true', `flow:${VIDEO_B}`]);
 });
 
 test('repeat play clicks while mpv is starting open the video once', async () => {
@@ -130,7 +133,7 @@ test('rejects non-video links and reports when mpv cannot start', async () => {
     ok: false,
     message: 'Could not start mpv.',
   });
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, ['startup-failed']);
 });
 
 test('advancing onto a queued video runs the playback flow for it', async () => {
@@ -203,5 +206,5 @@ test('flow failures are reported', async () => {
   });
   await runtime.openVideo({ action: 'play', url: VIDEO_A });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(calls, ['notify:YouTube playback failed: mpv went away']);
+  assert.deepEqual(calls, ['notify:YouTube playback failed: mpv went away', 'startup-failed']);
 });

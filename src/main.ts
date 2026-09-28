@@ -3472,6 +3472,7 @@ const youtubeBrowserPlaybackRuntime = createYoutubeBrowserPlaybackRuntime({
   notifyFailure: (message) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'YouTube' }),
   logWarn: (message) => logger.warn(message),
+  onStartupFailed: () => quitAfterYoutubeBrowserIfIdle(),
 });
 const youtubeBrowserWindowRuntime = createYoutubeBrowserWindowRuntime({
   createBrowserWindow: (options) => new BrowserWindow(options),
@@ -3486,17 +3487,20 @@ const youtubeBrowserWindowRuntime = createYoutubeBrowserWindowRuntime({
   openVideo: (request) => youtubeBrowserPlaybackRuntime.openVideo(request),
   logWarn: (message, error) => logger.warn(message, error),
   logDebug: (message) => logger.debug(message),
-  // A process started just for the browser (`--youtube-browser`) exits with it, but keeps the
-  // overlay alive until mpv closes if a video is playing or still starting.
   onClosed: () => {
     if (!appState.initialArgs?.youtubeBrowser) return;
-    if (isMpvPlayingMedia() || youtubeBrowserPlaybackRuntime.isStartingPlayback()) {
-      quitWhenMpvClosesAfterYoutubeBrowser = true;
-      return;
-    }
-    requestAppQuit();
+    quitWhenMpvClosesAfterYoutubeBrowser = true;
+    quitAfterYoutubeBrowserIfIdle();
   },
 });
+// A process started just for the browser (`--youtube-browser`) exits once the window is closed,
+// but keeps the overlay alive until mpv closes if a video is playing or still starting. Rechecked
+// when a start fails, so a failed start after the window closed does not leave the app running.
+const quitAfterYoutubeBrowserIfIdle = (): void => {
+  if (!quitWhenMpvClosesAfterYoutubeBrowser || youtubeBrowserWindowRuntime.isOpen()) return;
+  if (isMpvPlayingMedia() || youtubeBrowserPlaybackRuntime.isStartingPlayback()) return;
+  requestAppQuit();
+};
 
 const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
   getSetupWindow: () => appState.firstRunSetupWindow,

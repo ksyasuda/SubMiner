@@ -22,6 +22,8 @@ export type YoutubeBrowserPlaybackDeps = {
   appendToMpvPlaylist: (url: string) => void;
   notifyFailure: (message: string) => void;
   logWarn: (message: string) => void;
+  /** A play request ended without loading its video, after queued requests behind it were released. */
+  onStartupFailed: () => void;
 };
 
 export function parseYoutubeBrowserVideoRequest(
@@ -59,14 +61,20 @@ export function createYoutubeBrowserPlaybackRuntime(deps: YoutubeBrowserPlayback
 
   const beginStartup = (videoId: string): PlaybackStartup => {
     let resolveLoaded: (loaded: boolean) => void = () => {};
+    let settled = false;
     const entry: PlaybackStartup = {
       videoId,
       loaded: new Promise<boolean>((resolve) => {
         resolveLoaded = resolve;
       }),
       settle: (loaded) => {
+        if (settled) return;
+        settled = true;
         if (startup === entry) startup = null;
         resolveLoaded(loaded);
+        // Registered after the queued requests' handlers, so one that plays instead has already
+        // begun its own startup by the time this runs.
+        if (!loaded) void entry.loaded.then(() => deps.onStartupFailed());
       },
     };
     startup = entry;
