@@ -51,6 +51,7 @@ export interface CliCommandRuntimeServiceContext {
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openYoutubeBrowserWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -137,6 +138,7 @@ function createCliCommandDepsFromContext(
       openYomitanSettings: context.openYomitanSettings,
       openConfigSettingsWindow: context.openConfigSettingsWindow,
       openSyncUiWindow: context.openSyncUiWindow,
+      openYoutubeBrowserWindow: context.openYoutubeBrowserWindow,
       cycleSecondarySubMode: context.cycleSecondarySubMode,
       openRuntimeOptionsPalette: context.openRuntimeOptionsPalette,
       printHelp: context.printHelp,

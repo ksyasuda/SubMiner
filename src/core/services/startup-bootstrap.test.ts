@@ -17,6 +17,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     yomitan: false,
     settings: false,
     syncWindow: false,
+    youtubeBrowser: false,
     setup: false,
     show: false,
     hide: false,

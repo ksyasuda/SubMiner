@@ -61,7 +61,6 @@ export const LEGACY_HIDDEN_CONFIG_PATHS = [
   'controller.preferredGamepadId',
   'controller.preferredGamepadLabel',
   'controller.profiles',
-  'youtubeSubgen.primarySubLanguages',
   'anilist.characterDictionary.enabled',
   'anilist.characterDictionary.refreshTtlHours',
   'anilist.characterDictionary.evictionPolicy',
@@ -76,12 +75,7 @@ export const LEGACY_HIDDEN_CONFIG_PATHS = [
   'jellyfin.recentServers',
 ] as const;
 
-const EXCLUDED_PREFIXES = [
-  'ai',
-  'ankiConnect.ai',
-  'controller.buttonIndices',
-  'youtubeSubgen',
-] as const;
+const EXCLUDED_PREFIXES = ['ai', 'ankiConnect.ai', 'controller.buttonIndices'] as const;
 
 const JSON_OBJECT_FIELDS = new Set([
   'keybindings',
@@ -525,7 +519,6 @@ function topSection(path: string): string {
     websocket: 'WebSocket server',
     yomitan: 'Yomitan',
     youtube: 'YouTube Playback Settings',
-    youtubeSubgen: 'YouTube subtitle generation',
     auto_start_overlay: 'Playback Behavior',
   };
   return labels[top] ?? humanizePath(top);
@@ -725,9 +718,7 @@ function fieldForLeaf(leaf: Leaf): ConfigSettingsField {
     ...(option?.enumLabels ? { enumLabels: option.enumLabels } : {}),
     restartBehavior: getConfigHotReloadField(leaf.path) ? 'hot-reload' : 'restart',
     advanced:
-      leaf.path.startsWith('controller.') ||
-      leaf.path.startsWith('immersionTracking.retention.') ||
-      leaf.path.startsWith('youtubeSubgen.'),
+      leaf.path.startsWith('controller.') || leaf.path.startsWith('immersionTracking.retention.'),
     secret: SECRET_PATHS.has(leaf.path),
     settingsHidden: SUBTITLE_CSS_MANAGED_CONFIG_PATHS.has(leaf.path),
   };

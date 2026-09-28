@@ -53,6 +53,7 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},
       openSyncUiWindow: () => {},
+      openYoutubeBrowserWindow: () => {},
       cycleSecondarySubMode: () => {},
       openRuntimeOptionsPalette: () => {},
       printHelp: () => {},

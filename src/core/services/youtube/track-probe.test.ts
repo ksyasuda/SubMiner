@@ -116,6 +116,31 @@ test('probeYoutubeTracks prefers srv3 over vtt for automatic captions', async ()
   );
 });
 
+test('probeYoutubeTracks skips machine-translated caption URLs when the real track exists', async () => {
+  const translated = 'https://www.youtube.com/api/timedtext?v=abc123&lang=en-US&tlang=ja&fmt=srv3';
+  const original = 'https://www.youtube.com/api/timedtext?v=abc123&lang=ja&fmt=srv3';
+  await withFakeYtDlp(
+    {
+      id: 'abc123',
+      title: 'Example',
+      automatic_captions: {
+        ja: [
+          { ext: 'srv3', url: translated, name: 'Japanese' },
+          { ext: 'srv3', url: original, name: 'Japanese' },
+        ],
+        fr: [{ ext: 'srv3', url: `${translated}&x=fr`, name: 'French' }],
+      },
+    },
+    async () => {
+      const result = await probeYoutubeTracks('https://www.youtube.com/watch?v=abc123');
+      const byLanguage = new Map(result.tracks.map((track) => [track.sourceLanguage, track]));
+      assert.equal(byLanguage.get('ja')?.downloadUrl, original);
+      // A translation-only language still gets a track rather than disappearing.
+      assert.equal(byLanguage.get('fr')?.downloadUrl, `${translated}&x=fr`);
+    },
+  );
+});
+
 test('probeYoutubeTracks honors SUBMINER_YTDLP_BIN when yt-dlp is not on PATH', async () => {
   if (process.platform === 'win32') {
     return;

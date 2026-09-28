@@ -13,14 +13,8 @@ import {
   DEFAULT_JIMAKU_API_BASE_URL,
   DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS,
   DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS,
-  DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
 } from '../types.js';
-import {
-  inferWhisperLanguage,
-  isUrlTarget,
-  resolvePathMaybe,
-  uniqueNormalizedLangCodes,
-} from '../util.js';
+import { isUrlTarget, resolvePathMaybe, uniqueNormalizedLangCodes } from '../util.js';
 import type { CliInvocations } from './cli-parser-builder.js';
 
 function ensureTarget(target: string, parsed: Args): void {
@@ -131,18 +125,6 @@ export function createDefaultArgs(
     recursive: false,
     profile: mpvConfig.profile ?? '',
     startOverlay: false,
-    whisperBin: process.env.SUBMINER_WHISPER_BIN || launcherConfig.whisperBin || '',
-    whisperModel: process.env.SUBMINER_WHISPER_MODEL || launcherConfig.whisperModel || '',
-    whisperVadModel: process.env.SUBMINER_WHISPER_VAD_MODEL || launcherConfig.whisperVadModel || '',
-    whisperThreads: (() => {
-      const envValue = Number.parseInt(process.env.SUBMINER_WHISPER_THREADS || '', 10);
-      if (Number.isInteger(envValue) && envValue > 0) return envValue;
-      return launcherConfig.whisperThreads || 4;
-    })(),
-    youtubeSubgenOutDir: process.env.SUBMINER_YT_SUBGEN_OUT_DIR || DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
-    youtubeSubgenAudioFormat: process.env.SUBMINER_YT_SUBGEN_AUDIO_FORMAT || 'm4a',
-    youtubeSubgenKeepTemp: process.env.SUBMINER_YT_SUBGEN_KEEP_TEMP === '1',
-    youtubeFixWithAi: launcherConfig.fixWithAi === true,
     jimakuApiKey: process.env.SUBMINER_JIMAKU_API_KEY || '',
     jimakuApiKeyCommand: process.env.SUBMINER_JIMAKU_API_KEY_COMMAND || '',
     jimakuApiBaseUrl: process.env.SUBMINER_JIMAKU_API_BASE_URL || DEFAULT_JIMAKU_API_BASE_URL,
@@ -170,6 +152,7 @@ export function createDefaultArgs(
     version: false,
     update: false,
     settings: false,
+    youtubeBrowser: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
@@ -185,16 +168,6 @@ export function createDefaultArgs(
     youtubePrimarySubLangs: primarySubLangs,
     youtubeSecondarySubLangs: secondarySubLangs,
     youtubeAudioLangs,
-    youtubeWhisperSourceLanguage: inferWhisperLanguage(primarySubLangs, 'ja'),
-    aiConfig: {
-      enabled: launcherConfig.ai?.enabled,
-      apiKey: launcherConfig.ai?.apiKey,
-      apiKeyCommand: launcherConfig.ai?.apiKeyCommand,
-      baseUrl: launcherConfig.ai?.baseUrl,
-      model: launcherConfig.ai?.model,
-      systemPrompt: launcherConfig.ai?.systemPrompt,
-      requestTimeoutMs: launcherConfig.ai?.requestTimeoutMs,
-    },
     useTexthooker: true,
     autoStartOverlay: false,
     texthookerOnly: false,
@@ -361,6 +334,13 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
       parsed.logLevel = parseLogLevel(invocations.settingsInvocation.logLevel);
     }
     parsed.settings = true;
+  }
+
+  if (invocations.youtubeBrowserInvocation) {
+    if (invocations.youtubeBrowserInvocation.logLevel) {
+      parsed.logLevel = parseLogLevel(invocations.youtubeBrowserInvocation.logLevel);
+    }
+    parsed.youtubeBrowser = true;
   }
 
   if (invocations.mpvInvocation) {

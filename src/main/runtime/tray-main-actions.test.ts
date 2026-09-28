@@ -51,6 +51,7 @@ test('build tray template handler wires actions and init guards', () => {
       handlers.openYomitanSettings();
       handlers.openConfigSettings();
       handlers.openSyncUi();
+      handlers.openYoutubeBrowser();
       handlers.exportLogs();
       handlers.openJellyfinSetup();
       handlers.toggleJellyfinDiscovery(true);
@@ -74,6 +75,7 @@ test('build tray template handler wires actions and init guards', () => {
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('configuration'),
     openSyncUiWindow: () => calls.push('sync-ui'),
+    openYoutubeBrowserWindow: () => calls.push('youtube'),
     exportLogs: () => calls.push('export-logs'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
     isJellyfinConfigured: () => true,
@@ -100,6 +102,7 @@ test('build tray template handler wires actions and init guards', () => {
     'yomitan',
     'configuration',
     'sync-ui',
+    'youtube',
     'export-logs',
     'jellyfin',
     'jellyfin-discovery:true',
@@ -130,6 +133,7 @@ test('windows mpv launcher tray action force-opens completed setup', () => {
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('configuration'),
     openSyncUiWindow: () => calls.push('configuration'),
+    openYoutubeBrowserWindow: () => calls.push('youtube'),
     exportLogs: () => calls.push('export-logs'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
     isJellyfinConfigured: () => false,

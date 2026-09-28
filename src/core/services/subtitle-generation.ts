@@ -173,6 +173,21 @@ async function writeSubtitles(input: {
   }
 }
 
+/** Resolve the model and tools, throwing the message to show when generation cannot run. */
+export async function requireSubtitleGenerationSetup(
+  config: SubtitleGenerationConfig,
+  modelDirectory: string,
+) {
+  const model = await resolveSubtitleGenerationModel(config, modelDirectory);
+  if (model.kind === 'missing')
+    throw new Error(
+      'No Whisper model found. Download a model or configure an existing model path.',
+    );
+  if (model.kind === 'invalid') throw new Error(model.message);
+  const tools = requireSubtitleGenerationTools(await resolveSubtitleGenerationTools(config));
+  return { modelPath: model.path, tools };
+}
+
 export async function generateJapaneseSubtitles(input: {
   config: SubtitleGenerationConfig;
   modelDirectory: string;
@@ -180,6 +195,8 @@ export async function generateJapaneseSubtitles(input: {
   audioStreamIndex?: number;
   references?: readonly SubtitleGenerationReference[];
   outputPath?: string;
+  /** Parent for the scratch directory holding the extracted WAV; the system temp dir by default. */
+  workDirectory?: string;
   onProgress?: (progress: SubtitleGenerationProgress) => void;
   signal?: AbortSignal;
 }): Promise<string> {
@@ -193,13 +210,10 @@ export async function generateJapaneseSubtitles(input: {
   await ensureWritableDirectory(
     input.outputPath ? path.dirname(path.resolve(input.outputPath)) : path.dirname(mediaPath),
   );
-  const model = await resolveSubtitleGenerationModel(input.config, input.modelDirectory);
-  if (model.kind === 'missing')
-    throw new Error(
-      'No Whisper model found. Download a model or configure an existing model path.',
-    );
-  if (model.kind === 'invalid') throw new Error(model.message);
-  const tools = requireSubtitleGenerationTools(await resolveSubtitleGenerationTools(input.config));
+  const { modelPath, tools } = await requireSubtitleGenerationSetup(
+    input.config,
+    input.modelDirectory,
+  );
   input.onProgress?.({ stage: 'extract', message: 'Inspecting audio tracks...' });
   const probe = await runSubtitleGenerationProcess({
     command: tools.ffprobe,
@@ -215,7 +229,9 @@ export async function generateJapaneseSubtitles(input: {
     signal: input.signal,
   });
   const audio = parseAudioProbe(probe, input.audioStreamIndex);
-  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'subminer-whisper-'));
+  const temporaryDirectory = await mkdtemp(
+    path.join(input.workDirectory ?? tmpdir(), 'subminer-whisper-'),
+  );
   try {
     const wavPath = path.join(temporaryDirectory, 'audio.wav');
     const subtitleBase = path.join(temporaryDirectory, 'subtitles');
@@ -277,7 +293,7 @@ export async function generateJapaneseSubtitles(input: {
         config: input.config,
         tools,
         referenceStarts,
-        modelPath: model.path,
+        modelPath,
         wavPath,
         directory: temporaryDirectory,
         signal: input.signal,
@@ -288,7 +304,7 @@ export async function generateJapaneseSubtitles(input: {
         command: tools.whisper,
         args: [
           '-m',
-          model.path,
+          modelPath,
           '-f',
           wavPath,
           '-l',

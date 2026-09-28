@@ -49,6 +49,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
     openYomitanSettings: () => void;
     openConfigSettings: () => void;
     openSyncUi: () => void;
+    openYoutubeBrowser: () => void;
     exportLogs: () => void;
     openJellyfinSetup: () => void;
     showJellyfinDiscovery: boolean;
@@ -70,6 +71,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openYoutubeBrowserWindow: () => void;
   exportLogs: () => void;
   openJellyfinSetupWindow: () => void;
   isJellyfinConfigured: () => boolean;
@@ -115,6 +117,9 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
       },
       openSyncUi: () => {
         deps.openSyncUiWindow();
+      },
+      openYoutubeBrowser: () => {
+        deps.openYoutubeBrowserWindow();
       },
       exportLogs: () => {
         deps.exportLogs();

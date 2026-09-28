@@ -7,7 +7,6 @@ export interface CliArgs {
   launchMpv: boolean;
   launchMpvTargets: string[];
   youtubePlay?: string;
-  youtubeMode?: 'download' | 'generate';
   stop: boolean;
   toggle: boolean;
   toggleVisibleOverlay: boolean;
@@ -15,6 +14,7 @@ export interface CliArgs {
   yomitan: boolean;
   settings: boolean;
   syncWindow: boolean;
+  youtubeBrowser: boolean;
   setup: boolean;
   show: boolean;
   hide: boolean;
@@ -128,7 +128,6 @@ export function parseArgs(argv: string[]): CliArgs {
     launchMpv: false,
     launchMpvTargets: [],
     youtubePlay: undefined,
-    youtubeMode: undefined,
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
@@ -136,6 +135,7 @@ export function parseArgs(argv: string[]): CliArgs {
     yomitan: false,
     settings: false,
     syncWindow: false,
+    youtubeBrowser: false,
     setup: false,
     show: false,
     hide: false,
@@ -270,12 +270,6 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--youtube-play') {
       const value = readValue(argv[i + 1]);
       if (value) args.youtubePlay = value;
-    } else if (arg.startsWith('--youtube-mode=')) {
-      const value = arg.split('=', 2)[1];
-      if (value === 'download' || value === 'generate') args.youtubeMode = value;
-    } else if (arg === '--youtube-mode') {
-      const value = readValue(argv[i + 1]);
-      if (value === 'download' || value === 'generate') args.youtubeMode = value;
     } else if (arg === '--launch-mpv') {
       args.launchMpv = true;
       args.launchMpvTargets = argv.slice(i + 1).filter((value) => value && !value.startsWith('--'));
@@ -287,6 +281,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--yomitan') args.yomitan = true;
     else if (arg === '--settings') args.settings = true;
     else if (arg === '--sync-window') args.syncWindow = true;
+    else if (arg === '--youtube-browser') args.youtubeBrowser = true;
     else if (arg === '--setup') args.setup = true;
     else if (arg === '--show') args.show = true;
     else if (arg === '--hide') args.hide = true;
@@ -570,6 +565,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.yomitan ||
     args.settings ||
     args.syncWindow ||
+    args.youtubeBrowser ||
     args.setup ||
     args.show ||
     args.hide ||
@@ -649,6 +645,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.yomitan &&
     !args.settings &&
     !args.syncWindow &&
+    !args.youtubeBrowser &&
     !args.setup &&
     !args.show &&
     !args.hide &&
@@ -721,6 +718,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.yomitan ||
     args.settings ||
     args.syncWindow ||
+    args.youtubeBrowser ||
     args.setup ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
@@ -779,6 +777,7 @@ export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
     !args.togglePrimarySubtitleBar &&
     !args.settings &&
     !args.syncWindow &&
+    !args.youtubeBrowser &&
     !args.show &&
     !args.hide &&
     !args.setup &&

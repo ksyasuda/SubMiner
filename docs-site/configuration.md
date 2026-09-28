@@ -54,7 +54,7 @@ These apply live:
 
 - `subtitleStyle`, `subtitleSidebar`, `subtitleSelection`, `keybindings`, `shortcuts`
 - `logging.level`, `logging.rotation`, `logging.files`
-- `secondarySub.defaultMode`, `youtube.primarySubLanguages`
+- `secondarySub.defaultMode`, `youtube.primarySubLanguages`, `youtube.subtitleSource`
 - `mpv.aniskipEnabled`, `mpv.aniskipButtonKey`, `stats.toggleKey`, `stats.markWatchedKey`
 - `ankiConnect.deck`, `ankiConnect.fields.*`, `ankiConnect.behavior.autoUpdateNewCards`
 - `ankiConnect.media.normalizeAudio`, `media.mirrorMpvVolume`, `media.reviewTiming`
@@ -594,11 +594,12 @@ Settings for mpv instances that SubMiner starts, and for the bundled mpv plugin.
 
 ### YouTube playback settings
 
-Language and card-media settings for YouTube playback. YouTube always loads a Japanese primary and English secondary track, preferring manual uploads over auto captions. See [YouTube integration](/youtube-integration).
+Subtitle, language, and card-media settings for YouTube playback. With YouTube captions, SubMiner loads a Japanese primary and English secondary track, preferring manual uploads over auto captions. See [YouTube integration](/youtube-integration).
 
 | Key                            | Default         | What it does                                                                                 |
 | ------------------------------ | --------------- | -------------------------------------------------------------------------------------------- |
 | `youtube.primarySubLanguages`  | `["ja", "jpn"]` | Languages that count as a valid primary track, also used for local playback                  |
+| `youtube.subtitleSource`       | `"youtube"`     | `youtube` downloads YouTube's captions. `whisper` transcribes the audio with Whisper         |
 | `youtube.mediaCache.mode`      | `"direct"`      | `direct` cuts card media from the stream. `background` downloads the video with yt-dlp first |
 | `youtube.mediaCache.maxHeight` | `720`           | Maximum download height in `background` mode. `0` is unlimited                               |
 

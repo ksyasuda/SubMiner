@@ -581,19 +581,9 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     recursive: false,
     profile: '',
     startOverlay: false,
-    whisperBin: '',
-    whisperModel: '',
-    whisperVadModel: '',
-    whisperThreads: 4,
-    youtubeSubgenOutDir: '',
-    youtubeSubgenAudioFormat: 'wav',
-    youtubeSubgenKeepTemp: false,
-    youtubeFixWithAi: false,
     youtubePrimarySubLangs: [],
     youtubeSecondarySubLangs: [],
     youtubeAudioLangs: [],
-    youtubeWhisperSourceLanguage: 'ja',
-    aiConfig: {},
     useTexthooker: false,
     autoStartOverlay: false,
     texthookerOnly: false,
@@ -627,6 +617,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     logsExport: false,
     version: false,
     settings: false,
+    youtubeBrowser: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
@@ -1084,30 +1075,21 @@ test('cleanupPlaybackSession stops launcher-managed overlay app and mpv-owned ch
       return true;
     },
   } as unknown as NonNullable<typeof state.mpvProc>;
-  const helperProc = {
-    killed: false,
-    kill: () => {
-      calls.push('helper-kill');
-      return true;
-    },
-  } as unknown as NonNullable<typeof state.overlayProc>;
 
   state.stopRequested = false;
   state.appPath = appPath;
   state.overlayManagedByLauncher = true;
   state.overlayProc = overlayProc;
   state.mpvProc = mpvProc;
-  state.youtubeSubgenChildren.add(helperProc);
 
   try {
     await cleanupPlaybackSession(makeArgs());
 
-    assert.deepEqual(calls, ['overlay-kill', 'mpv-kill', 'helper-kill']);
+    assert.deepEqual(calls, ['overlay-kill', 'mpv-kill']);
     assert.match(fs.readFileSync(appInvocationsPath, 'utf8'), /--stop/);
   } finally {
     state.overlayProc = null;
     state.mpvProc = null;
-    state.youtubeSubgenChildren.clear();
     state.overlayManagedByLauncher = false;
     state.appPath = '';
     state.stopRequested = false;

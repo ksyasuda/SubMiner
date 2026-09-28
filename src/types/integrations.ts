@@ -124,6 +124,9 @@ export interface AiConfig {
 
 export type YoutubeMediaCacheMode = 'direct' | 'background';
 
+/** Where primary YouTube subtitles come from: YouTube's captions, or Whisper on the audio. */
+export type YoutubeSubtitleSource = 'youtube' | 'whisper';
+
 export interface YoutubeMediaCacheConfig {
   mode?: YoutubeMediaCacheMode;
   maxHeight?: number;
@@ -131,16 +134,8 @@ export interface YoutubeMediaCacheConfig {
 
 export interface YoutubeConfig {
   primarySubLanguages?: string[];
+  subtitleSource?: YoutubeSubtitleSource;
   mediaCache?: YoutubeMediaCacheConfig;
-}
-
-export interface YoutubeSubgenConfig {
-  whisperBin?: string;
-  whisperModel?: string;
-  whisperVadModel?: string;
-  whisperThreads?: number;
-  fixWithAi?: boolean;
-  ai?: AiFeatureConfig;
 }
 
 export interface StatsConfig {

@@ -329,6 +329,7 @@ import {
 } from './core/services/youtube/generate';
 import { applyOverlayClickThrough } from './core/services/overlay-click-through';
 import { createYoutubeMediaCacheService } from './core/services/youtube/media-cache';
+import { createYoutubeWhisperSubtitleService } from './core/services/youtube/whisper-subtitles';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import {
@@ -484,6 +485,8 @@ import {
 } from './main/runtime/media-timing-review';
 import { openMediaTimingReviewModal } from './main/runtime/media-timing-review-open';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
+import { createYoutubeBrowserPlaybackRuntime } from './main/runtime/youtube-browser-playback';
+import { createYoutubeBrowserWindowRuntime } from './main/runtime/youtube-browser-window';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
 import { openTsukihimeModal as openTsukihimeModalRuntime } from './main/runtime/tsukihime-open';
@@ -665,6 +668,8 @@ const JELLYFIN_MPV_CONNECT_TIMEOUT_MS = 3000;
 const JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS = 20000;
 const YOUTUBE_MPV_CONNECT_TIMEOUT_MS = 3000;
 const YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS = 10000;
+// mpv's ytdl hook resolves the stream before tracks appear; a cold yt-dlp run takes well over 5s.
+const YOUTUBE_MPV_LOAD_TIMEOUT_MS = 20000;
 const YOUTUBE_MPV_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
 const YOUTUBE_DIRECT_PLAYBACK_FORMAT = 'b';
 const MPV_JELLYFIN_DEFAULT_ARGS = [
@@ -1022,6 +1027,13 @@ process.on('SIGTERM', () => {
   requestAppQuit();
 });
 
+// Managed Whisper models live next to the config file.
+const getSubtitleGenerationModelDirectory = (): string =>
+  path.join(path.dirname(configService.getConfigPath()), 'models', 'whisper');
+const youtubeWhisperSubtitles = createYoutubeWhisperSubtitleService({
+  getConfig: () => configService.getConfig().subtitleGeneration,
+  getModelDirectory: getSubtitleGenerationModelDirectory,
+});
 const youtubeFlowRuntime = createYoutubeFlowRuntime({
   probeYoutubeTracks: (url: string) => probeYoutubeTracks(url),
   acquireYoutubeSubtitleTrack: (input) => acquireYoutubeSubtitleTrack(input),
@@ -1161,6 +1173,25 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
       fs.rmSync(dir, { recursive: true, force: true });
     }
   },
+  getSubtitleSource: () => configService.getConfig().youtube.subtitleSource,
+  // Runs as the subtitle generation modal's active job, so the modal shows it and can cancel it.
+  generateWhisperSubtitles: ({ url, outputPath, signal, onProgress }) =>
+    subtitleGenerationRuntime.generateYoutubeSubtitles({
+      url,
+      signal,
+      generate: (jobSignal, reportProgress) =>
+        youtubeWhisperSubtitles.generate({
+          url,
+          outputPath,
+          signal: jobSignal,
+          onProgress: (progress) => {
+            reportProgress(progress);
+            onProgress(progress);
+          },
+        }),
+    }),
+  openSubtitleGenerationModal: () =>
+    openSubtitleGenerationModal(createOverlayHostedModalOpenDeps()),
 });
 const prepareYoutubePlaybackInMpv = createPrepareYoutubePlaybackInMpvHandler({
   requestPath: async () => {
@@ -1388,7 +1419,8 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
     );
   },
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
-  prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
+  prepareYoutubePlaybackInMpv: (request) =>
+    prepareYoutubePlaybackInMpv({ ...request, timeoutMs: YOUTUBE_MPV_LOAD_TIMEOUT_MS }),
   startYoutubeMediaCache: (url) => {
     const mediaCacheConfig = configService.getConfig().youtube.mediaCache;
     youtubeMediaCache.start(url, {
@@ -3146,6 +3178,7 @@ const {
   runJellyfinCommand,
   openJellyfinSetupWindow,
   getJellyfinClientInfo,
+  ensureMpvConnectedForPlayback,
 } = composeJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {
     getResolvedConfig: () => configService.getConfig(),
@@ -3420,6 +3453,46 @@ const {
     encodeURIComponent: (value) => encodeURIComponent(value),
     defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl || 'http://127.0.0.1:8096',
     hasStoredSession: () => Boolean(jellyfinTokenStore.loadSession()),
+  },
+});
+
+let quitWhenMpvClosesAfterYoutubeBrowser = false;
+const youtubeBrowserPlaybackRuntime = createYoutubeBrowserPlaybackRuntime({
+  isMpvPlaying: () => Boolean(appState.mpvClient?.connected && appState.currentMediaPath?.trim()),
+  // Windows playback bootstraps its own mpv inside the playback flow.
+  ensureMpvReady: async () =>
+    process.platform === 'win32' ? true : await ensureMpvConnectedForPlayback(),
+  runPlaybackFlow: (url) =>
+    youtubePlaybackRuntime.runYoutubePlaybackFlow({ url, source: 'youtube-browser' }),
+  appendToMpvPlaylist: (url) => {
+    sendMpvCommandRuntime(appState.mpvClient, ['loadfile', url, 'append']);
+  },
+  notifyFailure: (message) =>
+    overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'YouTube' }),
+  logWarn: (message) => logger.warn(message),
+});
+const youtubeBrowserWindowRuntime = createYoutubeBrowserWindowRuntime({
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  preloadPath: path.join(__dirname, 'preload-youtube-browser.js'),
+  ipcMain,
+  showContextMenu: (window, template) => {
+    Menu.buildFromTemplate(template).popup({ window });
+  },
+  openExternal: (url) => {
+    void shell.openExternal(url);
+  },
+  openVideo: (request) => youtubeBrowserPlaybackRuntime.openVideo(request),
+  logWarn: (message, error) => logger.warn(message, error),
+  logDebug: (message) => logger.debug(message),
+  // A process started just for the browser (`--youtube-browser`) exits with it, but keeps the
+  // overlay alive until mpv closes if a video is still playing.
+  onClosed: () => {
+    if (!appState.initialArgs?.youtubeBrowser) return;
+    if (appState.mpvClient?.connected) {
+      quitWhenMpvClosesAfterYoutubeBrowser = true;
+      return;
+    }
+    requestAppQuit();
   },
 });
 
@@ -4055,7 +4128,12 @@ const {
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
     cleanupInternalSubtitleTrackCache: () => cachedInternalSubtitleTrackExtractor.clear(),
-    cleanupYoutubeSubtitleTempDirs: () => youtubeFlowRuntime.cleanupSubtitleTempDirs(),
+    cleanupYoutubeSubtitleTempDirs: () => {
+      // Stops yt-dlp/whisper-cli and deletes the audio they were working on.
+      youtubeFlowRuntime.cancelWhisperGeneration();
+      youtubeWhisperSubtitles.removeActiveAudio();
+      youtubeFlowRuntime.cleanupSubtitleTempDirs();
+    },
     cleanupYoutubeMediaCache: () => youtubeMediaCache.cleanup(),
     cleanupRemoteMediaWindows: () => getSharedRemoteMediaWindowCache().cleanup(),
     cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
@@ -4658,6 +4736,9 @@ const {
       }
       youtubePrimarySubtitleNotificationRuntime.handleMediaPathChange(path);
       void youtubeMediaCachePlaybackRuntime.handleMediaPathChange(path);
+      youtubeBrowserPlaybackRuntime.handleMediaPathChange(path);
+      youtubeFlowRuntime.handleMediaPathChange(path);
+      subtitleGenerationRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
         secondarySubtitleTrackController.scheduleRefresh();
@@ -5006,6 +5087,13 @@ function createMpvClientRuntimeService(): MpvIpcClient {
   const client = createMpvClientRuntimeServiceHandler() as MpvIpcClient;
   client.on('connection-change', ({ connected }) => {
     if (connected) {
+      return;
+    }
+    youtubeBrowserPlaybackRuntime.handleMpvDisconnected();
+    youtubeFlowRuntime.cancelWhisperGeneration();
+    subtitleGenerationRuntime.handleMediaPathChange(null);
+    if (quitWhenMpvClosesAfterYoutubeBrowser && !youtubeBrowserWindowRuntime.isOpen()) {
+      requestAppQuit();
       return;
     }
     if (!youtubeFlowRuntime.hasActiveSession()) {
@@ -6153,6 +6241,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     openYomitanSettings: () => openYomitanSettings(),
     openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
     openSyncUiWindow: () => openSyncUiWindowHandler(),
+    openYoutubeBrowserWindow: () => youtubeBrowserWindowRuntime.open(),
     cycleSecondarySubMode: () => cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
@@ -6416,6 +6505,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openYomitanSettings: () => openYomitanSettings(),
       openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
       openSyncUiWindow: () => openSyncUiWindowHandler(),
+      openYoutubeBrowserWindow: () => youtubeBrowserWindowRuntime.open(),
       exportLogs: () => {
         void exportLogsFromTray();
       },
@@ -6684,8 +6774,18 @@ registerSubtitleSelectionIpc({
 });
 const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
   getConfig: () => configService.getConfig().subtitleGeneration,
-  getModelDirectory: () =>
-    path.join(path.dirname(configService.getConfigPath()), 'models', 'whisper'),
+  getModelDirectory: getSubtitleGenerationModelDirectory,
+  generateYoutube: async ({ url, config, signal, onProgress }) =>
+    youtubeWhisperSubtitles.generate({
+      url,
+      config,
+      signal,
+      onProgress,
+      outputPath: path.join(
+        await youtubeFlowRuntime.createSubtitleTempDir(),
+        'youtube-whisper.ja.srt',
+      ),
+    }),
   getMpvClient: () => appState.mpvClient,
   onProgress: (progress) => {
     for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {

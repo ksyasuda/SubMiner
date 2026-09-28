@@ -48,6 +48,7 @@ App flags such as `--setup` and `--dev` are not launcher flags. Pass them throug
 | `subminer doctor`                          | Check the app, mpv, ffmpeg, yt-dlp, pickers, config, and mpv socket                                                  |
 | `subminer doctor --refresh-known-words`    | Refresh the known-word cache from Anki                                                                               |
 | `subminer settings`                        | Open the settings window                                                                                             |
+| `subminer youtube` / `yt`                  | Open the [YouTube browser](/youtube-integration#browse-youtube-in-subminer). Videos you pick play in mpv             |
 | `subminer generate-subs [video]`           | Generate [Japanese subtitles](/subtitle-generation) with whisper.cpp                                                 |
 | `subminer jellyfin` / `jf`                 | [Jellyfin](/jellyfin-integration) actions: `setup`, `login`, `logout`, `play`, `discovery`                           |
 | `subminer dictionary <path>` / `dict`      | Build a [character dictionary](/character-dictionary) for a file or directory                                        |

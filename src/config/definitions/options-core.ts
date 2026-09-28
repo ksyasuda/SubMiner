@@ -120,6 +120,18 @@ export function buildCoreConfigOptionRegistry(
         'Comma-separated primary subtitle language priority for managed subtitle auto-selection.',
     },
     {
+      path: 'youtube.subtitleSource',
+      kind: 'enum',
+      enumValues: ['youtube', 'whisper'],
+      enumLabels: {
+        youtube: 'Download YouTube captions',
+        whisper: 'Generate with Whisper',
+      },
+      defaultValue: defaultConfig.youtube.subtitleSource,
+      description:
+        'Where primary YouTube subtitles come from. Whisper transcribes the audio locally using the subtitleGeneration settings.',
+    },
+    {
       path: 'youtube.mediaCache.mode',
       kind: 'enum',
       enumValues: ['direct', 'background'],

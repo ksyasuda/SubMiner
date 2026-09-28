@@ -32,6 +32,27 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
 
 const DEFAULT_LOG_LEVEL: LogLevel = 'warn';
 
+const CLOSED_PIPE_ERROR_CODES = new Set(['EPIPE', 'ERR_STREAM_DESTROYED']);
+
+/**
+ * Keeps the app alive when whoever held its stdout/stderr goes away (e.g. Ctrl+C on the
+ * launcher that spawned it). Node reports the broken pipe as an async 'error' event on the
+ * stream, which crashes the process when nothing listens for it. Other errors still throw.
+ */
+export function ignoreClosedPipeErrors(stream: {
+  on: (event: 'error', listener: (error: NodeJS.ErrnoException) => void) => unknown;
+}): void {
+  stream.on('error', (error) => {
+    if (error.code && CLOSED_PIPE_ERROR_CODES.has(error.code)) {
+      return;
+    }
+    throw error;
+  });
+}
+
+ignoreClosedPipeErrors(process.stdout);
+ignoreClosedPipeErrors(process.stderr);
+
 let cliLogLevel: LogLevel | undefined;
 let configLogLevel: LogLevel | undefined;
 let configLogRotation: LogRotation = DEFAULT_LOG_ROTATION;

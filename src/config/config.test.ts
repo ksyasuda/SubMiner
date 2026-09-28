@@ -1757,11 +1757,6 @@ test('parses global shortcuts and startup settings', () => {
       },
       "youtube": {
         "primarySubLanguages": ["ja", "jpn", "jp"]
-      },
-      "youtubeSubgen": {
-        "whisperVadModel": "/models/vad.bin",
-        "whisperThreads": 12,
-        "fixWithAi": true
       }
     }`,
     'utf-8',
@@ -1774,9 +1769,30 @@ test('parses global shortcuts and startup settings', () => {
   assert.equal(config.shortcuts.toggleVisibleOverlayGlobal, 'Alt+Shift+U');
   assert.equal(config.shortcuts.openJimaku, 'Ctrl+Alt+J');
   assert.deepEqual(config.youtube.primarySubLanguages, ['ja', 'jpn', 'jp']);
-  assert.equal(config.youtubeSubgen.whisperVadModel, '/models/vad.bin');
-  assert.equal(config.youtubeSubgen.whisperThreads, 12);
-  assert.equal(config.youtubeSubgen.fixWithAi, true);
+});
+
+test('parses YouTube subtitle source and warns on invalid values', () => {
+  assert.equal(DEFAULT_CONFIG.youtube.subtitleSource, 'youtube');
+
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{ "youtube": { "subtitleSource": "whisper" } }`,
+    'utf-8',
+  );
+  assert.equal(new ConfigService(validDir).getConfig().youtube.subtitleSource, 'whisper');
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{ "youtube": { "subtitleSource": "asr" } }`,
+    'utf-8',
+  );
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(invalidService.getConfig().youtube.subtitleSource, 'youtube');
+  assert.ok(
+    invalidService.getWarnings().some((warning) => warning.path === 'youtube.subtitleSource'),
+  );
 });
 
 test('parses YouTube media cache config and warns on invalid values', () => {
@@ -2577,12 +2593,6 @@ test('accepts per-feature ai overrides for anki and YouTube subtitles', () => {
           "model": "openrouter/anki-model",
           "systemPrompt": "Translate mined sentence text."
         }
-      },
-      "youtubeSubgen": {
-        "ai": {
-          "model": "openrouter/subgen-model",
-          "systemPrompt": "Fix subtitle mistakes only."
-        }
       }
     }`,
     'utf-8',
@@ -2596,8 +2606,6 @@ test('accepts per-feature ai overrides for anki and YouTube subtitles', () => {
   assert.equal(config.ankiConnect.ai.enabled, true);
   assert.equal(config.ankiConnect.ai.model, 'openrouter/anki-model');
   assert.equal(config.ankiConnect.ai.systemPrompt, 'Translate mined sentence text.');
-  assert.equal(config.youtubeSubgen.ai.model, 'openrouter/subgen-model');
-  assert.equal(config.youtubeSubgen.ai.systemPrompt, 'Fix subtitle mistakes only.');
 });
 
 test('warns and falls back when ankiConnect.ai override values are invalid', () => {

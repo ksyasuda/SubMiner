@@ -351,6 +351,17 @@ function M.create(ctx)
 		return true
 	end
 
+	-- The app is running a long managed subtitle load (Whisper generation): drop the timeout so it
+	-- cannot resume playback early, but stay armed so the app's ready signal still releases it.
+	local function hold_auto_play_ready_gate()
+		if not state.auto_play_ready_gate_armed then
+			return
+		end
+		clear_auto_play_ready_timeout()
+		clear_auto_play_ready_osd_timer()
+		subminer_log("info", "process", "Holding pause-until-ready for app-managed subtitle loading")
+	end
+
 	local function arm_auto_play_ready_gate()
 		local was_armed = state.auto_play_ready_gate_armed
 		if was_armed then
@@ -1020,6 +1031,7 @@ function M.create(ctx)
 		check_status = check_status,
 		check_binary_available = check_binary_available,
 		notify_auto_play_ready = notify_auto_play_ready,
+		hold_auto_play_ready_gate = hold_auto_play_ready_gate,
 		disarm_auto_play_ready_gate = disarm_auto_play_ready_gate,
 		start_overlay_loading_osd = start_overlay_loading_osd,
 		stop_overlay_loading_osd = stop_overlay_loading_osd,

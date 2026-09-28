@@ -4,11 +4,16 @@ import {
   launchTexthookerOnly,
   runAppCommandWithInherit,
 } from '../mpv.js';
+import { shouldForwardLogLevel } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 
 type AppCommandDeps = {
   runAppCommandWithInherit: (appPath: string, appArgs: string[]) => void;
   launchSyncUiDetached: (
+    appPath: string,
+    logLevel: LauncherCommandContext['args']['logLevel'],
+  ) => void;
+  launchYoutubeBrowserDetached: (
     appPath: string,
     logLevel: LauncherCommandContext['args']['logLevel'],
   ) => void;
@@ -22,6 +27,11 @@ const defaultAppCommandDeps: AppCommandDeps = {
   runAppCommandWithInherit,
   launchSyncUiDetached: (appPath, logLevel) =>
     launchAppCommandDetached(appPath, ['--sync-window'], logLevel, 'sync-ui'),
+  launchYoutubeBrowserDetached: (appPath, logLevel) => {
+    const appArgs = ['--youtube-browser'];
+    if (shouldForwardLogLevel(logLevel)) appArgs.push('--log-level', logLevel);
+    launchAppCommandDetached(appPath, appArgs, logLevel, 'youtube-browser');
+  },
   launchAppBackgroundDetached,
 };
 
@@ -39,6 +49,10 @@ export function runAppPassthroughCommand(
   }
   if (args.syncUi) {
     deps.launchSyncUiDetached(appPath, args.logLevel);
+    return true;
+  }
+  if (args.youtubeBrowser) {
+    deps.launchYoutubeBrowserDetached(appPath, args.logLevel);
     return true;
   }
   if (!args.appPassthrough) {
