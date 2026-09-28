@@ -300,3 +300,65 @@ test('prefetch service deduplicates repeated cue text within a run', async () =>
   );
   assert.ok(tokenizedTexts.includes('other'));
 });
+
+test('prefetch service keeps an in-flight result from a superseded run', async () => {
+  const cues = makeCues(5);
+  const cachedTexts: string[] = [];
+  let releaseFirst!: () => void;
+  const firstGate = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => {
+      if (text === 'line-0') await firstGate;
+      return { text, tokens: [] };
+    },
+    preCacheTokenization: (text) => {
+      cachedTexts.push(text);
+    },
+    getCacheGeneration: () => 0,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  await flushMicrotasks();
+  service.stop();
+  releaseFirst();
+  await flushMicrotasks();
+
+  assert.deepEqual(cachedTexts, ['line-0']);
+});
+
+test('prefetch service drops an in-flight result after cache invalidation', async () => {
+  const cues = makeCues(5);
+  const cachedTexts: string[] = [];
+  let generation = 0;
+  let releaseFirst!: () => void;
+  const firstGate = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => {
+      if (text === 'line-0') await firstGate;
+      return { text, tokens: [] };
+    },
+    preCacheTokenization: (text) => {
+      cachedTexts.push(text);
+    },
+    getCacheGeneration: () => generation,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  await flushMicrotasks();
+  service.stop();
+  generation += 1;
+  releaseFirst();
+  await flushMicrotasks();
+
+  assert.deepEqual(cachedTexts, []);
+});

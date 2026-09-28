@@ -2152,6 +2152,7 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     subtitleProcessingController.preCacheTokenization(text, data);
   },
   hasCachedTokenization: (text) => subtitleProcessingController.hasCachedSubtitle(text),
+  getCacheGeneration: () => subtitleProcessingController.getCacheGeneration(),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
   onParsedSubtitleCuesChanged: (cues, sourceKey) => {
