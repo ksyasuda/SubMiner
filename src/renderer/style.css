@@ -1856,61 +1856,62 @@ body:focus-visible,
   }
 }
 
+/* A thin line centered on the clip edge, so the line itself is the trim boundary. */
 .media-timing-review-handle {
   position: absolute;
   z-index: 6;
   top: 0;
   bottom: 0;
-  width: 14px;
-  border: 1px solid var(--ctp-teal);
-  background: linear-gradient(
-    180deg,
-    var(--ctp-teal),
-    color-mix(in srgb, var(--ctp-teal) 74%, var(--ctp-crust))
-  );
+  width: 3px;
+  background: var(--ctp-teal);
   cursor: ew-resize;
   touch-action: none;
+  transform: translateX(-50%);
   transition: box-shadow 130ms ease;
 }
 
-/* Widens the grab area past the visible bracket without moving the clip edge. */
+/* Widens the grab area past the visible line without moving the clip edge. */
 .media-timing-review-handle::before {
   position: absolute;
-  inset: 0 -7px;
+  inset: 0 -8px;
   content: '';
 }
 
+/* Grip knob, symmetric about the line so it never reads as a separate edge. */
 .media-timing-review-handle::after {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 6px;
-  height: 18px;
+  width: 7px;
+  height: 16px;
   content: '';
-  border-inline: 1px solid color-mix(in srgb, var(--ctp-crust) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ctp-crust) 55%, transparent);
+  border-radius: 4px;
+  background: var(--ctp-teal);
   transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .media-timing-review-handle-start {
   left: var(--selection-start);
-  border-radius: 5px 0 0 5px;
 }
 
 .media-timing-review-handle-end {
   left: var(--selection-end);
-  border-radius: 0 5px 5px 0;
-  transform: translateX(-100%);
 }
 
 .media-timing-review-handle:hover {
-  box-shadow: 0 0 16px color-mix(in srgb, var(--ctp-teal) 60%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ctp-teal) 70%, transparent);
 }
 
 .media-timing-review-handle:focus-visible {
   outline: 2px solid transparent;
-  box-shadow:
-    inset 0 0 0 2px var(--ctp-yellow),
-    0 0 16px color-mix(in srgb, var(--ctp-yellow) 55%, transparent);
+  background: var(--ctp-yellow);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ctp-yellow) 60%, transparent);
+}
+
+.media-timing-review-handle:focus-visible::after {
+  background: var(--ctp-yellow);
 }
 
 .media-timing-review-expand-row span {
