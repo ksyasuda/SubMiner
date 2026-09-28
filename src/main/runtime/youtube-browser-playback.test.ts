@@ -8,6 +8,7 @@ import {
 
 const VIDEO_A = 'https://www.youtube.com/watch?v=aaaaaaaaaaa';
 const VIDEO_B = 'https://www.youtube.com/watch?v=bbbbbbbbbbb';
+const VIDEO_C = 'https://www.youtube.com/watch?v=ccccccccccc';
 
 function createHarness(overrides: Partial<YoutubeBrowserPlaybackDeps> = {}) {
   const calls: string[] = [];
@@ -61,10 +62,46 @@ test('play runs the playback flow with a single-video url', async () => {
 test('queue appends to mpv while something is playing and plays otherwise', async () => {
   const { runtime, calls, setMpvPlaying } = createHarness();
   await runtime.openVideo({ action: 'queue', url: VIDEO_A });
+  runtime.handleMediaPathChange(VIDEO_A);
   setMpvPlaying(true);
   const queued = await runtime.openVideo({ action: 'queue', url: VIDEO_B });
   assert.deepEqual(queued, { ok: true, message: 'Queued in mpv' });
   assert.deepEqual(calls, [`flow:${VIDEO_A}`, `append:${VIDEO_B}`]);
+});
+
+test('queue requests while the first video starts append behind it in order', async () => {
+  const { runtime, calls } = createHarness();
+  await runtime.openVideo({ action: 'play', url: VIDEO_A });
+  assert.equal(runtime.isStartingPlayback(), true);
+  assert.deepEqual(await runtime.openVideo({ action: 'queue', url: VIDEO_B }), {
+    ok: true,
+    message: 'Queued in mpv',
+  });
+  await runtime.openVideo({ action: 'queue', url: VIDEO_C });
+  assert.deepEqual(calls, [`flow:${VIDEO_A}`]);
+
+  runtime.handleMediaPathChange(VIDEO_A);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(runtime.isStartingPlayback(), false);
+  assert.deepEqual(calls, [`flow:${VIDEO_A}`, `append:${VIDEO_B}`, `append:${VIDEO_C}`]);
+});
+
+test('queue requests play instead when the first video fails to start', async () => {
+  let failFlow = true;
+  const calls: string[] = [];
+  const { runtime } = createHarness({
+    runPlaybackFlow: async (url) => {
+      calls.push(`flow:${url}`);
+      if (failFlow) {
+        failFlow = false;
+        throw new Error('no formats');
+      }
+    },
+  });
+  await runtime.openVideo({ action: 'play', url: VIDEO_A });
+  await runtime.openVideo({ action: 'queue', url: VIDEO_B });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(calls, [`flow:${VIDEO_A}`, `flow:${VIDEO_B}`]);
 });
 
 test('repeat play clicks while mpv is starting open the video once', async () => {
@@ -128,6 +165,18 @@ test('a stuck flow does not block queued videos from getting theirs', async () =
   await runtime.openVideo({ action: 'queue', url: VIDEO_B });
   runtime.handleMediaPathChange(VIDEO_B);
   assert.deepEqual(calls, [`flow:${VIDEO_A}`, `append:${VIDEO_B}`, `flow:${VIDEO_B}`]);
+});
+
+test('a queued video gets the flow only the first time mpv reaches it', async () => {
+  const { runtime, calls, setMpvPlaying, finishFlows } = createHarness();
+  setMpvPlaying(true);
+  await runtime.openVideo({ action: 'queue', url: VIDEO_B });
+  runtime.handleMediaPathChange(VIDEO_B);
+  await finishFlows();
+  // A later launcher-started play of the same video runs its own flow.
+  runtime.handleMediaPathChange(VIDEO_A);
+  runtime.handleMediaPathChange(VIDEO_B);
+  assert.deepEqual(calls, [`append:${VIDEO_B}`, `flow:${VIDEO_B}`]);
 });
 
 test('videos not sent from the browser never trigger the flow', async () => {

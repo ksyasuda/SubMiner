@@ -3457,8 +3457,10 @@ const {
 });
 
 let quitWhenMpvClosesAfterYoutubeBrowser = false;
+const isMpvPlayingMedia = (): boolean =>
+  Boolean(appState.mpvClient?.connected && appState.currentMediaPath?.trim());
 const youtubeBrowserPlaybackRuntime = createYoutubeBrowserPlaybackRuntime({
-  isMpvPlaying: () => Boolean(appState.mpvClient?.connected && appState.currentMediaPath?.trim()),
+  isMpvPlaying: isMpvPlayingMedia,
   // Windows playback bootstraps its own mpv inside the playback flow.
   ensureMpvReady: async () =>
     process.platform === 'win32' ? true : await ensureMpvConnectedForPlayback(),
@@ -3485,10 +3487,10 @@ const youtubeBrowserWindowRuntime = createYoutubeBrowserWindowRuntime({
   logWarn: (message, error) => logger.warn(message, error),
   logDebug: (message) => logger.debug(message),
   // A process started just for the browser (`--youtube-browser`) exits with it, but keeps the
-  // overlay alive until mpv closes if a video is still playing.
+  // overlay alive until mpv closes if a video is playing or still starting.
   onClosed: () => {
     if (!appState.initialArgs?.youtubeBrowser) return;
-    if (appState.mpvClient?.connected) {
+    if (isMpvPlayingMedia() || youtubeBrowserPlaybackRuntime.isStartingPlayback()) {
       quitWhenMpvClosesAfterYoutubeBrowser = true;
       return;
     }

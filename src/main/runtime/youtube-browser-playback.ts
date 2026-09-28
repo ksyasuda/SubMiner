@@ -38,30 +38,82 @@ export function parseYoutubeBrowserVideoRequest(
  * playlist; when mpv advances onto one, `handleMediaPathChange` runs the playback flow for it so
  * queued videos get the same subtitle setup as videos played directly.
  */
+type PlaybackStartup = {
+  videoId: string;
+  /** Resolves true once mpv has the video loaded, false if mpv or the flow failed first. */
+  loaded: Promise<boolean>;
+  settle: (loaded: boolean) => void;
+};
+
 export function createYoutubeBrowserPlaybackRuntime(deps: YoutubeBrowserPlaybackDeps) {
-  // Only videos sent from the browser get the flow on playlist advance; launcher-started
-  // YouTube playback already runs its own flow and must not be doubled.
-  const managedVideoIds = new Set<string>();
+  // Videos queued from the browser that mpv has not reached yet. Only these get the flow on
+  // playlist advance; launcher-started YouTube playback already runs its own flow.
+  const queuedVideoIds = new Set<string>();
   // Videos whose flow is still loading; the flow issues its own loadfile, so the path change
   // that follows must not start a second flow for the same video.
   const loadingVideoIds = new Set<string>();
+  // The latest play request while mpv starts and loads it. Queue requests arriving meanwhile wait
+  // on it so they append behind that video instead of starting a second flow that replaces it.
+  let startup: PlaybackStartup | null = null;
   let lastSeenVideoId: string | null = null;
 
-  const runFlow = async (url: string, videoId: string): Promise<void> => {
+  const beginStartup = (videoId: string): PlaybackStartup => {
+    let resolveLoaded: (loaded: boolean) => void = () => {};
+    const entry: PlaybackStartup = {
+      videoId,
+      loaded: new Promise<boolean>((resolve) => {
+        resolveLoaded = resolve;
+      }),
+      settle: (loaded) => {
+        if (startup === entry) startup = null;
+        resolveLoaded(loaded);
+      },
+    };
+    startup = entry;
+    return entry;
+  };
+
+  /** Runs the playback flow; resolves false (after reporting) when it fails. */
+  const startFlow = async (url: string, videoId: string): Promise<boolean> => {
     loadingVideoIds.add(videoId);
     try {
       await deps.runPlaybackFlow(url);
+      return true;
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : String(error);
+      deps.logWarn(`YouTube browser playback failed for ${url}: ${reason}`);
+      deps.notifyFailure(`YouTube playback failed: ${reason}`);
+      return false;
     } finally {
       loadingVideoIds.delete(videoId);
     }
   };
 
-  const startFlow = (url: string, videoId: string): void => {
-    void runFlow(url, videoId).catch((error: unknown) => {
-      const reason = error instanceof Error ? error.message : String(error);
-      deps.logWarn(`YouTube browser playback failed for ${url}: ${reason}`);
-      deps.notifyFailure(`YouTube playback failed: ${reason}`);
-    });
+  const appendToMpv = (url: string, videoId: string): YoutubeBrowserVideoResult => {
+    queuedVideoIds.add(videoId);
+    deps.appendToMpvPlaylist(url);
+    return { ok: true, message: 'Queued in mpv' };
+  };
+
+  const queueBehindStartup = (
+    pending: PlaybackStartup,
+    request: YoutubeBrowserVideoRequest,
+    url: string,
+    videoId: string,
+  ): void => {
+    // Chained in click order. If the earlier video never loaded, this one plays instead.
+    void pending.loaded
+      .then((loaded) => (loaded ? appendToMpv(url, videoId) : openVideo(request)))
+      .then(
+        (result) => {
+          if (!result.ok) deps.notifyFailure(`YouTube queue failed: ${result.message}`);
+        },
+        (error: unknown) => {
+          const reason = error instanceof Error ? error.message : String(error);
+          deps.logWarn(`YouTube browser queue failed for ${url}: ${reason}`);
+          deps.notifyFailure(`YouTube queue failed: ${reason}`);
+        },
+      );
   };
 
   const openVideo = async (
@@ -72,11 +124,13 @@ export function createYoutubeBrowserPlaybackRuntime(deps: YoutubeBrowserPlayback
     if (!url || !videoId) {
       return { ok: false, message: 'Not a YouTube video link.' };
     }
-    managedVideoIds.add(videoId);
 
-    if (request.action === 'queue' && deps.isMpvPlaying()) {
-      deps.appendToMpvPlaylist(url);
-      return { ok: true, message: 'Queued in mpv' };
+    if (request.action === 'queue') {
+      if (startup) {
+        queueBehindStartup(startup, request, url, videoId);
+        return { ok: true, message: 'Queued in mpv' };
+      }
+      if (deps.isMpvPlaying()) return appendToMpv(url, videoId);
     }
 
     // Starting mpv can take seconds; repeat clicks during that wait must not start a second flow.
@@ -84,16 +138,20 @@ export function createYoutubeBrowserPlaybackRuntime(deps: YoutubeBrowserPlayback
       return { ok: true, message: 'Already opening in mpv' };
     }
     loadingVideoIds.add(videoId);
+    const entry = beginStartup(videoId);
     let mpvReady = false;
     try {
       mpvReady = await deps.ensureMpvReady();
     } finally {
-      if (!mpvReady) loadingVideoIds.delete(videoId);
+      if (!mpvReady) {
+        loadingVideoIds.delete(videoId);
+        entry.settle(false);
+      }
     }
     if (!mpvReady) {
       return { ok: false, message: 'Could not start mpv.' };
     }
-    startFlow(url, videoId);
+    void startFlow(url, videoId).then(entry.settle);
     return { ok: true, message: 'Opening in mpv' };
   };
 
@@ -101,16 +159,20 @@ export function createYoutubeBrowserPlaybackRuntime(deps: YoutubeBrowserPlayback
     const videoId = extractYoutubeVideoId(mediaPath);
     const previousVideoId = lastSeenVideoId;
     lastSeenVideoId = videoId;
+    if (videoId && startup?.videoId === videoId) startup.settle(true);
     if (!videoId || videoId === previousVideoId || loadingVideoIds.has(videoId)) return;
-    if (!managedVideoIds.has(videoId)) return;
+    if (!queuedVideoIds.delete(videoId)) return;
     const url = toYoutubeWatchUrl(mediaPath);
-    if (url) startFlow(url, videoId);
+    if (url) void startFlow(url, videoId);
   };
 
   const handleMpvDisconnected = (): void => {
-    managedVideoIds.clear();
+    queuedVideoIds.clear();
     lastSeenVideoId = null;
   };
 
-  return { openVideo, handleMediaPathChange, handleMpvDisconnected };
+  /** True while a browser play request is still starting mpv or loading its video. */
+  const isStartingPlayback = (): boolean => startup !== null;
+
+  return { openVideo, handleMediaPathChange, handleMpvDisconnected, isStartingPlayback };
 }
