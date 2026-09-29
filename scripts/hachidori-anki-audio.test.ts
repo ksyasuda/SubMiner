@@ -90,7 +90,7 @@ async function mine({ proxy = true, audioFails = false } = {}) {
       audioSources: [
         { id: 'test', enabled: true, type: 'custom', url: 'https://example.test/{term}' },
       ],
-      mediaCapture: { enabled: false },
+      experimental: {},
     }),
     readDictionaries: async () => [],
     engine: async () => ({ ready: true, loading: false, generation: 1 }),

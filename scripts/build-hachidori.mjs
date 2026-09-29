@@ -34,7 +34,7 @@ fs.cpSync(extension, output, { recursive: true });
 const hostConfiguration = {
   'overlay-mode.js': [
     ['export const OVERLAY_MODE = false;', 'export const OVERLAY_MODE = true;'],
-    ['customJavaScript: !IS_FIREFOX,', 'customJavaScript: false,'],
+    ['customJavaScript: true,', 'customJavaScript: false,'],
   ],
   // Overlay hosts seed the lookup highlight off because their Anki screenshot is
   // the see-through viewport. SubMiner captures media from mpv, and without the
