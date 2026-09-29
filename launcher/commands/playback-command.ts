@@ -240,7 +240,6 @@ export async function runPlaybackCommandWithDeps(
 
   const isYoutubeUrl = selectedTarget.kind === 'url' && isYoutubeTarget(selectedTarget.target);
   const isAppOwnedYoutubeFlow = isYoutubeUrl;
-  const youtubeMode = args.youtubeMode ?? 'download';
   const configDir = getLauncherConfigDir();
 
   if (isYoutubeUrl) {
@@ -325,7 +324,7 @@ export async function runPlaybackCommandWithDeps(
       );
     }
     const extraAppArgs = isAppOwnedYoutubeFlow
-      ? ['--youtube-play', selectedTarget.target, '--youtube-mode', youtubeMode]
+      ? ['--youtube-play', selectedTarget.target]
       : shouldLauncherAttachRunningApp
         ? [
             pluginRuntimeConfig.autoStartVisibleOverlay

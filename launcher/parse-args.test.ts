@@ -107,6 +107,15 @@ test('parseArgs maps settings command to settings window', () => {
   assert.equal(parsed.configShow, false);
 });
 
+test('parseArgs maps youtube command and yt alias to the YouTube browser', () => {
+  assert.equal(parseArgs(['youtube'], 'subminer', {}).youtubeBrowser, true);
+
+  const alias = parseArgs(['yt', '--log-level', 'debug'], 'subminer', {});
+  assert.equal(alias.youtubeBrowser, true);
+  assert.equal(alias.logLevel, 'debug');
+  assert.equal(alias.target, '');
+});
+
 test('parseArgs maps config path action to config path output', () => {
   const parsed = parseArgs(['config', 'path'], 'subminer', {});
 

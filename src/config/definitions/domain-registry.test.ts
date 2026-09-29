@@ -85,13 +85,6 @@ const UNDOCUMENTED_LEAVES: ReadonlySet<string> = new Set([
   'subtitleStyle.textShadow',
   'subtitleStyle.WebkitTextStroke',
   'subtitleStyle.wordSpacing',
-  'youtubeSubgen.ai.model',
-  'youtubeSubgen.ai.systemPrompt',
-  'youtubeSubgen.fixWithAi',
-  'youtubeSubgen.whisperBin',
-  'youtubeSubgen.whisperModel',
-  'youtubeSubgen.whisperThreads',
-  'youtubeSubgen.whisperVadModel',
 ]);
 
 test('config option registry includes critical paths and has unique entries', () => {

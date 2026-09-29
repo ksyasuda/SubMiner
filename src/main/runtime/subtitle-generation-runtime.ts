@@ -21,6 +21,7 @@ import type {
   SubtitleGenerationResult,
   SubtitleGenerationStatus,
 } from '../../shared/subtitle-generation-ipc';
+import { extractYoutubeVideoId, toYoutubeWatchUrl } from './youtube-playback';
 
 interface GenerationMpvClient {
   connected: boolean;
@@ -40,6 +41,16 @@ export interface SubtitleGenerationRuntimeDeps {
   detectAcceleration?: typeof detectSubtitleGenerationAcceleration;
   downloadVad?: typeof downloadSubtitleGenerationVadModel;
   resolveVadModel?: typeof resolveSubtitleGenerationVadModel;
+  /**
+   * Transcribes a YouTube video's audio into a temporary subtitle file and returns its path.
+   * Without it the modal only generates for local media.
+   */
+  generateYoutube?: (input: {
+    url: string;
+    config: SubtitleGenerationConfig;
+    signal: AbortSignal;
+    onProgress: (progress: SubtitleGenerationProgress) => void;
+  }) => Promise<string>;
 }
 
 async function currentLocalMedia(client: GenerationMpvClient | null): Promise<string | null> {
@@ -49,6 +60,25 @@ async function currentLocalMedia(client: GenerationMpvClient | null): Promise<st
   if (path.isAbsolute(media)) return path.normalize(media);
   const directory = await client.requestProperty('working-directory');
   return typeof directory === 'string' ? path.resolve(directory, media) : null;
+}
+
+async function currentYoutubeMedia(client: GenerationMpvClient | null): Promise<string | null> {
+  if (!client?.connected) return null;
+  const media = await client.requestProperty('path');
+  return typeof media === 'string' ? toYoutubeWatchUrl(media) : null;
+}
+
+async function loadGeneratedSubtitles(client: GenerationMpvClient, outputPath: string) {
+  const loaded = await client.request([
+    'sub-add',
+    outputPath,
+    'select',
+    'Generated Japanese',
+    'ja',
+  ]);
+  if (loaded.error && loaded.error !== 'success') throw new Error(loaded.error);
+  const delay = await client.request(['set_property', 'sub-delay', 0]);
+  if (delay.error && delay.error !== 'success') throw new Error(delay.error);
 }
 
 function selectedAudioIndex(tracks: unknown): number {
@@ -83,6 +113,8 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
   let lastResult: SubtitleGenerationResult | null = null;
   let selectedModel: SubtitleGenerationModelId | null = null;
   let vadEnabled: boolean | null = null;
+  // Shown as the modal's media while a YouTube job runs; YouTube is never local media.
+  let youtubeJobUrl: string | null = null;
   let accelerationCheck:
     | {
         path: string;
@@ -155,7 +187,11 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
       config,
       deps.getModelDirectory(),
     );
-    const mediaPath = await currentLocalMedia(deps.getMpvClient()).catch(() => null);
+    const client = deps.getMpvClient();
+    const mediaPath =
+      youtubeJobUrl ??
+      (await currentLocalMedia(client).catch(() => null)) ??
+      (deps.generateYoutube ? await currentYoutubeMedia(client).catch(() => null) : null);
     return {
       model,
       vad: {
@@ -177,8 +213,42 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
     };
   }
 
+  // YouTube subtitles only exist in mpv, so the video pauses while they generate and resumes
+  // afterwards. Closing the modal leaves the job running; unpausing is up to the user.
+  async function startYoutube(
+    client: GenerationMpvClient,
+    url: string,
+    config: SubtitleGenerationConfig,
+    signal: AbortSignal,
+    generate: NonNullable<SubtitleGenerationRuntimeDeps['generateYoutube']>,
+  ): Promise<SubtitleGenerationResult> {
+    const resume = (await client.requestProperty('pause')) === false;
+    if (resume) await client.request(['set_property', 'pause', true]);
+    youtubeJobUrl = url;
+    const stillPlaying = async () =>
+      deps.getMpvClient() === client &&
+      (await currentYoutubeMedia(client).catch(() => null)) === url;
+    try {
+      const outputPath = await generate({ url, config, signal, onProgress: report });
+      if (signal.aborted || !(await stillPlaying()))
+        return { ok: false, message: 'Playback changed, so the subtitles were not loaded.' };
+      await loadGeneratedSubtitles(client, outputPath);
+      return { ok: true, outputPath, message: 'Japanese subtitles generated and loaded.' };
+    } finally {
+      youtubeJobUrl = null;
+      if (resume && (await stillPlaying()))
+        await client.request(['set_property', 'pause', false]).catch(() => undefined);
+    }
+  }
+
   return {
     getStatus,
+    /** Stops a YouTube job once its video is no longer playing, which also deletes its audio. */
+    handleMediaPathChange(mediaPath: string | null | undefined): void {
+      if (!youtubeJobUrl) return;
+      if (extractYoutubeVideoId(mediaPath) !== extractYoutubeVideoId(youtubeJobUrl))
+        controller?.abort();
+    },
     async setVadEnabled(enabled: boolean): Promise<SubtitleGenerationStatus> {
       if (controller)
         throw new Error('Wait for the current operation before changing speech detection.');
@@ -210,6 +280,39 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
     cancel(): void {
       controller?.abort();
     },
+    /**
+     * Runs YouTube Whisper generation as the active operation, so the modal shows its progress
+     * and its Cancel button stops it. Aborting `signal` stops it too. Resolves to the written
+     * subtitle file, or null when the job was cancelled.
+     */
+    async generateYoutubeSubtitles(input: {
+      url: string;
+      signal: AbortSignal;
+      generate: (
+        signal: AbortSignal,
+        onProgress: (progress: SubtitleGenerationProgress) => void,
+      ) => Promise<string>;
+    }): Promise<string | null> {
+      let cancelled = false;
+      let outputPath: string | null = null;
+      const result = await run(async (signal) => {
+        const stop = () => controller?.abort();
+        input.signal.addEventListener('abort', stop, { once: true });
+        if (input.signal.aborted) stop();
+        youtubeJobUrl = input.url;
+        try {
+          outputPath = await input.generate(signal, report);
+          return { ok: true, outputPath, message: 'Japanese subtitles generated.' };
+        } finally {
+          cancelled = signal.aborted;
+          input.signal.removeEventListener('abort', stop);
+          youtubeJobUrl = null;
+        }
+      });
+      if (result.ok) return outputPath;
+      if (cancelled) return null;
+      throw new Error(result.message);
+    },
     download(): Promise<SubtitleGenerationResult> {
       return run(async (signal) => {
         await (deps.download ?? downloadSubtitleGenerationModel)({
@@ -236,9 +339,12 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
           if (vad.kind === 'invalid') throw new Error(vad.message);
         }
         const client = deps.getMpvClient();
+        const youtubeUrl = deps.generateYoutube ? await currentYoutubeMedia(client) : null;
+        if (client && youtubeUrl && deps.generateYoutube)
+          return await startYoutube(client, youtubeUrl, config, signal, deps.generateYoutube);
         const mediaPath = await currentLocalMedia(client);
         if (!client || !mediaPath)
-          throw new Error('Open a local video or audio file in mpv first.');
+          throw new Error('Open a local video or audio file, or a YouTube video, in mpv first.');
         const tracks = await client.requestProperty('track-list');
         const audioStreamIndex = selectedAudioIndex(tracks);
         const references = await readSubtitleGenerationReferences(tracks, (name) =>
@@ -260,16 +366,7 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
         try {
           const playingMedia = await currentLocalMedia(client);
           if (!signal.aborted && deps.getMpvClient() === client && playingMedia === mediaPath) {
-            const loaded = await client.request([
-              'sub-add',
-              outputPath,
-              'select',
-              'Generated Japanese',
-              'ja',
-            ]);
-            if (loaded.error && loaded.error !== 'success') throw new Error(loaded.error);
-            const delay = await client.request(['set_property', 'sub-delay', 0]);
-            if (delay.error && delay.error !== 'success') throw new Error(delay.error);
+            await loadGeneratedSubtitles(client, outputPath);
             return {
               ok: true,
               outputPath,

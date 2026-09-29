@@ -15,6 +15,7 @@ const REQUIRED_APP_FILES = [
   'dist/preload-syncui.js',
   'dist/preload-stats.js',
   'dist/preload-jellyfin-setup.js',
+  'dist/preload-youtube-browser.js',
   'dist/fonts/MPLUS1[wght].ttf',
   'stats/dist/index.html',
   'vendor/texthooker-ui/docs/index.html',

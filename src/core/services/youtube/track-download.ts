@@ -221,11 +221,16 @@ export async function downloadYoutubeSubtitleTrack(input: {
     }
   }
   if (canDownloadSubtitleFromUrl(input.track)) {
-    return await downloadSubtitleFromUrl({
-      outputDir: input.outputDir,
-      prefix,
-      track: input.track,
-    });
+    try {
+      return await downloadSubtitleFromUrl({
+        outputDir: input.outputDir,
+        prefix,
+        track: input.track,
+      });
+    } catch {
+      // YouTube rejects some direct timedtext requests (HTTP 429) that yt-dlp still gets
+      // through with its own client handling, so retry the same track via yt-dlp.
+    }
   }
   const outputTemplate = path.join(input.outputDir, `${prefix}.%(ext)s`);
   const args = [

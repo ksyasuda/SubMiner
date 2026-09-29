@@ -19,30 +19,16 @@ function withTempDir<T>(fn: (dir: string) => T): T {
   }
 }
 
-test('createDefaultArgs normalizes configured language codes and env thread override', () => {
-  const originalThreads = process.env.SUBMINER_WHISPER_THREADS;
-  process.env.SUBMINER_WHISPER_THREADS = '7';
+test('createDefaultArgs normalizes configured language codes', () => {
+  const parsed = createDefaultArgs({
+    primarySubLanguages: [' JA ', 'jpn', 'ja'],
+    secondarySubLanguages: ['en', 'ENG', ''],
+  });
 
-  try {
-    const parsed = createDefaultArgs({
-      primarySubLanguages: [' JA ', 'jpn', 'ja'],
-      secondarySubLanguages: ['en', 'ENG', ''],
-      whisperThreads: 2,
-    });
-
-    assert.deepEqual(parsed.youtubePrimarySubLangs, ['ja', 'jpn']);
-    assert.deepEqual(parsed.youtubeSecondarySubLangs, ['en', 'eng']);
-    assert.deepEqual(parsed.youtubeAudioLangs, ['ja', 'jpn', 'en', 'eng']);
-    assert.equal(parsed.whisperThreads, 7);
-    assert.equal(parsed.youtubeWhisperSourceLanguage, 'ja');
-    assert.equal(parsed.profile, '');
-  } finally {
-    if (originalThreads === undefined) {
-      delete process.env.SUBMINER_WHISPER_THREADS;
-    } else {
-      process.env.SUBMINER_WHISPER_THREADS = originalThreads;
-    }
-  }
+  assert.deepEqual(parsed.youtubePrimarySubLangs, ['ja', 'jpn']);
+  assert.deepEqual(parsed.youtubeSecondarySubLangs, ['en', 'eng']);
+  assert.deepEqual(parsed.youtubeAudioLangs, ['ja', 'jpn', 'en', 'eng']);
+  assert.equal(parsed.profile, '');
 });
 
 test('createDefaultArgs seeds mpv profile from launcher config', () => {
@@ -120,6 +106,7 @@ test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
       logLevel: 'warn',
     },
     settingsInvocation: null,
+    youtubeBrowserInvocation: null,
     mpvInvocation: null,
     appInvocation: null,
     dictionaryTriggered: false,
@@ -174,6 +161,7 @@ test('applyInvocationsToArgs maps settings invocation to settings window', () =>
     settingsInvocation: {
       logLevel: undefined,
     },
+    youtubeBrowserInvocation: null,
     mpvInvocation: null,
     appInvocation: null,
     dictionaryTriggered: false,
@@ -221,6 +209,7 @@ test('applyInvocationsToArgs fails when config invocation has no action', () => 
         action: undefined,
       },
       settingsInvocation: null,
+      youtubeBrowserInvocation: null,
       mpvInvocation: null,
       appInvocation: null,
       dictionaryTriggered: false,
@@ -266,6 +255,7 @@ test('applyInvocationsToArgs maps texthooker browser-open request', () => {
     jellyfinInvocation: null,
     configInvocation: null,
     settingsInvocation: null,
+    youtubeBrowserInvocation: null,
     mpvInvocation: null,
     appInvocation: null,
     dictionaryTriggered: false,

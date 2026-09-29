@@ -10,7 +10,7 @@ function matchesYoutubeHost(hostname: string, expectedHost: string): boolean {
   return hostname === expectedHost || hostname.endsWith(`.${expectedHost}`);
 }
 
-function extractYoutubeVideoId(mediaPath: string | null | undefined): string | null {
+export function extractYoutubeVideoId(mediaPath: string | null | undefined): string | null {
   const normalized = trimToNull(mediaPath);
   if (!normalized) {
     return null;
@@ -41,6 +41,19 @@ function extractYoutubeVideoId(mediaPath: string | null | undefined): string | n
     return pathSegments[1]?.trim() || null;
   }
   return null;
+}
+
+const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+
+/**
+ * Single-video watch URL for a YouTube link. Drops `list=`/`index=`/`t=` so mpv's ytdl hook
+ * loads one video instead of expanding the whole playlist.
+ */
+export function toYoutubeWatchUrl(mediaPath: string | null | undefined): string | null {
+  const videoId = extractYoutubeVideoId(mediaPath);
+  return videoId && YOUTUBE_VIDEO_ID_PATTERN.test(videoId)
+    ? `https://www.youtube.com/watch?v=${videoId}`
+    : null;
 }
 
 export function isYoutubeMediaPath(mediaPath: string | null | undefined): boolean {

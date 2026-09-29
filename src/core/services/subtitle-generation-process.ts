@@ -9,6 +9,8 @@ export function runSubtitleGenerationProcess(input: {
   args: string[];
   signal?: AbortSignal;
   onLine?: (line: string) => void;
+  /** Shown when the executable is missing; defaults to pointing at subtitleGeneration settings. */
+  missingMessage?: string;
 }): Promise<string> {
   input.signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
@@ -51,7 +53,8 @@ export function runSubtitleGenerationProcess(input: {
       reject(
         new Error(
           'code' in error && error.code === 'ENOENT'
-            ? `${input.command} was not found. Install it or set its path under subtitleGeneration in Settings.`
+            ? (input.missingMessage ??
+                `${input.command} was not found. Install it or set its path under subtitleGeneration in Settings.`)
             : `Could not run ${input.command}: ${error.message}`,
         ),
       );

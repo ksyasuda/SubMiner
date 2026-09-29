@@ -5,6 +5,8 @@ import type {
   YoutubePickerResolveRequest,
   YoutubePickerResolveResult,
 } from '../../types';
+import type { YoutubeSubtitleSource } from '../../types/integrations';
+import type { SubtitleGenerationProgress } from '../../shared/subtitle-generation';
 import type {
   YoutubeTrackOption,
   YoutubeTrackProbeResult,
@@ -18,9 +20,9 @@ import {
   acquireYoutubeSubtitleTracks,
 } from '../../core/services/youtube/generate';
 import { resolveSubtitleSourcePath } from './subtitle-prefetch-source';
+import { extractYoutubeVideoId } from './youtube-playback';
 
 type YoutubeFlowOpenPicker = (payload: YoutubePickerOpenPayload) => Promise<boolean>;
-type YoutubeFlowMode = 'download' | 'generate';
 
 type YoutubeFlowDeps = {
   probeYoutubeTracks: (url: string) => Promise<YoutubeTrackProbeResult>;
@@ -48,6 +50,20 @@ type YoutubeFlowDeps = {
   getYoutubeOutputDir: () => string;
   createSubtitleTempDir?: () => Promise<string>;
   cleanupSubtitleTempDirs?: (dirs: string[]) => void;
+  /** Current `youtube.subtitleSource`; YouTube captions when absent. */
+  getSubtitleSource?: () => YoutubeSubtitleSource;
+  /**
+   * Transcribes the video's audio into `outputPath`. Resolves to the written file, or null
+   * when the user cancelled generation.
+   */
+  generateWhisperSubtitles?: (input: {
+    url: string;
+    outputPath: string;
+    signal: AbortSignal;
+    onProgress: (progress: SubtitleGenerationProgress) => void;
+  }) => Promise<string | null>;
+  /** Shows Whisper progress; closing it leaves generation running. */
+  openSubtitleGenerationModal?: () => Promise<boolean>;
 };
 
 type YoutubeFlowSession = {
@@ -58,6 +74,13 @@ type YoutubeFlowSession = {
 
 const YOUTUBE_PICKER_SETTLE_DELAY_MS = 150;
 const YOUTUBE_SECONDARY_RETRY_DELAY_MS = 350;
+const WHISPER_TRACK: YoutubeTrackOption = {
+  id: 'whisper:ja',
+  language: 'ja',
+  sourceLanguage: 'ja',
+  kind: 'auto',
+  label: 'Japanese (Whisper)',
+};
 
 function createSessionId(): string {
   return `yt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -99,6 +122,21 @@ function createYoutubeFlowOsdProgress(showMpvOsd: (text: string) => void) {
   return {
     setMessage,
     stop,
+  };
+}
+
+/** Shows Whisper progress, skipping updates that would not change the text. */
+function createWhisperProgressReporter(
+  showMpvOsd: (text: string) => void,
+): (progress: SubtitleGenerationProgress) => void {
+  let lastText = '';
+  return (progress) => {
+    const percent =
+      progress.percent === undefined ? '' : ` ${Math.floor(progress.percent / 5) * 5}%`;
+    const text = `Whisper: ${progress.message.replace(/\.+$/, '')}${percent}`;
+    if (text === lastText) return;
+    lastText = text;
+    showMpvOsd(text);
   };
 }
 
@@ -429,6 +467,20 @@ async function injectDownloadedSubtitles(
 export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
   let activeSession: YoutubeFlowSession | null = null;
   const activeSubtitleTempDirs = new Set<string>();
+  let activeWhisperJob: { videoId: string | null; controller: AbortController } | null = null;
+
+  /** Aborting also deletes the job's downloaded audio. */
+  const cancelWhisperGeneration = (): void => {
+    activeWhisperJob?.controller.abort();
+    activeWhisperJob = null;
+  };
+
+  const handleMediaPathChange = (mediaPath: string | null | undefined): void => {
+    if (!activeWhisperJob) return;
+    const videoId = extractYoutubeVideoId(mediaPath);
+    if (videoId && videoId === activeWhisperJob.videoId) return;
+    cancelWhisperGeneration();
+  };
 
   const cleanupSubtitleTempDirs = (): void => {
     const dirs = [...activeSubtitleTempDirs];
@@ -474,6 +526,14 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       );
       return fallbackOutputDir;
     }
+  };
+
+  /** A temp dir for subtitles loaded outside the flow; removed with the flow's own. */
+  const createSubtitleTempDir = async (): Promise<string> => {
+    if (!deps.createSubtitleTempDir) return normalizeOutputPath(deps.getYoutubeOutputDir());
+    const dir = await deps.createSubtitleTempDir();
+    activeSubtitleTempDirs.add(dir);
+    return dir;
   };
 
   const acquireSelectedTracks = async (input: {
@@ -604,7 +664,6 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
 
   const loadTracksIntoMpv = async (input: {
     url: string;
-    mode: YoutubeFlowMode;
     outputDir: string;
     primaryTrack: YoutubeTrackOption;
     secondaryTrack: YoutubeTrackOption | null;
@@ -751,10 +810,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     }
   };
 
-  const openManualPicker = async (input: {
-    url: string;
-    mode?: YoutubeFlowMode;
-  }): Promise<void> => {
+  const openManualPicker = async (input: { url: string }): Promise<void> => {
     deps.showMpvOsd('Opening YouTube subtitle picker...');
 
     let probe: YoutubeTrackProbeResult;
@@ -818,11 +874,12 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     });
     const secondaryTrack = getTrackById(probe.tracks, selected.secondaryTrackId);
 
+    // A track picked by hand replaces whatever Whisper would have loaded.
+    cancelWhisperGeneration();
     try {
       deps.showMpvOsd('Getting subtitles...');
       const loaded = await loadTracksIntoMpv({
         url: input.url,
-        mode: input.mode ?? 'download',
         outputDir: normalizeOutputPath(deps.getYoutubeOutputDir()),
         primaryTrack,
         secondaryTrack,
@@ -844,10 +901,86 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     }
   };
 
-  async function runYoutubePlaybackFlow(input: {
-    url: string;
-    mode: YoutubeFlowMode;
-  }): Promise<void> {
+  const openWhisperProgressModal = async (jobSignal: AbortSignal): Promise<void> => {
+    if (!deps.openSubtitleGenerationModal) return;
+    // Like the picker, wait for mpv's window so the modal lands on top of it.
+    await deps.waitForPlaybackWindowReady();
+    await deps.waitForOverlayGeometryReady();
+    if (jobSignal.aborted) return;
+    if (!(await deps.openSubtitleGenerationModal().catch(() => false))) {
+      deps.warn('Unable to open the subtitle generation modal for Whisper progress.');
+    }
+  };
+
+  const loadWhisperSubtitles = async (
+    url: string,
+    generate: NonNullable<YoutubeFlowDeps['generateWhisperSubtitles']>,
+    tokenizationWarmupPromise: Promise<void>,
+  ): Promise<void> => {
+    const job = { videoId: extractYoutubeVideoId(url), controller: new AbortController() };
+    activeWhisperJob = job;
+    // Playback stays paused until the subtitles load. Generation outlasts the mpv plugin's
+    // pause-until-ready timeout, so ask it to hold the pause instead of resuming on its own.
+    deps.sendMpvCommand(['script-message', 'subminer-autoplay-hold']);
+    deps.showMpvOsd('Generating Japanese subtitles with Whisper...');
+    try {
+      const outputDir = await prepareSubtitleOutputDir(
+        normalizeOutputPath(deps.getYoutubeOutputDir()),
+      );
+      const generation = generate({
+        url,
+        outputPath: path.join(outputDir, 'youtube-whisper.ja.srt'),
+        signal: job.controller.signal,
+        onProgress: createWhisperProgressReporter(deps.showMpvOsd),
+      });
+      void openWhisperProgressModal(job.controller.signal);
+      const subtitlePath = await generation;
+      job.controller.signal.throwIfAborted();
+      if (subtitlePath === null) {
+        deps.log('Whisper subtitle generation was cancelled.');
+        return;
+      }
+      const loaded = await injectDownloadedSubtitles(
+        deps,
+        { track: WHISPER_TRACK, existingTrackId: null, injectedPath: subtitlePath },
+        null,
+        null,
+      );
+      if (!loaded) {
+        reportPrimarySubtitleFailure();
+        return;
+      }
+      deps.notifyPrimarySubtitleLoaded?.();
+      try {
+        await deps.refreshSubtitleSidebarSource?.(subtitlePath, url);
+      } catch (error) {
+        deps.warn(
+          `Failed to refresh parsed subtitle cues for sidebar: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      await tokenizationWarmupPromise;
+      await deps.waitForTokenizationReady();
+      await deps.waitForAnkiReady();
+    } catch (error) {
+      if (job.controller.signal.aborted) return;
+      const message = error instanceof Error ? error.message : String(error);
+      deps.warn(`Failed to generate YouTube subtitles with Whisper: ${message}`);
+      deps.reportSubtitleFailure(`Whisper subtitles failed: ${message}`);
+    } finally {
+      if (activeWhisperJob === job) activeWhisperJob = null;
+      if (job.controller.signal.aborted) {
+        // The video changed or closed; playback now belongs to whatever replaced it.
+        deps.log('Stopped Whisper subtitle generation because the video changed or closed.');
+      } else {
+        releasePlaybackGate(deps);
+        restoreOverlayInputFocus(deps);
+      }
+    }
+  };
+
+  async function runYoutubePlaybackFlow(input: { url: string }): Promise<void> {
     deps.showMpvOsd('Opening YouTube video');
     const tokenizationWarmupPromise = deps.startTokenizationWarmups().catch((error) => {
       deps.warn(
@@ -859,6 +992,15 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
 
     deps.pauseMpv();
     suppressYoutubeSubtitleState(deps);
+    cancelWhisperGeneration();
+    if (deps.getSubtitleSource?.() === 'whisper' && deps.generateWhisperSubtitles) {
+      await loadWhisperSubtitles(
+        input.url,
+        deps.generateWhisperSubtitles,
+        tokenizationWarmupPromise,
+      );
+      return;
+    }
     const outputDir = normalizeOutputPath(deps.getYoutubeOutputDir());
 
     let probe: YoutubeTrackProbeResult;
@@ -890,14 +1032,10 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       deps.showMpvOsd('Getting subtitles...');
       const loaded = await loadTracksIntoMpv({
         url: input.url,
-        mode: input.mode,
         outputDir,
         primaryTrack,
         secondaryTrack,
-        secondaryFailureLabel:
-          input.mode === 'generate'
-            ? 'Failed to generate secondary YouTube subtitle track'
-            : 'Failed to download secondary YouTube subtitle track',
+        secondaryFailureLabel: 'Failed to download secondary YouTube subtitle track',
         tokenizationWarmupPromise,
         showDownloadProgress: false,
       });
@@ -906,9 +1044,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       }
     } catch (error) {
       deps.warn(
-        `Failed to ${
-          input.mode === 'generate' ? 'generate' : 'download'
-        } primary YouTube subtitle track: ${
+        `Failed to download primary YouTube subtitle track: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -926,5 +1062,8 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     cancelActivePicker,
     hasActiveSession: () => Boolean(activeSession),
     cleanupSubtitleTempDirs,
+    createSubtitleTempDir,
+    cancelWhisperGeneration,
+    handleMediaPathChange,
   };
 }

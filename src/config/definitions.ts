@@ -49,7 +49,6 @@ const {
   jellyfin,
   discordPresence,
   ai,
-  youtubeSubgen,
 } = INTEGRATIONS_DEFAULT_CONFIG;
 const { subtitleStyle, subtitleSidebar } = SUBTITLE_DEFAULT_CONFIG;
 const { immersionTracking } = IMMERSION_DEFAULT_CONFIG;
@@ -85,7 +84,6 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   jellyfin,
   discordPresence,
   ai,
-  youtubeSubgen,
   immersionTracking,
   stats,
 };

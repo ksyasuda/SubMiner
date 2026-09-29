@@ -66,6 +66,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openYoutubeBrowserWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -146,6 +147,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     openYomitanSettings: () => deps.openYomitanSettings(),
     openConfigSettingsWindow: () => deps.openConfigSettingsWindow(),
     openSyncUiWindow: () => deps.openSyncUiWindow(),
+    openYoutubeBrowserWindow: () => deps.openYoutubeBrowserWindow(),
     cycleSecondarySubMode: () => deps.cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),
     printHelp: () => deps.printHelp(),

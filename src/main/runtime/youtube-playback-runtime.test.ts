@@ -38,8 +38,8 @@ test('youtube playback runtime resets flow ownership after a successful run', as
       calls.push(`prepare:${url}`);
       return true;
     },
-    runYoutubePlaybackFlow: async ({ url, mode }) => {
-      calls.push(`run-flow:${url}:${mode}`);
+    runYoutubePlaybackFlow: async ({ url }) => {
+      calls.push(`run-flow:${url}`);
     },
     logInfo: (message) => {
       calls.push(`info:${message}`);
@@ -59,7 +59,6 @@ test('youtube playback runtime resets flow ownership after a successful run', as
 
   await runtime.runYoutubePlaybackFlow({
     url: 'https://youtu.be/demo',
-    mode: 'download',
     source: 'initial',
   });
 
@@ -117,8 +116,8 @@ test('youtube playback runtime resolves the socket path lazily for windows start
       calls.push(`prepare:${url}`);
       return true;
     },
-    runYoutubePlaybackFlow: async ({ url, mode }) => {
-      calls.push(`run-flow:${url}:${mode}`);
+    runYoutubePlaybackFlow: async ({ url }) => {
+      calls.push(`run-flow:${url}`);
     },
     logInfo: (message) => {
       calls.push(`info:${message}`);
@@ -140,7 +139,6 @@ test('youtube playback runtime resolves the socket path lazily for windows start
 
   await runtime.runYoutubePlaybackFlow({
     url: 'https://youtu.be/demo',
-    mode: 'download',
     source: 'initial',
   });
 
@@ -185,8 +183,8 @@ test('youtube playback runtime starts media cache without blocking the subtitle 
       await cachePromise;
       calls.push('cache-done');
     },
-    runYoutubePlaybackFlow: async ({ url, mode }) => {
-      calls.push(`run-flow:${url}:${mode}`);
+    runYoutubePlaybackFlow: async ({ url }) => {
+      calls.push(`run-flow:${url}`);
     },
     logInfo: (message) => {
       calls.push(`info:${message}`);
@@ -200,13 +198,12 @@ test('youtube playback runtime starts media cache without blocking the subtitle 
 
   await runtime.runYoutubePlaybackFlow({
     url: 'https://youtu.be/demo',
-    mode: 'download',
     source: 'second-instance',
   });
 
   const prepareIndex = calls.indexOf('prepare:https://youtu.be/demo');
   const cacheIndex = calls.indexOf('cache:https://youtu.be/demo');
-  const runFlowIndex = calls.indexOf('run-flow:https://youtu.be/demo:download');
+  const runFlowIndex = calls.indexOf('run-flow:https://youtu.be/demo');
   assert.notEqual(prepareIndex, -1);
   assert.notEqual(cacheIndex, -1);
   assert.notEqual(runFlowIndex, -1);
@@ -251,8 +248,8 @@ test('youtube playback runtime logs synchronous media cache startup failures', a
       calls.push('cache');
       throw new Error('cache exploded');
     },
-    runYoutubePlaybackFlow: async ({ url, mode }) => {
-      calls.push(`run-flow:${url}:${mode}`);
+    runYoutubePlaybackFlow: async ({ url }) => {
+      calls.push(`run-flow:${url}`);
     },
     logInfo: (message) => {
       calls.push(`info:${message}`);
@@ -266,12 +263,11 @@ test('youtube playback runtime logs synchronous media cache startup failures', a
 
   await runtime.runYoutubePlaybackFlow({
     url: 'https://youtu.be/demo',
-    mode: 'download',
     source: 'second-instance',
   });
   await Promise.resolve();
 
-  assert.ok(calls.includes('run-flow:https://youtu.be/demo:download'));
+  assert.ok(calls.includes('run-flow:https://youtu.be/demo'));
   assert.ok(
     calls.some((entry) =>
       entry.startsWith('warn:Failed to start YouTube media cache: cache exploded'),
