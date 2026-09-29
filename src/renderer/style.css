@@ -1763,34 +1763,6 @@ body:focus-visible,
   right: 0;
 }
 
-.media-timing-review-original-label {
-  position: absolute;
-  z-index: 7;
-  padding: 3px 5px;
-  border: 1px solid color-mix(in srgb, var(--ctp-crust) 35%, transparent);
-  border-radius: 4px;
-  background: var(--ctp-peach);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--ctp-crust) 55%, transparent);
-  color: var(--ctp-crust);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  line-height: 1;
-  pointer-events: none;
-  white-space: nowrap;
-  text-transform: uppercase;
-}
-
-.media-timing-review-original-label.is-start {
-  top: 5px;
-  left: calc(var(--original-start) + 7px);
-}
-
-.media-timing-review-original-label.is-end {
-  right: calc(100% - var(--original-end) + 7px);
-  bottom: 5px;
-}
-
 .media-timing-review-track.is-loading::after {
   position: absolute;
   z-index: 2;
