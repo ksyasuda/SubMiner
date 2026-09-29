@@ -316,9 +316,13 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
   handleChangelogKeydown: changelogModal.handleChangelogKeydown,
-  // The overlay chord only fires while the overlay sits over a playing video.
-  openSessionHelpModal: (opening) =>
-    sessionHelpModal.openSessionHelpModal(opening, { commandsEnabled: true }),
+  // Route through main so it can gate help commands on mpv playback state;
+  // onOpenSessionHelp re-resolves the chord hint when the open event arrives.
+  openSessionHelpModal: () => {
+    void window.electronAPI.dispatchSessionAction('openSessionHelp').catch((error: unknown) => {
+      console.error('Could not open session help', error);
+    });
+  },
   openControllerSelectModal: () => {
     if (controllerSelectModal.openControllerSelectModal()) {
       window.electronAPI.notifyOverlayModalOpened('controller-select');
