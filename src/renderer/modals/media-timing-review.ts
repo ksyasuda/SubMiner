@@ -449,8 +449,8 @@ export function createMediaTimingReviewModal(
   }
 
   /**
-   * Moves an untouched clip end back to where the line's dialogue ends. The Line end
-   * rail keeps marking the subtitle timing, and Reset restores it.
+   * Moves an untouched clip end back to where the line's dialogue ends. The orange
+   * end bar keeps marking the subtitle timing, and Reset restores it.
    */
   function trimTrailingSilence(peaks: readonly number[]): void {
     if (!payload || !trailingTrimPending || previewPlaying || previewRequest.isInFlight()) {
