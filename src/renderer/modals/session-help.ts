@@ -345,7 +345,9 @@ export function createSessionHelpModal(
   function handleSessionHelpKeydown(e: KeyboardEvent): boolean {
     if (!ctx.state.sessionHelpModalOpen) return false;
 
-    if (isFilterInputFocused()) {
+    // The filter's own Enter listener moves focus to the list before this bubbled
+    // handler runs, so check the event target too or filter Enter would run a command.
+    if (isFilterInputFocused() || e.target === ctx.dom.sessionHelpFilter) {
       if (e.key === 'Escape') {
         e.preventDefault();
         if (!helpFilterValue) {

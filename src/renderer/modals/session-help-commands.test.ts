@@ -221,9 +221,10 @@ function createHarness(options: HarnessOptions) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
-  function pressEnter(): void {
+  function pressEnter(target: FakeElement | null = null): void {
     modal.handleSessionHelpKeydown({
       key: 'Enter',
+      target,
       ctrlKey: false,
       metaKey: false,
       altKey: false,
@@ -342,4 +343,18 @@ test(
     },
     { failActions: true },
   ),
+);
+
+test(
+  'session help does not run a command from Enter pressed in the filter',
+  withFakeDom(async (harness) => {
+    await harness.open(true);
+    // The filter's own listener already moved focus to a row before this bubbles up.
+    harness.rows()[0]?.focus();
+
+    harness.pressEnter(harness.dom.sessionHelpFilter);
+
+    assert.deepEqual(harness.sessionActions, []);
+    assert.equal(harness.state.sessionHelpModalOpen, true);
+  }),
 );

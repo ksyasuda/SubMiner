@@ -33,3 +33,26 @@ test('subtitle seeks leave running playback alone', async () => {
 test('other mpv commands are sent as-is', async () => {
   assert.deepEqual(await dispatch(['cycle', 'pause'], true), [['cycle', 'pause']]);
 });
+
+test('a failed re-pause does not resend the subtitle seek', async () => {
+  const sent: (string | number)[][] = [];
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    dispatchConfiguredMpvCommand(['sub-seek', 1], {
+      getPlaybackPaused: async () => true,
+      sendMpvCommand: (command) => {
+        sent.push(command);
+        if (command[0] === 'set_property') throw new Error('ipc closed');
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.deepEqual(sent, [
+    ['sub-seek', 1],
+    ['set_property', 'pause', 'yes'],
+  ]);
+});

@@ -20,15 +20,19 @@ export function dispatchConfiguredMpvCommand(
     return;
   }
 
+  // The fallback only covers a failed pause lookup, so a failed re-pause never resends the seek.
   void deps
     .getPlaybackPaused()
-    .then((paused) => {
-      deps.sendMpvCommand(command);
-      if (paused !== false) {
-        deps.sendMpvCommand(['set_property', 'pause', 'yes']);
-      }
-    })
-    .catch(() => {
-      deps.sendMpvCommand(command);
-    });
+    .then(
+      (paused) => {
+        deps.sendMpvCommand(command);
+        if (paused !== false) {
+          deps.sendMpvCommand(['set_property', 'pause', 'yes']);
+        }
+      },
+      () => {
+        deps.sendMpvCommand(command);
+      },
+    )
+    .catch((error: unknown) => console.error('Could not send mpv command', error));
 }
