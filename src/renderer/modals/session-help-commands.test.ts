@@ -221,7 +221,9 @@ function createHarness(options: HarnessOptions) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
-  function pressEnter(target: FakeElement | null = null): void {
+  /** Keydown targets the focused element, as in the browser; returns whether default was prevented. */
+  function pressEnter(target = (document as unknown as { activeElement: unknown }).activeElement) {
+    let prevented = false;
     modal.handleSessionHelpKeydown({
       key: 'Enter',
       target,
@@ -229,8 +231,11 @@ function createHarness(options: HarnessOptions) {
       metaKey: false,
       altKey: false,
       shiftKey: false,
-      preventDefault: () => {},
+      preventDefault: () => {
+        prevented = true;
+      },
     } as KeyboardEvent);
+    return prevented;
   }
 
   const rows = () => dom.sessionHelpContent.querySelectorAll('.session-help-item');
@@ -354,6 +359,19 @@ test(
 
     harness.pressEnter(harness.dom.sessionHelpFilter);
 
+    assert.deepEqual(harness.sessionActions, []);
+    assert.equal(harness.state.sessionHelpModalOpen, true);
+  }),
+);
+
+test(
+  'session help leaves Enter on the close button to its native activation',
+  withFakeDom(async (harness) => {
+    await harness.open(true);
+
+    const prevented = harness.pressEnter(harness.dom.sessionHelpClose);
+
+    assert.equal(prevented, false);
     assert.deepEqual(harness.sessionActions, []);
     assert.equal(harness.state.sessionHelpModalOpen, true);
   }),

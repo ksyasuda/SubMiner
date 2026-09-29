@@ -393,7 +393,8 @@ export function createSessionHelpModal(
       return true;
     }
 
-    if (e.key === 'Enter') {
+    // Only rows run commands; Enter on the close or tab buttons keeps its native activation.
+    if (e.key === 'Enter' && getRowIndex(e.target) !== null) {
       e.preventDefault();
       runSelectedCommand();
       return true;
