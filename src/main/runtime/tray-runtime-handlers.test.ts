@@ -36,6 +36,7 @@ test('tray runtime handlers compose resolve/menu/ensure/destroy handlers', () =>
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},
       openSyncUiWindow: () => {},
+      openYoutubeBrowserWindow: () => {},
       exportLogs: () => {},
       openJellyfinSetupWindow: () => {},
       isJellyfinConfigured: () => false,

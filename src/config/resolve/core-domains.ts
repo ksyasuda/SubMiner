@@ -366,6 +366,18 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       );
     }
 
+    const subtitleSource = src.youtube.subtitleSource;
+    if (subtitleSource === 'youtube' || subtitleSource === 'whisper') {
+      resolved.youtube.subtitleSource = subtitleSource;
+    } else if (subtitleSource !== undefined) {
+      warn(
+        'youtube.subtitleSource',
+        subtitleSource,
+        resolved.youtube.subtitleSource,
+        "Expected 'youtube' or 'whisper'.",
+      );
+    }
+
     if (isObject(src.youtube.mediaCache)) {
       const mode = src.youtube.mediaCache.mode;
       if (mode === 'direct' || mode === 'background') {

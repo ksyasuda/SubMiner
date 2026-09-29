@@ -67,6 +67,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   openHachidoriSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openYoutubeBrowserWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -148,6 +149,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     openHachidoriSettings: () => deps.openHachidoriSettings(),
     openConfigSettingsWindow: () => deps.openConfigSettingsWindow(),
     openSyncUiWindow: () => deps.openSyncUiWindow(),
+    openYoutubeBrowserWindow: () => deps.openYoutubeBrowserWindow(),
     cycleSecondarySubMode: () => deps.cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),
     printHelp: () => deps.printHelp(),

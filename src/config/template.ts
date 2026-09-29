@@ -21,13 +21,6 @@ const SUBTITLE_CSS_SCOPES: SubtitleCssScope[] = ['primary', 'secondary', 'sideba
 const HIDDEN_TEMPLATE_PATHS = [
   'anilist.characterDictionary.evictionPolicy',
   'anilist.characterDictionary.refreshTtlHours',
-  'youtubeSubgen.ai.model',
-  'youtubeSubgen.ai.systemPrompt',
-  'youtubeSubgen.fixWithAi',
-  'youtubeSubgen.whisperBin',
-  'youtubeSubgen.whisperModel',
-  'youtubeSubgen.whisperThreads',
-  'youtubeSubgen.whisperVadModel',
 ];
 
 function normalizeCommentText(value: string): string {

@@ -47,7 +47,6 @@ import {
 export const state = {
   overlayProc: null as ReturnType<typeof spawn> | null,
   mpvProc: null as ReturnType<typeof spawn> | null,
-  youtubeSubgenChildren: new Set<ReturnType<typeof spawn>>(),
   appPath: '' as string,
   overlayManagedByLauncher: false,
   stopRequested: false,
@@ -1186,17 +1185,6 @@ export function stopOverlay(args: Args): void {
     }
   }
 
-  for (const child of state.youtubeSubgenChildren) {
-    if (!child.killed) {
-      try {
-        child.kill('SIGTERM');
-      } catch {
-        // ignore
-      }
-    }
-  }
-  state.youtubeSubgenChildren.clear();
-
   void terminateTrackedDetachedMpv(args.logLevel);
 }
 
@@ -1210,17 +1198,6 @@ export async function cleanupPlaybackSession(args: Args): Promise<void> {
       // ignore
     }
   }
-
-  for (const child of state.youtubeSubgenChildren) {
-    if (!child.killed) {
-      try {
-        child.kill('SIGTERM');
-      } catch {
-        // ignore
-      }
-    }
-  }
-  state.youtubeSubgenChildren.clear();
 
   await terminateTrackedDetachedMpv(args.logLevel);
 }

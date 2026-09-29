@@ -38,6 +38,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     hachidori: false,
     settings: false,
     syncWindow: false,
+    youtubeBrowser: false,
     setup: false,
     show: false,
     hide: false,

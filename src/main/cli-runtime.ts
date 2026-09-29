@@ -52,6 +52,7 @@ export interface CliCommandRuntimeServiceContext {
   openHachidoriSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openYoutubeBrowserWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -139,6 +140,7 @@ function createCliCommandDepsFromContext(
       openHachidoriSettings: context.openHachidoriSettings,
       openConfigSettingsWindow: context.openConfigSettingsWindow,
       openSyncUiWindow: context.openSyncUiWindow,
+      openYoutubeBrowserWindow: context.openYoutubeBrowserWindow,
       cycleSecondarySubMode: context.cycleSecondarySubMode,
       openRuntimeOptionsPalette: context.openRuntimeOptionsPalette,
       printHelp: context.printHelp,

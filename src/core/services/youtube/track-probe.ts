@@ -56,10 +56,25 @@ function runCapture(
   });
 }
 
+// YouTube machine-translates captions on request (`tlang`) and lists them under the target
+// language, next to the real track. Those URLs reliably fail with HTTP 429, so they are only
+// used when a language has nothing else.
+function isTranslatedCaptionUrl(url: string): boolean {
+  try {
+    return new URL(url).searchParams.has('tlang');
+  } catch {
+    return false;
+  }
+}
+
 function choosePreferredFormat(
-  formats: YtDlpSubtitleEntry,
+  allFormats: YtDlpSubtitleEntry,
   kind: YoutubeTrackKind,
 ): { ext: string; url: string; title?: string } | null {
+  const untranslated = allFormats.filter(
+    (format) => typeof format.url === 'string' && !isTranslatedCaptionUrl(format.url),
+  );
+  const formats = untranslated.length > 0 ? untranslated : allFormats;
   const preferredOrder =
     kind === 'auto'
       ? ['srv3', 'srv2', 'srv1', 'vtt', 'srt', 'ttml', 'json3']

@@ -332,6 +332,27 @@ test('launcher settings command forwards app settings window command', () => {
   });
 });
 
+test('launcher youtube command forwards the YouTube browser flag and log level', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const capturePath = path.join(root, 'captured-args.txt');
+    fs.writeFileSync(appPath, `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}exit 0\n`);
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_CAPTURE: capturePath,
+    };
+    const result = runLauncher(['yt', '--log-level', 'debug'], env);
+
+    assert.equal(result.status, 0);
+    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--youtube-browser\n--log-level\ndebug\n');
+  });
+});
+
 test('launcher settings command suppresses known Electron macOS menu diagnostics', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');

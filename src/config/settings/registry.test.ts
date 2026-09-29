@@ -328,7 +328,6 @@ test('settings registry hides app-managed and inactive config surfaces', () => {
     'controller.preferredGamepadId',
     'controller.preferredGamepadLabel',
     'controller.profiles',
-    'youtubeSubgen.whisperBin',
     'jellyfin.defaultLibraryId',
     'subtitleSidebar.toggleKey',
     'jellyfin.recentServers',

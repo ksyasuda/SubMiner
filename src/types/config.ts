@@ -20,7 +20,7 @@ import type {
   YomitanConfig,
   YoutubeConfig,
   YoutubeMediaCacheMode,
-  YoutubeSubgenConfig,
+  YoutubeSubtitleSource,
 } from './integrations';
 import type {
   ControllerButtonIndicesConfig,
@@ -174,7 +174,6 @@ export interface Config {
   discordPresence?: DiscordPresenceConfig;
   ai?: AiConfig;
   youtube?: YoutubeConfig;
-  youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
   stats?: StatsConfig;
   updates?: UpdatesConfig;
@@ -394,18 +393,11 @@ export interface ResolvedConfig {
   };
   youtube: YoutubeConfig & {
     primarySubLanguages: string[];
+    subtitleSource: YoutubeSubtitleSource;
     mediaCache: {
       mode: YoutubeMediaCacheMode;
       maxHeight: number;
     };
-  };
-  youtubeSubgen: YoutubeSubgenConfig & {
-    whisperBin: string;
-    whisperModel: string;
-    whisperVadModel: string;
-    whisperThreads: number;
-    fixWithAi: boolean;
-    ai: AiFeatureConfig;
   };
   immersionTracking: {
     enabled: boolean;

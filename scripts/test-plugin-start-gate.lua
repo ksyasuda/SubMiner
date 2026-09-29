@@ -2476,4 +2476,41 @@ do
 	)
 end
 
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		defer_timeouts = true,
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "https://www.youtube.com/watch?v=abcdefghijk",
+		media_title = "Whisper video",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for autoplay hold scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 1,
+		"pause-until-ready should pause playback on load"
+	)
+	recorded.script_messages["subminer-autoplay-hold"]()
+	fire_pending_timeouts(recorded)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 0,
+		"a held gate should not resume playback when its timeout would have fired"
+	)
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 1,
+		"the ready signal should still release a held gate"
+	)
+end
+
 print("plugin start gate regression tests: OK")

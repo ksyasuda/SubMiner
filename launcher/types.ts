@@ -1,4 +1,3 @@
-import path from 'node:path';
 import os from 'node:os';
 import type { MpvBackend, MpvLaunchMode } from '../src/types/config.js';
 import type { SubtitleGenerationConfig } from '../src/shared/subtitle-generation.js';
@@ -27,12 +26,6 @@ export const YOUTUBE_AUDIO_EXTENSIONS = new Set([
   '.aac',
   '.flac',
 ]);
-export const DEFAULT_YOUTUBE_SUBGEN_OUT_DIR = path.join(
-  os.homedir(),
-  '.cache',
-  'subminer',
-  'youtube-subs',
-);
 export function getDefaultLauncherLogFile(options?: {
   platform?: NodeJS.Platform;
   homeDir?: string;
@@ -78,16 +71,6 @@ export function shouldForwardLogLevel(level: LogLevel): boolean {
 export type Backend = 'auto' | 'hyprland' | 'sway' | 'x11' | 'macos' | 'windows';
 export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
 
-export interface LauncherAiConfig {
-  enabled?: boolean;
-  apiKey?: string;
-  apiKeyCommand?: string;
-  baseUrl?: string;
-  model?: string;
-  systemPrompt?: string;
-  requestTimeoutMs?: number;
-}
-
 export interface Args {
   generateSubtitles?: {
     mediaPath?: string;
@@ -102,20 +85,9 @@ export interface Args {
   recursive: boolean;
   profile: string;
   startOverlay: boolean;
-  youtubeMode?: 'download' | 'generate';
-  whisperBin: string;
-  whisperModel: string;
-  whisperVadModel: string;
-  whisperThreads: number;
-  youtubeSubgenOutDir: string;
-  youtubeSubgenAudioFormat: string;
-  youtubeSubgenKeepTemp: boolean;
-  youtubeFixWithAi: boolean;
   youtubePrimarySubLangs: string[];
   youtubeSecondarySubLangs: string[];
   youtubeAudioLangs: string[];
-  youtubeWhisperSourceLanguage: string;
-  aiConfig: LauncherAiConfig;
   useTexthooker: boolean;
   autoStartOverlay: boolean;
   texthookerOnly: boolean;
@@ -161,6 +133,7 @@ export interface Args {
   version: boolean;
   update?: boolean;
   settings: boolean;
+  youtubeBrowser: boolean;
   configPath: boolean;
   configShow: boolean;
   mpvIdle: boolean;
@@ -176,12 +149,6 @@ export interface Args {
 }
 
 export interface LauncherYoutubeSubgenConfig {
-  whisperBin?: string;
-  whisperModel?: string;
-  whisperVadModel?: string;
-  whisperThreads?: number;
-  fixWithAi?: boolean;
-  ai?: LauncherAiConfig;
   primarySubLanguages?: string[];
   secondarySubLanguages?: string[];
   jimakuApiKey?: string;
@@ -250,14 +217,6 @@ export interface SubtitleCandidate {
   ext: string;
   size: number;
   source: 'manual' | 'whisper' | 'whisper-fixed' | 'whisper-translate' | 'whisper-translate-fixed';
-}
-
-export interface YoutubeSubgenOutputs {
-  basename: string;
-  primaryPath?: string;
-  secondaryPath?: string;
-  primaryNative?: boolean;
-  secondaryNative?: boolean;
 }
 
 export interface MpvTrack {

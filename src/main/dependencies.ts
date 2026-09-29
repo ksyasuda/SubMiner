@@ -220,6 +220,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     openHachidoriSettings: CliCommandDepsRuntimeOptions['ui']['openHachidoriSettings'];
     openConfigSettingsWindow: CliCommandDepsRuntimeOptions['ui']['openConfigSettingsWindow'];
     openSyncUiWindow: CliCommandDepsRuntimeOptions['ui']['openSyncUiWindow'];
+    openYoutubeBrowserWindow: CliCommandDepsRuntimeOptions['ui']['openYoutubeBrowserWindow'];
     cycleSecondarySubMode: CliCommandDepsRuntimeOptions['ui']['cycleSecondarySubMode'];
     openRuntimeOptionsPalette: CliCommandDepsRuntimeOptions['ui']['openRuntimeOptionsPalette'];
     printHelp: CliCommandDepsRuntimeOptions['ui']['printHelp'];
@@ -434,6 +435,7 @@ export function createCliCommandRuntimeServiceDeps(
       openHachidoriSettings: params.ui.openHachidoriSettings,
       openConfigSettingsWindow: params.ui.openConfigSettingsWindow,
       openSyncUiWindow: params.ui.openSyncUiWindow,
+      openYoutubeBrowserWindow: params.ui.openYoutubeBrowserWindow,
       cycleSecondarySubMode: params.ui.cycleSecondarySubMode,
       openRuntimeOptionsPalette: params.ui.openRuntimeOptionsPalette,
       printHelp: params.ui.printHelp,

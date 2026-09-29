@@ -46,6 +46,7 @@ export type TrayMenuActionHandlers = {
   openYomitanSettings: () => void;
   openConfigSettings: () => void;
   openSyncUi: () => void;
+  openYoutubeBrowser: () => void;
   exportLogs: () => void;
   openJellyfinSetup: () => void;
   showJellyfinDiscovery: boolean;
@@ -122,6 +123,10 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
     {
       label: 'Sync Stats && History',
       click: handlers.openSyncUi,
+    },
+    {
+      label: 'Browse YouTube',
+      click: handlers.openYoutubeBrowser,
     },
     {
       label: 'Export Logs',

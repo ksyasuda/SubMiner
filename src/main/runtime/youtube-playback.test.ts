@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  toYoutubeWatchUrl,
   isSameYoutubeMediaPath,
   isYoutubeMediaPath,
   isYoutubePlaybackActive,
@@ -75,4 +76,26 @@ test('shouldUseCachedYoutubeParsedCues requires cached cues for the same youtube
     }),
     false,
   );
+});
+
+test('toYoutubeWatchUrl reduces watch, shorts, and short links to a single-video url', () => {
+  assert.equal(
+    toYoutubeWatchUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=WL&index=3&t=42s'),
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  );
+  assert.equal(
+    toYoutubeWatchUrl('https://m.youtube.com/shorts/dQw4w9WgXcQ'),
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  );
+  assert.equal(
+    toYoutubeWatchUrl('https://youtu.be/dQw4w9WgXcQ?si=abc'),
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  );
+});
+
+test('toYoutubeWatchUrl rejects non-video pages and malformed ids', () => {
+  assert.equal(toYoutubeWatchUrl('https://www.youtube.com/feed/subscriptions'), null);
+  assert.equal(toYoutubeWatchUrl('https://www.youtube.com/watch?v=bad id'), null);
+  assert.equal(toYoutubeWatchUrl('https://example.com/watch?v=dQw4w9WgXcQ'), null);
+  assert.equal(toYoutubeWatchUrl('/tmp/video.mkv'), null);
 });

@@ -45,6 +45,7 @@ for (const dictionaryBackend of ['yomitan', 'hachidori'] as const) {
       openYomitanSettings: () => calls.push('yomitan'),
       openConfigSettings: () => calls.push('configuration'),
       openSyncUi: () => calls.push('sync-ui'),
+      openYoutubeBrowser: () => calls.push('youtube'),
       exportLogs: () => calls.push('export-logs'),
       openJellyfinSetup: () => calls.push('jellyfin'),
       showJellyfinDiscovery: true,
@@ -74,6 +75,7 @@ for (const dictionaryBackend of ['yomitan', 'hachidori'] as const) {
         settingsLabel,
         'Open SubMiner Settings',
         'Sync Stats && History',
+        'Browse YouTube',
         'Export Logs',
         'Configure Jellyfin',
         'Jellyfin Discovery',
@@ -98,6 +100,7 @@ for (const dictionaryBackend of ['yomitan', 'hachidori'] as const) {
     entryFor('View Changelog').click?.();
     entryFor('Open Texthooker').click?.();
     entryFor('Sync Stats && History').click?.();
+    entryFor('Browse YouTube').click?.();
     entryFor('Export Logs').click?.();
     entryFor('Check for Updates').click?.();
     calls.push(template.some((entry) => entry.type === 'separator') ? 'separator' : 'bad');
@@ -109,6 +112,7 @@ for (const dictionaryBackend of ['yomitan', 'hachidori'] as const) {
       'changelog',
       'texthooker',
       'sync-ui',
+      'youtube',
       'export-logs',
       'updates',
       'separator',
@@ -132,6 +136,7 @@ test('tray menu template omits first-run setup entry when setup is complete', ()
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
     openSyncUi: () => undefined,
+    openYoutubeBrowser: () => undefined,
     exportLogs: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: false,
@@ -164,6 +169,7 @@ test('tray menu template omits texthooker entry when texthooker page is disabled
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
     openSyncUi: () => undefined,
+    openYoutubeBrowser: () => undefined,
     exportLogs: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: false,
@@ -194,6 +200,7 @@ test('tray menu template renders active jellyfin discovery checkbox', () => {
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
     openSyncUi: () => undefined,
+    openYoutubeBrowser: () => undefined,
     exportLogs: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: true,
@@ -225,6 +232,7 @@ test('tray menu template renders a visible linux discovery check mark when activ
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
     openSyncUi: () => undefined,
+    openYoutubeBrowser: () => undefined,
     exportLogs: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: true,

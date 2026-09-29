@@ -698,13 +698,14 @@
   // ==========================================
   // YouTube Playback Settings
   // Defaults for managed subtitle language preferences and YouTube subtitle loading.
-  // Hot-reload: primarySubLanguages applies to the next YouTube subtitle load.
+  // Hot-reload: primarySubLanguages and subtitleSource apply to the next YouTube subtitle load.
   // ==========================================
   "youtube": {
     "primarySubLanguages": [
       "ja",
       "jpn"
     ], // Comma-separated primary subtitle language priority for managed subtitle auto-selection.
+    "subtitleSource": "youtube", // Where primary YouTube subtitles come from. Whisper transcribes the audio locally using the subtitleGeneration settings. Values: youtube | whisper
     "mediaCache": {
       "mode": "direct", // How YouTube card audio/images are extracted. Values: direct | background
       "maxHeight": 720 // Maximum video height downloaded for the YouTube background media cache. Set to 0 for unlimited.

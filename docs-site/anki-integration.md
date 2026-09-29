@@ -140,7 +140,7 @@ With `media.reviewTiming` on, SubMiner pauses before making media for word, sent
 
 Playback stays paused while the dialog is open, even if the popup or hover that paused it goes away. When the dialog closes, playback resumes if it was playing before, or if the popup closed in the meantime. A popup that is still open keeps it paused.
 
-The dialog shows the clip over a speech waveform. When the waveform loads, an untouched clip end moves back to just after the last speech in the line. The Line end rail still marks the subtitle's own end.
+The dialog shows the clip over a speech waveform. When the waveform loads, an untouched clip end moves back to just after the last speech in the line. The orange bars still mark the subtitle's original start and end.
 
 | Action                   | How                                                                   |
 | ------------------------ | --------------------------------------------------------------------- |

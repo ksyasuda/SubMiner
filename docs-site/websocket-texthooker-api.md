@@ -227,7 +227,7 @@ The mpv plugin accepts these script messages:
 script-message subminer-start backend=hyprland socket=/custom/path texthooker=no log-level=debug
 ```
 
-The plugin also registers `subminer-autoplay-ready`, `subminer-visible-overlay-shown`, `subminer-visible-overlay-hidden`, `subminer-managed-subtitles-loading`, `subminer-overlay-loading-ready`, and `subminer-reload-session-bindings`. The SubMiner app sends these to keep the plugin in sync, so do not send them from your own scripts.
+The plugin also registers `subminer-autoplay-ready`, `subminer-autoplay-hold`, `subminer-visible-overlay-shown`, `subminer-visible-overlay-hidden`, `subminer-managed-subtitles-loading`, `subminer-overlay-loading-ready`, and `subminer-reload-session-bindings`. The SubMiner app sends these to keep the plugin in sync, so do not send them from your own scripts.
 
 While the app is connected to mpv, it also handles two AniSkip messages over the mpv IPC socket: `subminer-skip-intro` skips the intro, and `subminer-aniskip-refresh` reloads intro data, for example after your script changes title or episode metadata.
 

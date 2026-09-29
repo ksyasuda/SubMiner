@@ -15,7 +15,6 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     launchMpv: false,
     launchMpvTargets: [],
     youtubePlay: undefined,
-    youtubeMode: undefined,
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
@@ -23,6 +22,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     hachidori: false,
     settings: false,
     syncWindow: false,
+    youtubeBrowser: false,
     setup: false,
     show: false,
     hide: false,
@@ -146,6 +146,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     openSyncUiWindow: () => {
       calls.push('openSyncUiWindow');
     },
+    openYoutubeBrowserWindow: () => {
+      calls.push('openYoutubeBrowserWindow');
+    },
     openFirstRunSetup: (force?: boolean) => {
       calls.push(`openFirstRunSetup:${force === true ? 'force' : 'default'}`);
     },
@@ -247,7 +250,7 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
       calls.push('runJellyfinCommand');
     },
     runYoutubePlaybackFlow: async (request) => {
-      calls.push(`runYoutubePlaybackFlow:${request.url}:${request.mode}:${request.source}`);
+      calls.push(`runYoutubePlaybackFlow:${request.url}:${request.source}`);
     },
     runUpdateCommand: async (args) => {
       calls.push(`runUpdateCommand:${args.updateLauncherPath ?? ''}`);
@@ -287,46 +290,30 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
 test('handleCliCommand starts youtube playback flow on initial launch', () => {
   const { deps, calls } = createDeps({
     runYoutubePlaybackFlow: async (request) => {
-      calls.push(`youtube:${request.url}:${request.mode}`);
-    },
-  });
-
-  handleCliCommand(
-    makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc', youtubeMode: 'generate' }),
-    'initial',
-    deps,
-  );
-
-  assert.deepEqual(calls, ['youtube:https://youtube.com/watch?v=abc:generate']);
-});
-
-test('handleCliCommand defaults youtube mode to download when omitted', () => {
-  const { deps, calls } = createDeps({
-    runYoutubePlaybackFlow: async (request) => {
-      calls.push(`youtube:${request.url}:${request.mode}`);
+      calls.push(`youtube:${request.url}:${request.source}`);
     },
   });
 
   handleCliCommand(makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc' }), 'initial', deps);
 
-  assert.deepEqual(calls, ['youtube:https://youtube.com/watch?v=abc:download']);
+  assert.deepEqual(calls, ['youtube:https://youtube.com/watch?v=abc:initial']);
 });
 
 test('handleCliCommand reuses initialized overlay runtime for second-instance youtube playback', () => {
   const { deps, calls } = createDeps({
     isOverlayRuntimeInitialized: () => true,
     runYoutubePlaybackFlow: async (request) => {
-      calls.push(`youtube:${request.url}:${request.mode}:${request.source}`);
+      calls.push(`youtube:${request.url}:${request.source}`);
     },
   });
 
   handleCliCommand(
-    makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc', youtubeMode: 'download' }),
+    makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc' }),
     'second-instance',
     deps,
   );
 
-  assert.deepEqual(calls, ['youtube:https://youtube.com/watch?v=abc:download:second-instance']);
+  assert.deepEqual(calls, ['youtube:https://youtube.com/watch?v=abc:second-instance']);
 });
 
 test('handleCliCommand reports youtube playback flow failures to logs and OSD', async () => {
@@ -336,11 +323,7 @@ test('handleCliCommand reports youtube playback flow failures to logs and OSD', 
     },
   });
 
-  handleCliCommand(
-    makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc', youtubeMode: 'download' }),
-    'initial',
-    deps,
-  );
+  handleCliCommand(makeArgs({ youtubePlay: 'https://youtube.com/watch?v=abc' }), 'initial', deps);
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.ok(calls.some((value) => value.startsWith('error:runYoutubePlaybackFlow failed:')));
@@ -681,6 +664,7 @@ test('createCliCommandDepsRuntime reconnects MPV client when reconnect hook exis
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},
       openSyncUiWindow: () => {},
+      openYoutubeBrowserWindow: () => {},
       cycleSecondarySubMode: () => {},
       openRuntimeOptionsPalette: () => {},
       printHelp: () => {},
@@ -794,6 +778,7 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
   }> = [
     { args: { yomitan: true }, expected: 'openYomitanSettingsDelayed:1000' },
     { args: { settings: true }, expected: 'openConfigSettingsWindow' },
+    { args: { youtubeBrowser: true }, expected: 'openYoutubeBrowserWindow' },
     {
       args: { showVisibleOverlay: true },
       expected: 'setVisibleOverlayVisible:true',
@@ -827,9 +812,10 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
   for (const entry of cases) {
     const { deps, calls } = createDeps();
     handleCliCommand(makeArgs(entry.args), 'initial', deps);
-    assert.ok(
-      calls.includes(entry.expected),
-      `expected call missing for args ${JSON.stringify(entry.args)}: ${entry.expected}`,
+    assert.equal(
+      calls.filter((value) => value === entry.expected).length,
+      1,
+      `expected exactly one call for args ${JSON.stringify(entry.args)}: ${entry.expected}`,
     );
   }
 });

@@ -80,6 +80,9 @@ ${B}Jellyfin${R}
   --jellyfin-audio-stream-index ${D}N${R}       Audio stream override
   --jellyfin-subtitle-stream-index ${D}N${R}    Subtitle stream override
 
+${B}YouTube${R}
+  --youtube-browser              Open the YouTube browser ${D}(videos play in mpv)${R}
+
 ${B}Stats sync${R}
   --sync-window                  Open the stats sync window
   --sync-cli sync ${D}[host] [opts]${R}   Headless stats sync ${D}(same commands as "subminer sync";${R}

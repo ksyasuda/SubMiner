@@ -46,6 +46,7 @@ export interface CliCommandServiceDeps {
   openHachidoriSettingsDelayed: (delayMs: number) => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openYoutubeBrowserWindow: () => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
@@ -103,11 +104,7 @@ export interface CliCommandServiceDeps {
     args: CliArgs,
     source: CliCommandSource,
   ) => Promise<void>;
-  runYoutubePlaybackFlow: (request: {
-    url: string;
-    mode: NonNullable<CliArgs['youtubeMode']>;
-    source: CliCommandSource;
-  }) => Promise<void>;
+  runYoutubePlaybackFlow: (request: { url: string; source: CliCommandSource }) => Promise<void>;
   ensureBackgroundStatsServer?: () => Promise<void> | void;
   printHelp: () => void;
   hasMainWindow: () => boolean;
@@ -174,6 +171,7 @@ interface UiCliRuntime {
   openHachidoriSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openYoutubeBrowserWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -284,6 +282,7 @@ export function createCliCommandDepsRuntime(
     },
     openConfigSettingsWindow: options.ui.openConfigSettingsWindow,
     openSyncUiWindow: options.ui.openSyncUiWindow,
+    openYoutubeBrowserWindow: options.ui.openYoutubeBrowserWindow,
     setVisibleOverlayVisible: options.overlay.setVisible,
     copyCurrentSubtitle: options.mining.copyCurrentSubtitle,
     startPendingMultiCopy: options.mining.startPendingMultiCopy,
@@ -438,6 +437,8 @@ export function handleCliCommand(
     deps.openConfigSettingsWindow();
   } else if (args.syncWindow) {
     deps.openSyncUiWindow();
+  } else if (args.youtubeBrowser) {
+    deps.openYoutubeBrowserWindow();
   } else if (args.show || args.showVisibleOverlay) {
     deps.setVisibleOverlayVisible(true);
   } else if (args.hide || args.hideVisibleOverlay) {
@@ -648,7 +649,6 @@ export function handleCliCommand(
       () =>
         deps.runYoutubePlaybackFlow({
           url: youtubeUrl,
-          mode: args.youtubeMode ?? 'download',
           source,
         }),
       deps,

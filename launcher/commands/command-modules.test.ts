@@ -207,6 +207,7 @@ test('app command starts default macOS background app detached from launcher', (
       calls.push('attached');
     },
     launchSyncUiDetached: () => calls.push('sync-ui'),
+    launchYoutubeBrowserDetached: () => calls.push('youtube'),
     launchAppBackgroundDetached: (appPath, logLevel) => {
       calls.push(`detached:${appPath}:${logLevel}`);
     },
@@ -227,6 +228,7 @@ test('app command starts default Linux background app detached from launcher', (
       calls.push('attached');
     },
     launchSyncUiDetached: () => calls.push('sync-ui'),
+    launchYoutubeBrowserDetached: () => calls.push('youtube'),
     launchAppBackgroundDetached: (appPath, logLevel) => {
       calls.push(`detached:${appPath}:${logLevel}`);
     },
@@ -248,6 +250,7 @@ test('app command keeps explicit passthrough args attached', () => {
       forwarded.push(appArgs);
     },
     launchSyncUiDetached: () => detached.push('sync-ui'),
+    launchYoutubeBrowserDetached: () => detached.push('youtube'),
     launchAppBackgroundDetached: () => {
       detached.push('detached');
     },
@@ -266,11 +269,29 @@ test('sync UI command launches the app detached from the terminal', () => {
   const handled = runAppPassthroughCommand(context, {
     runAppCommandWithInherit: () => calls.push('piped'),
     launchSyncUiDetached: (appPath, logLevel) => calls.push(`sync-ui:${appPath}:${logLevel}`),
+    launchYoutubeBrowserDetached: () => calls.push('youtube'),
     launchAppBackgroundDetached: () => calls.push('detached'),
   });
 
   assert.equal(handled, true);
   assert.deepEqual(calls, ['sync-ui:/tmp/subminer.app:warn']);
+});
+
+test('youtube command launches the YouTube browser detached from the terminal', () => {
+  const context = createContext();
+  context.args.youtubeBrowser = true;
+  const calls: string[] = [];
+
+  const handled = runAppPassthroughCommand(context, {
+    runAppCommandWithInherit: () => calls.push('piped'),
+    launchSyncUiDetached: () => calls.push('sync-ui'),
+    launchYoutubeBrowserDetached: (appPath, logLevel) =>
+      calls.push(`youtube:${appPath}:${logLevel}`),
+    launchAppBackgroundDetached: () => calls.push('detached'),
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls, ['youtube:/tmp/subminer.app:warn']);
 });
 
 test('mpv pre-app command exits non-zero when socket is not ready', async () => {

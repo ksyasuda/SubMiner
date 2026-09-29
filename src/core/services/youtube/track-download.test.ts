@@ -478,6 +478,35 @@ test('downloadYoutubeSubtitleTrack prefers direct download URL when available', 
   });
 });
 
+test('downloadYoutubeSubtitleTrack falls back to yt-dlp when the direct URL is rejected', async () => {
+  if (process.platform === 'win32') {
+    return;
+  }
+
+  await withFakeYtDlp('both', async (root) => {
+    await withStubFetch(
+      async () => new Response('Too Many Requests', { status: 429 }),
+      async () => {
+        const result = await downloadYoutubeSubtitleTrack({
+          targetUrl: 'https://www.youtube.com/watch?v=abc123',
+          outputDir: path.join(root, 'out'),
+          track: {
+            id: 'auto:ja',
+            language: 'ja',
+            sourceLanguage: 'ja',
+            kind: 'auto',
+            label: 'Japanese (auto)',
+            downloadUrl: 'https://www.youtube.com/api/timedtext?v=abc123&lang=ja&fmt=vtt',
+            fileExtension: 'vtt',
+          },
+        });
+
+        assert.equal(path.extname(result.path), '.vtt');
+      },
+    );
+  });
+});
+
 test('downloadYoutubeSubtitleTrack sanitizes metadata source language in filenames', async () => {
   await withTempDir(async (root) => {
     await withStubFetch(
