@@ -3066,10 +3066,10 @@ function openSubtitleGenerationOverlay(): void {
   );
 }
 
+// currentMediaPath follows every mpv path change and is cleared on disconnect; the
+// client's currentVideoPath outlives the connection, so a reconnect could reuse it.
 function isMediaPlaybackActive(): boolean {
-  const client = appState.mpvClient;
-  if (client?.connected !== true) return false;
-  return Boolean(appState.currentMediaPath?.trim() || client.currentVideoPath?.trim());
+  return appState.mpvClient?.connected === true && Boolean(appState.currentMediaPath?.trim());
 }
 
 function openSessionHelpOverlay(): void {
