@@ -225,6 +225,8 @@ bind = ALT SHIFT, Y, pass, class:^(SubMiner)$
 
 If the overlay stays behind fullscreen mpv, check that the mpv socket is connected and that `hyprctl -j clients` works from the environment that launched SubMiner.
 
+SubMiner restacks the existing overlay during fullscreen transitions on Hyprland and Sway. It keeps the overlay mapped so repeated hide/show calls do not steal focus and cancel mpv's fullscreen entry.
+
 See the Hyprland wiki on [global keybinds](https://wiki.hypr.land/Configuring/Binds/#global-keybinds) and [window rules](https://wiki.hypr.land/Configuring/Window-Rules/).
 
 ### KDE Plasma and other Wayland compositors
