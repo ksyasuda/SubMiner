@@ -1,6 +1,7 @@
 import type { CompiledSessionBinding, PrimarySubMode, ShortcutsConfig } from '../../types';
 import type { RendererContext } from '../context';
 import { createMpvInputForwarding } from './mpv-input-forwarding';
+import { dispatchConfiguredMpvCommand } from '../utils/mpv-command-dispatch';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
@@ -257,7 +258,10 @@ export function createKeyboardHandlers(
     }
 
     if (binding.actionType === 'mpv-command') {
-      dispatchConfiguredMpvCommand(binding.command);
+      dispatchConfiguredMpvCommand(binding.command, {
+        getPlaybackPaused: options.getPlaybackPaused,
+        sendMpvCommand: (command) => window.electronAPI.sendMpvCommand(command),
+      });
       return;
     }
 
@@ -563,31 +567,6 @@ export function createKeyboardHandlers(
       })
       .catch(() => {
         window.electronAPI.sendMpvCommand(['sub-seek', delta]);
-      });
-  }
-
-  function isSubtitleSeekCommand(
-    command: (string | number)[] | undefined,
-  ): command is [string, number] {
-    return Array.isArray(command) && command[0] === 'sub-seek' && typeof command[1] === 'number';
-  }
-
-  function dispatchConfiguredMpvCommand(command: (string | number)[]): void {
-    if (!isSubtitleSeekCommand(command)) {
-      window.electronAPI.sendMpvCommand(command);
-      return;
-    }
-
-    void options
-      .getPlaybackPaused()
-      .then((paused) => {
-        window.electronAPI.sendMpvCommand(command);
-        if (paused !== false) {
-          window.electronAPI.sendMpvCommand(['set_property', 'pause', 'yes']);
-        }
-      })
-      .catch(() => {
-        window.electronAPI.sendMpvCommand(command);
       });
   }
 

@@ -10,6 +10,7 @@ import {
 import { createSessionHelpSectionNode } from './session-help-render';
 import { buildVisibleSessionHelpSections, createSessionHelpTabBar } from './session-help-tabs';
 import { createModalFocusGuard } from './modal-focus-guard';
+import { dispatchConfiguredMpvCommand } from '../utils/mpv-command-dispatch';
 
 export {
   buildSessionHelpSections,
@@ -318,7 +319,10 @@ export function createSessionHelpModal(
 
     closeSessionHelpModal();
     if (command.actionType === 'mpv-command') {
-      window.electronAPI.sendMpvCommand(command.command);
+      dispatchConfiguredMpvCommand(command.command, {
+        getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
+        sendMpvCommand: (mpvCommand) => window.electronAPI.sendMpvCommand(mpvCommand),
+      });
       return;
     }
     // Help is already closed, so surface failures on the mpv OSD.
