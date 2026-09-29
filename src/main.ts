@@ -3066,9 +3066,15 @@ function openSubtitleGenerationOverlay(): void {
   );
 }
 
+function isMediaPlaybackActive(): boolean {
+  const client = appState.mpvClient;
+  if (client?.connected !== true) return false;
+  return Boolean(appState.currentMediaPath?.trim() || client.currentVideoPath?.trim());
+}
+
 function openSessionHelpOverlay(): void {
   openOverlayHostedModalWithOsd(
-    openSessionHelpModalRuntime,
+    (deps) => openSessionHelpModalRuntime({ ...deps, isMediaPlaybackActive }),
     'Session help overlay unavailable.',
     'Failed to open session help overlay.',
   );

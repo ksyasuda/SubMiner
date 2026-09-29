@@ -316,7 +316,9 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
   handleChangelogKeydown: changelogModal.handleChangelogKeydown,
-  openSessionHelpModal: sessionHelpModal.openSessionHelpModal,
+  // The overlay chord only fires while the overlay sits over a playing video.
+  openSessionHelpModal: (opening) =>
+    sessionHelpModal.openSessionHelpModal(opening, { commandsEnabled: true }),
   openControllerSelectModal: () => {
     if (controllerSelectModal.openControllerSelectModal()) {
       window.electronAPI.notifyOverlayModalOpened('controller-select');
@@ -572,9 +574,9 @@ function registerModalOpenHandlers(): void {
       await characterDictionaryModal.openCharacterDictionaryManagerModal();
     });
   });
-  window.electronAPI.onOpenSessionHelp(() => {
+  window.electronAPI.onOpenSessionHelp((payload) => {
     runGuarded('session-help:open', () => {
-      sessionHelpModal.openSessionHelpModal(keyboardHandlers.getSessionHelpOpeningInfo());
+      sessionHelpModal.openSessionHelpModal(keyboardHandlers.getSessionHelpOpeningInfo(), payload);
       window.electronAPI.notifyOverlayModalOpened('session-help');
     });
   });

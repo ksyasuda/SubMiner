@@ -1,5 +1,6 @@
 import type { OverlayHostedModal } from '../../shared/ipc/contracts';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
+import type { SessionHelpOpenPayload } from '../../types/runtime';
 import { openOverlayHostedModal, retryOverlayModalOpen } from './overlay-hosted-modal-open';
 
 const SESSION_HELP_MODAL: OverlayHostedModal = 'session-help';
@@ -18,6 +19,8 @@ export async function openSessionHelpModal(deps: {
   ) => boolean;
   waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
   logWarn: (message: string) => void;
+  /** True when mpv has a video loaded; gates running commands from help rows. */
+  isMediaPlaybackActive: () => boolean;
 }): Promise<boolean> {
   return await retryOverlayModalOpen(
     {
@@ -29,8 +32,11 @@ export async function openSessionHelpModal(deps: {
       timeoutMs: SESSION_HELP_OPEN_TIMEOUT_MS,
       retryWarning:
         'Session help modal did not acknowledge modal open on first attempt; retrying dedicated modal window.',
-      sendOpen: () =>
-        openOverlayHostedModal(
+      sendOpen: () => {
+        const payload: SessionHelpOpenPayload = {
+          commandsEnabled: deps.isMediaPlaybackActive(),
+        };
+        return openOverlayHostedModal(
           {
             ensureOverlayStartupPrereqs: deps.ensureOverlayStartupPrereqs,
             ensureOverlayWindowsReadyForVisibilityActions:
@@ -40,9 +46,11 @@ export async function openSessionHelpModal(deps: {
           {
             channel: IPC_CHANNELS.event.sessionHelpOpen,
             modal: SESSION_HELP_MODAL,
+            payload,
             preferModalWindow: true,
           },
-        ),
+        );
+      },
     },
   );
 }

@@ -61,6 +61,7 @@ import type {
   ControllerConfigUpdate,
   ControllerPreferenceUpdate,
   ResolvedControllerConfig,
+  SessionHelpOpenPayload,
   SessionNumericSelectionStartPayload,
   SubtitleMiningContext,
   YoutubePickerOpenPayload,
@@ -176,7 +177,15 @@ function createLatestValueIpcListenerWithPayload<T>(
 }
 
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
-const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessionHelpOpen);
+const onOpenSessionHelpEvent = createQueuedIpcListenerWithPayload<SessionHelpOpenPayload>(
+  IPC_CHANNELS.event.sessionHelpOpen,
+  (payload) => ({
+    commandsEnabled:
+      typeof payload === 'object' &&
+      payload !== null &&
+      (payload as Partial<SessionHelpOpenPayload>).commandsEnabled === true,
+  }),
+);
 const onOpenChangelogEvent = createQueuedIpcListener(IPC_CHANNELS.event.changelogOpen);
 const onOpenCharacterDictionaryManagerEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.characterDictionaryManagerOpen,
