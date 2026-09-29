@@ -88,7 +88,7 @@ Built into the overlay, not configurable:
 | `Alt+C`            | Open controller setup and remapping                    | `shortcuts.openControllerSelect`           |
 | `Alt+Shift+C`      | Open controller debug view                             | `shortcuts.openControllerDebug`            |
 
-While a video is playing, session help can also run commands: highlight a row with the arrow keys or the mouse, then press `Enter` or double-click it. Fixed overlay controls, `y` chords, the multi-line copy and mine actions, and the color legend are reference only. Help opened from the tray with no video loaded is read-only.
+While a video is playing, session help can also run commands: highlight a row with the arrow keys or the mouse, then press `Enter` or double-click it. Fixed overlay controls, global shortcuts, `y` chords, the multi-line copy and mine actions, Open session help, and the color legend are reference only. Help opened from the tray with no video loaded is read-only.
 
 The sidebar key has a separate mpv-side binding, `shortcuts.toggleSubtitleSidebar`. The sidebar only opens when SubMiner has parsed the active subtitle file. In the sidebar, `Enter` seeks to the focused line.
 
