@@ -22,3 +22,17 @@ test('back-to-back cues yield no overlap lines', () => {
 
   assert.deepEqual(buildOverlapPrefetchCues(cues), []);
 });
+
+test('each overlap span joins only the cues active across it, in cue-list order', () => {
+  const cues: SubtitleCue[] = [
+    { startTime: 3, endTime: 8, text: 'C' },
+    { startTime: 0, endTime: 6, text: 'A' },
+    { startTime: 2, endTime: 4, text: 'B' },
+  ];
+
+  assert.deepEqual(buildOverlapPrefetchCues(cues), [
+    { startTime: 2, endTime: 3, text: 'A\n\nB' },
+    { startTime: 3, endTime: 4, text: 'C\n\nA\n\nB' },
+    { startTime: 4, endTime: 6, text: 'C\n\nA' },
+  ]);
+});
