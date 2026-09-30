@@ -43,7 +43,7 @@ test('resolveAppImageMountKeepaliveInvocation honors disable env', () => {
   assert.equal(resolveOnFuse(env, 'linux'), null);
 });
 
-test('resolveAppImageMountKeepaliveInvocation skips sandbox loop mounts where FUSE is unavailable', () => {
+test('resolveAppImageMountKeepaliveInvocation skips kernel squashfs mounts owned by a sandbox', () => {
   const env = { APPIMAGE: '/tmp/SubMiner.AppImage' };
   assert.equal(
     resolveAppImageMountKeepaliveInvocation(
@@ -53,6 +53,16 @@ test('resolveAppImageMountKeepaliveInvocation skips sandbox loop mounts where FU
       () => MOUNT_INFO,
     ),
     null,
+  );
+  assert.notEqual(
+    resolveAppImageMountKeepaliveInvocation(
+      env,
+      'linux',
+      '/tmp/appimage_extracted_42c4346b/SubMiner',
+      () => MOUNT_INFO,
+    ),
+    null,
+    'extract-and-run directories are deleted with the bootstrap, so they keep the supervisor',
   );
   assert.notEqual(
     resolveAppImageMountKeepaliveInvocation(env, 'linux', FUSE_EXEC_PATH, () => null),

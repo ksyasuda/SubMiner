@@ -9,10 +9,12 @@
 // AppRun from that mount, and after the app exits waits until no process is still
 // executing from the mount before releasing the holder.
 //
-// Only a runtime-owned FUSE mount has that lifetime problem. Sandboxes such as
-// `firejail --appimage` (used by the AppImage catalog test) loop-mount the image
-// for the sandbox's lifetime and set NoNewPrivs, so FUSE cannot mount there and
-// the supervisor could never start the detached app.
+// A kernel squashfs mount is the exception: whoever mounted it owns its lifetime,
+// not the runtime. `firejail --appimage` (used by the AppImage catalog test)
+// loop-mounts the image for the sandbox's lifetime and sets NoNewPrivs, so FUSE
+// cannot mount there and the supervisor could never start the detached app.
+// Extract-and-run directories are NOT exempt: the runtime deletes them when the
+// bootstrap exits, so those still need the supervisor's re-run.
 
 import fs from 'node:fs';
 
@@ -110,11 +112,8 @@ export function resolveAppImageMountKeepaliveInvocation(
   if (env[DISABLE_ENV] === '1') return null;
   const appImagePath = env.APPIMAGE?.trim();
   if (!appImagePath) return null;
-  // Keep the supervisor when the mount type is unknown; skip it only when we
-  // positively run from a non-FUSE mount (sandbox loop mount, extracted image).
   const mountInfo = readMountInfo();
-  const fsType = mountInfo === null ? null : resolveMountFsType(execPath, mountInfo);
-  if (fsType !== null && !fsType.startsWith('fuse')) return null;
+  if (mountInfo !== null && resolveMountFsType(execPath, mountInfo) === 'squashfs') return null;
   return {
     command: '/bin/sh',
     args: ['-c', APPIMAGE_MOUNT_KEEPALIVE_SCRIPT, APPIMAGE_MOUNT_KEEPALIVE_LABEL, appImagePath],
