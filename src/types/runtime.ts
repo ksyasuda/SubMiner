@@ -434,6 +434,11 @@ export type CharacterDictionaryManagerMutationResult =
   | (CharacterDictionaryManagerSnapshot & { ok: true; rebuildRequired?: boolean })
   | { ok: false; message: string; entries: CharacterDictionaryManagerEntry[] };
 
+/** Sent with session-help:open; commands only run when a video is loaded in mpv. */
+export interface SessionHelpOpenPayload {
+  commandsEnabled: boolean;
+}
+
 export interface SessionNumericSelectionStartPayload {
   actionId: Extract<SessionActionId, 'copySubtitleMultiple' | 'mineSentenceMultiple'>;
   timeoutMs: number;
@@ -547,7 +552,7 @@ export interface ElectronAPI {
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => Promise<RuntimeOptionApplyResult>;
   onRuntimeOptionsChanged: (callback: (options: RuntimeOptionState[]) => void) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
-  onOpenSessionHelp: (callback: () => void) => void;
+  onOpenSessionHelp: (callback: (payload: SessionHelpOpenPayload) => void) => void;
   onOpenChangelog: (callback: () => void) => void;
   getChangelogSnapshot: (options?: { refresh?: boolean }) => Promise<ChangelogSnapshot>;
   onOpenControllerSelect: (callback: () => void) => void;

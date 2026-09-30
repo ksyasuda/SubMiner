@@ -316,7 +316,13 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
   handleChangelogKeydown: changelogModal.handleChangelogKeydown,
-  openSessionHelpModal: sessionHelpModal.openSessionHelpModal,
+  // Route through main so it can gate help commands on mpv playback state;
+  // onOpenSessionHelp re-resolves the chord hint when the open event arrives.
+  openSessionHelpModal: () => {
+    void window.electronAPI.dispatchSessionAction('openSessionHelp').catch((error: unknown) => {
+      console.error('Could not open session help', error);
+    });
+  },
   openControllerSelectModal: () => {
     if (controllerSelectModal.openControllerSelectModal()) {
       window.electronAPI.notifyOverlayModalOpened('controller-select');
@@ -572,9 +578,9 @@ function registerModalOpenHandlers(): void {
       await characterDictionaryModal.openCharacterDictionaryManagerModal();
     });
   });
-  window.electronAPI.onOpenSessionHelp(() => {
+  window.electronAPI.onOpenSessionHelp((payload) => {
     runGuarded('session-help:open', () => {
-      sessionHelpModal.openSessionHelpModal(keyboardHandlers.getSessionHelpOpeningInfo());
+      sessionHelpModal.openSessionHelpModal(keyboardHandlers.getSessionHelpOpeningInfo(), payload);
       window.electronAPI.notifyOverlayModalOpened('session-help');
     });
   });
