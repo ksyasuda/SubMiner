@@ -3009,6 +3009,13 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
       }
     }
   },
+  onPreviewPosition: (position) => {
+    for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC_CHANNELS.event.mediaTimingReviewPreviewPosition, position);
+      }
+    }
+  },
   showStatus: (message) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' }),
 });

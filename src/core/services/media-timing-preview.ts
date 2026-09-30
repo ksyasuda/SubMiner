@@ -15,6 +15,8 @@ const CONNECT_RETRY_MS = 40;
  */
 const EOF_OBSERVER_ID = 1;
 const PAUSE_OBSERVER_ID = 2;
+const POSITION_OBSERVER_ID = 3;
+const PLAYER_RESPONSE_TIMEOUT_MS = 15_000;
 
 export interface MediaTimingPreviewStartOptions {
   mediaPath: string;
@@ -23,6 +25,7 @@ export interface MediaTimingPreviewStartOptions {
   volume?: number;
   /** The file keeps source timestamps (a cached remote window); seek with the original times. */
   absoluteTimestamps?: boolean;
+  onPlaybackPosition?: (time: number) => void;
 }
 
 type PreviewProcess = Pick<ChildProcess, 'kill' | 'once'>;
@@ -103,8 +106,21 @@ export class MediaTimingPreviewSession {
   private disposed = false;
   private readBuffer = '';
   private playing = false;
+  private playSequence = 0;
   private eofReached = false;
   private paused = true;
+  private mediaReady = false;
+  private onPlaybackPosition: MediaTimingPreviewStartOptions['onPlaybackPosition'];
+  private nextRequestId = 0;
+  private readonly pendingCommands = new Map<
+    number,
+    {
+      resolve: () => void;
+      reject: (error: Error) => void;
+    }
+  >();
+  private readonly readyListeners = new Set<() => void>();
+  private readonly pendingWaits = new Set<(error: Error) => void>();
   private readonly endedListeners = new Set<() => void>();
 
   constructor(deps: Partial<MediaTimingPreviewDeps> = {}) {
@@ -141,6 +157,8 @@ export class MediaTimingPreviewSession {
   private async startOnce(options: MediaTimingPreviewStartOptions): Promise<void> {
     const mediaPath = options.mediaPath.trim();
     if (!mediaPath) throw new Error('No media source is available for preview');
+    this.mediaReady = false;
+    this.onPlaybackPosition = options.onPlaybackPosition;
 
     const socketPath = this.deps.createSocketPath();
     this.socketPath = socketPath;
@@ -186,19 +204,35 @@ export class MediaTimingPreviewSession {
     }
 
     this.playing = false;
-    this.send(['set_property', 'pause', true]);
-    this.send(['seek', startTime, 'absolute+exact']);
+    const sequence = ++this.playSequence;
+    if (!this.mediaReady) {
+      await this.waitForPlayer((resolve) => {
+        this.readyListeners.add(resolve);
+        return () => this.readyListeners.delete(resolve);
+      });
+    }
     // The option parser wants a time string; a raw JSON number is not accepted for `end`.
-    this.send(['set_property', 'end', endTime.toFixed(3)]);
-    this.send(['set_property', 'pause', false]);
-    // Only the seek's eof-reached=false and the later keep-open pause count for this play.
+    const commands = [
+      ['set_property', 'pause', true],
+      ['set_property', 'end', endTime.toFixed(3)],
+      ['seek', startTime, 'absolute+exact'],
+      ['set_property', 'pause', false],
+    ];
+    for (const command of commands) {
+      if (sequence !== this.playSequence) throw new Error('Preview playback was cancelled');
+      await this.command(command);
+    }
+    if (sequence !== this.playSequence) throw new Error('Preview playback was cancelled');
+    // Discard paused/EOF observations from the previous clip before arming this playback.
     this.eofReached = false;
     this.paused = false;
     this.playing = true;
   }
 
   async stop(): Promise<void> {
+    this.playSequence += 1;
     this.playing = false;
+    this.rejectPendingWaits();
     if (!this.socket || this.socket.destroyed) return;
     this.send(['set_property', 'pause', true]);
   }
@@ -230,6 +264,23 @@ export class MediaTimingPreviewSession {
       if (
         typeof message === 'object' &&
         message !== null &&
+        'request_id' in message &&
+        typeof message.request_id === 'number'
+      ) {
+        const pending = this.pendingCommands.get(message.request_id);
+        if (pending) {
+          if ('error' in message && message.error === 'success') pending.resolve();
+          else
+            pending.reject(
+              new Error(
+                `Preview command failed: ${'error' in message ? String(message.error) : 'unknown error'}`,
+              ),
+            );
+        }
+      }
+      if (
+        typeof message === 'object' &&
+        message !== null &&
         'event' in message &&
         message.event === 'property-change' &&
         'name' in message &&
@@ -241,6 +292,13 @@ export class MediaTimingPreviewSession {
   }
 
   private handlePropertyChange(name: unknown, data: unknown): void {
+    if (name === 'time-pos') {
+      if (typeof data !== 'number' || !Number.isFinite(data)) return;
+      this.mediaReady = true;
+      for (const listener of this.readyListeners) listener();
+      if (this.playing) this.onPlaybackPosition?.(data);
+      return;
+    }
     if (name === 'eof-reached') this.eofReached = data === true;
     else if (name === 'pause') this.paused = data === true;
     else return;
@@ -255,6 +313,8 @@ export class MediaTimingPreviewSession {
 
   private releaseResources(): void {
     this.cancelRetryWait();
+    this.playing = false;
+    this.rejectPendingWaits();
     try {
       this.send(['quit']);
     } catch {
@@ -283,6 +343,57 @@ export class MediaTimingPreviewSession {
     this.socket.write(`${JSON.stringify({ command })}\n`);
   }
 
+  private waitForPlayer(
+    subscribe: (resolve: () => void, reject: (error: Error) => void) => () => void,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let unsubscribe = () => {};
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        this.deps.cancelSchedule(timeout);
+        unsubscribe();
+        this.pendingWaits.delete(fail);
+        if (error) reject(error);
+        else resolve();
+      };
+      const fail = (error: Error) => finish(error);
+      const timeout = this.deps.schedule(
+        () => fail(new Error('Timed out waiting for the preview player')),
+        PLAYER_RESPONSE_TIMEOUT_MS,
+      );
+      this.pendingWaits.add(fail);
+      try {
+        unsubscribe = subscribe(() => finish(), fail);
+        if (settled) unsubscribe();
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  private command(command: Array<string | number | boolean>): Promise<void> {
+    if (!this.socket || this.socket.destroyed)
+      return Promise.reject(new Error('Preview player is not ready'));
+    const socket = this.socket;
+    const requestId = ++this.nextRequestId;
+    return this.waitForPlayer((resolve, reject) => {
+      this.pendingCommands.set(requestId, { resolve, reject });
+      try {
+        socket.write(`${JSON.stringify({ command, request_id: requestId })}\n`);
+      } catch (error) {
+        this.pendingCommands.delete(requestId);
+        throw error;
+      }
+      return () => this.pendingCommands.delete(requestId);
+    });
+  }
+
+  private rejectPendingWaits(): void {
+    for (const reject of this.pendingWaits) reject(new Error('Preview player is closed'));
+  }
+
   private async connectWithRetry(socketPath: string): Promise<void> {
     const deadline = this.deps.now() + CONNECT_TIMEOUT_MS;
     while (!this.disposed && this.deps.now() < deadline) {
@@ -305,9 +416,13 @@ export class MediaTimingPreviewSession {
         socket.on('data', (chunk: Buffer | string) => {
           if (this.socket === socket) this.handleSocketData(chunk);
         });
-        socket.once('close', () => this.finishPlayback());
+        socket.once('close', () => {
+          this.rejectPendingWaits();
+          this.finishPlayback();
+        });
         this.send(['observe_property', EOF_OBSERVER_ID, 'eof-reached']);
         this.send(['observe_property', PAUSE_OBSERVER_ID, 'pause']);
+        this.send(['observe_property', POSITION_OBSERVER_ID, 'time-pos']);
         return;
       } catch {
         if (this.disposed) {

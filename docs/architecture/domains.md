@@ -24,6 +24,7 @@ Read when: you need to find the owner module for a behavior or test surface
   Windows executable lookup and detached process creation are shared in `src/main/runtime/mpv-process.ts`. The Windows launcher and Jellyfin handlers retain their own playback and connection workflows.
 - Subtitle/token pipeline: `src/core/services/subtitle-*.ts`, `src/core/services/tokenizer*`, `src/core/services/tokenizer/`, `src/subsync/`
 - Anki workflow: `src/anki-integration/`, `src/core/services/anki-jimaku*.ts`
+- Media timing review: `src/main/runtime/media-timing-review.ts` owns the review and hidden `MediaTimingPreviewSession`. The session waits for mpv readiness and acknowledges playback commands; its `time-pos` observations reach the modal through `media-timing-review:preview-position`. The renderer places the cursor from those timestamps and uses an inactivity timeout instead of timing the clip itself.
 - Immersion tracking: `src/core/services/immersion-tracker/`
   Includes stats storage/query schema such as `imm_videos`, `imm_media_art`, and `imm_youtube_videos` for per-video and YouTube-specific library metadata.
   Library-entry identity aliases and merge recommendations are persisted alongside this schema; the stats HTTP and SPA layers only expose and present those domain decisions.
