@@ -2727,6 +2727,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
       {
         error: (message, ...args) => logger.error(message, ...args),
         info: (message, ...args) => logger.info(message, ...args),
+        warn: (message, ...args) => logger.warn(message, ...args),
       },
       configService.getConfig().hachidori.externalHostManagementUrl,
     );

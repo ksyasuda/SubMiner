@@ -12,7 +12,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'Hachidori External Dictionary Imports',
     description: [
-      'Configure the linked Docker host management URL, for example http://127.0.0.1:8780.',
+      'Override the linked Docker host management URL only for a non-default port or a reverse proxy.',
     ],
     notes: ['Used only while Hachidori is linked to an external host.'],
     key: 'hachidori',

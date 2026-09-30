@@ -1,7 +1,10 @@
 import type { BrowserWindow, Extension, Session } from 'electron';
 import type { AnkiConnectConfig } from '../../../types';
 import { buildHachidoriAnkiHints } from './hachidori-anki-settings';
-import { uploadHachidoriDictionary } from './hachidori-dictionary-import';
+import {
+  resolveHachidoriManagementUrl,
+  uploadHachidoriDictionary,
+} from './hachidori-dictionary-import';
 import {
   buildHachidoriSharingScript,
   parseHachidoriHostStatus,
@@ -1815,7 +1818,13 @@ export async function importYomitanDictionaryFromZip(
       if (host.kind === 'disconnected' || host.kind === 'unavailable')
         throw new Error(host.message);
       if (host.kind === 'connected') {
-        await uploadHachidoriDictionary(normalizedZipPath, hachidoriManagementUrl);
+        const origin = resolveHachidoriManagementUrl(
+          host,
+          hachidoriManagementUrl,
+          normalizedZipPath,
+          logger.warn,
+        );
+        await uploadHachidoriDictionary(normalizedZipPath, origin);
         const window = deps.getYomitanParserWindow();
         if (window) clearYomitanParserCachesForWindow(window);
         logger.info?.(

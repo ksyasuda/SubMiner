@@ -73,7 +73,7 @@ Everything else needs a restart.
 
 Each backend stores its own dictionaries and mining settings. `yomitan.externalProfilePath` applies only to Yomitan. See [Hachidori setup](./usage.md#hachidori-setup) before switching an existing installation.
 
-`hachidori.externalHostManagementUrl` specifies the linked Docker host's HTTP(S) management origin for automatic character dictionary uploads and replacement. Use the management port, not the sharing or dictionary API port. See [Hachidori setup](./usage.md#hachidori-setup) for an example and [the generated configuration example](/config.example.jsonc) for the default.
+`hachidori.externalHostManagementUrl` overrides the management origin that character dictionaries upload to when Hachidori is linked to a Docker host. Leave it empty to use the linked host's machine on the Docker management port. Set it only for a non-default `ADMIN_PORT` or a reverse proxy, and use the management port, not the sharing or dictionary API port. See [Hachidori setup](./usage.md#hachidori-setup).
 
 ### Logging
 

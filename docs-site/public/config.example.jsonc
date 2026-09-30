@@ -15,12 +15,12 @@
 
   // ==========================================
   // Hachidori External Dictionary Imports
-  // Configure the linked Docker host management URL, for example http://127.0.0.1:8780.
+  // Override the linked Docker host management URL only for a non-default port or a reverse proxy.
   // Used only while Hachidori is linked to an external host.
   // ==========================================
   "hachidori": {
-    "externalHostManagementUrl": "" // Docker host management URL for automatic character dictionary uploads and replacement. Empty disables external uploads.
-  }, // Configure the linked Docker host management URL, for example http://127.0.0.1:8780.
+    "externalHostManagementUrl": "" // Management URL override for character dictionary uploads to a linked Hachidori Docker host. Empty uses the linked host on the Docker default management port.
+  }, // Override the linked Docker host management URL only for a non-default port or a reverse proxy.
 
   // ==========================================
   // Subtitle Selection

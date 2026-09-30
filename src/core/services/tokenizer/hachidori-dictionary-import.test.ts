@@ -5,7 +5,10 @@ import { once } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { uploadHachidoriDictionary } from './hachidori-dictionary-import';
+import {
+  resolveHachidoriManagementUrl,
+  uploadHachidoriDictionary,
+} from './hachidori-dictionary-import';
 import { importYomitanDictionaryFromZip } from './yomitan-parser-runtime';
 import { createDeps } from './yomitan-scan-test-harness';
 
@@ -42,7 +45,7 @@ test('linked Hachidori uploads replacement bytes, retries a busy host, and never
             linked: true,
             connected,
             address: 'ws://127.0.0.1:8771/link',
-            host: { dictionaryCount: 8 },
+            host: { name: 'Hachidori Docker host', dictionaryCount: 8 },
           },
         },
       };
@@ -62,10 +65,7 @@ test('linked Hachidori uploads replacement bytes, retries a busy host, and never
       true,
     );
     assert.equal(attempts, 2);
-    const errors: string[] = [];
-    const logger = { error: (...args: unknown[]) => errors.push(args.join(' ')) };
-    assert.equal(await importYomitanDictionaryFromZip(zipPath, deps, logger), false);
-    assert.match(errors.pop() ?? '', /externalHostManagementUrl/);
+    const logger = { error: () => {} };
     connected = false;
     assert.equal(await importYomitanDictionaryFromZip(zipPath, deps, logger, managementUrl), false);
     assert.equal(attempts, 2);
@@ -97,4 +97,62 @@ test('Hachidori upload requires a successful import report, not just HTTP succes
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+test('management URL comes from the linked Docker host unless overridden', () => {
+  const docker = { address: 'ws://pve-main:8771/link', name: 'Hachidori Docker host' };
+  const warnings: string[] = [];
+  const warn = (message: string) => warnings.push(message);
+  assert.equal(
+    resolveHachidoriManagementUrl(docker, '', 'merged.zip', warn),
+    'http://pve-main:8780',
+  );
+  assert.equal(
+    resolveHachidoriManagementUrl(docker, 'http://pve-main:9000', 'merged.zip', warn),
+    'http://pve-main:9000',
+  );
+  assert.deepEqual(warnings, []);
+  assert.equal(
+    resolveHachidoriManagementUrl(
+      { address: 'ws://127.0.0.1:8771/link', name: 'Hachidori Docker host' },
+      'http://localhost:8780',
+      'merged.zip',
+      warn,
+    ),
+    'http://localhost:8780',
+  );
+  assert.deepEqual(warnings, []);
+  assert.equal(
+    resolveHachidoriManagementUrl(docker, 'http://127.0.0.1:8780', 'merged.zip', warn),
+    'http://127.0.0.1:8780',
+  );
+  assert.match(warnings[0] ?? '', /linked to pve-main/);
+});
+
+test('browser and app hosts without an override explain the manual import', () => {
+  assert.throws(
+    () =>
+      resolveHachidoriManagementUrl(
+        { address: 'ws://desktop:8771/link', name: 'Chrome' },
+        '',
+        '/dicts/merged.zip',
+      ),
+    /Chrome at desktop cannot receive dictionary uploads\. Import \/dicts\/merged\.zip/,
+  );
+});
+
+test('unreachable management API names the origin instead of a bare fetch failure', async () => {
+  const zipPath = path.join(await mkdtemp(path.join(os.tmpdir(), 'hachi-import-')), 'merged.zip');
+  await writeFile(zipPath, 'archive');
+  const server = createServer();
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  const origin = `http://127.0.0.1:${address.port}`;
+  await assert.rejects(
+    uploadHachidoriDictionary(zipPath, origin),
+    new RegExp(`Could not reach the Hachidori management API at ${origin}: `),
+  );
 });

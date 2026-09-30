@@ -86,7 +86,7 @@ export function buildCoreConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.hachidori.externalHostManagementUrl,
       description:
-        'Docker host management URL for automatic character dictionary uploads and replacement. Empty disables external uploads.',
+        'Management URL override for character dictionary uploads to a linked Hachidori Docker host. Empty uses the linked host on the Docker default management port.',
     },
     {
       path: 'dictionaryBackend',
