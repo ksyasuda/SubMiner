@@ -122,7 +122,9 @@ Media settings apply to the next card without a restart.
 
 With `media.reviewTiming` on, SubMiner pauses before making media for word, sentence, and audio cards and opens a review dialog. You can also toggle it for the current session with **Review Media Timing** in the runtime options palette (`Ctrl/Cmd+Shift+O`). Clipboard updates and stats-dashboard mining skip the review.
 
-The dialog shows the clip over a speech waveform. When the waveform loads, an untouched clip end moves back to just after the last speech in the line. The Line end rail still marks the subtitle's own end.
+The dialog shows the clip over a speech waveform. When the waveform loads, an untouched clip end moves back to just after the last speech in the line. The orange bars still mark the subtitle's original start and end.
+
+During preview, the yellow cursor follows the audio player's position through the selected range and stays at the end when playback finishes. Buffering pauses the cursor too. If the player stops reporting progress for 15 seconds, the preview stops so you can retry.
 
 | Action                   | How                                                                   |
 | ------------------------ | --------------------------------------------------------------------- |

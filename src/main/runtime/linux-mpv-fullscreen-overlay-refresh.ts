@@ -52,8 +52,12 @@ function refreshLinuxVisibleOverlayAfterMpvFullscreenChange(
     return;
   }
 
-  mainWindow.hide();
-  mainWindow.showInactive();
+  // Hyprland placement can restack in place. Remapping the overlay can
+  // take focus from mpv and make Hyprland cancel the fullscreen transition.
+  if (!process.env.HYPRLAND_INSTANCE_SIGNATURE) {
+    mainWindow.hide();
+    mainWindow.showInactive();
+  }
   if (deps.getOverlayInteractionActive?.() === true) {
     mainWindow.setIgnoreMouseEvents(false);
   } else {

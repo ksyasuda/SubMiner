@@ -236,14 +236,6 @@ export function parseBoolLike(value: string): boolean | null {
   return null;
 }
 
-export function inferWhisperLanguage(langCodes: string[], fallback: string): string {
-  for (const lang of uniqueNormalizedLangCodes(langCodes)) {
-    if (lang === 'jpn') return 'ja';
-    if (lang.length >= 2) return lang.slice(0, 2);
-  }
-  return fallback;
-}
-
 export interface CommandInvocationOptions {
   normalizeWindowsShellArgs?: boolean;
 }

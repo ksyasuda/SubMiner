@@ -1,10 +1,71 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { beforeEach, afterEach } from 'node:test';
 import {
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
   updateLinuxMpvFullscreenOverlayRefreshBurst,
   scheduleLinuxVisibleOverlayFullscreenRefreshBurst,
 } from './linux-mpv-fullscreen-overlay-refresh';
+
+const compositorEnvKeys = [
+  'HYPRLAND_INSTANCE_SIGNATURE',
+  'SWAYSOCK',
+  'XDG_CURRENT_DESKTOP',
+  'XDG_SESSION_DESKTOP',
+] as const;
+const originalCompositorEnv = compositorEnvKeys.map((key) => [key, process.env[key]] as const);
+beforeEach(() => {
+  for (const key of compositorEnvKeys) delete process.env[key];
+});
+afterEach(() => {
+  for (const [key, value] of originalCompositorEnv) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
+
+for (const { compositorKey, expectedRefreshCalls } of [
+  {
+    compositorKey: 'HYPRLAND_INSTANCE_SIGNATURE',
+    expectedRefreshCalls: ['mode', 'visibility', 'mouse', 'restack'],
+  },
+  {
+    compositorKey: 'SWAYSOCK',
+    expectedRefreshCalls: ['mode', 'visibility', 'hide', 'showInactive', 'mouse', 'restack'],
+  },
+]) {
+  test(`${compositorKey} fullscreen refresh uses compositor-specific restacking`, async () => {
+    const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' });
+    process.env[compositorKey] = 'fullscreen-refresh-test';
+    const calls: string[] = [];
+    try {
+      scheduleLinuxVisibleOverlayFullscreenRefreshBurst(true, {
+        overlayManager: {
+          getMainWindow: () => ({
+            hide: () => calls.push('hide'),
+            showInactive: () => calls.push('showInactive'),
+            isDestroyed: () => false,
+            isVisible: () => true,
+            setIgnoreMouseEvents: () => calls.push('mouse'),
+          }),
+          getVisibleOverlayVisible: () => true,
+        },
+        overlayVisibilityRuntime: {
+          updateVisibleOverlayVisibility: () => calls.push('visibility'),
+        },
+        syncVisibleOverlayMpvFullscreenMode: () => calls.push('mode'),
+        ensureOverlayWindowLevel: () => calls.push('restack'),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      assert.deepEqual(calls, Array.from({ length: 5 }, () => expectedRefreshCalls).flat());
+    } finally {
+      clearLinuxMpvFullscreenOverlayRefreshTimeouts();
+      if (originalPlatformDescriptor) {
+        Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+      }
+    }
+  });
+}
 
 test('linux mpv fullscreen overlay refresh burst schedules overlay refresh work on linux', async () => {
   const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');

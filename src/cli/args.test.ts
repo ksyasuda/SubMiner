@@ -97,15 +97,9 @@ test('parseArgs captures launch-mpv targets and keeps it out of app startup', ()
 });
 
 test('parseArgs captures youtube startup forwarding flags', () => {
-  const args = parseArgs([
-    '--youtube-play',
-    'https://youtube.com/watch?v=abc',
-    '--youtube-mode',
-    'generate',
-  ]);
+  const args = parseArgs(['--youtube-play', 'https://youtube.com/watch?v=abc']);
 
   assert.equal(args.youtubePlay, 'https://youtube.com/watch?v=abc');
-  assert.equal(args.youtubeMode, 'generate');
   assert.equal(hasExplicitCommand(args), true);
   assert.equal(shouldStartApp(args), true);
 });
@@ -265,6 +259,13 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(shouldRunYomitanOnlyStartup(settings), false);
   assert.equal(commandNeedsOverlayRuntime(settings), false);
   assert.equal(commandNeedsOverlayStartupPrereqs(settings), false);
+
+  const youtubeBrowser = parseArgs(['--youtube-browser']);
+  assert.equal(youtubeBrowser.youtubeBrowser, true);
+  assert.equal(hasExplicitCommand(youtubeBrowser), true);
+  assert.equal(shouldStartApp(youtubeBrowser), true);
+  assert.equal(shouldRunYomitanOnlyStartup(youtubeBrowser), false);
+  assert.equal(commandNeedsOverlayRuntime(youtubeBrowser), false);
 
   const yomitanWithOverlay = parseArgs(['--yomitan', '--toggle-visible-overlay']);
   assert.equal(yomitanWithOverlay.yomitan, true);

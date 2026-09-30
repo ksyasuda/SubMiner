@@ -124,7 +124,7 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 
 `log-level` sets SubMiner's log verbosity. Do not use `--debug` for this; it turns on the app's dev mode.
 
-The plugin also handles messages the SubMiner app sends it (`subminer-autoplay-ready`, `subminer-visible-overlay-shown`, `subminer-visible-overlay-hidden`, `subminer-managed-subtitles-loading`, `subminer-overlay-loading-ready`, `subminer-reload-session-bindings`). You do not need to send these yourself. The AniSkip messages are listed on the [AniSkip page](/aniskip-integration#triggering-from-mpv).
+The plugin also handles messages the SubMiner app sends it (`subminer-autoplay-ready`, `subminer-autoplay-hold`, `subminer-visible-overlay-shown`, `subminer-visible-overlay-hidden`, `subminer-managed-subtitles-loading`, `subminer-overlay-loading-ready`, `subminer-reload-session-bindings`). You do not need to send these yourself. The AniSkip messages are listed on the [AniSkip page](/aniskip-integration#triggering-from-mpv).
 
 ## Auto-start behavior
 

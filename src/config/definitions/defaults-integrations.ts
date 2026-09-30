@@ -13,7 +13,6 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   | 'jellyfin'
   | 'discordPresence'
   | 'ai'
-  | 'youtubeSubgen'
 > = {
   ankiConnect: {
     enabled: true,
@@ -178,16 +177,5 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     systemPrompt:
       'You are a translation engine. Return only the translated text with no explanations.',
     requestTimeoutMs: 15_000,
-  },
-  youtubeSubgen: {
-    whisperBin: '',
-    whisperModel: '',
-    whisperVadModel: '',
-    whisperThreads: 4,
-    fixWithAi: false,
-    ai: {
-      model: '',
-      systemPrompt: '',
-    },
   },
 };

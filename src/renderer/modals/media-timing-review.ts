@@ -3,6 +3,7 @@ import type {
   MediaTimingReviewContextLine,
   MediaTimingReviewDecision,
   MediaTimingReviewOpenPayload,
+  MediaTimingReviewPreviewPosition,
 } from '../../types/anki';
 import type { ModalStateReader, RendererContext } from '../context';
 import { createModalFocusGuard } from './modal-focus-guard';
@@ -20,8 +21,8 @@ const LINE_REVEAL_MARGIN_SECONDS = 1;
 const SPEECH_LEVEL_THRESHOLD = 0.3;
 const SPEECH_TAIL_SECONDS = 0.15;
 const MINIMUM_TRAILING_TRIM_SECONDS = 0.1;
-/** Slack past the clip length before the UI gives up waiting for mpv's end-of-clip signal. */
-const PREVIEW_END_GRACE_MS = 2_500;
+/** Allow buffering and output-device delays without cutting off an advancing preview. */
+const PREVIEW_STALL_TIMEOUT_MS = 15_000;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -303,30 +304,49 @@ export function createMediaTimingReviewModal(
     previewTimer = null;
   }
 
-  /**
-   * Drives the play button label plus the playhead sweep that mirrors the hidden audio player.
-   * mpv reports when the clip actually finishes (see handlePreviewEnded), which accounts for
-   * output latency such as Bluetooth headphones; the timer only covers a player that never does.
-   */
-  function setPreviewPlaying(playing: boolean): void {
+  function armPreviewTimeout(): void {
+    clearPreviewTimer();
+    previewTimer = setTimeout(() => {
+      stopPreview();
+      setStatus('Audio preview stopped responding. Try playing the selection again.', true);
+    }, PREVIEW_STALL_TIMEOUT_MS);
+  }
+
+  /** Playback position comes from mpv, so stalls and output latency cannot outrun the cursor. */
+  function setPreviewPlaying(playing: boolean, finished = false): void {
     previewPlaying = playing;
     ctx.dom.mediaTimingReviewPlayLabel.textContent = playing ? 'Stop preview' : 'Play selection';
     ctx.dom.mediaTimingReviewPlay.classList.toggle('is-playing', playing);
     clearPreviewTimer();
     const track = ctx.dom.mediaTimingReviewSelectionTrack;
-    track.classList.remove('is-previewing');
+    track.classList.toggle('is-previewing', playing || finished);
+    if (finished) track.style.setProperty('--playhead-position', 'var(--selection-end)');
     if (!playing) return;
-    const clipSeconds = Math.max(MINIMUM_CLIP_SECONDS, selectionEnd - selectionStart);
-    track.style.setProperty('--playhead-duration', `${clipSeconds}s`);
-    void track.offsetWidth;
-    track.classList.add('is-previewing');
-    previewTimer = setTimeout(() => stopPreview(), clipSeconds * 1000 + PREVIEW_END_GRACE_MS);
+    track.style.setProperty('--playhead-position', 'var(--selection-start)');
+    armPreviewTimeout();
+  }
+
+  function handlePreviewPosition(position: MediaTimingReviewPreviewPosition): void {
+    if (
+      !payload ||
+      payload.reviewId !== position.reviewId ||
+      !previewPlaying ||
+      !Number.isFinite(position.time)
+    )
+      return;
+    const time = clamp(position.time, selectionStart, selectionEnd);
+    const span = Math.max(MINIMUM_CLIP_SECONDS, timelineEnd - timelineStart);
+    ctx.dom.mediaTimingReviewSelectionTrack.style.setProperty(
+      '--playhead-position',
+      `${clamp(((time - timelineStart) / span) * 100, 0, 100)}%`,
+    );
+    armPreviewTimeout();
   }
 
   /** The hidden player reached the end of the clip and paused itself. */
   function handlePreviewEnded(reviewId: string): void {
     if (!payload || payload.reviewId !== reviewId || !previewPlaying) return;
-    setPreviewPlaying(false);
+    setPreviewPlaying(false, true);
     setStatus('');
   }
 
@@ -449,8 +469,8 @@ export function createMediaTimingReviewModal(
   }
 
   /**
-   * Moves an untouched clip end back to where the line's dialogue ends. The Line end
-   * rail keeps marking the subtitle timing, and Reset restores it.
+   * Moves an untouched clip end back to where the line's dialogue ends. The orange
+   * end bar keeps marking the subtitle timing, and Reset restores it.
    */
   function trimTrailingSilence(peaks: readonly number[]): void {
     if (!payload || !trailingTrimPending || previewPlaying || previewRequest.isInFlight()) {
@@ -1026,6 +1046,7 @@ export function createMediaTimingReviewModal(
   return {
     openMediaTimingReviewModal,
     handlePreviewEnded,
+    handlePreviewPosition,
     requestCancel,
     handleMediaTimingReviewKeydown,
     wireDomEvents,

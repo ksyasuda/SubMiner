@@ -16,20 +16,9 @@ function createContext(): LauncherCommandContext {
       recursive: false,
       profile: '',
       startOverlay: false,
-      youtubeMode: 'download',
-      whisperBin: '',
-      whisperModel: '',
-      whisperVadModel: '',
-      whisperThreads: 0,
-      youtubeSubgenOutDir: '',
-      youtubeSubgenAudioFormat: '',
-      youtubeSubgenKeepTemp: false,
-      youtubeFixWithAi: false,
       youtubePrimarySubLangs: [],
       youtubeSecondarySubLangs: [],
       youtubeAudioLangs: [],
-      youtubeWhisperSourceLanguage: '',
-      aiConfig: {},
       useTexthooker: false,
       autoStartOverlay: false,
       texthookerOnly: false,
@@ -63,6 +52,7 @@ function createContext(): LauncherCommandContext {
       logsExport: false,
       version: false,
       settings: false,
+      youtubeBrowser: false,
       configPath: false,
       configShow: false,
       mpvIdle: false,
@@ -162,7 +152,7 @@ test('youtube playback launches overlay with app-owned youtube flow args', async
 
   assert.deepEqual(calls, [
     'startMpv',
-    'startOverlay:--youtube-play https://www.youtube.com/watch?v=65Ovd7t8sNw --youtube-mode download',
+    'startOverlay:--youtube-play https://www.youtube.com/watch?v=65Ovd7t8sNw',
   ]);
   assert.equal(receivedStartMpvOptions[0]?.startPaused, true);
   assert.equal(receivedStartMpvOptions[0]?.disableYoutubeSubtitleAutoLoad, true);

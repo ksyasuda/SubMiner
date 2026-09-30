@@ -82,6 +82,11 @@ export interface MediaTimingReviewPreviewRequest {
   endTime: number;
 }
 
+export interface MediaTimingReviewPreviewPosition {
+  reviewId: string;
+  time: number;
+}
+
 export interface MediaTimingReviewWaveformRequest {
   reviewId: string;
   startTime: number;

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { ChildProcess } from 'node:child_process';
 import net from 'node:net';
 import { describe, test } from 'node:test';
 import { buildMediaTimingPreviewArgs, MediaTimingPreviewSession } from './media-timing-preview';
@@ -217,6 +218,15 @@ function createFakeSocket() {
   socket.destroyed = false;
   socket.write = (data) => {
     writes.push(data);
+    const message = JSON.parse(data);
+    if (message.request_id !== undefined) {
+      queueMicrotask(() =>
+        socket.emit(
+          'data',
+          `${JSON.stringify({ request_id: message.request_id, error: 'success' })}\n`,
+        ),
+      );
+    }
     return true;
   };
   socket.end = () => undefined;
@@ -224,6 +234,85 @@ function createFakeSocket() {
     socket.destroyed = true;
   };
   return { socket, writes };
+}
+
+test('preview waits for loaded media before seeking and reports the actual playback position', async () => {
+  const { socket, writes } = createFakeSocket();
+  const child = new ChildProcess();
+  child.kill = () => true;
+  const positions: number[] = [];
+  const session = new MediaTimingPreviewSession({
+    spawnProcess: () => child,
+    connectSocket: () => {
+      queueMicrotask(() => socket.emit('connect'));
+      return socket as never;
+    },
+    removeSocketFile: () => undefined,
+    createSocketPath: () => '/tmp/review.sock',
+  });
+  const position = (data: number) =>
+    socket.emit(
+      'data',
+      `${JSON.stringify({ event: 'property-change', name: 'time-pos', data })}\n`,
+    );
+  try {
+    await session.start({
+      mediaPath: '/video/show.mkv',
+      onPlaybackPosition: (time) => positions.push(time),
+    });
+    const playing = session.play(36, 42);
+    await Promise.resolve();
+    assert.equal(
+      writes.some((line) => JSON.parse(line).command[0] === 'seek'),
+      false,
+    );
+    position(0);
+    await playing;
+    position(36);
+    position(39);
+    // No advancing position means no fabricated progress, even while audio is stalled.
+    assert.deepEqual(positions, [36, 39]);
+    position(41.9);
+    assert.deepEqual(positions, [36, 39, 41.9]);
+    await session.stop();
+    position(42);
+    assert.deepEqual(positions, [36, 39, 41.9]);
+  } finally {
+    session.dispose();
+  }
+});
+
+for (const action of ['stop', 'dispose'] as const) {
+  test(`${action} cancels a preview still waiting for media to load`, async () => {
+    const { socket, writes } = createFakeSocket();
+    const child = new ChildProcess();
+    child.kill = () => true;
+    const session = new MediaTimingPreviewSession({
+      spawnProcess: () => child,
+      connectSocket: () => {
+        queueMicrotask(() => socket.emit('connect'));
+        return socket as never;
+      },
+      removeSocketFile: () => undefined,
+      createSocketPath: () => '/tmp/review.sock',
+    });
+    try {
+      await session.start({ mediaPath: '/video/show.mkv' });
+      const pending = assert.rejects(session.play(36, 42), /closed|cancelled/);
+      await session[action]();
+      await pending;
+      socket.emit(
+        'data',
+        `${JSON.stringify({ event: 'property-change', name: 'time-pos', data: 0 })}\n`,
+      );
+      assert.equal(
+        writes.some((line) => JSON.parse(line).command[0] === 'seek'),
+        false,
+      );
+    } finally {
+      session.dispose();
+    }
+  });
 }
 
 test('preview session plays once to the clip end and reports when mpv has drained it', async () => {
@@ -253,11 +342,16 @@ test('preview session plays once to the clip end and reports when mpv has draine
     [
       ['observe_property', 1, 'eof-reached'],
       ['observe_property', 2, 'pause'],
+      ['observe_property', 3, 'time-pos'],
     ],
   );
   // The observers' initial replies describe the idle paused player, not a finished preview.
   socket.emit('data', property('eof-reached', false) + property('pause', true));
   assert.equal(endedCount, 0);
+  socket.emit(
+    'data',
+    `${JSON.stringify({ event: 'property-change', name: 'time-pos', data: 0 })}\n`,
+  );
 
   writes.length = 0;
   await session.play(12.25, 14.5);
@@ -265,8 +359,8 @@ test('preview session plays once to the clip end and reports when mpv has draine
     writes.map((line) => JSON.parse(line).command),
     [
       ['set_property', 'pause', true],
-      ['seek', 12.25, 'absolute+exact'],
       ['set_property', 'end', '14.500'],
+      ['seek', 12.25, 'absolute+exact'],
       ['set_property', 'pause', false],
     ],
   );

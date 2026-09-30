@@ -1733,7 +1733,6 @@ test('youtube flow injects downloaded primary even when reusable manual youtube 
 
   await runtime.runYoutubePlaybackFlow({
     url: 'https://example.com/watch?v=video123',
-    mode: 'download',
   });
 
   assert.equal(selectedPrimarySid, 9);
@@ -1884,9 +1883,145 @@ test('youtube flow falls back to existing auto secondary track when auto seconda
 
   await runtime.runYoutubePlaybackFlow({
     url: 'https://example.com/watch?v=video123',
-    mode: 'download',
   });
 
   assert.equal(selectedPrimarySid, 4);
   assert.equal(selectedSecondarySid, 1);
+});
+
+function createWhisperFlowHarness(
+  generateWhisperSubtitles: (input: {
+    url: string;
+    outputPath: string;
+    signal: AbortSignal;
+  }) => Promise<string | null>,
+) {
+  const events: string[] = [];
+  const failures: string[] = [];
+  let addedSubtitlePath: string | null = null;
+  const runtime = createYoutubeFlowRuntime({
+    probeYoutubeTracks: async () => {
+      throw new Error('Whisper mode must not probe YouTube captions');
+    },
+    acquireYoutubeSubtitleTracks: async () => {
+      throw new Error('Whisper mode must not download YouTube captions');
+    },
+    acquireYoutubeSubtitleTrack: async () => {
+      throw new Error('Whisper mode must not download YouTube captions');
+    },
+    openPicker: async () => false,
+    pauseMpv: () => events.push('pause'),
+    resumeMpv: () => events.push('resume'),
+    sendMpvCommand: (command) => {
+      if (command[0] === 'sub-add') {
+        addedSubtitlePath = String(command[1]);
+        events.push('sub-add');
+      }
+      if (command[0] === 'script-message') events.push(String(command[1]));
+    },
+    requestMpvProperty: async (name) => {
+      if (name === 'track-list') {
+        return addedSubtitlePath
+          ? [{ type: 'sub', id: 3, external: true, 'external-filename': addedSubtitlePath }]
+          : [];
+      }
+      if (name === 'sid') return addedSubtitlePath ? 3 : null;
+      return null;
+    },
+    refreshCurrentSubtitle: () => {},
+    startTokenizationWarmups: async () => {},
+    waitForTokenizationReady: async () => {},
+    waitForAnkiReady: async () => {},
+    wait: async () => {},
+    waitForPlaybackWindowReady: async () => {},
+    waitForOverlayGeometryReady: async () => {},
+    focusOverlayWindow: () => {},
+    showMpvOsd: () => {},
+    reportSubtitleFailure: (message) => failures.push(message),
+    warn: () => {},
+    log: () => {},
+    getYoutubeOutputDir: () => '/tmp',
+    getSubtitleSource: () => 'whisper',
+    generateWhisperSubtitles: (input) => {
+      events.push('generate');
+      return generateWhisperSubtitles(input);
+    },
+    openSubtitleGenerationModal: async () => {
+      events.push('open-modal');
+      return true;
+    },
+  });
+  return {
+    runtime,
+    failures,
+    // The modal opens once the player window is ready, so its position in the order varies.
+    events: () => events.filter((event) => event !== 'open-modal'),
+    openedModal: () => events.includes('open-modal'),
+    getAddedSubtitlePath: () => addedSubtitlePath,
+  };
+}
+
+const WHISPER_URL = 'https://www.youtube.com/watch?v=abcdefghijk';
+
+test('whisper subtitle source keeps the video paused until the generated subtitles load', async () => {
+  const harness = createWhisperFlowHarness(async (input) => input.outputPath);
+
+  await harness.runtime.runYoutubePlaybackFlow({ url: WHISPER_URL });
+
+  assert.deepEqual(harness.events(), [
+    'pause',
+    'subminer-autoplay-hold',
+    'generate',
+    'sub-add',
+    'subminer-autoplay-ready',
+    'resume',
+  ]);
+  assert.equal(harness.openedModal(), true);
+  assert.equal(path.basename(harness.getAddedSubtitlePath() ?? ''), 'youtube-whisper.ja.srt');
+  assert.deepEqual(harness.failures, []);
+});
+
+test('cancelling whisper generation resumes playback without subtitles or an error', async () => {
+  const harness = createWhisperFlowHarness(async () => null);
+
+  await harness.runtime.runYoutubePlaybackFlow({ url: WHISPER_URL });
+
+  assert.equal(harness.getAddedSubtitlePath(), null);
+  assert.deepEqual(harness.failures, []);
+  assert.equal(harness.events().at(-1), 'resume');
+});
+
+test('whisper generation stops quietly and leaves playback alone when the video changes', async () => {
+  let signal: AbortSignal | null = null;
+  const harness = createWhisperFlowHarness(
+    (input) =>
+      new Promise((_, reject) => {
+        signal = input.signal;
+        input.signal.addEventListener('abort', () => reject(new Error('cancelled')));
+      }),
+  );
+
+  const flow = harness.runtime.runYoutubePlaybackFlow({ url: WHISPER_URL });
+  while (!signal) await new Promise((resolve) => setImmediate(resolve));
+  harness.runtime.handleMediaPathChange(WHISPER_URL);
+  assert.equal((signal as AbortSignal).aborted, false);
+  harness.runtime.handleMediaPathChange('https://www.youtube.com/watch?v=zyxwvutsrqp');
+  await flow;
+
+  assert.equal((signal as AbortSignal).aborted, true);
+  assert.equal(harness.getAddedSubtitlePath(), null);
+  assert.deepEqual(harness.failures, []);
+  assert.equal(harness.events().includes('resume'), false);
+});
+
+test('whisper generation failures are reported and playback resumes', async () => {
+  const harness = createWhisperFlowHarness(async () => {
+    throw new Error('No Whisper model found.');
+  });
+
+  await harness.runtime.runYoutubePlaybackFlow({ url: WHISPER_URL });
+
+  assert.deepEqual(harness.failures, ['Whisper subtitles failed: No Whisper model found.']);
+  assert.equal(harness.getAddedSubtitlePath(), null);
+  assert.equal(harness.events().at(-1), 'resume');
 });

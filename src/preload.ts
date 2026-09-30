@@ -71,6 +71,7 @@ import type {
   ChangelogSnapshot,
   MediaTimingReviewActionResult,
   MediaTimingReviewOpenPayload,
+  MediaTimingReviewPreviewPosition,
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewResolveRequest,
   MediaTimingReviewFrameRequest,
@@ -511,6 +512,26 @@ const electronAPI: ElectronAPI = {
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
   onOpenMediaTimingReview: onOpenMediaTimingReviewEvent,
   onMediaTimingReviewPreviewEnded: onMediaTimingReviewPreviewEndedEvent,
+  onMediaTimingReviewPreviewPosition: (
+    callback: (position: MediaTimingReviewPreviewPosition) => void,
+  ): void => {
+    ipcRenderer.on(
+      IPC_CHANNELS.event.mediaTimingReviewPreviewPosition,
+      (_event, payload: unknown) => {
+        if (
+          typeof payload !== 'object' ||
+          payload === null ||
+          !('reviewId' in payload) ||
+          typeof payload.reviewId !== 'string' ||
+          !('time' in payload) ||
+          typeof payload.time !== 'number' ||
+          !Number.isFinite(payload.time)
+        )
+          return;
+        callback({ reviewId: payload.reviewId, time: payload.time });
+      },
+    );
+  },
   previewMediaTimingReview: (
     request: MediaTimingReviewPreviewRequest,
   ): Promise<MediaTimingReviewActionResult> =>

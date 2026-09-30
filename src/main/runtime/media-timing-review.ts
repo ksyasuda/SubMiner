@@ -5,6 +5,7 @@ import type {
   MediaTimingReviewDecision,
   MediaTimingReviewOpenPayload,
   MediaTimingReviewPreviewRequest,
+  MediaTimingReviewPreviewPosition,
   MediaTimingReviewRequest,
   MediaTimingReviewResolveRequest,
   MediaTimingReviewFrameRequest,
@@ -13,6 +14,7 @@ import type {
   MediaTimingReviewWaveformResult,
 } from '../../types/anki';
 import type { SpeechWaveformOptions } from '../../core/services/media-timing-waveform';
+import type { MediaTimingPreviewStartOptions } from '../../core/services/media-timing-preview';
 import type { MediaTimingFrameOptions } from '../../core/services/media-timing-frame';
 import {
   isRemoteMediaWindowSourcePath,
@@ -36,13 +38,7 @@ interface ReviewMpvClient {
 }
 
 interface PreviewSession {
-  start(options: {
-    mediaPath: string;
-    executablePath?: string;
-    audioTrackId?: number;
-    volume?: number;
-    absoluteTimestamps?: boolean;
-  }): Promise<void>;
+  start(options: MediaTimingPreviewStartOptions): Promise<void>;
   play(startTime: number, endTime: number): Promise<void>;
   stop(): Promise<void>;
   /** Fires when the player reaches the end of the clip started by play(). */
@@ -113,6 +109,7 @@ export interface MediaTimingReviewRuntimeDeps {
   openModal: (payload: MediaTimingReviewOpenPayload, signal: AbortSignal) => Promise<boolean>;
   /** Tells the modal that the hidden player finished the previewed clip. */
   onPreviewEnded?: (reviewId: string) => void;
+  onPreviewPosition?: (position: MediaTimingReviewPreviewPosition) => void;
   showStatus: (message: string) => void;
 }
 
@@ -354,6 +351,11 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       }
       await session.start({
         mediaPath,
+        onPlaybackPosition: (time) => {
+          if (active === review && review.preview?.session === started) {
+            deps.onPreviewPosition?.({ reviewId: review.payload.reviewId, time });
+          }
+        },
         ...previewOptions,
         // A cached window keeps one audio stream, so mpv's track id from the source no longer applies.
         ...(window

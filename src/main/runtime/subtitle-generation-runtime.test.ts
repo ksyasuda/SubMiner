@@ -313,3 +313,133 @@ test('speech model downloads share the job lock and cancellation', async () => {
   runtime.cancel();
   assert.deepEqual(await download, { ok: false, message: 'Cancelled.' });
 });
+
+test('a YouTube Whisper job shows in the modal status and returns its subtitle file', async () => {
+  const { runtime } = fixture();
+  let release = () => {};
+  const job = runtime.generateYoutubeSubtitles({
+    url: 'https://www.youtube.com/watch?v=abcdefghijk',
+    signal: new AbortController().signal,
+    generate: async (_signal, onProgress) => {
+      onProgress({ stage: 'transcribe', percent: 40, message: 'Generating Japanese subtitles...' });
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return '/tmp/subs/youtube-whisper.ja.srt';
+    },
+  });
+
+  const active = await runtime.getStatus();
+  assert.equal(active.running, true);
+  assert.equal(active.mediaPath, 'https://www.youtube.com/watch?v=abcdefghijk');
+  assert.equal(active.progress?.percent, 40);
+  assert.equal((await runtime.start()).ok, false);
+
+  release();
+  assert.equal(await job, '/tmp/subs/youtube-whisper.ja.srt');
+  const done = await runtime.getStatus();
+  assert.equal(done.running, false);
+  assert.equal(done.mediaPath, '/video/episode.mkv');
+});
+
+test('cancelling a YouTube Whisper job resolves to null, and failures throw', async () => {
+  const { runtime } = fixture();
+  const cancelled = runtime.generateYoutubeSubtitles({
+    url: 'https://www.youtube.com/watch?v=abcdefghijk',
+    signal: new AbortController().signal,
+    generate: (signal) =>
+      new Promise((_, reject) =>
+        signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true }),
+      ),
+  });
+  runtime.cancel();
+  assert.equal(await cancelled, null);
+  assert.deepEqual((await runtime.getStatus()).lastResult, { ok: false, message: 'Cancelled.' });
+
+  await assert.rejects(
+    runtime.generateYoutubeSubtitles({
+      url: 'https://www.youtube.com/watch?v=abcdefghijk',
+      signal: new AbortController().signal,
+      generate: async () => {
+        throw new Error('No Whisper model found.');
+      },
+    }),
+    /No Whisper model found/,
+  );
+});
+
+function youtubeFixture(generateYoutube: SubtitleGenerationRuntimeDeps['generateYoutube']) {
+  const player = {
+    path: 'https://www.youtube.com/watch?v=abcdefghijk&pp=search',
+    paused: false,
+  };
+  const commands: unknown[][] = [];
+  const client = {
+    connected: true,
+    requestProperty: async (name: string): Promise<unknown> =>
+      name === 'path' ? player.path : name === 'pause' ? player.paused : null,
+    request: async (command: unknown[]) => {
+      commands.push(command);
+      if (command[0] === 'set_property' && command[1] === 'pause')
+        player.paused = command[2] === true;
+      return { error: 'success' };
+    },
+  };
+  const { runtime } = fixture({ getMpvClient: () => client, generateYoutube });
+  return { runtime, player, commands };
+}
+
+test('the modal generates for a playing YouTube video, pausing it until the subtitles load', async () => {
+  let pausedDuringGeneration = false;
+  let usedModel = '';
+  const { runtime, player, commands } = youtubeFixture(async (input) => {
+    pausedDuringGeneration = player.paused;
+    usedModel = input.config.managedModel;
+    assert.equal(input.url, 'https://www.youtube.com/watch?v=abcdefghijk');
+    return '/tmp/subs/youtube-whisper.ja.srt';
+  });
+
+  assert.equal(
+    (await runtime.getStatus()).mediaPath,
+    'https://www.youtube.com/watch?v=abcdefghijk',
+  );
+  await runtime.selectModel('medium');
+  const result = await runtime.start();
+
+  assert.deepEqual(result, {
+    ok: true,
+    outputPath: '/tmp/subs/youtube-whisper.ja.srt',
+    message: 'Japanese subtitles generated and loaded.',
+  });
+  assert.equal(pausedDuringGeneration, true);
+  assert.equal(usedModel, 'medium');
+  assert.deepEqual(
+    commands.find((command) => command[0] === 'sub-add'),
+    ['sub-add', '/tmp/subs/youtube-whisper.ja.srt', 'select', 'Generated Japanese', 'ja'],
+  );
+  assert.equal(player.paused, false);
+});
+
+test('switching videos cancels a YouTube job from the modal without loading its subtitles', async () => {
+  let jobSignal: AbortSignal | null = null;
+  const { runtime, player, commands } = youtubeFixture(
+    (input) =>
+      new Promise((_, reject) => {
+        jobSignal = input.signal;
+        input.signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
+      }),
+  );
+
+  const job = runtime.start();
+  while (!jobSignal) await new Promise((resolve) => setImmediate(resolve));
+  runtime.handleMediaPathChange('https://www.youtube.com/watch?v=abcdefghijk');
+  assert.equal((jobSignal as AbortSignal).aborted, false);
+  player.path = 'https://www.youtube.com/watch?v=zyxwvutsrqp';
+  runtime.handleMediaPathChange(player.path);
+
+  assert.deepEqual(await job, { ok: false, message: 'Cancelled.' });
+  assert.equal(
+    commands.some((command) => command[0] === 'sub-add'),
+    false,
+  );
+});

@@ -1,4 +1,7 @@
-import type { CliArgs, CliCommandSource } from '../../cli/args';
+import type { CliCommandSource } from '../../cli/args';
+
+/** Where a playback flow request came from; only `initial` arms quit-on-disconnect. */
+export type YoutubePlaybackFlowSource = CliCommandSource | 'youtube-browser';
 
 type LaunchResult = {
   ok: boolean;
@@ -21,10 +24,7 @@ export type YoutubePlaybackRuntimeDeps = {
   waitForYoutubeMpvConnected: (timeoutMs: number) => Promise<boolean>;
   prepareYoutubePlaybackInMpv: (request: { url: string }) => Promise<boolean>;
   startYoutubeMediaCache?: (url: string) => void | Promise<void>;
-  runYoutubePlaybackFlow: (request: {
-    url: string;
-    mode: NonNullable<CliArgs['youtubeMode']>;
-  }) => Promise<void>;
+  runYoutubePlaybackFlow: (request: { url: string }) => Promise<void>;
   logInfo: (message: string) => void;
   logWarn: (message: string) => void;
   schedule: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
@@ -45,8 +45,7 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
 
   const runYoutubePlaybackFlow = async (request: {
     url: string;
-    mode: NonNullable<CliArgs['youtubeMode']>;
-    source: CliCommandSource;
+    source: YoutubePlaybackFlowSource;
   }): Promise<void> => {
     const flowGeneration = ++playbackFlowGeneration;
     deps.invalidatePendingAutoplayReadyFallbacks();
@@ -139,10 +138,7 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
         });
       }
 
-      await deps.runYoutubePlaybackFlow({
-        url: request.url,
-        mode: request.mode,
-      });
+      await deps.runYoutubePlaybackFlow({ url: request.url });
       flowCompleted = true;
       deps.logInfo(`YouTube playback flow completed from ${request.source}.`);
     } finally {

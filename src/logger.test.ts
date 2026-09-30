@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { resolveDefaultLogFilePath, setLogRotation } from './logger';
+import { EventEmitter } from 'node:events';
+import { ignoreClosedPipeErrors, resolveDefaultLogFilePath, setLogRotation } from './logger';
 import { localDateKey } from './shared/log-files';
 
 test('resolveDefaultLogFilePath uses APPDATA on windows', () => {
@@ -55,4 +56,13 @@ test('setLogRotation accepts numeric retention days', () => {
       process.env.SUBMINER_LOG_ROTATION = previous;
     }
   }
+});
+
+test('ignoreClosedPipeErrors swallows broken-pipe errors but rethrows others', () => {
+  const stream = new EventEmitter();
+  ignoreClosedPipeErrors(stream);
+  const closedPipe = Object.assign(new Error('write EPIPE'), { code: 'EPIPE' });
+  assert.doesNotThrow(() => stream.emit('error', closedPipe));
+  const other = Object.assign(new Error('boom'), { code: 'EACCES' });
+  assert.throws(() => stream.emit('error', other), /boom/);
 });

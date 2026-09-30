@@ -183,7 +183,9 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     description: [
       'Defaults for managed subtitle language preferences and YouTube subtitle loading.',
     ],
-    notes: ['Hot-reload: primarySubLanguages applies to the next YouTube subtitle load.'],
+    notes: [
+      'Hot-reload: primarySubLanguages and subtitleSource apply to the next YouTube subtitle load.',
+    ],
     key: 'youtube',
   },
   {

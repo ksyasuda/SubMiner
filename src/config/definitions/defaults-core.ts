@@ -115,6 +115,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   },
   youtube: {
     primarySubLanguages: ['ja', 'jpn'],
+    subtitleSource: 'youtube',
     mediaCache: {
       mode: 'direct',
       maxHeight: 720,

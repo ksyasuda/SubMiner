@@ -68,6 +68,7 @@ Language preferences live under `youtube` and `secondarySub` in the config. See 
 ```bash
 subminer stats                     # start the immersion stats dashboard
 subminer settings                  # open the settings window
+subminer yt                        # browse YouTube; picked videos play in mpv
 subminer doctor                    # check dependencies, config, and the mpv socket
 subminer generate-subs video.mkv   # make Japanese subtitles from the audio
 subminer logs -e                   # export a log ZIP for bug reports

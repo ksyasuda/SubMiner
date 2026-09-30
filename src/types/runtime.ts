@@ -6,6 +6,7 @@ import type {
   KikuMergePreviewResponse,
   MediaTimingReviewActionResult,
   MediaTimingReviewOpenPayload,
+  MediaTimingReviewPreviewPosition,
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewResolveRequest,
   MediaTimingReviewFrameRequest,
@@ -556,6 +557,9 @@ export interface ElectronAPI {
   onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
   onOpenMediaTimingReview: (callback: (payload: MediaTimingReviewOpenPayload) => void) => void;
   onMediaTimingReviewPreviewEnded: (callback: (reviewId: string) => void) => void;
+  onMediaTimingReviewPreviewPosition: (
+    callback: (position: MediaTimingReviewPreviewPosition) => void,
+  ) => void;
   previewMediaTimingReview: (
     request: MediaTimingReviewPreviewRequest,
   ) => Promise<MediaTimingReviewActionResult>;

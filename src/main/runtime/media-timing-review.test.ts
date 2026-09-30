@@ -410,14 +410,17 @@ test('media timing review downloads one window of a remote stream for the wavefo
       endTime: 14.5,
     },
   ]);
-  assert.deepEqual(previewStarts, [
-    {
-      mediaPath: '/tmp/window-7.5-14.5.mkv',
-      executablePath: 'mpv',
-      volume: 60,
-      absoluteTimestamps: true,
-    },
-  ]);
+  assert.deepEqual(
+    previewStarts.map(({ onPlaybackPosition, ...options }) => options),
+    [
+      {
+        mediaPath: '/tmp/window-7.5-14.5.mkv',
+        executablePath: 'mpv',
+        volume: 60,
+        absoluteTimestamps: true,
+      },
+    ],
+  );
   assert.deepEqual(previewPlays, [['/tmp/window-7.5-14.5.mkv', 9.5, 12.5]]);
   assert.deepEqual(disposed, ['/tmp/window-7.5-14.5.mkv']);
 });
@@ -512,9 +515,10 @@ test('media timing review falls back to the remote stream after one failed windo
       audioStreamIndex: 2,
     },
   ]);
-  assert.deepEqual(previewStarts, [
-    { mediaPath: REMOTE_STREAM_URL, executablePath: 'mpv', volume: 60, audioTrackId: 3 },
-  ]);
+  assert.deepEqual(
+    previewStarts.map(({ onPlaybackPosition, ...options }) => options),
+    [{ mediaPath: REMOTE_STREAM_URL, executablePath: 'mpv', volume: 60, audioTrackId: 3 }],
+  );
   assert.deepEqual(previewPlays, [[REMOTE_STREAM_URL, 9.5, 12.5]]);
 });
 
@@ -981,7 +985,8 @@ test('disposing owns a preview session whose startup is still pending', async ()
 
 test('media timing review forwards the hidden player finishing a preview to the modal', async () => {
   const endedReviewIds: string[] = [];
-  const playback: { ended?: () => void } = {};
+  const positions: Array<{ reviewId: string; time: number }> = [];
+  const playback: { ended?: () => void; position?: (time: number) => void } = {};
   let publishPayload!: (payload: MediaTimingReviewOpenPayload) => void;
   const openedPayload = new Promise<MediaTimingReviewOpenPayload>((resolve) => {
     publishPayload = resolve;
@@ -997,7 +1002,9 @@ test('media timing review forwards the hidden player finishing a preview to the 
     getMpvExecutablePath: () => 'mpv',
     generateWaveform: async () => [],
     createPreviewSession: () => ({
-      start: async () => undefined,
+      start: async (options) => {
+        playback.position = options.onPlaybackPosition;
+      },
       play: async () => undefined,
       stop: async () => undefined,
       onPlaybackEnded: (listener) => {
@@ -1012,6 +1019,7 @@ test('media timing review forwards the hidden player finishing a preview to the 
     onPreviewEnded: (reviewId) => {
       endedReviewIds.push(reviewId);
     },
+    onPreviewPosition: (position) => positions.push(position),
     showStatus: () => undefined,
   });
   const pendingDecision = runtime.requestReview({
@@ -1031,6 +1039,9 @@ test('media timing review forwards the hidden player finishing a preview to the 
     },
   );
   assert.ok(playback.ended);
+  assert.ok(playback.position);
+  playback.position(11);
+  assert.deepEqual(positions, [{ reviewId: payload.reviewId, time: 11 }]);
   playback.ended();
   assert.deepEqual(endedReviewIds, [payload.reviewId]);
 
@@ -1038,6 +1049,8 @@ test('media timing review forwards the hidden player finishing a preview to the 
   await pendingDecision;
   playback.ended();
   assert.deepEqual(endedReviewIds, [payload.reviewId]);
+  playback.position(12);
+  assert.deepEqual(positions, [{ reviewId: payload.reviewId, time: 11 }]);
 });
 
 test('preview reports a stale review when the review ends during playback', async () => {

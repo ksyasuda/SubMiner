@@ -50,6 +50,7 @@ export const IPC_CHANNELS = {
     toggleStatsOverlay: 'stats:toggle-overlay',
     markActiveVideoWatched: 'immersion:mark-active-video-watched',
     dispatchSessionAction: 'session-action:dispatch',
+    youtubeBrowserOpenVideo: 'youtube-browser:open-video',
   },
   request: {
     getSubtitleSelection: 'subtitle-selection:get',
@@ -166,6 +167,7 @@ export const IPC_CHANNELS = {
     youtubePickerOpen: 'youtube:picker-open',
     mediaTimingReviewOpen: 'media-timing-review:open',
     mediaTimingReviewPreviewEnded: 'media-timing-review:preview-ended',
+    mediaTimingReviewPreviewPosition: 'media-timing-review:preview-position',
     youtubePickerCancel: 'youtube:picker-cancel',
     playlistBrowserOpen: 'playlist-browser:open',
     sessionNumericSelectionStart: 'session:numeric-selection-start',
@@ -184,6 +186,7 @@ export const IPC_CHANNELS = {
     notificationHistoryToggle: 'notification-history:toggle',
     syncUiProgress: 'sync-ui:progress',
     syncUiStateChanged: 'sync-ui:state-changed',
+    youtubeBrowserToast: 'youtube-browser:toast',
   },
 } as const;
 
