@@ -1,5 +1,3 @@
-import { isSupportedWaylandCompositor } from '../../shared/mpv-x11-backend';
-
 type LinuxMpvFullscreenOverlayWindow = {
   hide: () => void;
   isDestroyed: () => boolean;
@@ -54,9 +52,9 @@ function refreshLinuxVisibleOverlayAfterMpvFullscreenChange(
     return;
   }
 
-  // Native compositor placement can restack in place. Remapping the overlay can
+  // Hyprland placement can restack in place. Remapping the overlay can
   // take focus from mpv and make Hyprland cancel the fullscreen transition.
-  if (!isSupportedWaylandCompositor()) {
+  if (!process.env.HYPRLAND_INSTANCE_SIGNATURE) {
     mainWindow.hide();
     mainWindow.showInactive();
   }

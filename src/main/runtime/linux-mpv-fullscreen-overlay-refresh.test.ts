@@ -23,8 +23,17 @@ afterEach(() => {
   }
 });
 
-for (const compositorKey of ['HYPRLAND_INSTANCE_SIGNATURE', 'SWAYSOCK'] as const) {
-  test(`${compositorKey} fullscreen refresh keeps the overlay mapped while restacking`, async () => {
+for (const { compositorKey, expectedRefreshCalls } of [
+  {
+    compositorKey: 'HYPRLAND_INSTANCE_SIGNATURE',
+    expectedRefreshCalls: ['mode', 'visibility', 'mouse', 'restack'],
+  },
+  {
+    compositorKey: 'SWAYSOCK',
+    expectedRefreshCalls: ['mode', 'visibility', 'hide', 'showInactive', 'mouse', 'restack'],
+  },
+]) {
+  test(`${compositorKey} fullscreen refresh uses compositor-specific restacking`, async () => {
     const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
     Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' });
     process.env[compositorKey] = 'fullscreen-refresh-test';
@@ -48,14 +57,7 @@ for (const compositorKey of ['HYPRLAND_INSTANCE_SIGNATURE', 'SWAYSOCK'] as const
         ensureOverlayWindowLevel: () => calls.push('restack'),
       });
       await new Promise((resolve) => setTimeout(resolve, 700));
-      assert.equal(calls.filter((call) => call === 'restack').length, 5);
-      assert.deepEqual(calls.slice(0, 4), ['mode', 'visibility', 'mouse', 'restack']);
-      assert.equal(
-        calls.includes('hide'),
-        false,
-        'remapping can steal focus and cancel fullscreen',
-      );
-      assert.equal(calls.includes('showInactive'), false);
+      assert.deepEqual(calls, Array.from({ length: 5 }, () => expectedRefreshCalls).flat());
     } finally {
       clearLinuxMpvFullscreenOverlayRefreshTimeouts();
       if (originalPlatformDescriptor) {
