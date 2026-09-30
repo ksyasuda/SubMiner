@@ -143,11 +143,13 @@ function withFakeDom(
   };
 }
 
-type HarnessOptions = { failActions?: boolean };
+type HarnessOptions = { failActions?: boolean; bindings?: CompiledSessionBinding[] };
 
 function createHarness(options: HarnessOptions) {
   const mpvCommands: (string | number)[][] = [];
   const sessionActions: string[] = [];
+  /** IPC in send order; main destroys the modal window on `closed`, dropping anything after it. */
+  const ipcLog: string[] = [];
   const define = (key: string, value: unknown) =>
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
 
@@ -163,15 +165,20 @@ function createHarness(options: HarnessOptions) {
     electronAPI: {
       focusMainWindow: async () => {},
       setIgnoreMouseEvents: () => {},
-      notifyOverlayModalClosed: () => {},
-      getSessionBindings: async () => SESSION_BINDINGS,
+      notifyOverlayModalClosed: () => ipcLog.push('closed'),
+      getSessionBindings: async () => options.bindings ?? SESSION_BINDINGS,
       getSubtitleStyle: async () => ({}),
       getMarkWatchedKey: async () => null,
       getSubtitleSidebarSnapshot: async () => ({ config: { toggleKey: null } }),
       getRuntimeOptions: async () => [],
-      sendMpvCommand: (command: (string | number)[]) => mpvCommands.push(command),
+      getPlaybackPaused: async () => true,
+      sendMpvCommand: (command: (string | number)[]) => {
+        mpvCommands.push(command);
+        ipcLog.push(`mpv:${command.join(' ')}`);
+      },
       dispatchSessionAction: async (actionId: string) => {
         sessionActions.push(actionId);
+        ipcLog.push(`action:${actionId}`);
         if (options.failActions) throw new Error('boom');
       },
     },
@@ -239,7 +246,7 @@ function createHarness(options: HarnessOptions) {
   }
 
   const rows = () => dom.sessionHelpContent.querySelectorAll('.session-help-item');
-  return { dom, state, open, pressEnter, rows, mpvCommands, sessionActions };
+  return { dom, state, open, pressEnter, rows, mpvCommands, sessionActions, ipcLog };
 }
 
 test('session help rows carry runnable commands except numeric and self-opening actions', () => {
@@ -294,9 +301,37 @@ test(
 
     harness.pressEnter();
 
-    assert.deepEqual(harness.sessionActions, ['toggleStatsOverlay']);
+    assert.deepEqual(harness.ipcLog, ['action:toggleStatsOverlay', 'closed']);
     assert.equal(harness.state.sessionHelpModalOpen, false);
   }),
+);
+
+test(
+  'session help sends a paused subtitle seek before closing',
+  withFakeDom(
+    async (harness) => {
+      await harness.open(true);
+      // Playback rows live on another tab; a filter searches every tab.
+      harness.dom.sessionHelpFilter.value = 'next subtitle';
+      harness.dom.sessionHelpFilter.dispatch('input', {});
+
+      harness.dom.sessionHelpContent.dispatch('dblclick', { target: harness.rows()[0] });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      assert.deepEqual(harness.ipcLog, ['mpv:sub-seek 1', 'mpv:set_property pause yes', 'closed']);
+    },
+    {
+      bindings: [
+        {
+          sourcePath: 'keybindings[0].key',
+          originalKey: 'Shift+KeyL',
+          key: { code: 'KeyL', modifiers: ['shift'] },
+          actionType: 'mpv-command',
+          command: ['sub-seek', 1],
+        },
+      ],
+    },
+  ),
 );
 
 test(

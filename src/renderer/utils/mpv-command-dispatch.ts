@@ -7,6 +7,7 @@ function isSubtitleSeekCommand(command: MpvCommand): command is [string, number]
 /**
  * Sends a configured mpv command. Subtitle seeks re-pause afterwards unless playback
  * is known to be running, so stepping lines from a paused video stays paused.
+ * Resolves once every command has been sent; it never rejects.
  */
 export function dispatchConfiguredMpvCommand(
   command: MpvCommand,
@@ -14,14 +15,14 @@ export function dispatchConfiguredMpvCommand(
     getPlaybackPaused: () => Promise<boolean | null>;
     sendMpvCommand: (command: MpvCommand) => void;
   },
-): void {
+): Promise<void> {
   if (!isSubtitleSeekCommand(command)) {
     deps.sendMpvCommand(command);
-    return;
+    return Promise.resolve();
   }
 
   // The fallback only covers a failed pause lookup, so a failed re-pause never resends the seek.
-  void deps
+  return deps
     .getPlaybackPaused()
     .then(
       (paused) => {
