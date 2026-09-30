@@ -260,7 +260,7 @@ export function createKeyboardHandlers(
     }
 
     if (binding.actionType === 'mpv-command') {
-      dispatchConfiguredMpvCommand(binding.command, {
+      void dispatchConfiguredMpvCommand(binding.command, {
         getPlaybackPaused: options.getPlaybackPaused,
         sendMpvCommand: (command) => window.electronAPI.sendMpvCommand(command),
       });

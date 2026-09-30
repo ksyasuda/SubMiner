@@ -309,29 +309,30 @@ export function createSessionHelpModal(
   }
 
   /**
-   * Closes help first so a command that opens another modal (or needs mpv focus)
-   * lands after help has released the overlay.
+   * Sends the command before closing help. On Linux and Windows, main destroys the
+   * dedicated modal window once its last modal closes, so IPC sent after the close
+   * is dropped. Main still handles the command first, so a command that opens another
+   * modal keeps the modal window alive.
    */
   function runSelectedCommand(): void {
     if (!commandsEnabled) return;
     const command = visibleRows[ctx.state.sessionHelpSelectedIndex]?.command;
     if (!command) return;
 
-    closeSessionHelpModal();
     if (command.actionType === 'mpv-command') {
-      dispatchConfiguredMpvCommand(command.command, {
+      void dispatchConfiguredMpvCommand(command.command, {
         getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
         sendMpvCommand: (mpvCommand) => window.electronAPI.sendMpvCommand(mpvCommand),
-      });
+      }).finally(closeSessionHelpModal);
       return;
     }
-    // Help is already closed, so surface failures on the mpv OSD.
-    void window.electronAPI
-      .dispatchSessionAction(command.actionId, command.payload)
-      .catch((error: unknown) => {
-        console.error(`Session help could not run ${command.actionId}`, error);
-        window.electronAPI.sendMpvCommand(['show-text', 'Command failed to run', '3000']);
-      });
+    const dispatched = window.electronAPI.dispatchSessionAction(command.actionId, command.payload);
+    closeSessionHelpModal();
+    // Help is closed by the time this settles, so surface failures on the mpv OSD.
+    void dispatched.catch((error: unknown) => {
+      console.error(`Session help could not run ${command.actionId}`, error);
+      window.electronAPI.sendMpvCommand(['show-text', 'Command failed to run', '3000']);
+    });
   }
 
   function getRowIndex(target: EventTarget | null): number | null {
