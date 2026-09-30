@@ -39,6 +39,22 @@ describe('buildMediaTimingPreviewArgs', () => {
     );
   });
 
+  test('keeps macOS previews on coreaudio with packed float output', () => {
+    const options = { mediaPath: '/tmp/window.mkv' };
+
+    assert.ok(
+      buildMediaTimingPreviewArgs('/tmp/review.sock', options, 'darwin').includes(
+        '--audio-format=float',
+      ),
+    );
+    assert.equal(
+      buildMediaTimingPreviewArgs('/tmp/review.sock', options, 'linux').some((arg) =>
+        arg.startsWith('--audio-format='),
+      ),
+      false,
+    );
+  });
+
   test('separates an option-like media path without adding optional audio arguments', () => {
     const args = buildMediaTimingPreviewArgs('/tmp/review.sock', {
       mediaPath: '--fullscreen',

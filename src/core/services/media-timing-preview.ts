@@ -44,6 +44,7 @@ interface MediaTimingPreviewDeps {
 export function buildMediaTimingPreviewArgs(
   socketPath: string,
   options: MediaTimingPreviewStartOptions,
+  platform: NodeJS.Platform = process.platform,
 ): string[] {
   const args = [
     '--no-config',
@@ -65,6 +66,12 @@ export function buildMediaTimingPreviewArgs(
   }
   if (options.absoluteTimestamps) {
     args.push('--rebase-start-time=no');
+  }
+  if (platform === 'darwin') {
+    // coreaudio can reject planar float (what Opus decodes to) on Bluetooth outputs such as
+    // AirPods, and mpv then falls back to avfoundation. Its 2 s device buffer makes time-pos
+    // updates sparse and ends the clip well before the audio does, so the preview cursor jumps.
+    args.push('--audio-format=float');
   }
   args.push('--', options.mediaPath);
   return args;
@@ -170,7 +177,7 @@ export class MediaTimingPreviewSession {
     this.startupError = null;
     const child = this.deps.spawnProcess(
       command,
-      buildMediaTimingPreviewArgs(socketPath, { ...options, mediaPath }),
+      buildMediaTimingPreviewArgs(socketPath, { ...options, mediaPath }, this.deps.platform),
     );
     this.process = child;
     child.once('error', (error) => {
