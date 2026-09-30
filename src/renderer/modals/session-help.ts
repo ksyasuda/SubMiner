@@ -1,13 +1,16 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import type { SessionHelpOpenPayload } from '../../types/runtime';
 import type { RuntimeOptionId, RuntimeOptionState } from '../../types/runtime-options';
 import {
   buildSessionHelpSections,
+  type SessionHelpItem,
   type SessionHelpSection,
   type SessionHelpTabId,
 } from './session-help-sections';
 import { createSessionHelpSectionNode } from './session-help-render';
 import { buildVisibleSessionHelpSections, createSessionHelpTabBar } from './session-help-tabs';
 import { createModalFocusGuard } from './modal-focus-guard';
+import { dispatchConfiguredMpvCommand } from '../utils/mpv-command-dispatch';
 
 export {
   buildSessionHelpSections,
@@ -70,6 +73,9 @@ export function createSessionHelpModal(
   let helpFilterValue = '';
   let helpSections: SessionHelpSection[] = [];
   let activeTabId: SessionHelpTabId = 'essentials';
+  // Rows backed by a command run on Enter / double-click, but only while a video is playing.
+  let commandsEnabled = false;
+  let visibleRows: SessionHelpItem[] = [];
 
   function getItems(): HTMLButtonElement[] {
     return Array.from(
@@ -77,7 +83,8 @@ export function createSessionHelpModal(
     ) as HTMLButtonElement[];
   }
 
-  function setSelected(index: number): void {
+  /** Pointer selection skips scrolling and leaves filter typing focus alone. */
+  function setSelected(index: number, fromPointer = false): void {
     const items = getItems();
     if (items.length === 0) return;
 
@@ -91,6 +98,10 @@ export function createSessionHelpModal(
     });
     const activeItem = items[next];
     if (!activeItem) return;
+    if (fromPointer) {
+      if (!isFilterInputFocused()) activeItem.focus({ preventScroll: true });
+      return;
+    }
     activeItem.focus({ preventScroll: true });
     activeItem.scrollIntoView({
       block: 'nearest',
@@ -117,6 +128,7 @@ export function createSessionHelpModal(
 
   function applyFilterAndRender(): void {
     const sections = buildVisibleSessionHelpSections(helpSections, activeTabId, helpFilterValue);
+    visibleRows = sections.flatMap((section) => section.rows);
     const indexOffsets: number[] = [];
     let running = 0;
     for (const section of sections) {
@@ -134,7 +146,12 @@ export function createSessionHelpModal(
       );
     }
     sections.forEach((section, sectionIndex) => {
-      const sectionNode = createSessionHelpSectionNode(section, sectionIndex, indexOffsets);
+      const sectionNode = createSessionHelpSectionNode(
+        section,
+        sectionIndex,
+        indexOffsets,
+        commandsEnabled,
+      );
       ctx.dom.sessionHelpContent.appendChild(sectionNode);
     });
 
@@ -156,6 +173,7 @@ export function createSessionHelpModal(
 
   function showRenderError(message: string): void {
     helpSections = [];
+    visibleRows = [];
     helpFilterValue = '';
     activeTabId = 'essentials';
     ctx.dom.sessionHelpFilter.value = '';
@@ -199,12 +217,17 @@ export function createSessionHelpModal(
     }
   }
 
-  function openSessionHelpModal(opening: SessionHelpBindingInfo): void {
+  function openSessionHelpModal(
+    opening: SessionHelpBindingInfo,
+    payload: SessionHelpOpenPayload = { commandsEnabled: false },
+  ): void {
     openBinding = opening;
+    commandsEnabled = payload.commandsEnabled;
     priorFocus = document.activeElement;
 
     ctx.state.sessionHelpModalOpen = true;
     helpSections = [];
+    visibleRows = [];
     helpFilterValue = '';
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.overlay.classList.add('interactive');
@@ -238,8 +261,9 @@ export function createSessionHelpModal(
     void render().then((dataLoaded) => {
       if (!ctx.state.sessionHelpModalOpen) return;
       if (dataLoaded) {
-        ctx.dom.sessionHelpStatus.textContent =
-          'Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Esc closes.';
+        ctx.dom.sessionHelpStatus.textContent = commandsEnabled
+          ? 'Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Enter or double-click runs a command. Esc closes.'
+          : 'Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Esc closes.';
       } else {
         ctx.dom.sessionHelpStatus.textContent =
           'Session help data is unavailable right now. Press Esc to close.';
@@ -284,10 +308,46 @@ export function createSessionHelpModal(
     window.focus();
   }
 
+  /**
+   * Closes help first so a command that opens another modal (or needs mpv focus)
+   * lands after help has released the overlay.
+   */
+  function runSelectedCommand(): void {
+    if (!commandsEnabled) return;
+    const command = visibleRows[ctx.state.sessionHelpSelectedIndex]?.command;
+    if (!command) return;
+
+    closeSessionHelpModal();
+    if (command.actionType === 'mpv-command') {
+      dispatchConfiguredMpvCommand(command.command, {
+        getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
+        sendMpvCommand: (mpvCommand) => window.electronAPI.sendMpvCommand(mpvCommand),
+      });
+      return;
+    }
+    // Help is already closed, so surface failures on the mpv OSD.
+    void window.electronAPI
+      .dispatchSessionAction(command.actionId, command.payload)
+      .catch((error: unknown) => {
+        console.error(`Session help could not run ${command.actionId}`, error);
+        window.electronAPI.sendMpvCommand(['show-text', 'Command failed to run', '3000']);
+      });
+  }
+
+  function getRowIndex(target: EventTarget | null): number | null {
+    if (!(target instanceof Element)) return null;
+    const row = target.closest('.session-help-item') as HTMLElement | null;
+    if (!row) return null;
+    const index = Number.parseInt(row.dataset.sessionHelpIndex ?? '', 10);
+    return Number.isFinite(index) ? index : null;
+  }
+
   function handleSessionHelpKeydown(e: KeyboardEvent): boolean {
     if (!ctx.state.sessionHelpModalOpen) return false;
 
-    if (isFilterInputFocused()) {
+    // The filter's own Enter listener moves focus to the list before this bubbled
+    // handler runs, so check the event target too or filter Enter would run a command.
+    if (isFilterInputFocused() || e.target === ctx.dom.sessionHelpFilter) {
       if (e.key === 'Escape') {
         e.preventDefault();
         if (!helpFilterValue) {
@@ -333,6 +393,13 @@ export function createSessionHelpModal(
       return true;
     }
 
+    // Only rows run commands; Enter on the close or tab buttons keeps its native activation.
+    if (e.key === 'Enter' && getRowIndex(e.target) !== null) {
+      e.preventDefault();
+      runSelectedCommand();
+      return true;
+    }
+
     return true;
   }
 
@@ -350,13 +417,22 @@ export function createSessionHelpModal(
     });
 
     ctx.dom.sessionHelpContent.addEventListener('click', (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const row = target.closest('.session-help-item') as HTMLElement | null;
-      if (!row) return;
-      const index = Number.parseInt(row.dataset.sessionHelpIndex ?? '', 10);
-      if (!Number.isFinite(index)) return;
+      const index = getRowIndex(event.target);
+      if (index !== null) setSelected(index);
+    });
+
+    // Hovering a row makes it the Enter target.
+    ctx.dom.sessionHelpContent.addEventListener('mousemove', (event: MouseEvent) => {
+      const index = getRowIndex(event.target);
+      if (index === null || index === ctx.state.sessionHelpSelectedIndex) return;
+      setSelected(index, true);
+    });
+
+    ctx.dom.sessionHelpContent.addEventListener('dblclick', (event: MouseEvent) => {
+      const index = getRowIndex(event.target);
+      if (index === null) return;
       setSelected(index);
+      runSelectedCommand();
     });
 
     ctx.dom.sessionHelpClose.addEventListener('click', () => {

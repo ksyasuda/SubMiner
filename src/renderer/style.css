@@ -1687,7 +1687,7 @@ body:focus-visible,
   --selection-end: 80%;
   --original-start: 25%;
   --original-end: 75%;
-  --playhead-duration: 1s;
+  --playhead-position: var(--selection-start);
 
   position: relative;
   height: 52px;
@@ -1803,10 +1803,10 @@ body:focus-visible,
 
 .media-timing-review-playhead {
   position: absolute;
-  z-index: 5;
+  z-index: 7;
   top: 0;
   bottom: 0;
-  left: var(--selection-start);
+  left: clamp(0px, var(--playhead-position), calc(100% - 2px));
   width: 2px;
   background: var(--ctp-yellow);
   box-shadow: 0 0 12px color-mix(in srgb, var(--ctp-yellow) 75%, transparent);
@@ -1816,16 +1816,6 @@ body:focus-visible,
 
 .media-timing-review-track.is-previewing .media-timing-review-playhead {
   opacity: 1;
-  animation: media-timing-review-playhead var(--playhead-duration) linear forwards;
-}
-
-@keyframes media-timing-review-playhead {
-  from {
-    left: var(--selection-start);
-  }
-  to {
-    left: var(--selection-end);
-  }
 }
 
 /* A thin line centered on the clip edge, so the line itself is the trim boundary. */
@@ -2128,8 +2118,7 @@ body:focus-visible,
     animation: none;
   }
 
-  .media-timing-review-track.is-loading::after,
-  .media-timing-review-track.is-previewing .media-timing-review-playhead {
+  .media-timing-review-track.is-loading::after {
     animation: none;
   }
 }
@@ -4134,6 +4123,21 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.35;
+}
+
+/* Runnable rows reveal their hint only on the row Enter would run. */
+.session-help-run-hint {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ctp-blue);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.session-help-item-runnable.active .session-help-run-hint {
+  opacity: 1;
 }
 
 .session-help-color-dot {

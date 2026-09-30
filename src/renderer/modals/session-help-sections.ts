@@ -1,4 +1,6 @@
 import type {
+  CompiledMpvCommandBinding,
+  CompiledSessionActionBinding,
   CompiledSessionBinding,
   SessionActionId,
   SessionKeyModifier,
@@ -7,10 +9,17 @@ import type {
 import { SPECIAL_COMMANDS } from '../../config/definitions/shared';
 import { buildColorSection, type SessionHelpSubtitleStyle } from './session-help-colors';
 
+/** What running a help row does; compiled session bindings satisfy this shape directly. */
+export type SessionHelpCommand =
+  | Pick<CompiledMpvCommandBinding, 'actionType' | 'command'>
+  | Pick<CompiledSessionActionBinding, 'actionType' | 'actionId' | 'payload'>;
+
 export type SessionHelpItem = {
   shortcut: string;
   action: string;
   color?: string;
+  /** Set when the help modal can run this row during playback. */
+  command?: SessionHelpCommand;
 };
 
 export type SessionHelpSection = {
@@ -287,6 +296,21 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
   }
 }
 
+// Numeric-count actions wait for a follow-up digit in the overlay, and reopening help is a no-op.
+const HELP_UNRUNNABLE_ACTIONS: ReadonlySet<SessionActionId> = new Set([
+  'copySubtitleMultiple',
+  'mineSentenceMultiple',
+  'openSessionHelp',
+]);
+
+function toSessionHelpCommand(binding: CompiledSessionBinding): SessionHelpCommand | undefined {
+  if (binding.actionType === 'mpv-command') {
+    return { actionType: 'mpv-command', command: binding.command };
+  }
+  if (HELP_UNRUNNABLE_ACTIONS.has(binding.actionId)) return undefined;
+  return { actionType: 'session-action', actionId: binding.actionId, payload: binding.payload };
+}
+
 function buildSessionBindingSections(
   sessionBindings: CompiledSessionBinding[],
 ): SessionHelpSection[] {
@@ -294,12 +318,14 @@ function buildSessionBindingSections(
 
   for (const binding of sessionBindings) {
     const section = sectionForSessionBinding(binding);
+    const command = toSessionHelpCommand(binding);
     const row: SessionHelpItem = {
       shortcut: formatSessionKeySpec(binding.key),
       action:
         binding.actionType === 'mpv-command'
           ? describeCommand(binding.command)
           : describeSessionAction(binding.actionId, binding.payload),
+      ...(command ? { command } : {}),
     };
     grouped.set(section, [...(grouped.get(section) ?? []), row]);
   }
@@ -337,6 +363,7 @@ function buildConfiguredOverlaySections(input: {
     statsRows.push({
       shortcut: formatKeybinding(input.markWatchedKey),
       action: 'Mark video watched',
+      command: { actionType: 'session-action', actionId: 'markWatched' },
     });
   }
 
@@ -345,6 +372,7 @@ function buildConfiguredOverlaySections(input: {
     overlayRows.push({
       shortcut: formatKeybinding(input.subtitleSidebarToggleKey),
       action: 'Toggle subtitle sidebar',
+      command: { actionType: 'session-action', actionId: 'toggleSubtitleSidebar' },
     });
   }
 

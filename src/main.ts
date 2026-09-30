@@ -3097,6 +3097,13 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
       }
     }
   },
+  onPreviewPosition: (position) => {
+    for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC_CHANNELS.event.mediaTimingReviewPreviewPosition, position);
+      }
+    }
+  },
   showStatus: (message) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' }),
 });
@@ -3154,9 +3161,15 @@ function openSubtitleGenerationOverlay(): void {
   );
 }
 
+// currentMediaPath follows every mpv path change and is cleared on disconnect; the
+// client's currentVideoPath outlives the connection, so a reconnect could reuse it.
+function isMediaPlaybackActive(): boolean {
+  return appState.mpvClient?.connected === true && Boolean(appState.currentMediaPath?.trim());
+}
+
 function openSessionHelpOverlay(): void {
   openOverlayHostedModalWithOsd(
-    openSessionHelpModalRuntime,
+    (deps) => openSessionHelpModalRuntime({ ...deps, isMediaPlaybackActive }),
     'Session help overlay unavailable.',
     'Failed to open session help overlay.',
   );

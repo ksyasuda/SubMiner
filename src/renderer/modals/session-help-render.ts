@@ -1,6 +1,10 @@
 import type { SessionHelpItem, SessionHelpSection } from './session-help-sections';
 
-function createShortcutRow(row: SessionHelpItem, globalIndex: number): HTMLButtonElement {
+function createShortcutRow(
+  row: SessionHelpItem,
+  globalIndex: number,
+  commandsEnabled: boolean,
+): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'session-help-item';
@@ -26,6 +30,14 @@ function createShortcutRow(row: SessionHelpItem, globalIndex: number): HTMLButto
     dot.className = 'session-help-color-dot';
     dot.style.backgroundColor = row.color;
     right.insertBefore(dot, action);
+  }
+
+  if (commandsEnabled && row.command) {
+    button.classList.add('session-help-item-runnable');
+    const hint = document.createElement('span');
+    hint.className = 'session-help-run-hint';
+    hint.textContent = 'Run ↵';
+    right.appendChild(hint);
   }
 
   button.appendChild(left);
@@ -54,6 +66,7 @@ export function createSessionHelpSectionNode(
   section: SessionHelpSection,
   sectionIndex: number,
   globalIndexMap: number[],
+  commandsEnabled: boolean,
 ): HTMLElement {
   const sectionNode = document.createElement('section');
   sectionNode.className = 'session-help-section';
@@ -69,7 +82,7 @@ export function createSessionHelpSectionNode(
 
   section.rows.forEach((row, rowIndex) => {
     const globalIndex = (globalIndexMap[sectionIndex] ?? 0) + rowIndex;
-    const button = createShortcutRow(row, globalIndex);
+    const button = createShortcutRow(row, globalIndex, commandsEnabled);
     list.appendChild(button);
   });
 
