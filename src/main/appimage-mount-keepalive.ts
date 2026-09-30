@@ -8,6 +8,15 @@
 // AppImage via `--appimage-mount` (holder process keeps the mount alive), runs
 // AppRun from that mount, and after the app exits waits until no process is still
 // executing from the mount before releasing the holder.
+//
+// A kernel squashfs mount is the exception: whoever mounted it owns its lifetime,
+// not the runtime. `firejail --appimage` (used by the AppImage catalog test)
+// loop-mounts the image for the sandbox's lifetime and sets NoNewPrivs, so FUSE
+// cannot mount there and the supervisor could never start the detached app.
+// Extract-and-run directories are NOT exempt: the runtime deletes them when the
+// bootstrap exits, so those still need the supervisor's re-run.
+
+import fs from 'node:fs';
 
 export interface AppImageMountKeepaliveInvocation {
   command: string;
@@ -60,14 +69,51 @@ kill "$holder" 2>/dev/null
 exit "$rc"
 `;
 
+function unescapeMountInfoPath(value: string): string {
+  return value.replace(/\\([0-7]{3})/g, (_, octal: string) =>
+    String.fromCharCode(parseInt(octal, 8)),
+  );
+}
+
+// Filesystem type of the mount containing `filePath`, from /proc/<pid>/mountinfo
+// text. Null when no mount matches.
+export function resolveMountFsType(filePath: string, mountInfo: string): string | null {
+  let best: { mountPoint: string; fsType: string } | null = null;
+  for (const line of mountInfo.split('\n')) {
+    const [mountFields, fsFields] = line.split(' - ');
+    const mountPointField = mountFields?.split(' ')[4];
+    const fsType = fsFields?.split(' ')[0];
+    if (!mountPointField || !fsType) continue;
+    const mountPoint = unescapeMountInfoPath(mountPointField);
+    const contains =
+      mountPoint === '/' || filePath === mountPoint || filePath.startsWith(`${mountPoint}/`);
+    if (contains && (!best || mountPoint.length >= best.mountPoint.length)) {
+      best = { mountPoint, fsType };
+    }
+  }
+  return best?.fsType ?? null;
+}
+
+function readSelfMountInfo(): string | null {
+  try {
+    return fs.readFileSync('/proc/self/mountinfo', 'utf8');
+  } catch {
+    return null;
+  }
+}
+
 export function resolveAppImageMountKeepaliveInvocation(
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform = process.platform,
+  execPath: string = process.execPath,
+  readMountInfo: () => string | null = readSelfMountInfo,
 ): AppImageMountKeepaliveInvocation | null {
   if (platform !== 'linux') return null;
   if (env[DISABLE_ENV] === '1') return null;
   const appImagePath = env.APPIMAGE?.trim();
   if (!appImagePath) return null;
+  const mountInfo = readMountInfo();
+  if (mountInfo !== null && resolveMountFsType(execPath, mountInfo) === 'squashfs') return null;
   return {
     command: '/bin/sh',
     args: ['-c', APPIMAGE_MOUNT_KEEPALIVE_SCRIPT, APPIMAGE_MOUNT_KEEPALIVE_LABEL, appImagePath],

@@ -8,18 +8,31 @@ import {
   APPIMAGE_MOUNT_KEEPALIVE_LABEL,
   APPIMAGE_MOUNT_KEEPALIVE_SCRIPT,
   resolveAppImageMountKeepaliveInvocation,
+  resolveMountFsType,
 } from './appimage-mount-keepalive';
+
+const FUSE_EXEC_PATH = '/tmp/.mount_SubMinAb12Cd/SubMiner';
+const MOUNT_INFO = [
+  '1 0 0:1 / / rw,relatime - btrfs /dev/nvme0n1p2 rw',
+  '773 75 0:95 / /tmp/.mount_SubMinAb12Cd ro,nosuid shared:809 - fuse.SubMiner.AppImage SubMiner.AppImage ro',
+  '1238 1154 7:5 / /run/firejail/appimage ro,nosuid - squashfs /dev/loop5 ro',
+  '900 75 0:99 / /mnt/with\\040space rw - ext4 /dev/sdb1 rw',
+].join('\n');
+
+function resolveOnFuse(env: NodeJS.ProcessEnv, platform: NodeJS.Platform) {
+  return resolveAppImageMountKeepaliveInvocation(env, platform, FUSE_EXEC_PATH, () => MOUNT_INFO);
+}
 
 test('resolveAppImageMountKeepaliveInvocation is linux-only', () => {
   const env = { APPIMAGE: '/opt/SubMiner.AppImage' };
-  assert.equal(resolveAppImageMountKeepaliveInvocation(env, 'win32'), null);
-  assert.equal(resolveAppImageMountKeepaliveInvocation(env, 'darwin'), null);
-  assert.notEqual(resolveAppImageMountKeepaliveInvocation(env, 'linux'), null);
+  assert.equal(resolveOnFuse(env, 'win32'), null);
+  assert.equal(resolveOnFuse(env, 'darwin'), null);
+  assert.notEqual(resolveOnFuse(env, 'linux'), null);
 });
 
 test('resolveAppImageMountKeepaliveInvocation requires APPIMAGE env', () => {
-  assert.equal(resolveAppImageMountKeepaliveInvocation({}, 'linux'), null);
-  assert.equal(resolveAppImageMountKeepaliveInvocation({ APPIMAGE: '   ' }, 'linux'), null);
+  assert.equal(resolveOnFuse({}, 'linux'), null);
+  assert.equal(resolveOnFuse({ APPIMAGE: '   ' }, 'linux'), null);
 });
 
 test('resolveAppImageMountKeepaliveInvocation honors disable env', () => {
@@ -27,14 +40,47 @@ test('resolveAppImageMountKeepaliveInvocation honors disable env', () => {
     APPIMAGE: '/opt/SubMiner.AppImage',
     SUBMINER_NO_APPIMAGE_MOUNT_KEEPALIVE: '1',
   };
-  assert.equal(resolveAppImageMountKeepaliveInvocation(env, 'linux'), null);
+  assert.equal(resolveOnFuse(env, 'linux'), null);
+});
+
+test('resolveAppImageMountKeepaliveInvocation skips kernel squashfs mounts owned by a sandbox', () => {
+  const env = { APPIMAGE: '/tmp/SubMiner.AppImage' };
+  assert.equal(
+    resolveAppImageMountKeepaliveInvocation(
+      env,
+      'linux',
+      '/run/firejail/appimage/SubMiner',
+      () => MOUNT_INFO,
+    ),
+    null,
+  );
+  assert.notEqual(
+    resolveAppImageMountKeepaliveInvocation(
+      env,
+      'linux',
+      '/tmp/appimage_extracted_42c4346b/SubMiner',
+      () => MOUNT_INFO,
+    ),
+    null,
+    'extract-and-run directories are deleted with the bootstrap, so they keep the supervisor',
+  );
+  assert.notEqual(
+    resolveAppImageMountKeepaliveInvocation(env, 'linux', FUSE_EXEC_PATH, () => null),
+    null,
+    'unknown mount type keeps the supervisor',
+  );
+});
+
+test('resolveMountFsType picks the longest containing mount point', () => {
+  assert.equal(resolveMountFsType(FUSE_EXEC_PATH, MOUNT_INFO), 'fuse.SubMiner.AppImage');
+  assert.equal(resolveMountFsType('/run/firejail/appimage/SubMiner', MOUNT_INFO), 'squashfs');
+  assert.equal(resolveMountFsType('/mnt/with space/SubMiner', MOUNT_INFO), 'ext4');
+  assert.equal(resolveMountFsType('/tmp/.mount_SubMinAb12CdX/SubMiner', MOUNT_INFO), 'btrfs');
+  assert.equal(resolveMountFsType('/usr/bin/sh', ''), null);
 });
 
 test('resolveAppImageMountKeepaliveInvocation builds sh invocation with AppImage path', () => {
-  const invocation = resolveAppImageMountKeepaliveInvocation(
-    { APPIMAGE: '/opt/SubMiner.AppImage' },
-    'linux',
-  );
+  const invocation = resolveOnFuse({ APPIMAGE: '/opt/SubMiner.AppImage' }, 'linux');
   assert.ok(invocation);
   assert.equal(invocation.command, '/bin/sh');
   assert.deepEqual(invocation.args, [
