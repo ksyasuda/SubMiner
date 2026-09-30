@@ -97,7 +97,7 @@ test('runtime guard blocks a profile downgrade before rewriting its safety recor
   });
 });
 
-test('runtime guard blocks a downgrade within the supported Electron major', () => {
+test('runtime guard blocks a minor downgrade even when the patch is higher', () => {
   withTempDir((userDataPath) => {
     const statePath = path.join(userDataPath, 'electron-runtime.json');
     fs.writeFileSync(
@@ -107,7 +107,7 @@ test('runtime guard blocks a downgrade within the supported Electron major', () 
     );
 
     const result = enforceElectronRuntimeGuard({
-      electronVersion: '43.3.0',
+      electronVersion: '43.3.99',
       userDataPath,
       supportedElectronMajor: 43,
     });
@@ -120,6 +120,60 @@ test('runtime guard blocks a downgrade within the supported Electron major', () 
       highestElectronMajor: 43,
       lastElectronVersion: '43.4.1',
     });
+  });
+});
+
+test('runtime guard allows a patch downgrade while preserving minor downgrade protection', () => {
+  withTempDir((userDataPath) => {
+    const statePath = path.join(userDataPath, 'electron-runtime.json');
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify({ highestElectronMajor: 43, lastElectronVersion: '43.7.3' }),
+      'utf8',
+    );
+
+    const result = enforceElectronRuntimeGuard({
+      electronVersion: '43.7.2',
+      userDataPath,
+    });
+
+    assert.equal(result.ok, true);
+    const updatedState = fs.readFileSync(statePath, 'utf8');
+    assert.deepEqual(JSON.parse(updatedState), {
+      highestElectronMajor: 43,
+      lastElectronVersion: '43.7.2',
+    });
+
+    const minorDowngrade = enforceElectronRuntimeGuard({
+      electronVersion: '43.6.99',
+      userDataPath,
+    });
+    assert.equal(minorDowngrade.ok, false);
+    if (minorDowngrade.ok) return;
+    assert.equal(minorDowngrade.title, 'Electron downgrade blocked');
+    assert.equal(fs.readFileSync(statePath, 'utf8'), updatedState);
+  });
+});
+
+test('runtime guard blocks an Electron 42 build from reopening an Electron 43 profile', () => {
+  withTempDir((userDataPath) => {
+    const statePath = path.join(userDataPath, 'electron-runtime.json');
+    const previousState = JSON.stringify({
+      highestElectronMajor: 43,
+      lastElectronVersion: '43.7.2',
+    });
+    fs.writeFileSync(statePath, previousState, 'utf8');
+
+    const result = enforceElectronRuntimeGuard({
+      electronVersion: '42.11.8',
+      userDataPath,
+      supportedElectronMajor: 42,
+    });
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.title, 'Electron downgrade blocked');
+    assert.equal(fs.readFileSync(statePath, 'utf8'), previousState);
   });
 });
 

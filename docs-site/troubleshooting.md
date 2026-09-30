@@ -69,7 +69,9 @@ Word boundaries come from Yomitan's parser. Some splits will be wrong, since Jap
 
 ## "Electron downgrade blocked" or "Unsupported Electron runtime"
 
-SubMiner refuses to load Yomitan storage when the current Electron major does not match the app build, or when the profile was previously opened by a newer Electron version. Launch the packaged app or use the repository's `bun run dev` command. Do not delete the runtime safety record to force an older Electron version to open the profile.
+SubMiner refuses to load Yomitan storage when the current Electron major does not match the app build, or when the profile was previously opened by a newer Electron major or minor version. Patch downgrades within the same major and minor version are allowed, such as `43.7.3` to `43.7.2`. Downgrades from `43.7.x` to `43.6.x`, or from Electron 43 to 42, are blocked. Launch the packaged app or use the repository's `bun run dev` command. Do not delete the runtime safety record to force an older major or minor version to open the profile.
+
+Older SubMiner builds without this guard cannot enforce the safety record. When testing Electron 43 before returning to an older Electron 42 build, use the separate `SubMiner-dev` profile described in [development](/development#run-locally) so the older build never opens the upgraded profile.
 
 ## "Yomitan reported zero dictionaries after previously reporting ..."
 

@@ -39,11 +39,11 @@ function parseElectronVersion(version: string): ParsedElectronVersion | null {
   return { major, minor, patch };
 }
 
-function compareElectronVersions(
+function compareElectronMajorMinorVersions(
   left: ParsedElectronVersion,
   right: ParsedElectronVersion,
 ): number {
-  return left.major - right.major || left.minor - right.minor || left.patch - right.patch;
+  return left.major - right.major || left.minor - right.minor;
 }
 
 function readRuntimeState(statePath: string): ValidatedElectronRuntimeState | null {
@@ -129,7 +129,7 @@ export function enforceElectronRuntimeGuard(options: {
   if (
     previousState &&
     (currentVersion.major < previousState.state.highestElectronMajor ||
-      compareElectronVersions(currentVersion, previousState.version) < 0)
+      compareElectronMajorMinorVersions(currentVersion, previousState.version) < 0)
   ) {
     return {
       ok: false,
@@ -139,7 +139,7 @@ export function enforceElectronRuntimeGuard(options: {
         `The current runtime is Electron ${options.electronVersion}.`,
         `Runtime safety record: ${statePath}.`,
         '',
-        'Opening Chromium storage with an older Electron version can destroy Yomitan dictionaries. Upgrade SubMiner before using this profile.',
+        'Opening Chromium storage with an older Electron major or minor version can destroy Yomitan dictionaries. Upgrade SubMiner before using this profile. Patch downgrades within the same major and minor version are allowed.',
       ].join('\n'),
       statePath,
     };
