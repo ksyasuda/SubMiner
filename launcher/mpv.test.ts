@@ -179,7 +179,8 @@ test('buildMpvEnv forces X11 by dropping Wayland hints when backend resolves to 
     assert.equal(env.DISPLAY, ':1');
     assert.equal(env.WAYLAND_DISPLAY, undefined);
     assert.equal(env.XDG_SESSION_TYPE, 'x11');
-    assert.equal(env.HYPRLAND_INSTANCE_SIGNATURE, undefined);
+    // The overlay inherits this env and needs hyprctl for its XWayland window.
+    assert.equal(env.HYPRLAND_INSTANCE_SIGNATURE, 'hypr');
     assert.equal(env.SWAYSOCK, undefined);
   });
 });
