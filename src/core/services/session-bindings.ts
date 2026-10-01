@@ -34,12 +34,16 @@ type DraftBinding = {
 };
 
 const MODIFIER_ORDER: SessionKeyModifier[] = ['ctrl', 'alt', 'shift', 'meta'];
-const MPV_MOUSE_BUTTON_CODES = new Set([
+const MPV_MOUSE_CODES = new Set([
   'MBTN_LEFT',
   'MBTN_MID',
   'MBTN_RIGHT',
   'MBTN_BACK',
   'MBTN_FORWARD',
+  'WHEEL_UP',
+  'WHEEL_DOWN',
+  'WHEEL_LEFT',
+  'WHEEL_RIGHT',
 ]);
 
 const SESSION_SHORTCUT_ACTIONS: Array<{
@@ -82,7 +86,7 @@ function isValidCommandEntry(value: unknown): value is string | number {
 
 function normalizeCodeToken(
   token: string,
-  options: { allowMouseButtons?: boolean } = {},
+  options: { allowMouseInput?: boolean } = {},
 ): string | null {
   const normalized = token.trim();
   if (!normalized) return null;
@@ -93,9 +97,9 @@ function normalizeCodeToken(
       .map((letter) => `Key${letter.toUpperCase()}`)
       .join('-');
   }
-  if (options.allowMouseButtons === true) {
+  if (options.allowMouseInput === true) {
     const normalizedMouse = normalized.toUpperCase();
-    if (MPV_MOUSE_BUTTON_CODES.has(normalizedMouse)) {
+    if (MPV_MOUSE_CODES.has(normalizedMouse)) {
       return normalizedMouse;
     }
   }
@@ -270,7 +274,7 @@ export function parseSessionBindingKey(
     };
   }
 
-  const code = normalizeCodeToken(keyToken, { allowMouseButtons: true });
+  const code = normalizeCodeToken(keyToken, { allowMouseInput: true });
   if (!code) {
     return {
       key: null,

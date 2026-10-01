@@ -212,12 +212,13 @@ test('compileSessionBindings resolves CommandOrControl in DOM key strings per pl
   );
 });
 
-test('compileSessionBindings supports mpv mouse button keybindings', () => {
+test('compileSessionBindings supports mpv mouse button and wheel keybindings', () => {
   const result = compileSessionBindings({
     shortcuts: createShortcuts(),
     keybindings: [
       createKeybinding('MBTN_BACK', ['sub-seek', -1]),
       createKeybinding('Shift+MBTN_FORWARD', ['sub-seek', 1]),
+      createKeybinding('Ctrl+WHEEL_UP', ['add', 'sub-scale', 0.1]),
     ],
     platform: 'win32',
   });
@@ -232,6 +233,7 @@ test('compileSessionBindings supports mpv mouse button keybindings', () => {
     [
       { code: 'MBTN_BACK', modifiers: [], command: ['sub-seek', -1] },
       { code: 'MBTN_FORWARD', modifiers: ['shift'], command: ['sub-seek', 1] },
+      { code: 'WHEEL_UP', modifiers: ['ctrl'], command: ['add', 'sub-scale', 0.1] },
     ],
   );
 });

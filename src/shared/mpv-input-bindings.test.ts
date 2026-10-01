@@ -4,16 +4,19 @@ import {
   keyboardEventToMpvKey,
   normalizeMpvInputKey,
   parseMpvInputBindingKeys,
+  wheelEventToMpvWheel,
 } from './mpv-input-bindings';
 
-test('mpv discovery validates entries and excludes inactive, mouse, sequence, and SubMiner keys', () => {
+test('mpv discovery validates entries and excludes inactive, sequence, and SubMiner keys', () => {
   assert.deepEqual(
     parseMpvInputBindingKeys([
       { key: 'r', cmd: 'script-binding replay/run', priority: 1, owner: 'replay' },
       { key: 'r', cmd: 'show-text duplicate', priority: 0 },
       { key: 'Ctrl+A', cmd: 'show-text shifted', priority: 1 },
       { key: 'g-g', cmd: 'seek 0', priority: 1 },
-      { key: 'MBTN_LEFT', cmd: 'cycle pause', priority: 1 },
+      { key: 'MBTN_LEFT_DBL', cmd: 'cycle fullscreen', priority: 1 },
+      { key: 'MOUSE_MOVE', cmd: 'script-binding osc/move', priority: 1 },
+      { key: 'Shift+WHEEL_UP', cmd: 'add volume 2', priority: 1 },
       { key: 'q', cmd: 'quit', priority: -1 },
       { key: 's', cmd: 'screenshot', priority: 1 },
       { key: 's', cmd: 'script-binding subminer/session', priority: 5, owner: 'subminer' },
@@ -22,7 +25,7 @@ test('mpv discovery validates entries and excludes inactive, mouse, sequence, an
       { key: 'z', cmd: 5, priority: 1 },
       null,
     ]),
-    ['r', 'ctrl+A'],
+    ['r', 'ctrl+A', 'MBTN_LEFT_DBL', 'shift+WHEEL_UP'],
   );
   assert.deepEqual(parseMpvInputBindingKeys({ key: 'r' }), []);
 });
@@ -33,6 +36,27 @@ test('mpv keys retain printable characters and normalize modifiers', () => {
   assert.equal(normalizeMpvInputKey('Shift+LEFT'), 'shift+LEFT');
   assert.equal(normalizeMpvInputKey('F12'), 'F12');
   assert.equal(normalizeMpvInputKey('UNMAPPED'), null);
+  assert.equal(normalizeMpvInputKey('Ctrl+WHEEL_DOWN'), 'ctrl+WHEEL_DOWN');
+});
+
+test('wheel conversion picks the dominant axis and reports mpv notch scale', () => {
+  assert.deepEqual(wheelEventToMpvWheel({ deltaX: 0, deltaY: -240, deltaMode: 0 }), {
+    key: 'WHEEL_UP',
+    notches: 2,
+  });
+  assert.deepEqual(wheelEventToMpvWheel({ deltaX: 3, deltaY: 30, deltaMode: 0 }), {
+    key: 'WHEEL_DOWN',
+    notches: 0.25,
+  });
+  assert.deepEqual(wheelEventToMpvWheel({ deltaX: 120, deltaY: 0, deltaMode: 0 }), {
+    key: 'WHEEL_RIGHT',
+    notches: 1,
+  });
+  assert.deepEqual(wheelEventToMpvWheel({ deltaX: -3, deltaY: 0, deltaMode: 1 }), {
+    key: 'WHEEL_LEFT',
+    notches: 1,
+  });
+  assert.equal(wheelEventToMpvWheel({ deltaX: 0, deltaY: 0, deltaMode: 0 }), null);
 });
 
 test('keyboard conversion respects layout characters and skips composition and AltGr', () => {

@@ -6,6 +6,7 @@ import {
   keyboardEventToConfigKey,
   mouseEventToConfigKey,
   parseMpvCommandText,
+  wheelEventToConfigKey,
   type KeyInputMode,
   type MpvKeybindingRow,
 } from './key-input';
@@ -43,11 +44,13 @@ function startKeyLearning(
   let onKeyDown: (event: KeyboardEvent) => void;
   let onBlur: () => void;
   let onMouseDown: (event: MouseEvent) => void;
+  let onWheel: (event: WheelEvent) => void;
 
   const stop = (): void => {
     window.removeEventListener('keydown', onKeyDown, true);
     window.removeEventListener('blur', onBlur, true);
     window.removeEventListener('mousedown', onMouseDown, true);
+    window.removeEventListener('wheel', onWheel, true);
     button.classList.remove('learning');
     if (button.textContent === 'Press Keys...') {
       button.textContent = previousText;
@@ -85,9 +88,19 @@ function startKeyLearning(
     }
   };
 
+  onWheel = (event: WheelEvent): void => {
+    const next = wheelEventToConfigKey(event, mode);
+    if (!next) return;
+    event.preventDefault();
+    event.stopPropagation();
+    stop();
+    onValue(next);
+  };
+
   window.addEventListener('keydown', onKeyDown, true);
   window.addEventListener('blur', onBlur, true);
   window.addEventListener('mousedown', onMouseDown, true);
+  window.addEventListener('wheel', onWheel, { capture: true, passive: false });
   activeKeyLearningStop = stop;
 }
 

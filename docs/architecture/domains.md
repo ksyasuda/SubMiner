@@ -48,7 +48,12 @@ Automatic mpv keyboard discovery uses the `get-mpv-input-bindings` IPC request a
 configured keys, including disabled entries. `src/shared/mpv-input-bindings.ts`
 validates discovered keys and translates browser input. The renderer's
 `handlers/mpv-input-forwarding.ts` keeps the session lookup, coalesces asynchronous
-refreshes, and releases held keys on blur or disposal. `handlers/keyboard.ts` runs
+refreshes, and releases held keys on blur or disposal. Discovered `WHEEL_*` bindings forward
+as `keypress <key> <notches>` (Chromium reports 120 px per notch), which matches mpv's own
+precise-scroll scaling. `MBTN_*` buttons forward as held `keydown`/`keyup` when mpv binds the
+button or its `_DBL` variant, so mpv synthesizes double-clicks itself. Configured keybindings and
+the built-in right-click pause run first. Forwarding is the only way pointer input reaches mpv on
+Hyprland, where the overlay cannot be made click-through. `handlers/keyboard.ts` runs
 this fallback after SubMiner controls and refreshes on startup, a delayed startup
 pass, focus, binding reload, and the `mpv-input-bindings:changed` event. Main sends
 that event from `session-bindings-runtime.ts` when mpv's discovered key set changes,

@@ -6,6 +6,7 @@ import {
   createMpvKeybindingRows,
   keyboardEventToConfigKey,
   mouseEventToConfigKey,
+  wheelEventToConfigKey,
 } from './key-input';
 
 test('keyboardEventToConfigKey formats Electron accelerators from learned input', () => {
@@ -91,6 +92,21 @@ test('mouseEventToConfigKey formats mpv mouse buttons from learned input', () =>
     ),
     'Alt+Shift+MBTN_FORWARD',
   );
+});
+
+test('wheelEventToConfigKey formats mpv wheel keys only for mpv keybindings', () => {
+  const wheel = {
+    deltaX: 0,
+    deltaY: -120,
+    deltaMode: 0,
+    ctrlKey: true,
+    altKey: false,
+    shiftKey: false,
+    metaKey: false,
+  };
+  assert.equal(wheelEventToConfigKey(wheel, 'dom-code'), 'Ctrl+WHEEL_UP');
+  assert.equal(wheelEventToConfigKey({ ...wheel, deltaY: 0 }, 'dom-code'), null);
+  assert.equal(wheelEventToConfigKey(wheel, 'accelerator'), null);
 });
 
 test('MPV keybinding rows save default key moves as a disable plus replacement', () => {

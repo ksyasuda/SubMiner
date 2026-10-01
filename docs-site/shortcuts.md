@@ -132,15 +132,16 @@ The plugin's `v` replaces mpv's own subtitle visibility toggle. When the overlay
   "keybindings": [
     { "key": "m", "command": ["cycle", "mute"] },
     { "key": "MBTN_BACK", "command": ["sub-seek", -1] },
+    { "key": "Ctrl+WHEEL_UP", "command": ["add", "sub-scale", 0.1] },
     { "key": "Space", "command": null },
   ],
 }
 ```
 
-Mouse button names are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, and `MBTN_FORWARD`. See [keybindings](/configuration#keybindings) and [shortcuts configuration](/configuration#shortcuts-configuration) in the config reference.
+Mouse button names are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, and `MBTN_FORWARD`. Scroll wheel names are `WHEEL_UP`, `WHEEL_DOWN`, `WHEEL_LEFT`, and `WHEEL_RIGHT`. See [keybindings](/configuration#keybindings) and [shortcuts configuration](/configuration#shortcuts-configuration) in the config reference.
 
 ## Automatic mpv bindings
 
-The overlay reads single-key bindings from the running mpv (`input.conf`, mpv defaults, and scripts). If SubMiner does not handle a key, it passes it to mpv. SubMiner shortcuts and `keybindings` entries win, including ones set to `null`. Keys are not forwarded while you type in a text field, use an overlay menu, or have a Yomitan popup open.
+The overlay reads single-key, mouse button, and scroll wheel bindings from the running mpv (`input.conf`, mpv defaults, and scripts). If SubMiner does not handle the input, it passes it to mpv, so mpv's defaults like double-click for fullscreen and the wheel for volume work over the overlay. SubMiner shortcuts and `keybindings` entries win, including ones set to `null`, and right-click always pauses. Keys and clicks are not forwarded while you type in a text field, use an overlay menu, or have a Yomitan popup open, and clicks on subtitles or overlay controls stay with SubMiner. Scrolling over an overlay menu, the subtitle sidebar, or notification history scrolls that panel instead.
 
-Mouse buttons, keypad and media keys, and key sequences are not imported. Bindings imported this way do not appear in session help. If you add an mpv binding while SubMiner runs, refocus the overlay to pick it up.
+Keypad and media keys, key sequences, and mouse movement are not imported. Bindings imported this way do not appear in session help. If you add an mpv binding while SubMiner runs, refocus the overlay to pick it up.

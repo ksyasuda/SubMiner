@@ -342,8 +342,9 @@ function installKeyboardTestGlobals() {
     altKey?: boolean;
     shiftKey?: boolean;
     target?: unknown;
+    type?: 'mousedown' | 'mouseup';
   }): void {
-    const listeners = documentListeners.get('mousedown') ?? [];
+    const listeners = documentListeners.get(event.type ?? 'mousedown') ?? [];
     const mouseEvent = {
       button: event.button,
       ctrlKey: event.ctrlKey ?? false,
@@ -359,6 +360,36 @@ function installKeyboardTestGlobals() {
   }
 
   const dispatchDocumentMouseDown = dispatchMousedown;
+
+  function dispatchWheel(event: {
+    deltaY: number;
+    deltaX?: number;
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+    target?: unknown;
+  }): boolean {
+    let prevented = false;
+    const wheelEvent = {
+      deltaX: event.deltaX ?? 0,
+      deltaY: event.deltaY,
+      deltaMode: 0,
+      ctrlKey: event.ctrlKey ?? false,
+      metaKey: false,
+      altKey: false,
+      shiftKey: event.shiftKey ?? false,
+      get defaultPrevented() {
+        return prevented;
+      },
+      preventDefault: () => {
+        prevented = true;
+      },
+      target: event.target ?? null,
+    };
+    for (const listener of documentListeners.get('wheel') ?? []) {
+      listener(wheelEvent);
+    }
+    return prevented;
+  }
 
   function dispatchFocusInOnPopup(): void {
     const listeners = documentListeners.get('focusin') ?? [];
@@ -417,6 +448,7 @@ function installKeyboardTestGlobals() {
     dispatchKeydown,
     dispatchDocumentMouseDown,
     dispatchMousedown,
+    dispatchWheel,
     dispatchFocusInOnPopup,
     dispatchWindowEvent,
     setPopupVisible: (value: boolean) => {
@@ -1097,6 +1129,95 @@ test('configured mouse button keybinding dispatches through overlay mouse handli
     await wait(0);
 
     assert.deepEqual(testGlobals.mpvCommands.slice(-1), [['sub-seek', -1]]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('configured wheel keybinding fires once per whole notch', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'Ctrl+WHEEL_UP',
+        key: { code: 'WHEEL_UP', modifiers: ['ctrl'] },
+        actionType: 'mpv-command',
+        command: ['add', 'sub-scale', 0.1],
+      },
+    ] as never);
+
+    assert.equal(testGlobals.dispatchWheel({ deltaY: -240, ctrlKey: true }), true);
+    testGlobals.dispatchWheel({ deltaY: -60, ctrlKey: true });
+    testGlobals.dispatchWheel({ deltaY: -60, ctrlKey: true });
+    testGlobals.dispatchWheel({ deltaY: -120 });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands, [
+      ['add', 'sub-scale', 0.1],
+      ['add', 'sub-scale', 0.1],
+      ['add', 'sub-scale', 0.1],
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('imported mpv wheel bindings forward from the overlay but not over modals', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setGetMpvInputBindings(async () => ({
+      keys: ['WHEEL_UP', 'WHEEL_DOWN'],
+      blockedKeys: [],
+    }));
+    await handlers.setupMpvInputForwarding();
+    await wait(0);
+
+    testGlobals.dispatchWheel({ deltaY: 120 });
+    testGlobals.dispatchWheel({ deltaY: -120, target: testGlobals.createInteractiveTarget() });
+
+    assert.deepEqual(testGlobals.mpvCommands, [['keypress', 'WHEEL_DOWN', 1]]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('imported mpv mouse buttons forward only after SubMiner mouse handling', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setGetMpvInputBindings(async () => ({
+      keys: ['MBTN_LEFT_DBL', 'MBTN_RIGHT', 'MBTN_BACK'],
+      blockedKeys: [],
+    }));
+    testGlobals.setSessionBindings([
+      {
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'MBTN_BACK',
+        key: { code: 'MBTN_BACK', modifiers: [] },
+        actionType: 'mpv-command',
+        command: ['sub-seek', -1],
+      },
+    ]);
+    await handlers.setupMpvInputForwarding();
+    await wait(0);
+
+    testGlobals.dispatchMousedown({ button: 0 });
+    testGlobals.dispatchMousedown({ button: 0, type: 'mouseup' });
+    testGlobals.dispatchMousedown({ button: 0, target: testGlobals.createInteractiveTarget() });
+    testGlobals.dispatchMousedown({ button: 2 });
+    testGlobals.dispatchMousedown({ button: 3 });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands, [
+      ['keydown', 'MBTN_LEFT'],
+      ['keyup', 'MBTN_LEFT'],
+      ['sub-seek', -1],
+      ['cycle', 'pause'],
+    ]);
   } finally {
     testGlobals.restore();
   }
