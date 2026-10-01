@@ -89,10 +89,14 @@ export function shouldForceX11MpvBackend(
 /**
  * Strip Wayland/compositor hints and pin the session type to X11 on the given env
  * object (mutates in place and returns it) so a child mpv process picks XWayland.
+ *
+ * HYPRLAND_INSTANCE_SIGNATURE is kept: the overlay app inherits this env through the
+ * mpv plugin, and Hyprland still manages its XWayland windows. Without hyprctl access
+ * the overlay cannot lift Hyprland's fullscreen input block, so it stays visible but
+ * unclickable over fullscreen mpv.
  */
 export function applyX11EnvOverrides(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   delete env.WAYLAND_DISPLAY;
-  delete env.HYPRLAND_INSTANCE_SIGNATURE;
   delete env.SWAYSOCK;
   env.XDG_SESSION_TYPE = 'x11';
   return env;

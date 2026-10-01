@@ -82,7 +82,7 @@ test('shouldForceX11MpvBackend honors explicit x11 and auto modes', () => {
   });
 });
 
-test('applyX11EnvOverrides strips Wayland hints and pins session type to x11', () => {
+test('applyX11EnvOverrides strips Wayland hints, keeps Hyprland IPC, and pins session type to x11', () => {
   const env = {
     DISPLAY: ':1',
     WAYLAND_DISPLAY: 'wayland-0',
@@ -94,7 +94,7 @@ test('applyX11EnvOverrides strips Wayland hints and pins session type to x11', (
   assert.equal(result, env); // mutates in place
   assert.equal(result.DISPLAY, ':1');
   assert.equal(result.WAYLAND_DISPLAY, undefined);
-  assert.equal(result.HYPRLAND_INSTANCE_SIGNATURE, undefined);
+  assert.equal(result.HYPRLAND_INSTANCE_SIGNATURE, 'hypr');
   assert.equal(result.SWAYSOCK, undefined);
   assert.equal(result.XDG_SESSION_TYPE, 'x11');
 });
