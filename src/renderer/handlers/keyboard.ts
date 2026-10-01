@@ -1335,6 +1335,9 @@ export function createKeyboardHandlers(
     setupMpvInputForwarding,
     refreshConfiguredShortcuts,
     updateSessionBindings,
+    refreshMpvInputBindings: () => {
+      void importedMpvBindings.refresh();
+    },
     syncKeyboardTokenSelection,
     handleSubtitleContentUpdated,
     togglePrimarySubtitleBarVisibility,

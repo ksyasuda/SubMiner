@@ -50,7 +50,10 @@ validates discovered keys and translates browser input. The renderer's
 `handlers/mpv-input-forwarding.ts` keeps the session lookup, coalesces asynchronous
 refreshes, and releases held keys on blur or disposal. `handlers/keyboard.ts` runs
 this fallback after SubMiner controls and refreshes on startup, a delayed startup
-pass, focus, and binding reload. Discovery does not enter compiled session bindings,
+pass, focus, binding reload, and the `mpv-input-bindings:changed` event. Main sends
+that event from `session-bindings-runtime.ts` when mpv's discovered key set changes,
+including the first discovery after connecting, because the overlay often loads
+before mpv connects and the compiled session bindings may not change. Discovery does not enter compiled session bindings,
 the plugin artifact, persistent config, or session help.
 
 The subtitle sidebar consumes parsed cues through `SubtitleSidebarSnapshot`. Its `sourceKey`
