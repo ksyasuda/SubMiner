@@ -14,18 +14,18 @@ Getting started takes three steps:
 
 Only mpv is required. Install ffmpeg too unless you are fine with cards that have no audio or screenshot.
 
-| Dependency               | Needed for                                                                                  | Platforms    |
-| ------------------------ | ------------------------------------------------------------------------------------------- | ------------ |
-| mpv                      | Required. The player SubMiner draws over.                                                   | All          |
-| fuse2                    | Required to run the AppImage.                                                               | Linux        |
-| ffmpeg                   | Recommended. Audio clips and screenshots on cards. Without it those fields stay empty.      | All          |
-| MeCab + mecab-ipadic     | Recommended. More accurate N+1, JLPT, and frequency highlighting.                           | All          |
-| yt-dlp                   | YouTube playback.                                                                           | All          |
-| xz                       | [TsukiHime](/tsukihime-integration) subtitle downloads. Most Linux distros already have it. | All          |
-| guessit                  | Better title, season, and episode detection for [AniSkip](/aniskip-integration).            | All          |
-| alass or ffsubsync       | Subtitle syncing. You need at least one to use it.                                          | All          |
-| fzf, rofi                | The file pickers in the `subminer` command (rofi is Linux only).                            | Linux, macOS |
-| chafa, ffmpegthumbnailer | Thumbnail previews in the pickers.                                                          | Linux, macOS |
+| Dependency               | Needed for                                                                                                           | Platforms    |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------ |
+| mpv                      | Required. The player SubMiner draws over.                                                                            | All          |
+| fuse2                    | Required to run the AppImage.                                                                                        | Linux        |
+| ffmpeg                   | Recommended. Audio clips and screenshots on cards. Without it those fields stay empty.                               | All          |
+| MeCab + mecab-ipadic     | Recommended. More accurate N+1, JLPT, and frequency highlighting.                                                    | All          |
+| yt-dlp                   | YouTube playback.                                                                                                    | All          |
+| xz                       | [TsukiHime](/tsukihime-integration) subtitle downloads. Most Linux distros already have it.                          | All          |
+| guessit                  | Better title, season, and episode detection for [AniSkip](/aniskip-integration) and [AniList](/anilist-integration). | All          |
+| alass or ffsubsync       | Subtitle syncing. You need at least one to use it.                                                                   | All          |
+| fzf, rofi                | The file pickers in the `subminer` command (rofi is Linux only).                                                     | Linux, macOS |
+| chafa, ffmpegthumbnailer | Thumbnail previews in the pickers.                                                                                   | Linux, macOS |
 
 To generate Japanese subtitles from audio, you also need whisper.cpp. See [Subtitle generation](/subtitle-generation).
 
@@ -42,8 +42,8 @@ SubMiner needs to track the mpv window, and how it does that depends on your des
 
 ```bash
 sudo pacman -S --needed mpv ffmpeg
-# Recommended
-sudo pacman -S --needed mecab mecab-ipadic
+# Recommended (MeCab is only in the AUR)
+paru -S --needed mecab-git mecab-ipadic
 # Optional
 sudo pacman -S --needed yt-dlp fzf rofi chafa ffmpegthumbnailer
 # Optional: subtitle sync (install at least one)
