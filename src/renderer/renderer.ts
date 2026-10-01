@@ -893,6 +893,7 @@ async function init(): Promise<void> {
     });
   });
   window.electronAPI.onSessionBindingsChanged(keyboardHandlers.updateSessionBindings);
+  window.electronAPI.onMpvInputBindingsChanged(keyboardHandlers.refreshMpvInputBindings);
   window.electronAPI.onConfigHotReload((payload: ConfigHotReloadPayload) => {
     runGuarded('config:hot-reload', () => {
       void window.electronAPI

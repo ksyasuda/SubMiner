@@ -181,6 +181,7 @@ export const IPC_CHANNELS = {
     subtitleSidebarToggle: 'subtitle-sidebar:toggle',
     primarySubtitleBarToggle: 'primary-subtitle-bar:toggle',
     sessionBindingsChanged: 'session-bindings:changed',
+    mpvInputBindingsChanged: 'mpv-input-bindings:changed',
     configHotReload: 'config:hot-reload',
     overlayNotification: 'overlay:notification',
     notificationHistoryToggle: 'notification-history:toggle',

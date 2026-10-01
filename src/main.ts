@@ -5354,6 +5354,8 @@ const { persistSessionBindings, refreshCurrentSessionBindings, refreshMpvSession
     logWarn: (message) => logger.warn(message),
     onBindingsChanged: (bindings) =>
       overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.sessionBindingsChanged, bindings),
+    onMpvInputBindingsChanged: () =>
+      overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.mpvInputBindingsChanged),
     onWarning: (warning) => {
       if (warning.kind !== 'conflict') return;
       overlayNotificationsRuntime.showOverlayNotification({
