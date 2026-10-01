@@ -293,6 +293,14 @@ local ctx = {
 					},
 					{
 						key = {
+							code = "WHEEL_UP",
+							modifiers = { "ctrl" },
+						},
+						actionType = "mpv-command",
+						command = { "add", "sub-scale", 0.1 },
+					},
+					{
+						key = {
 							code = "KeyW",
 							modifiers = {},
 						},
@@ -386,6 +394,7 @@ local expected_mpv_bindings = {
 	{ keys = "q", command = { "quit" } },
 	{ keys = "Ctrl+w", command = { "quit" } },
 	{ keys = "MBTN_BACK", command = { "sub-seek", -1 } },
+	{ keys = "Ctrl+WHEEL_UP", command = { "add", "sub-scale", 0.1 } },
 }
 
 for _, expected in ipairs(expected_mpv_bindings) do

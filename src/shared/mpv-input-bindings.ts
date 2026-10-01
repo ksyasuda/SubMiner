@@ -16,13 +16,33 @@ const SPECIAL_KEYS: Record<string, string> = {
   ArrowUp: 'UP',
   ArrowDown: 'DOWN',
 };
-const MPV_SPECIAL_KEYS = new Set(Object.values(SPECIAL_KEYS));
+const MPV_WHEEL_KEYS = ['WHEEL_UP', 'WHEEL_DOWN', 'WHEEL_LEFT', 'WHEEL_RIGHT'] as const;
+export type MpvWheelKey = (typeof MPV_WHEEL_KEYS)[number];
+// DOM MouseEvent.button to mpv's mouse button names.
+export const MPV_MOUSE_BUTTON_BY_BUTTON: Readonly<Record<number, string>> = {
+  0: 'MBTN_LEFT',
+  1: 'MBTN_MID',
+  2: 'MBTN_RIGHT',
+  3: 'MBTN_BACK',
+  4: 'MBTN_FORWARD',
+};
+// mpv synthesizes these from two quick presses of the base button.
+const MPV_DOUBLE_CLICK_KEYS = ['MBTN_LEFT_DBL', 'MBTN_MID_DBL', 'MBTN_RIGHT_DBL'];
+const MPV_SPECIAL_KEYS = new Set<string>([
+  ...Object.values(SPECIAL_KEYS),
+  ...MPV_WHEEL_KEYS,
+  ...Object.values(MPV_MOUSE_BUTTON_BY_BUTTON),
+  ...MPV_DOUBLE_CLICK_KEYS,
+]);
+// Chromium reports 120 px per wheel notch on both Wayland and X11.
+const WHEEL_NOTCH_PIXELS = 120;
+const WHEEL_NOTCH_LINES = 3;
 // Leading command flags accepted by mpv's input/cmd.c, before the command name.
 const MPV_COMMAND_PREFIXES =
   /^(?:(?:no-osd|osd-bar|osd-msg|osd-msg-bar|osd-auto|expand-properties|raw|repeatable|nonrepeatable|nonscalable|async|sync)\s+)+/;
 
-// Only single keyboard strokes are imported. Mouse input and sequences need
-// their own focus and conflict rules before they can be forwarded safely.
+// Single keyboard strokes, mouse buttons, and wheel scrolls are imported. Key sequences
+// and pointer motion (MOUSE_MOVE) are not.
 export function normalizeMpvInputKey(value: string): string | null {
   const modifiers = new Set<string>();
   let key = value;
@@ -57,6 +77,27 @@ export function keyboardEventToMpvKey(
     ...(event.metaKey ? ['meta'] : []),
   ];
   return normalizeMpvInputKey([...modifiers, key].join('+'));
+}
+
+// Maps a DOM wheel event to mpv's wheel key and its notch count, which mpv uses as the
+// precise-scroll scale for `keypress <key> <scale>`. Trackpads yield fractional notches.
+export function wheelEventToMpvWheel(
+  event: Pick<WheelEvent, 'deltaX' | 'deltaY' | 'deltaMode'>,
+): { key: MpvWheelKey; notches: number } | null {
+  const vertical = Math.abs(event.deltaY) >= Math.abs(event.deltaX);
+  const delta = vertical ? event.deltaY : event.deltaX;
+  if (!Number.isFinite(delta) || delta === 0) return null;
+  const key: MpvWheelKey = vertical
+    ? delta < 0
+      ? 'WHEEL_UP'
+      : 'WHEEL_DOWN'
+    : delta < 0
+      ? 'WHEEL_LEFT'
+      : 'WHEEL_RIGHT';
+  // deltaMode: 0 = pixels, 1 = lines, 2 = pages.
+  const unit =
+    event.deltaMode === 1 ? WHEEL_NOTCH_LINES : event.deltaMode === 2 ? 1 : WHEEL_NOTCH_PIXELS;
+  return { key, notches: Math.abs(delta) / unit };
 }
 
 export function parseMpvInputBindingKeys(

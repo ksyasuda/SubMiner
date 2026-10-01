@@ -1,6 +1,7 @@
 import type { CompiledSessionBinding, PrimarySubMode, ShortcutsConfig } from '../../types';
 import type { RendererContext } from '../context';
 import { createMpvInputForwarding } from './mpv-input-forwarding';
+import { MPV_MOUSE_BUTTON_BY_BUTTON, wheelEventToMpvWheel } from '../../shared/mpv-input-bindings';
 import { dispatchConfiguredMpvCommand } from '../utils/mpv-command-dispatch';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
@@ -43,13 +44,6 @@ export function createKeyboardHandlers(
   const CHORD_TIMEOUT_MS = 1000;
   const MPV_INPUT_FORWARDING_CONFIG_LOAD_TIMEOUT_MS = 50;
   const KEYBOARD_SELECTED_WORD_CLASS = 'keyboard-selected';
-  const MOUSE_BUTTON_CODE_BY_BUTTON: Record<number, string> = {
-    0: 'MBTN_LEFT',
-    1: 'MBTN_MID',
-    2: 'MBTN_RIGHT',
-    3: 'MBTN_BACK',
-    4: 'MBTN_FORWARD',
-  };
   let pendingSelectionAnchorAfterSubtitleSeek: 'start' | 'end' | null = null;
   let pendingLookupRefreshAfterSubtitleSeek = false;
   let resetSelectionToStartOnNextSubtitleSync = false;
@@ -58,6 +52,8 @@ export function createKeyboardHandlers(
     actionId: 'copySubtitleMultiple' | 'mineSentenceMultiple';
     timeout: ReturnType<typeof setTimeout> | null;
   } | null = null;
+  // Fractional wheel notches (trackpads) carried toward the next configured wheel binding.
+  let pendingWheelBinding: { key: string; notches: number } | null = null;
   let mpvInputForwardingListenersInstalled = false;
   let keyboardConfigLoaded = false;
   const importedMpvBindings = createMpvInputForwarding({
@@ -89,20 +85,8 @@ export function createKeyboardHandlers(
     return false;
   }
 
-  function keyEventToString(e: KeyboardEvent): string {
-    const parts: string[] = [];
-    if (e.ctrlKey) parts.push('Ctrl');
-    if (e.altKey) parts.push('Alt');
-    if (e.shiftKey) parts.push('Shift');
-    if (e.metaKey) parts.push('Meta');
-    parts.push(e.code);
-    return parts.join('+');
-  }
-
-  function mouseEventToString(e: MouseEvent): string | null {
-    const code = MOUSE_BUTTON_CODE_BY_BUTTON[e.button];
-    if (!code) return null;
-
+  // Builds the session binding map key (`Ctrl+Shift+KeyR`) for an input event.
+  function inputEventToString(e: KeyboardEvent | MouseEvent, code: string): string {
     const parts: string[] = [];
     if (e.ctrlKey) parts.push('Ctrl');
     if (e.altKey) parts.push('Alt');
@@ -110,6 +94,60 @@ export function createKeyboardHandlers(
     if (e.metaKey) parts.push('Meta');
     parts.push(code);
     return parts.join('+');
+  }
+
+  function keyEventToString(e: KeyboardEvent): string {
+    return inputEventToString(e, e.code);
+  }
+
+  function mouseEventToString(e: MouseEvent): string | null {
+    const code = MPV_MOUSE_BUTTON_BY_BUTTON[e.button];
+    return code ? inputEventToString(e, code) : null;
+  }
+
+  // Overlay UI that handles its own mouse input (menus, sidebar, notifications, controls).
+  function isOverlayControlTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) return false;
+    return Boolean(
+      target.closest(
+        '.modal, .notification-history, .overlay-notification-stack, button, a, input, select, textarea',
+      ),
+    );
+  }
+
+  // Imported mpv bindings only run when no SubMiner UI could be the input's target.
+  function canForwardToMpv(target: EventTarget | null): boolean {
+    return (
+      keyboardConfigLoaded &&
+      !ctx.state.playlistBrowserModalOpen &&
+      !ctx.state.youtubePickerModalOpen &&
+      !ctx.state.subtitleSidebarModalOpen &&
+      !ctx.state.yomitanPopupVisible &&
+      !isYomitanPopupVisible(document) &&
+      !isInteractiveTarget(target)
+    );
+  }
+
+  // Scrolling over subtitles still reaches mpv; only scrollable overlay UI keeps the wheel.
+  function handleWheel(e: WheelEvent): void {
+    if (isOverlayControlTarget(e.target)) return;
+    const scroll = wheelEventToMpvWheel(e);
+    if (!scroll) return;
+    const wheelString = inputEventToString(e, scroll.key);
+    const binding = ctx.state.sessionBindingMap.get(wheelString);
+    if (binding) {
+      e.preventDefault();
+      // SubMiner actions are not scalable, so fire once per whole notch.
+      const notches =
+        (pendingWheelBinding?.key === wheelString ? pendingWheelBinding.notches : 0) +
+        scroll.notches;
+      const presses = Math.floor(notches + 1e-6); // absorb float drift from summed deltas
+      pendingWheelBinding = { key: wheelString, notches: Math.max(0, notches - presses) };
+      for (let i = 0; i < presses; i++) dispatchSessionBinding(binding);
+      return;
+    }
+    pendingWheelBinding = null;
+    if (keyboardConfigLoaded) importedMpvBindings.wheel(e);
   }
 
   function updateConfiguredShortcuts(
@@ -1290,16 +1328,7 @@ export function createKeyboardHandlers(
         e.preventDefault();
         return;
       }
-      if (
-        keyboardConfigLoaded &&
-        !ctx.state.playlistBrowserModalOpen &&
-        !ctx.state.youtubePickerModalOpen &&
-        !ctx.state.subtitleSidebarModalOpen &&
-        !ctx.state.yomitanPopupVisible &&
-        !isYomitanPopupVisible(document) &&
-        !isInteractiveTarget(e.target)
-      )
-        importedMpvBindings.keydown(e);
+      if (canForwardToMpv(e.target)) importedMpvBindings.keydown(e);
     });
 
     document.addEventListener('mousedown', (e: MouseEvent) => {
@@ -1319,8 +1348,16 @@ export function createKeyboardHandlers(
           .finally(() => {
             window.electronAPI.sendMpvCommand(['cycle', 'pause']);
           });
+        return;
+      }
+
+      if (canForwardToMpv(e.target) && !isOverlayControlTarget(e.target)) {
+        importedMpvBindings.mousedown(e);
       }
     });
+    document.addEventListener('mouseup', importedMpvBindings.mouseup, true);
+
+    document.addEventListener('wheel', handleWheel, { passive: false });
 
     document.addEventListener('contextmenu', (e: Event) => {
       if (!isInteractiveTarget(e.target)) {

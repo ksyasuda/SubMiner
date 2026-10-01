@@ -1,4 +1,5 @@
 import type { Keybinding } from '../types/runtime';
+import { MPV_MOUSE_BUTTON_BY_BUTTON, wheelEventToMpvWheel } from '../shared/mpv-input-bindings';
 
 export type KeyInputMode = 'accelerator' | 'dom-code' | 'code' | 'mpv-key';
 
@@ -18,6 +19,9 @@ export interface MouseInputLike {
   shiftKey: boolean;
   metaKey: boolean;
 }
+
+export type WheelInputLike = Omit<MouseInputLike, 'button'> &
+  Parameters<typeof wheelEventToMpvWheel>[0];
 
 export interface MpvKeybindingRow {
   defaultKey: string;
@@ -85,14 +89,6 @@ const MPV_KEY_BY_CODE: Record<string, string> = {
   Slash: '/',
   Space: 'SPACE',
   Tab: 'TAB',
-};
-
-const MPV_MOUSE_BUTTON_BY_BUTTON: Record<number, string> = {
-  0: 'MBTN_LEFT',
-  1: 'MBTN_MID',
-  2: 'MBTN_RIGHT',
-  3: 'MBTN_BACK',
-  4: 'MBTN_FORWARD',
 };
 
 function commandEquals(a: Keybinding['command'], b: Keybinding['command']): boolean {
@@ -169,12 +165,22 @@ export function keyboardEventToConfigKey(
 }
 
 export function mouseEventToConfigKey(input: MouseInputLike, mode: KeyInputMode): string | null {
-  if (mode !== 'dom-code') {
-    return null;
-  }
-
   const key = MPV_MOUSE_BUTTON_BY_BUTTON[input.button];
-  if (!key) {
+  return key ? mouseInputToConfigKey(input, key, mode) : null;
+}
+
+export function wheelEventToConfigKey(input: WheelInputLike, mode: KeyInputMode): string | null {
+  const key = wheelEventToMpvWheel(input)?.key;
+  return key ? mouseInputToConfigKey(input, key, mode) : null;
+}
+
+// Mouse input is only bindable through mpv keybindings, which use DOM-code keys.
+function mouseInputToConfigKey(
+  input: Omit<MouseInputLike, 'button'>,
+  key: string,
+  mode: KeyInputMode,
+): string | null {
+  if (mode !== 'dom-code') {
     return null;
   }
 

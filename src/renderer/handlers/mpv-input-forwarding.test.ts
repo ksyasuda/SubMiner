@@ -59,6 +59,71 @@ test('configured and disabled keys, handled input, and unknown keys are not forw
   assert.deepEqual(commands, []);
 });
 
+test('imported wheel bindings forward as scaled keypresses unless SubMiner claims them', async () => {
+  const commands: (string | number)[][] = [];
+  const forwarding = createMpvInputForwarding({
+    load: async () => ({
+      keys: ['WHEEL_UP', 'WHEEL_DOWN', 'shift+WHEEL_UP'],
+      blockedKeys: [{ code: 'WHEEL_DOWN', modifiers: [] }],
+    }),
+    send: (command) => commands.push(command),
+  });
+  await forwarding.refresh();
+  const wheelEvent = {
+    deltaX: 0,
+    deltaY: -60,
+    deltaMode: 0,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    metaKey: false,
+    defaultPrevented: false,
+    preventDefault: () => {},
+  };
+  assert.equal(forwarding.wheel(wheelEvent), true);
+  assert.equal(forwarding.wheel({ ...wheelEvent, deltaY: -120, shiftKey: true }), true);
+  assert.equal(forwarding.wheel({ ...wheelEvent, deltaY: 120 }), false);
+  assert.equal(forwarding.wheel({ ...wheelEvent, deltaX: 120, deltaY: 0 }), false);
+  assert.equal(forwarding.wheel({ ...wheelEvent, defaultPrevented: true }), false);
+  assert.deepEqual(commands, [
+    ['keypress', 'WHEEL_UP', 0.5],
+    ['keypress', 'shift+WHEEL_UP', 1],
+  ]);
+});
+
+test('mouse buttons forward as held keys when mpv binds the button or its double-click', async () => {
+  const commands: (string | number)[][] = [];
+  const forwarding = createMpvInputForwarding({
+    load: async () => ({
+      keys: ['MBTN_LEFT_DBL', 'MBTN_BACK', 'MBTN_FORWARD'],
+      blockedKeys: [{ code: 'MBTN_FORWARD', modifiers: [] }],
+    }),
+    send: (command) => commands.push(command),
+  });
+  await forwarding.refresh();
+  const mouseEvent = {
+    button: 0,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    metaKey: false,
+    defaultPrevented: false,
+    preventDefault: () => {},
+  };
+  assert.equal(forwarding.mousedown(mouseEvent), true);
+  forwarding.mouseup(mouseEvent);
+  assert.equal(forwarding.mousedown({ ...mouseEvent, button: 3 }), true);
+  forwarding.releaseAll();
+  assert.equal(forwarding.mousedown({ ...mouseEvent, button: 4 }), false);
+  assert.equal(forwarding.mousedown({ ...mouseEvent, button: 1 }), false);
+  assert.deepEqual(commands, [
+    ['keydown', 'MBTN_LEFT'],
+    ['keyup', 'MBTN_LEFT'],
+    ['keydown', 'MBTN_BACK'],
+    ['keyup', 'MBTN_BACK'],
+  ]);
+});
+
 test('refresh discards stale responses and coalesces concurrent requests', async () => {
   let resolveFirst: (snapshot: MpvInputBindingsSnapshot) => void = () => {};
   let requests = 0;
