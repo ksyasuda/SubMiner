@@ -779,6 +779,9 @@ async function init(): Promise<void> {
     });
   });
 
+  // Subscribe before the initial discovery: mpv can connect while it is in flight,
+  // and a missed change event leaves the imported mpv keys empty.
+  window.electronAPI.onMpvInputBindingsChanged(keyboardHandlers.refreshMpvInputBindings);
   await keyboardHandlers.setupMpvInputForwarding();
 
   const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
@@ -893,7 +896,6 @@ async function init(): Promise<void> {
     });
   });
   window.electronAPI.onSessionBindingsChanged(keyboardHandlers.updateSessionBindings);
-  window.electronAPI.onMpvInputBindingsChanged(keyboardHandlers.refreshMpvInputBindings);
   window.electronAPI.onConfigHotReload((payload: ConfigHotReloadPayload) => {
     runGuarded('config:hot-reload', () => {
       void window.electronAPI
