@@ -4,7 +4,7 @@
 
 # SubMiner
 
-Integrates Yomitan or Hachidori with mpv - on-screen lookups, mine to Anki, and track immersion without leaving the player
+Look up words with Yomitan or Hachidori, mine them to Anki, and track your immersion without leaving mpv
 
 [Installation](#quick-start) · [Requirements](#requirements) · [Usage](https://docs.subminer.moe/usage) · [Documentation](https://docs.subminer.moe)
 
@@ -23,7 +23,7 @@ Integrates Yomitan or Hachidori with mpv - on-screen lookups, mine to Anki, and 
 
 ### Dictionary Lookups
 
-Hover over any word and trigger a lookup to get the full Yomitan popup - definitions, pitch accent, and frequency data - without ever leaving mpv.
+Hover over any word in the subtitles to open the full Yomitan popup with definitions, pitch accent, and frequency data. SubMiner bundles its own Yomitan, separate from any browser install.
 
 Yomitan remains the default. Select the bundled Hachidori backend with `dictionaryBackend: "hachidori"` and restart SubMiner. The tray opens the selected backend's settings. See [dictionary setup](https://docs.subminer.moe/usage#hachidori-setup) for importing dictionaries, linking an external Hachidori host, and configuring Anki.
 
@@ -35,7 +35,7 @@ Yomitan remains the default. Select the bundled Hachidori backend with `dictiona
 
 ### Instant Anki Mining
 
-Create an Anki card with the sentence, audio clip, screenshot, and machine translation from the exact playback moment with one key press, click, or controller input.
+Create an Anki card from the exact playback moment with one key press, click, or controller input. SubMiner fills in the sentence, an audio clip, and a screenshot or animated image.
 
 <div align="center">
   <img src="docs-site/public/screenshots/one-key-mining.png" width="800" alt="Anki card created from SubMiner with sentence, audio, and screenshot">
@@ -45,7 +45,7 @@ Create an Anki card with the sentence, audio clip, screenshot, and machine trans
 
 ### Reading Annotations
 
-Real-time subtitle annotations with frequency highlighting, JLPT tags, N+1 targeting, and a character name dictionary. Grammar-only tokens and particles render as plain text so you focus on what matters.
+Subtitles are annotated as they play with frequency highlighting, JLPT tags, N+1 targeting, and character names from a generated dictionary. Particles and grammar-only tokens stay plain so the words worth learning stand out.
 
 <div align="center">
   <img src="docs-site/public/screenshots/annotations.png" width="800" alt="Annotated subtitles with frequency coloring, JLPT underlines, and N+1 targets">
@@ -55,20 +55,10 @@ Real-time subtitle annotations with frequency highlighting, JLPT tags, N+1 targe
 
 ### Immersion Dashboard
 
-Local stats dashboard tracking watch time, vocabulary growth, mining throughput, session history, and trends. All stored locally, no third-party tracking.
+A stats dashboard tracks watch time, vocabulary growth, mining throughput, session history, and trends. Everything stays on your machine, with no third-party tracking.
 
 <div align="center">
   <img src="docs-site/public/screenshots/stats-overview.png" width="800" alt="Stats dashboard showing watch time, cards mined, streaks, and tracking data">
-</div>
-
-<br>
-
-### Playlist Browser
-
-Browse sibling episode files and the active mpv queue in one overlay modal. Open it with `Ctrl+Alt+P` to append episodes from the current directory, jump to queued items, remove entries, or reorder the playlist without leaving playback.
-
-<div align="center">
-  <img src="docs-site/public/screenshots/playlist-browser.png" width="800" alt="Playlist browser modal showing sibling episode files beside the active mpv queue">
 </div>
 
 <br>
@@ -78,7 +68,7 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 <table>
   <tr>
     <td><b>YouTube</b></td>
-    <td>Auto-loaded yt-dlp subtitle tracks at startup with config-driven primary/secondary language priorities and a manual overlay picker on demand (<code>Ctrl+Alt+C</code>)</td>
+    <td>Play YouTube URLs with subtitle tracks picked by your language priorities, or choose tracks yourself in the overlay picker (<code>Ctrl+Alt+C</code>). Requires <code>yt-dlp</code></td>
   </tr>
   <tr>
     <td><b>AniList</b></td>
@@ -86,19 +76,19 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
   </tr>
   <tr>
     <td><b>Jellyfin</b></td>
-    <td>Browse, launch, and cast media from your Jellyfin server with setup and discovery controls in the app tray</td>
+    <td>Browse your Jellyfin library, or cast to SubMiner from any Jellyfin client. Setup and discovery live in the tray menu</td>
   </tr>
   <tr>
     <td><b>Jimaku</b></td>
-    <td>Search and download Japanese subtitles</td>
-  </tr>
-  <tr>
-    <td><b>Local Subtitle Generation</b></td>
-    <td>Generate Japanese subtitles from local audio in a standalone modal (<code>Ctrl+Shift+G</code>), the sidebar button, or launcher, with progress and optional managed model downloads. Requires whisper.cpp and FFmpeg. Optional Silero speech detection prioritizes dialogue in separately timed passages. <a href="https://docs.subminer.moe/main/subtitle-generation">Setup guide</a></td>
+    <td>Search and download Japanese subtitles. Requires a free Jimaku API key</td>
   </tr>
   <tr>
     <td><b>TsukiHime</b></td>
-    <td>Search and download subtitles extracted from anime releases, with Japanese and secondary-language tabs (<code>Ctrl+Shift+T</code>) — no API key, requires <code>xz</code> on your <code>PATH</code></td>
+    <td>Search and download subtitles extracted from anime releases, with Japanese and secondary-language tabs (<code>Ctrl+Shift+T</code>). Requires <code>xz</code> on your <code>PATH</code></td>
+  </tr>
+  <tr>
+    <td><b>Subtitle generation</b></td>
+    <td>Transcribe a video's audio into Japanese subtitles locally from the generation modal (<code>Ctrl+Shift+G</code>), the subtitle sidebar, or the launcher. SubMiner can download models for you; optional Silero speech detection helps focus on dialogue. Requires whisper.cpp and FFmpeg. <a href="https://docs.subminer.moe/subtitle-generation">Setup guide</a></td>
   </tr>
   <tr>
     <td><b>AniSkip</b></td>
@@ -106,7 +96,7 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
   </tr>
   <tr>
     <td><b>alass / ffsubsync</b></td>
-    <td>Manual subtitle retiming — requires <code>alass</code> or <code>ffsubsync</code> on your <code>PATH</code> (optional; subtitle syncing is disabled without them)</td>
+    <td>Retime a subtitle against the audio or another subtitle track (<code>Ctrl+Alt+S</code>). Requires <code>alass</code> or <code>ffsubsync</code>; set <code>subsync.alass_path</code> or <code>subsync.ffsubsync_path</code> if they are not in <code>/usr/bin</code></td>
   </tr>
   <tr>
     <td><b>WebSocket</b></td>
@@ -114,29 +104,29 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
   </tr>
 </table>
 
-<div align="center">
-  <img src="docs-site/public/screenshots/texthooker.png" width="800" alt="Texthooker page receiving annotated subtitle lines via WebSocket">
-</div>
-
 <br>
 
 ---
 
 ## Requirements
 
-Only **mpv** is required to run SubMiner. Anki + AnkiConnect are required to mine cards, which is the point of the app, but everything else is optional.
+SubMiner runs on Linux, macOS 11+, and Windows 10+. Only **mpv** is required to run it (plus `fuse2` for the Linux AppImage). Mining cards also needs Anki with the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on. Everything else is optional.
 
-| Dependency           | Status           | What it does                                             |
-| -------------------- | ---------------- | -------------------------------------------------------- |
-| mpv                  | Required         | The video player SubMiner overlays on                    |
-| Anki + AnkiConnect   | Required to mine | Card creation from the Yomitan popup                     |
-| ffmpeg               | Recommended      | Audio clips & screenshots for Anki cards                 |
-| MeCab + mecab-ipadic | Recommended      | More precise annotations and filtering                   |
-| yt-dlp               | Optional         | YouTube playback                                         |
-| xz                   | Optional         | TsukiHime subtitle downloads (not on Windows by default) |
-| alass / ffsubsync    | Optional         | Subtitle sync                                            |
-| guessit              | Optional         | Better anime title and episode detection                 |
-| fzf / rofi           | Optional         | Video picker in the `subminer` launcher (Linux/macOS)    |
+| Dependency               | Status           | What it does                                                         |
+| ------------------------ | ---------------- | -------------------------------------------------------------------- |
+| mpv                      | Required         | The video player SubMiner draws over                                 |
+| fuse2                    | Required (Linux) | Running the AppImage                                                 |
+| Anki + AnkiConnect       | Required to mine | Card creation from the Yomitan popup                                 |
+| ffmpeg                   | Recommended      | Audio clips and screenshots on cards                                 |
+| MeCab + mecab-ipadic     | Recommended      | More accurate N+1, JLPT, and frequency highlighting                  |
+| xdotool + xwininfo       | Required (X11)   | Window tracking on desktops other than Hyprland or Sway              |
+| yt-dlp                   | Optional         | YouTube playback                                                     |
+| xz                       | Optional         | TsukiHime subtitle downloads (most Linux distros already have it)    |
+| alass / ffsubsync        | Optional         | Subtitle sync                                                        |
+| whisper.cpp              | Optional         | [Subtitle generation](https://docs.subminer.moe/subtitle-generation) |
+| guessit                  | Optional         | Better title, season, and episode detection for AniSkip and AniList  |
+| fzf / rofi               | Optional         | Video picker in the `subminer` launcher (rofi is Linux only)         |
+| chafa, ffmpegthumbnailer | Optional         | Thumbnail previews in the launcher pickers                           |
 
 <details>
 <summary><b>Platform-specific install commands</b></summary>
@@ -144,8 +134,11 @@ Only **mpv** is required to run SubMiner. Anki + AnkiConnect are required to min
 **Arch Linux:**
 
 ```bash
-sudo pacman -S --needed mpv ffmpeg mecab mecab-ipadic
+sudo pacman -S --needed mpv ffmpeg
+paru -S --needed mecab-git mecab-ipadic   # MeCab is only in the AUR
 ```
+
+On desktops other than Hyprland or Sway, also install `xdotool` and `xorg-xwininfo`.
 
 **macOS:**
 
@@ -160,16 +153,16 @@ winget install shinchiro.mpv
 winget install Gyan.FFmpeg
 ```
 
-Then reopen your terminal and check `mpv --version` and `ffmpeg -version`. winget puts `ffmpeg` on `PATH` automatically; mpv uses a regular installer that may not, so if `mpv` is not found, either add its folder (usually `%LOCALAPPDATA%\Programs\mpv`) to `PATH` or set `mpv.executablePath` during first-run setup.
+Then reopen your terminal and check `mpv --version` and `ffmpeg -version`. ffmpeg must be on `PATH`; mpv does not have to be. If `mpv` is not found, either add its folder (usually `%LOCALAPPDATA%\Programs\mpv`) to `PATH` or enter the full path to `mpv.exe` during first-run setup.
 
-[Scoop](https://scoop.sh) is the alternative if you want one package manager for everything, since it is the only one that also carries `xz`:
+[Scoop](https://scoop.sh) is the alternative if you want one package manager for everything. It is the only one that also carries `xz`:
 
 ```powershell
 scoop bucket add extras
 scoop install extras/mpv main/ffmpeg main/yt-dlp main/xz
 ```
 
-See the [full requirements list](https://docs.subminer.moe/installation#_1-install-requirements) for optional dependencies.
+See the [installation guide](https://docs.subminer.moe/installation#_1-install-requirements) for Ubuntu, Debian, and Fedora commands and the full optional package lists.
 
 </details>
 
@@ -186,6 +179,8 @@ See the [full requirements list](https://docs.subminer.moe/installation#_1-insta
 paru -S subminer-bin
 ```
 
+Includes the AppImage and the `subminer` command.
+
 </details>
 
 <details>
@@ -197,14 +192,7 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppI
  && chmod +x ~/.local/bin/SubMiner.AppImage
 ```
 
-The AppImage is all you need. First-run setup can install the optional `subminer` command-line launcher. Every current launcher uses Bun included with the app, so you do not need Bun installed or on `PATH`.
-
-You can also download the launcher wrapper directly:
-
-```bash
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer \
- && chmod +x ~/.local/bin/subminer
-```
+The AppImage is all you need. First-run setup can install the optional `subminer` command, which runs on a copy of Bun bundled with the app, so you do not need Bun installed.
 
 </details>
 
@@ -213,14 +201,14 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~
 
 Download the latest DMG from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest) and drag `SubMiner.app` into `/Applications`.
 
+Then enable SubMiner under **System Settings > Privacy & Security > Accessibility**, or the overlay cannot follow the mpv window. If macOS blocks the first launch, right-click the app and choose **Open**.
+
 </details>
 
 <details>
 <summary><b>Windows</b></summary>
 
-Download and run the latest installer (`.exe`) from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest).
-
-For terminal use, download `subminer.cmd`. It locates the installed app and uses its private Bun runtime.
+Download and run the latest installer (`SubMiner-<version>.exe`) from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). A portable `.zip` is also available.
 
 </details>
 
@@ -233,28 +221,30 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 
 ### 2. Launch & Set Up
 
-Run the installed app and the first-run setup wizard will guide you through importing Yomitan dictionaries and optionally installing the `subminer` command-line launcher. Setup records a custom app location when needed, and the wrapper runs with the app's private Bun runtime.
+Start SubMiner and the setup window opens on first launch. It creates your config file, imports Yomitan dictionaries (you need at least one for lookups), and can install the `subminer` command. On Windows it also creates a **SubMiner mpv** shortcut.
 
 ```bash
-# Linux
-~/.local/bin/SubMiner.AppImage --setup
-
-# macOS
-open -a SubMiner --args --setup
+subminer app --setup                     # AUR
+~/.local/bin/SubMiner.AppImage --setup   # AppImage
 ```
 
-On **Windows**, just run `SubMiner.exe` and the setup will open automatically on first launch.
+On **macOS**, open `SubMiner.app` from `/Applications`. On **Windows**, run SubMiner from the Start menu. To reopen setup later, run `subminer app --setup`.
+
+For card creation, keep Anki open with AnkiConnect installed. SubMiner connects to it at its default address with no extra setup.
 
 ### 3. Mine
 
 ```bash
-subminer video.mkv          # launch mpv with SubMiner
+subminer video.mkv          # play a video with SubMiner
 subminer /path/to/dir       # pick a file with fzf
 subminer -R /path/to/dir    # pick a file with rofi (Linux only)
-subminer -H                 # browse history, then previous / replay / next / select / quit
+subminer -H                 # watch history: replay, next, or previous episode
+subminer doctor             # check your setup
 ```
 
-On **Windows**, use the **SubMiner mpv** shortcut created during setup. Double-click it or drag a video file onto it.
+On **Windows**, double-click the **SubMiner mpv** shortcut or drag a video file onto it.
+
+Starting mpv some other way? See [Launching mpv yourself](https://docs.subminer.moe/installation#launching-mpv-yourself) for the IPC socket option the overlay needs.
 
 ## Documentation
 

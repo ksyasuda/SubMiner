@@ -268,10 +268,10 @@ Adds a modal for choosing mpv's primary and secondary subtitle tracks. Open it w
 }
 ```
 
-- `key` uses `KeyboardEvent.code` names (`Space`, `KeyR`, `ArrowRight`) with optional `Ctrl+`, `Alt+`, `Shift+`, `Meta+`. Mouse buttons are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, `MBTN_FORWARD`.
+- `key` uses `KeyboardEvent.code` names (`Space`, `KeyR`, `ArrowRight`) with optional `Ctrl+`, `Alt+`, `Shift+`, `Meta+`. Mouse buttons are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, `MBTN_FORWARD`. Scroll wheel keys are `WHEEL_UP`, `WHEEL_DOWN`, `WHEEL_LEFT`, `WHEEL_RIGHT`.
 - `command` is any mpv JSON IPC command array. Set it to `null` to disable a default.
 - Commands starting with `__` run inside SubMiner: `__playlist-browser-open`, `__youtube-picker-open`, `__replay-subtitle`, `__play-next-subtitle`, `__runtime-options-open`, and `__runtime-option-cycle:<id>[:next|prev]`.
-- Unused single-key bindings from your mpv config also work in the overlay. Your SubMiner bindings win on conflicts.
+- Unused single-key, mouse button, and scroll wheel bindings from your mpv config also work in the overlay. Your SubMiner bindings win on conflicts.
 
 ### Shortcuts configuration
 

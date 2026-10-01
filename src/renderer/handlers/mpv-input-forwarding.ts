@@ -1,8 +1,19 @@
-import { keyboardEventToMpvKey } from '../../shared/mpv-input-bindings';
+import {
+  MPV_MOUSE_BUTTON_BY_BUTTON,
+  keyboardEventToMpvKey,
+  normalizeMpvInputKey,
+  wheelEventToMpvWheel,
+} from '../../shared/mpv-input-bindings';
 import type { MpvInputBindingsSnapshot } from '../../types/session-bindings';
 
+type ModifierState = Pick<KeyboardEvent, 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'>;
 type ForwardedKeyEvent = Parameters<typeof keyboardEventToMpvKey>[0] &
   Pick<KeyboardEvent, 'code' | 'repeat' | 'defaultPrevented' | 'preventDefault'>;
+type ForwardedWheelEvent = Parameters<typeof wheelEventToMpvWheel>[0] &
+  ModifierState &
+  Pick<WheelEvent, 'defaultPrevented' | 'preventDefault'>;
+type ForwardedMouseEvent = ModifierState &
+  Pick<MouseEvent, 'button' | 'defaultPrevented' | 'preventDefault'>;
 
 export function createMpvInputForwarding(deps: {
   load: () => Promise<MpvInputBindingsSnapshot>;
@@ -47,6 +58,30 @@ export function createMpvInputForwarding(deps: {
     return pending;
   }
 
+  // Keys claimed by SubMiner's configured keybindings stay with SubMiner.
+  function isBlocked(code: string, event: ModifierState): boolean {
+    return blockedKeys.some(
+      ({ code: blockedCode, modifiers }) =>
+        blockedCode === code &&
+        modifiers.includes('ctrl') === event.ctrlKey &&
+        modifiers.includes('alt') === event.altKey &&
+        modifiers.includes('shift') === event.shiftKey &&
+        modifiers.includes('meta') === event.metaKey,
+    );
+  }
+
+  function modifiedMpvKey(event: ModifierState, key: string): string | null {
+    return normalizeMpvInputKey(
+      [
+        ...(event.ctrlKey ? ['ctrl'] : []),
+        ...(event.altKey ? ['alt'] : []),
+        ...(event.shiftKey ? ['shift'] : []),
+        ...(event.metaKey ? ['meta'] : []),
+        key,
+      ].join('+'),
+    );
+  }
+
   function keydown(event: ForwardedKeyEvent): boolean {
     if (disposed || event.defaultPrevented) return false;
     if (heldKeys.has(event.code)) {
@@ -54,17 +89,7 @@ export function createMpvInputForwarding(deps: {
       return true;
     }
     if (event.repeat || event.code.startsWith('Numpad')) return false;
-    if (
-      blockedKeys.some(
-        ({ code, modifiers }) =>
-          code === event.code &&
-          modifiers.includes('ctrl') === event.ctrlKey &&
-          modifiers.includes('alt') === event.altKey &&
-          modifiers.includes('shift') === event.shiftKey &&
-          modifiers.includes('meta') === event.metaKey,
-      )
-    )
-      return false;
+    if (isBlocked(event.code, event)) return false;
     const key = keyboardEventToMpvKey(event);
     if (!key || !keys.has(key)) return false;
     heldKeys.set(event.code, key);
@@ -81,11 +106,53 @@ export function createMpvInputForwarding(deps: {
     event.preventDefault();
   }
 
+  // Wheel scrolls are single events, so they go through mpv's keypress with the notch
+  // count as scale, matching how mpv handles precise scrolling natively.
+  function wheel(event: ForwardedWheelEvent): boolean {
+    if (disposed || event.defaultPrevented) return false;
+    const scroll = wheelEventToMpvWheel(event);
+    if (!scroll || isBlocked(scroll.key, event)) return false;
+    const key = modifiedMpvKey(event, scroll.key);
+    if (!key || !keys.has(key)) return false;
+    deps.send(['keypress', key, scroll.notches]);
+    event.preventDefault();
+    return true;
+  }
+
+  // Buttons go through keydown/keyup so held-button bindings and mpv's own double-click
+  // detection (MBTN_LEFT_DBL) work. A button is forwarded when mpv binds it or its
+  // double-click.
+  function mousedown(event: ForwardedMouseEvent): boolean {
+    if (disposed || event.defaultPrevented) return false;
+    const heldId = `mouse:${event.button}`;
+    if (heldKeys.has(heldId)) {
+      event.preventDefault();
+      return true;
+    }
+    const button = MPV_MOUSE_BUTTON_BY_BUTTON[event.button];
+    if (!button || isBlocked(button, event)) return false;
+    const key = modifiedMpvKey(event, button);
+    if (!key || (!keys.has(key) && !keys.has(`${key}_DBL`))) return false;
+    heldKeys.set(heldId, key);
+    deps.send(['keydown', key]);
+    event.preventDefault();
+    return true;
+  }
+
+  function mouseup(event: Pick<MouseEvent, 'button' | 'preventDefault'>): void {
+    const heldId = `mouse:${event.button}`;
+    const key = heldKeys.get(heldId);
+    if (!key) return;
+    heldKeys.delete(heldId);
+    deps.send(['keyup', key]);
+    event.preventDefault();
+  }
+
   function dispose(): void {
     disposed = true;
     keys.clear();
     releaseAll();
   }
 
-  return { refresh, keydown, keyup, releaseAll, dispose };
+  return { refresh, keydown, keyup, wheel, mousedown, mouseup, releaseAll, dispose };
 }

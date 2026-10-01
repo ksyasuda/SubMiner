@@ -25,6 +25,10 @@ export interface SessionBindingsRuntimeDeps {
   setSessionBindingsInitialized: (initialized: boolean) => void;
   logWarn: (message: string, details?: unknown) => void;
   onBindingsChanged?: (bindings: CompiledSessionBinding[]) => void;
+  // Fires when mpv's own key bindings change, including the first discovery after
+  // connecting. The overlay's imported mpv keys depend on them even when the
+  // compiled session bindings stay identical.
+  onMpvInputBindingsChanged?: () => void;
   onWarning?: (warning: SessionBindingWarning) => void;
 }
 
@@ -41,6 +45,7 @@ export function createSessionBindingsRuntime(deps: SessionBindingsRuntimeDeps): 
   let nativeSnapshot: {
     client: ReturnType<SessionBindingsRuntimeDeps['getMpvClient']>;
     keys: string[];
+    signature: string;
   } | null = null;
   let pending: {
     client: ReturnType<SessionBindingsRuntimeDeps['getMpvClient']>;
@@ -135,8 +140,15 @@ export function createSessionBindingsRuntime(deps: SessionBindingsRuntimeDeps): 
       try {
         const raw = await client.requestProperty('input-bindings');
         if (client !== deps.getMpvClient() || !client.connected) return;
-        nativeSnapshot = { client, keys: parseMpvInputBindingKeys(raw, { includeIgnored: false }) };
+        const signature = JSON.stringify(parseMpvInputBindingKeys(raw));
+        const changed = nativeSnapshot?.client !== client || nativeSnapshot.signature !== signature;
+        nativeSnapshot = {
+          client,
+          keys: parseMpvInputBindingKeys(raw, { includeIgnored: false }),
+          signature,
+        };
         publishBindings();
+        if (changed) deps.onMpvInputBindingsChanged?.();
       } catch {
         // Keep the last successful snapshot if discovery is temporarily unavailable.
       }

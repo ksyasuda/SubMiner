@@ -71,6 +71,10 @@ const KEY_NAME_MAP: Record<string, string> = {
   MBTN_RIGHT: 'Mouse Right',
   MBTN_BACK: 'Mouse Back',
   MBTN_FORWARD: 'Mouse Forward',
+  WHEEL_UP: 'Wheel Up',
+  WHEEL_DOWN: 'Wheel Down',
+  WHEEL_LEFT: 'Wheel Left',
+  WHEEL_RIGHT: 'Wheel Right',
 };
 
 function normalizeKeyToken(token: string): string {

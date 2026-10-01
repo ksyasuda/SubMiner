@@ -656,6 +656,7 @@ export interface ElectronAPI {
   ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   onSessionBindingsChanged: (callback: (bindings: CompiledSessionBinding[]) => void) => void;
+  onMpvInputBindingsChanged: (callback: () => void) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
 }
 

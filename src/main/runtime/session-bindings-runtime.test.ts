@@ -71,6 +71,45 @@ test('persistSessionBindings keeps saved bindings when mpv reload notification f
   }
 });
 
+test('mpv input binding discovery notifies the overlay when the native key set changes', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-session-native-keys-'));
+  let nativeKeys: unknown = [{ key: '9', cmd: 'add volume -5', priority: 25 }];
+  let notifications = 0;
+  const client = {
+    connected: false,
+    send: () => {},
+    requestProperty: async () => nativeKeys,
+  };
+  const runtime = createSessionBindingsRuntime({
+    configDir: root,
+    getKeybindings: () => [],
+    getConfiguredShortcuts: () => ({ multiCopyTimeoutMs: 1500 }) as never,
+    getResolvedConfig: () => ({ stats: { toggleKey: 's', markWatchedKey: 'w' } }) as ResolvedConfig,
+    getMpvClient: () => client,
+    setSessionBindings: () => {},
+    setSessionBindingsInitialized: () => {},
+    logWarn: () => {},
+    onMpvInputBindingsChanged: () => {
+      notifications += 1;
+    },
+  });
+  try {
+    runtime.persistSessionBindings([]);
+    await runtime.refreshMpvSessionBindings();
+    assert.equal(notifications, 0, 'nothing to announce before mpv connects');
+    client.connected = true;
+    await runtime.refreshMpvSessionBindings();
+    assert.equal(notifications, 1, 'first discovery after connecting must reach the overlay');
+    await runtime.refreshMpvSessionBindings();
+    assert.equal(notifications, 1, 'unchanged discovery must not create a refresh loop');
+    nativeKeys = [{ key: '0', cmd: 'ignore', priority: 25 }];
+    await runtime.refreshMpvSessionBindings();
+    assert.equal(notifications, 2, 'ignored keys still change what the overlay may forward');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('native prefix conflicts publish the same effective bindings to the overlay and plugin and recover', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-session-conflict-'));
   const sequence: CompiledSessionBinding = {

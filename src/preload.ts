@@ -662,6 +662,9 @@ const electronAPI: ElectronAPI = {
       (_event, bindings: import('./types').CompiledSessionBinding[]) => callback(bindings),
     );
   },
+  onMpvInputBindingsChanged: (callback: () => void) => {
+    ipcRenderer.on(IPC_CHANNELS.event.mpvInputBindingsChanged, () => callback());
+  },
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => {
     ipcRenderer.on(
       IPC_CHANNELS.event.configHotReload,
