@@ -2,6 +2,11 @@ import { isYoutubeMediaPath } from './youtube-playback';
 
 type YoutubePlaybackLaunchInput = {
   url: string;
+  /**
+   * YouTube page URL `url` was resolved from (Windows loads a direct stream URL). Lets a playlist
+   * entry for the same video be swapped in place instead of replacing the whole playlist.
+   */
+  sourceUrl?: string;
   timeoutMs?: number;
   pollIntervalMs?: number;
 };
@@ -81,6 +86,39 @@ function hasPlayableMediaTracks(trackListRaw: unknown): boolean {
   });
 }
 
+function toPlaylistIndex(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/**
+ * Swaps mpv's current playlist entry for `targetUrl` while keeping the rest of the playlist, e.g.
+ * a queued YouTube watch URL replaced by its resolved direct stream on Windows. Uses only
+ * long-standing playlist commands (no `loadfile insert-*`, which needs mpv 0.38+).
+ * Returns false when the playlist position is unknown so the caller can fall back to `replace`.
+ */
+async function swapCurrentPlaylistEntry(
+  deps: YoutubePlaybackLaunchDeps,
+  targetUrl: string,
+): Promise<boolean> {
+  if (!deps.requestProperty) return false;
+  let position: number | null = null;
+  let count: number | null = null;
+  try {
+    position = toPlaylistIndex(await deps.requestProperty('playlist-pos'));
+    count = toPlaylistIndex(await deps.requestProperty('playlist-count'));
+  } catch {
+    return false;
+  }
+  if (position === null || count === null || position >= count) return false;
+
+  // The appended entry lands at index `count`; move it right after the current entry, then remove
+  // the current entry so mpv advances onto it.
+  deps.sendMpvCommand(['loadfile', targetUrl, 'append']);
+  deps.sendMpvCommand(['playlist-move', String(count), String(position + 1)]);
+  deps.sendMpvCommand(['playlist-remove', String(position)]);
+  return true;
+}
+
 function sendPlaybackPrepCommands(sendMpvCommand: (command: Array<string>) => void): void {
   sendMpvCommand(['set_property', 'pause', 'yes']);
   sendMpvCommand(['set_property', 'sub-auto', 'no']);
@@ -120,7 +158,14 @@ export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLa
         // Keep polling; mpv can report the target path before tracks are ready.
       }
     } else {
-      deps.sendMpvCommand(['loadfile', targetUrl, 'replace']);
+      const sourceUrl = input.sourceUrl?.trim() ?? '';
+      const swapped =
+        sourceUrl !== '' &&
+        targetsSameYoutubeVideo(previousPath, sourceUrl) &&
+        (await swapCurrentPlaylistEntry(deps, targetUrl));
+      if (!swapped) {
+        deps.sendMpvCommand(['loadfile', targetUrl, 'replace']);
+      }
     }
 
     const deadline = now() + timeoutMs;

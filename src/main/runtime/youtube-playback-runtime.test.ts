@@ -112,8 +112,8 @@ test('youtube playback runtime resolves the socket path lazily for windows start
       calls.push(`wait-connected:${timeoutMs}`);
       return true;
     },
-    prepareYoutubePlaybackInMpv: async ({ url }) => {
-      calls.push(`prepare:${url}`);
+    prepareYoutubePlaybackInMpv: async ({ url, sourceUrl }) => {
+      calls.push(`prepare:${url}:${sourceUrl}`);
       return true;
     },
     runYoutubePlaybackFlow: async ({ url }) => {
@@ -143,6 +143,8 @@ test('youtube playback runtime resolves the socket path lazily for windows start
   });
 
   assert.ok(calls.some((entry) => entry.includes('--input-ipc-server=/tmp/updated.sock')));
+  // The page URL rides along so prepare can swap a queued entry for the direct stream in place.
+  assert.ok(calls.includes('prepare:https://example.com/direct:https://youtu.be/demo'));
 });
 
 test('youtube playback runtime starts media cache without blocking the subtitle flow', async () => {
