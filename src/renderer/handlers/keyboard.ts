@@ -5,8 +5,10 @@ import { MPV_MOUSE_BUTTON_BY_BUTTON, wheelEventToMpvWheel } from '../../shared/m
 import { dispatchConfiguredMpvCommand } from '../utils/mpv-command-dispatch';
 import {
   registerDictionaryPopupVisibilityListener,
+  HACHIDORI_HOST_SELECTOR,
   YOMITAN_POPUP_COMMAND_EVENT,
   YOMITAN_POPUP_HOST_SELECTOR,
+  isLookupPopupOpen,
   isYomitanPopupVisible,
   isYomitanPopupIframe,
 } from '../yomitan-popup.js';
@@ -108,11 +110,13 @@ export function createKeyboardHandlers(
   }
 
   // Overlay UI that handles its own mouse input (menus, sidebar, notifications, controls).
+  // Hachidori's popup lives in the overlay document, unlike Yomitan's iframe, so its
+  // wheel events reach these handlers retargeted to its host.
   function isOverlayControlTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Element)) return false;
     return Boolean(
       target.closest(
-        '.modal, .notification-history, .overlay-notification-stack, button, a, input, select, textarea',
+        `.modal, .notification-history, .overlay-notification-stack, button, a, input, select, textarea, ${YOMITAN_POPUP_HOST_SELECTOR}, ${HACHIDORI_HOST_SELECTOR}`,
       ),
     );
   }
@@ -124,8 +128,7 @@ export function createKeyboardHandlers(
       !ctx.state.playlistBrowserModalOpen &&
       !ctx.state.youtubePickerModalOpen &&
       !ctx.state.subtitleSidebarModalOpen &&
-      !ctx.state.yomitanPopupVisible &&
-      !isYomitanPopupVisible(document) &&
+      !isLookupPopupOpen(ctx.state, document) &&
       !isInteractiveTarget(target)
     );
   }
@@ -1262,7 +1265,7 @@ export function createKeyboardHandlers(
         return;
       }
 
-      if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
+      if (isLookupPopupOpen(ctx.state, document)) {
         if (handleYomitanPopupKeybind(e)) {
           e.preventDefault();
           return;

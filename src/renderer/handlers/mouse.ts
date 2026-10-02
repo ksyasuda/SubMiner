@@ -36,7 +36,6 @@ export function createMouseHandlers(
   let yomitanPopupVisible = false;
   let hoverPauseRequestId = 0;
   let popupPauseRequestId = 0;
-  let hachidoriReaderSeen = false;
   let pausedBySubtitleHover = false;
   let pausedByYomitanPopup = false;
   let lastPointerPosition: { clientX: number; clientY: number } | null = null;
@@ -266,7 +265,8 @@ export function createMouseHandlers(
     return (
       yomitanPopupVisible &&
       options.getYomitanPopupAutoPauseEnabled() &&
-      (!hachidoriReaderSeen || (typeof document !== 'undefined' && isHachidoriPopupOpen(document)))
+      (!ctx.state.hachidoriReaderSeen ||
+        (typeof document !== 'undefined' && isHachidoriPopupOpen(document)))
     );
   }
 
@@ -480,7 +480,7 @@ export function createMouseHandlers(
     reconcilePopupInteraction({ allowPause: true });
 
     registerDictionaryPopupVisibilityListener('shown', (reader) => {
-      if (reader === 'hachidori') hachidoriReaderSeen = true;
+      if (reader === 'hachidori') ctx.state.hachidoriReaderSeen = true;
       reconcilePopupInteraction({
         assumeVisible: true,
         allowPause: true,

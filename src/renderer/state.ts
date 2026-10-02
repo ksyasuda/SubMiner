@@ -161,6 +161,10 @@ export type RendererState = {
   keyboardSelectionVisible: boolean;
   keyboardSelectedWordIndex: number | null;
   yomitanPopupVisible: boolean;
+  // Set once Hachidori's attention events identify it as the reader. Its attention
+  // also covers presses that may start a selection, so yomitanPopupVisible alone
+  // does not mean a popup is open.
+  hachidoriReaderSeen: boolean;
   isOverYomitanPopup: boolean;
   primarySubtitleMode: PrimarySubMode;
 };
@@ -296,6 +300,7 @@ export function createRendererState(): RendererState {
     keyboardSelectionVisible: false,
     keyboardSelectedWordIndex: null,
     yomitanPopupVisible: false,
+    hachidoriReaderSeen: false,
     isOverYomitanPopup: false,
     primarySubtitleMode: 'visible',
   };

@@ -122,6 +122,19 @@ export function isHachidoriPopupOpen(root: ParentNode | null | undefined = docum
   );
 }
 
+/**
+ * Whether a lookup popup is open, for input that should go to it instead of mpv.
+ * Once Hachidori is the reader only an open pane counts, because its attention
+ * (the shown event and the host's visible marker) also covers a plain press.
+ */
+export function isLookupPopupOpen(
+  state: { yomitanPopupVisible: boolean; hachidoriReaderSeen: boolean },
+  root: ParentNode | null | undefined = document,
+): boolean {
+  if (state.hachidoriReaderSeen) return isHachidoriPopupOpen(root);
+  return state.yomitanPopupVisible || isYomitanPopupVisible(root);
+}
+
 export function isYomitanPopupVisible(root: ParentNode | null | undefined = document): boolean {
   const visiblePopupHosts = queryPopupElements<HTMLElement>(
     root,
