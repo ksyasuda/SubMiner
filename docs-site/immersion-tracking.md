@@ -42,7 +42,7 @@ To share stats and watch history between machines, use [`subminer sync <host>`](
 
 Recent sessions, a streak calendar, watch-time history, and totals for completed episodes and shows.
 
-Deleting a session or session group refreshes the Overview totals, charts, calendar, and vocabulary summary automatically.
+Deleting a session or session group refreshes the Overview totals, charts, calendar, and vocabulary summary automatically. If a refresh fails, Overview keeps the previous totals visible and offers **Retry**.
 
 ![Stats Overview](/screenshots/stats-overview.png)
 

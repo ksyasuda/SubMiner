@@ -195,3 +195,72 @@ for (const mode of ['session', 'day', 'anime', 'failed'] as const) {
     }
   });
 }
+
+for (const failedRead of ['overview', 'sessions'] as const) {
+  test(`Overview stays available during a failed ${failedRead} refresh and can retry`, async () => {
+    const uninstallDom = installDom();
+    const original = { ...apiClient };
+    const restoreConfirm = setDeleteConfirmPresenter(() => true);
+    let sessions = [session(1)];
+    let refreshing = false;
+    let failRefresh = true;
+    let rejectRefresh = (_error: Error) => {};
+    const pendingRefresh = new Promise<never>((_resolve, reject) => {
+      rejectRefresh = reject;
+    });
+    apiClient.getOverview = async () => {
+      if (refreshing && failRefresh && failedRead === 'overview') return pendingRefresh;
+      return overview(sessions);
+    };
+    apiClient.getSessions = async () => {
+      if (refreshing && failRefresh && failedRead === 'sessions') return pendingRefresh;
+      return sessions;
+    };
+    apiClient.getStreakCalendar = async () => [];
+    apiClient.getKnownWordsSummary = async () => ({
+      totalUniqueWords: 0,
+      knownWordCount: 0,
+    });
+    apiClient.deleteSession = async () => {
+      sessions = [];
+      refreshing = true;
+    };
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          <OverviewTab onNavigateToMediaDetail={() => {}} onNavigateToSession={() => {}} />,
+        ),
+      );
+      const deleteButton = [...container.querySelectorAll('button')].find((button) =>
+        button.getAttribute('aria-label')?.startsWith('Delete session '),
+      );
+      assert.ok(deleteButton);
+      await act(async () => deleteButton.click());
+      assert.match(container.textContent ?? '', /Tracking Snapshot/);
+      assert.equal(metric(container, 'Cards Mined Today'), '2');
+      assert.match(container.textContent ?? '', /No sessions yet/);
+
+      await act(async () => rejectRefresh(new Error(`${failedRead} unavailable`)));
+      assert.match(container.textContent ?? '', /Tracking Snapshot/);
+      assert.equal(metric(container, 'Cards Mined Today'), '2');
+      assert.match(container.querySelector('[role="alert"]')?.textContent ?? '', /unavailable/);
+
+      const retryButton = [...container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'Retry',
+      );
+      assert.ok(retryButton, 'failed refresh should offer a retry');
+      failRefresh = false;
+      await act(async () => retryButton.click());
+      assert.equal(metric(container, 'Cards Mined Today'), '0');
+      assert.equal(container.querySelector('[role="alert"]'), null);
+    } finally {
+      await act(async () => root.unmount());
+      restoreConfirm();
+      Object.assign(apiClient, original);
+      uninstallDom();
+    }
+  });
+}
