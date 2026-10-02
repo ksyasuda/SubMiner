@@ -27,8 +27,9 @@ export function OverviewTab({
   onNavigateToSession,
   isActive = true,
 }: OverviewTabProps) {
-  const { data, sessions, setSessions, loading, error } = useOverview();
-  const { calendar, loading: calLoading } = useStreakCalendar(90);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { data, sessions, setSessions, loading, error } = useOverview(refreshKey);
+  const { calendar, loading: calLoading } = useStreakCalendar(90, refreshKey);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   const [knownWordsSummary, setKnownWordsSummary] = useState<{
@@ -49,7 +50,7 @@ export function OverviewTab({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshKey]);
 
   const handleDeleteSession = async (session: SessionSummary) => {
     if (!(await confirmSessionDelete())) return;
@@ -58,6 +59,7 @@ export function OverviewTab({
     try {
       await apiClient.deleteSession(session.sessionId);
       setSessions((prev) => prev.filter((s) => s.sessionId !== session.sessionId));
+      setRefreshKey((prev) => prev + 1);
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete session.');
     } finally {
@@ -82,6 +84,7 @@ export function OverviewTab({
       await apiClient.deleteSessions(ids);
       const idSet = new Set(ids);
       setSessions((prev) => prev.filter((s) => !idSet.has(s.sessionId)));
+      setRefreshKey((prev) => prev + 1);
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete sessions.');
     } finally {
@@ -108,6 +111,7 @@ export function OverviewTab({
       await apiClient.deleteSessions(ids);
       const idSet = new Set(ids);
       setSessions((prev) => prev.filter((s) => !idSet.has(s.sessionId)));
+      setRefreshKey((prev) => prev + 1);
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete sessions.');
     } finally {
