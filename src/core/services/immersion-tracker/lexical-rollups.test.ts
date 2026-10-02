@@ -182,7 +182,7 @@ test('re-seeing a filtered legacy word keeps charts consistent with the summary'
   }
 });
 
-test('lexical rollup rebuild repairs last_seen left pointing at deleted history', () => {
+test('lexical rollup rebuild repairs seen bounds left pointing at deleted history', () => {
   const db = createDb();
 
   try {
@@ -197,14 +197,15 @@ test('lexical rollup rebuild repairs last_seen left pointing at deleted history'
         .run(sessionId, videoId, BASE_MS, BASE_MS).lastInsertRowid,
     );
     const seen = (BASE_MS + 251) / 1000;
-    const stale = seen + 86_400.631;
+    const staleFirst = seen - 86_400.5;
+    const staleLast = seen + 86_400.631;
     db.prepare(
       `INSERT INTO imm_words(id, headword, word, reading, first_seen, last_seen, frequency)
        VALUES (1, '猫', '猫', 'ねこ', ?, ?, 1), (2, '犬', '犬', 'いぬ', ?, ?, 1)`,
-    ).run(seen, stale, seen - 0.1, seen - 0.1);
+    ).run(staleFirst, staleLast, seen - 0.1, seen - 0.1);
     db.prepare(
       `INSERT INTO imm_kanji(id, kanji, first_seen, last_seen, frequency) VALUES (1, '猫', ?, ?, 1)`,
-    ).run(seen, stale);
+    ).run(staleFirst, staleLast);
     db.prepare(
       `INSERT INTO imm_word_line_occurrences(line_id, word_id, occurrence_count, seen_ms)
        VALUES (?, 1, 1, ?), (?, 2, 1, ?)`,
@@ -216,14 +217,24 @@ test('lexical rollup rebuild repairs last_seen left pointing at deleted history'
 
     rebuildLexicalDailyRollups(db);
 
-    const lastSeen = (table: string): number[] =>
+    const bounds = (table: string): Array<[number, number]> =>
       (
-        db.prepare(`SELECT last_seen AS value FROM ${table} ORDER BY id`).all() as Array<{
-          value: number;
+        db
+          .prepare(`SELECT first_seen AS first, last_seen AS last FROM ${table} ORDER BY id`)
+          .all() as Array<{
+          first: number;
+          last: number;
         }>
-      ).map((row) => row.value);
-    assert.deepEqual(lastSeen('imm_words'), [seen, seen - 0.1], 'healthy rows are untouched');
-    assert.deepEqual(lastSeen('imm_kanji'), [seen]);
+      ).map((row) => [row.first, row.last]);
+    assert.deepEqual(
+      bounds('imm_words'),
+      [
+        [seen, seen],
+        [seen - 0.1, seen - 0.1],
+      ],
+      'healthy rows within flush lag are untouched',
+    );
+    assert.deepEqual(bounds('imm_kanji'), [[seen, seen]]);
   } finally {
     db.close();
   }

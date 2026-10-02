@@ -382,11 +382,16 @@ function applyRemovalsForEntity(
       continue;
     }
 
-    const removedFirstSeen = toStoredSeenSeconds(removal.removedFirstSeenMs);
+    // Stored bounds are stamped when a line is queued, before its seen_ms is
+    // stamped at flush, and older refreshes rounded them down to whole seconds.
+    // So first_seen can sit just before the occurrence that produced it; decide
+    // against the surviving minimum instead. last_seen errs the safe way.
+    const minSeenMs = (minSeenStmt.get(removal.id) as { value: number | null }).value;
     const removedLastSeen = toStoredSeenSeconds(removal.removedLastSeenMs);
     const firstSeenMayHaveMoved =
       current.firstSeen === null ||
-      (removedFirstSeen !== null && removedFirstSeen <= current.firstSeen);
+      (removal.removedFirstSeenMs !== null &&
+        (minSeenMs === null || Number(removal.removedFirstSeenMs) <= Number(minSeenMs)));
     const lastSeenMayHaveMoved =
       current.lastSeen === null ||
       (removedLastSeen !== null && removedLastSeen >= current.lastSeen);
@@ -397,7 +402,6 @@ function applyRemovalsForEntity(
         needsExactRefresh.push(removal.id);
         continue;
       }
-      const minSeenMs = (minSeenStmt.get(removal.id) as { value: number | null }).value;
       const maxSeenMs = (maxSeenStmt.get(removal.id) as { value: number | null }).value;
       if (minSeenMs === null || maxSeenMs === null) {
         // Frequency says occurrences remain but none exist: stale row, let the

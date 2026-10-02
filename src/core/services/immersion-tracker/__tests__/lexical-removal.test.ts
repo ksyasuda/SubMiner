@@ -232,6 +232,26 @@ for (const legacyRows of [false, true]) {
   });
 }
 
+test('deleting the earliest session moves first_seen even when the stored bound predates seen_ms', () => {
+  const { db, dbPath } = createDb([
+    { session: 1, wordId: 23, dayOffset: 0, msOffset: 400 },
+    { session: 2, wordId: 23, dayOffset: 5, msOffset: 400 },
+  ]);
+
+  try {
+    // first_seen is stamped when the line is queued (and older refreshes rounded
+    // it down), so it sits slightly before the occurrence's flush-time seen_ms.
+    db.prepare('UPDATE imm_words SET first_seen = ? WHERE id = 23').run(BASE_MS / 1000);
+
+    deleteSession(db, 1);
+
+    assert.equal(readWord(db, 23)?.firstSeen, (BASE_MS + 5 * DAY_MS + 400) / 1000);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('deleting an interior occurrence leaves the surrounding extremes untouched', () => {
   // Session 2 carries the middle occurrence; sessions bracket it in time.
   const { db, dbPath } = createDb([
