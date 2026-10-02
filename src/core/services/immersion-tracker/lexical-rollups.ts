@@ -35,6 +35,12 @@ export function localEpochDaySql(value: string): string {
 // stamped at queue time, before seen_ms is stamped at flush, so healthy rows
 // never exceed their newest occurrence and only trail their oldest by flush lag.
 // Rows with undated occurrences are skipped.
+//
+// first_seen can also legitimately predate every surviving occurrence: retention
+// pruning cascades away old lines, and early history predates the occurrence
+// tables, while both keep the lifetime frequency. Deletes subtract frequency
+// exactly, so only rows whose frequency matches their surviving occurrences have
+// their whole history on hand and a provably stale first_seen.
 function repairStaleSeenBounds(db: DatabaseSync): void {
   for (const [table, occurrenceTable, col] of [
     ['imm_words', 'imm_word_line_occurrences', 'word_id'],
@@ -48,7 +54,11 @@ function repairStaleSeenBounds(db: DatabaseSync): void {
     db.exec(`
       UPDATE ${table}
       SET first_seen = ${seenSec('MIN')}
-      WHERE first_seen < ${seenSec('MIN')} - ${FIRST_SEEN_FLUSH_LAG_SLACK_SEC} AND ${hasNoUndated};
+      WHERE first_seen < ${seenSec('MIN')} - ${FIRST_SEEN_FLUSH_LAG_SLACK_SEC}
+        AND ${hasNoUndated}
+        AND frequency = (
+          SELECT SUM(o.occurrence_count) FROM ${occurrenceTable} o WHERE o.${col} = ${table}.id
+        );
       UPDATE ${table}
       SET last_seen = ${seenSec('MAX')}
       WHERE last_seen > ${seenSec('MAX')} AND ${hasNoUndated};
