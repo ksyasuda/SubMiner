@@ -176,6 +176,10 @@ Press `Alt+C` to choose a controller and remap buttons. Click an action's **Lear
 
 On controllers that report the W3C standard layout, the default quit button lands on `L2` instead of `Select`. Remap it with `Alt+C`. All options are in [Configuration](/configuration#controller-support).
 
+## Development profiles
+
+`--dev` and `--debug` use a separate `SubMiner-dev` profile. They do not read or modify dictionaries and configuration from the installed app unless `SUBMINER_USE_PRODUCTION_PROFILE=1` is explicitly set. See [Development](/development#run-locally).
+
 ## Changing settings while you watch
 
 SubMiner watches your config file and applies most changes without a restart, including subtitle style, keybindings, and most Anki settings. If a change needs a restart, SubMiner tells you. If the file has an error, it keeps the last working config and shows a notification. See [Configuration](/configuration).

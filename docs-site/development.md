@@ -47,6 +47,10 @@ electron . --start --dev --log-level debug   # verbose launch of an existing bui
 electron . --background                      # tray/background mode
 ```
 
+Development and debug launches use a separate `SubMiner-dev` profile so runtime experiments cannot modify the installed app's configuration or Yomitan dictionaries. To intentionally use the production profile for a development launch, set `SUBMINER_USE_PRODUCTION_PROFILE=1`. Use that override only after backing up the profile.
+
+Launch source builds through `bun run dev` or `bun run electron`. SubMiner refuses to load its profile when the running Electron major differs from the version pinned by the repository.
+
 To test through the mpv plugin without exporting `SUBMINER_BINARY_PATH` each time, point `mpv.subminerBinaryPath` in your config at the dev script. The launcher passes it to the plugin at runtime:
 
 ```json
