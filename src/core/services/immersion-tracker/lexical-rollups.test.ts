@@ -182,7 +182,7 @@ test('re-seeing a filtered legacy word keeps charts consistent with the summary'
   }
 });
 
-test('lexical rollup rebuild repairs seen bounds left pointing at deleted history', () => {
+test('lexical rollup rebuild repairs last_seen left pointing at deleted history', () => {
   const db = createDb();
 
   try {
@@ -197,21 +197,20 @@ test('lexical rollup rebuild repairs seen bounds left pointing at deleted histor
         .run(sessionId, videoId, BASE_MS, BASE_MS).lastInsertRowid,
     );
     const seen = (BASE_MS + 251) / 1000;
-    const staleFirst = seen - 86_400.5;
+    // first_seen this early may be real history pruned by retention; never touched.
+    const earlyFirst = seen - 86_400.5;
     const staleLast = seen + 86_400.631;
     db.prepare(
       `INSERT INTO imm_words(id, headword, word, reading, first_seen, last_seen, frequency)
-       VALUES (1, '猫', '猫', 'ねこ', ?, ?, 1), (2, '犬', '犬', 'いぬ', ?, ?, 1),
-         (3, '鳥', '鳥', 'とり', ?, ?, 5)`,
-      // Word 3's earlier history was pruned by retention: frequency still counts it.
-    ).run(staleFirst, staleLast, seen - 0.1, seen - 0.1, staleFirst, seen);
+       VALUES (1, '猫', '猫', 'ねこ', ?, ?, 1), (2, '犬', '犬', 'いぬ', ?, ?, 1)`,
+    ).run(earlyFirst, staleLast, seen - 0.1, seen - 0.1);
     db.prepare(
       `INSERT INTO imm_kanji(id, kanji, first_seen, last_seen, frequency) VALUES (1, '猫', ?, ?, 1)`,
-    ).run(staleFirst, staleLast);
+    ).run(earlyFirst, staleLast);
     db.prepare(
       `INSERT INTO imm_word_line_occurrences(line_id, word_id, occurrence_count, seen_ms)
-       VALUES (?, 1, 1, ?), (?, 2, 1, ?), (?, 3, 1, ?)`,
-    ).run(lineId, BASE_MS + 251, lineId, BASE_MS + 251, lineId, BASE_MS + 251);
+       VALUES (?, 1, 1, ?), (?, 2, 1, ?)`,
+    ).run(lineId, BASE_MS + 251, lineId, BASE_MS + 251);
     db.prepare(
       `INSERT INTO imm_kanji_line_occurrences(line_id, kanji_id, occurrence_count, seen_ms)
        VALUES (?, 1, 1, ?)`,
@@ -231,13 +230,12 @@ test('lexical rollup rebuild repairs seen bounds left pointing at deleted histor
     assert.deepEqual(
       bounds('imm_words'),
       [
-        [seen, seen],
+        [earlyFirst, seen],
         [seen - 0.1, seen - 0.1],
-        [staleFirst, seen],
       ],
-      'flush-lag and retention-pruned rows keep their first_seen',
+      'healthy rows are untouched',
     );
-    assert.deepEqual(bounds('imm_kanji'), [[seen, seen]]);
+    assert.deepEqual(bounds('imm_kanji'), [[earlyFirst, seen]]);
   } finally {
     db.close();
   }
