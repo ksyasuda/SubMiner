@@ -145,8 +145,11 @@ test('youtube playback runtime resolves the socket path lazily for windows start
   assert.ok(calls.some((entry) => entry.includes('--input-ipc-server=/tmp/updated.sock')));
 });
 
-test('youtube playback runtime maps the resolved windows stream back to its page url', async () => {
-  const streamUrl = 'https://rr1---sn.example.googlevideo.com/videoplayback?expire=1777777777';
+test('youtube playback runtime maps resolved windows streams back to their page urls', async () => {
+  const streamFor = (url: string) =>
+    `https://rr1---sn.example.googlevideo.com/videoplayback?src=${encodeURIComponent(url)}`;
+  const firstUrl = 'https://www.youtube.com/watch?v=abcdefghijk';
+  const secondUrl = 'https://www.youtube.com/watch?v=bcdefghijkl';
   const runtime = createYoutubePlaybackRuntime({
     platform: 'win32',
     directPlaybackFormat: 'b',
@@ -158,10 +161,11 @@ test('youtube playback runtime maps the resolved windows stream back to its page
     invalidatePendingAutoplayReadyFallbacks: () => {},
     setAppOwnedFlowInFlight: () => {},
     ensureYoutubePlaybackRuntimeReady: async () => {},
-    resolveYoutubePlaybackUrl: async () => streamUrl,
+    resolveYoutubePlaybackUrl: async (url) => streamFor(url),
     launchWindowsMpv: async () => ({ ok: false }),
     waitForYoutubeMpvConnected: async () => true,
-    prepareYoutubePlaybackInMpv: async () => true,
+    // The second video never loads, so the first stream keeps playing.
+    prepareYoutubePlaybackInMpv: async ({ url }) => url === streamFor(firstUrl),
     runYoutubePlaybackFlow: async () => {},
     logInfo: () => {},
     logWarn: () => {},
@@ -169,16 +173,14 @@ test('youtube playback runtime maps the resolved windows stream back to its page
     clearScheduled: () => {},
   });
 
-  assert.equal(runtime.getYoutubeSourceUrlForStream(streamUrl), null);
-  await runtime.runYoutubePlaybackFlow({
-    url: 'https://www.youtube.com/watch?v=abcdefghijk',
-    source: 'second-instance',
-  });
+  assert.equal(runtime.getYoutubeSourceUrlForStream(streamFor(firstUrl)), null);
+  await runtime.runYoutubePlaybackFlow({ url: firstUrl, source: 'second-instance' });
+  await runtime
+    .runYoutubePlaybackFlow({ url: secondUrl, source: 'second-instance' })
+    .catch(() => {});
 
-  assert.equal(
-    runtime.getYoutubeSourceUrlForStream(streamUrl),
-    'https://www.youtube.com/watch?v=abcdefghijk',
-  );
+  assert.equal(runtime.getYoutubeSourceUrlForStream(streamFor(firstUrl)), firstUrl);
+  assert.equal(runtime.getYoutubeSourceUrlForStream(streamFor(secondUrl)), secondUrl);
   assert.equal(
     runtime.getYoutubeSourceUrlForStream('https://rr2---sn.example.googlevideo.com/other'),
     null,
