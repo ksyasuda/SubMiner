@@ -18,12 +18,35 @@ const LOCAL_EPOCH_DAY_SQL = `
   ) - 2440587.5 AS INTEGER)
 `;
 
-const LEXICAL_DAILY_ROLLUP_VERSION = '2';
+// v3 re-derives visibility for rows a re-seen word forced visible and repairs
+// last_seen values left behind by session deletes.
+const LEXICAL_DAILY_ROLLUP_VERSION = '3';
 const LEXICAL_DAILY_ROLLUP_VERSION_KEY = 'lexical_daily_rollups_version';
 const VOCABULARY_VISIBILITY_SCAN_BATCH_SIZE = 5_000;
 
 export function localEpochDaySql(value: string): string {
   return LOCAL_EPOCH_DAY_SQL.replaceAll('%VALUE%', value);
+}
+
+// Session deletes once rounded removed timestamps to whole seconds, missing
+// fractional last_seen extremes that pointed at deleted history. Healthy rows
+// never exceed their newest dated occurrence (seen_ms is stamped at flush, after
+// last_seen), so only stale rows match. Rows with undated occurrences are skipped.
+function repairStaleLastSeen(db: DatabaseSync): void {
+  for (const [table, occurrenceTable, col] of [
+    ['imm_words', 'imm_word_line_occurrences', 'word_id'],
+    ['imm_kanji', 'imm_kanji_line_occurrences', 'kanji_id'],
+  ] as const) {
+    const newestSeen = `(SELECT MAX(o.seen_ms) FROM ${occurrenceTable} o WHERE o.${col} = ${table}.id) / 1000.0`;
+    db.exec(`
+      UPDATE ${table}
+      SET last_seen = ${newestSeen}
+      WHERE last_seen > ${newestSeen}
+        AND NOT EXISTS (
+          SELECT 1 FROM ${occurrenceTable} o WHERE o.${col} = ${table}.id AND o.seen_ms IS NULL
+        )
+    `);
+  }
 }
 
 function createWordRollupTriggers(db: DatabaseSync): void {
@@ -186,6 +209,7 @@ export function rebuildLexicalDailyRollups(db: DatabaseSync): void {
       lastId = vocabularyRows[vocabularyRows.length - 1]!.id;
       if (vocabularyRows.length < VOCABULARY_VISIBILITY_SCAN_BATCH_SIZE) break;
     }
+    repairStaleLastSeen(db);
     db.exec('DELETE FROM imm_lexical_daily_rollups');
     db.exec(`
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)

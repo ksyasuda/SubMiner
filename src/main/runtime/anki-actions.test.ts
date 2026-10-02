@@ -63,7 +63,7 @@ test('trigger and mark handlers delegate to core services', async () => {
   assert.deepEqual(calls, ['osd:group', 'group-core', 'osd:mark', 'mark-core']);
 });
 
-test('mine sentence handler records mined cards only when core returns true', async () => {
+test('mine sentence handler leaves card counting to card creation', async () => {
   const calls: string[] = [];
   const integration = {};
   const mpvClient = {};
@@ -78,14 +78,13 @@ test('mine sentence handler records mined cards only when core returns true', as
       options.showMpvOsd('mine');
       return created;
     },
-    recordCardsMined: (count) => calls.push(`cards:${count}`),
   });
 
   created = false;
   await mineSentenceCard();
   created = true;
   await mineSentenceCard();
-  assert.deepEqual(calls, ['osd:mine', 'osd:mine', 'cards:1']);
+  assert.deepEqual(calls, ['osd:mine', 'osd:mine']);
 });
 
 test('mine sentence handler forwards the canonical primary subtitle snapshot', async () => {
@@ -99,7 +98,6 @@ test('mine sentence handler forwards the canonical primary subtitle snapshot', a
       assert.equal(options.primarySubtitle, primarySubtitle);
       return true;
     },
-    recordCardsMined: () => {},
   });
 
   await mineSentenceCard();

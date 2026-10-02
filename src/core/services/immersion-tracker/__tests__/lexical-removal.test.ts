@@ -30,7 +30,13 @@ function cleanupDbPath(dbPath: string): void {
  */
 function seed(
   db: DatabaseSync,
-  lines: Array<{ session: 1 | 2; wordId: number; dayOffset: number; count?: number }>,
+  lines: Array<{
+    session: 1 | 2;
+    wordId: number;
+    dayOffset: number;
+    msOffset?: number;
+    count?: number;
+  }>,
   options: { legacyRows?: boolean } = {},
 ): void {
   db.exec(`
@@ -65,7 +71,7 @@ function seed(
   let lineId = 0;
   for (const line of lines) {
     lineId += 1;
-    const seenMs = BASE_MS + line.dayOffset * DAY_MS;
+    const seenMs = BASE_MS + line.dayOffset * DAY_MS + (line.msOffset ?? 0);
     insertLine.run(lineId, line.session, line.session, lineId, `line ${lineId}`, seenMs, seenMs);
     insertWord.run(line.wordId, `語${line.wordId}`, `語${line.wordId}`);
     if (options.legacyRows) {
@@ -83,13 +89,13 @@ function seed(
         FROM imm_word_line_occurrences o WHERE o.word_id = imm_words.id
       ),
       first_seen = (
-        SELECT MIN(sl.CREATED_DATE) / 1000
+        SELECT MIN(sl.CREATED_DATE) / 1000.0
         FROM imm_word_line_occurrences o
         JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
         WHERE o.word_id = imm_words.id
       ),
       last_seen = (
-        SELECT MAX(sl.LAST_UPDATE_DATE) / 1000
+        SELECT MAX(sl.LAST_UPDATE_DATE) / 1000.0
         FROM imm_word_line_occurrences o
         JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
         WHERE o.word_id = imm_words.id
@@ -199,6 +205,32 @@ test('deleting the latest session moves last_seen back to the surviving line', (
     cleanupDbPath(dbPath);
   }
 });
+
+for (const legacyRows of [false, true]) {
+  test(`deleting the latest session keeps fractional seen timestamps exact (legacyRows=${legacyRows})`, () => {
+    // Stored seen values are fractional seconds; whole-second rounding used to miss
+    // the removed extreme (or truncate the refreshed one).
+    const { db, dbPath } = createDb(
+      [
+        { session: 1, wordId: 22, dayOffset: 0, msOffset: 251 },
+        { session: 2, wordId: 22, dayOffset: 5, msOffset: 882 },
+      ],
+      { legacyRows },
+    );
+
+    try {
+      deleteSession(db, 2);
+
+      const word = readWord(db, 22);
+      assert.equal(word?.frequency, 1);
+      assert.equal(word?.firstSeen, (BASE_MS + 251) / 1000);
+      assert.equal(word?.lastSeen, (BASE_MS + 251) / 1000);
+    } finally {
+      db.close();
+      cleanupDbPath(dbPath);
+    }
+  });
+}
 
 test('deleting an interior occurrence leaves the surrounding extremes untouched', () => {
   // Session 2 carries the middle occurrence; sessions bracket it in time.

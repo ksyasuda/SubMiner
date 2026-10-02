@@ -298,9 +298,11 @@ export function planLexicalRemovalsForVideos(
   return planLexicalRemovals(db, `sl.video_id IN (${makePlaceholders(videoIds)})`, videoIds);
 }
 
+// first_seen/last_seen are REAL seconds that keep millisecond fractions; never round
+// them, or comparisons against stored extremes miss and refreshes drift.
 function toStoredSeenSeconds(ms: number | null): number | null {
   if (ms === null || !Number.isFinite(ms)) return null;
-  return Math.floor(ms / 1000);
+  return ms / 1000;
 }
 
 /**
@@ -405,8 +407,8 @@ function applyRemovalsForEntity(
       }
       updateAggregatesStmt.run(
         nextFrequency,
-        Math.floor(Number(minSeenMs) / 1000),
-        Math.floor(Number(maxSeenMs) / 1000),
+        toStoredSeenSeconds(Number(minSeenMs)),
+        toStoredSeenSeconds(Number(maxSeenMs)),
         removal.id,
       );
       continue;
@@ -471,8 +473,8 @@ function refreshWordAggregates(db: DatabaseSync, wordIds: number[]): void {
     }
     updateStmt.run(
       row.frequency,
-      Math.floor(row.firstSeen / 1000),
-      Math.floor(row.lastSeen / 1000),
+      toStoredSeenSeconds(row.firstSeen),
+      toStoredSeenSeconds(row.lastSeen),
       row.wordId,
     );
   }
@@ -527,8 +529,8 @@ function refreshKanjiAggregates(db: DatabaseSync, kanjiIds: number[]): void {
     }
     updateStmt.run(
       row.frequency,
-      Math.floor(row.firstSeen / 1000),
-      Math.floor(row.lastSeen / 1000),
+      toStoredSeenSeconds(row.firstSeen),
+      toStoredSeenSeconds(row.lastSeen),
       row.kanjiId,
     );
   }

@@ -6,6 +6,7 @@ import { normalizeTitleIdentity } from '../../utils/title-normalization';
 import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
 import { ensureLexicalDailyRollupTables, markLexicalDailyRollupsReady } from './lexical-rollups';
+import { isVocabularyStatsRowVisible, type VocabularyVisibilityRow } from './vocabulary-visibility';
 import { SCHEMA_VERSION } from './types';
 import type { QueuedWrite, VideoMetadata, YoutubeVideoMetadata } from './types';
 import { toDbMs, toDbTimestamp } from './query-shared';
@@ -17,7 +18,8 @@ export interface TrackerPreparedStatements {
   wordUpsertStmt: ReturnType<DatabaseSync['prepare']>;
   kanjiUpsertStmt: ReturnType<DatabaseSync['prepare']>;
   subtitleLineInsertStmt: ReturnType<DatabaseSync['prepare']>;
-  wordIdSelectStmt: ReturnType<DatabaseSync['prepare']>;
+  wordSelectStmt: ReturnType<DatabaseSync['prepare']>;
+  wordVisibilityUpdateStmt: ReturnType<DatabaseSync['prepare']>;
   kanjiIdSelectStmt: ReturnType<DatabaseSync['prepare']>;
   wordLineOccurrenceUpsertStmt: ReturnType<DatabaseSync['prepare']>;
   kanjiLineOccurrenceUpsertStmt: ReturnType<DatabaseSync['prepare']>;
@@ -1759,7 +1761,6 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         pos1 = COALESCE(NULLIF(imm_words.pos1, ''), excluded.pos1),
         pos2 = COALESCE(NULLIF(imm_words.pos2, ''), excluded.pos2),
         pos3 = COALESCE(NULLIF(imm_words.pos3, ''), excluded.pos3),
-        vocabulary_visible = 1,
         first_seen = MIN(COALESCE(first_seen, excluded.first_seen), excluded.first_seen),
         last_seen = MAX(COALESCE(last_seen, excluded.last_seen), excluded.last_seen),
         frequency_rank = CASE
@@ -1787,9 +1788,15 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
-    wordIdSelectStmt: db.prepare(`
-      SELECT id FROM imm_words
+    wordSelectStmt: db.prepare(`
+      SELECT id, word, headword, reading, part_of_speech AS partOfSpeech,
+        pos1, pos2, pos3, frequency_rank AS frequencyRank,
+        vocabulary_visible AS vocabularyVisible
+      FROM imm_words
       WHERE headword = ? AND word = ? AND reading = ?
+    `),
+    wordVisibilityUpdateStmt: db.prepare(`
+      UPDATE imm_words SET vocabulary_visible = ? WHERE id = ?
     `),
     kanjiIdSelectStmt: db.prepare(`
       SELECT id FROM imm_kanji
@@ -1842,13 +1849,17 @@ function incrementWordAggregate(
       occurrence.frequencyRank ?? null,
     );
   }
-  const row = stmts.wordIdSelectStmt.get(
-    occurrence.headword,
-    occurrence.word,
-    occurrence.reading,
-  ) as { id: number } | null;
+  const row = stmts.wordSelectStmt.get(occurrence.headword, occurrence.word, occurrence.reading) as
+    | (VocabularyVisibilityRow & { id: number; vocabularyVisible: number })
+    | null;
   if (!row?.id) {
     throw new Error(`Failed to resolve imm_words id for ${occurrence.headword}`);
+  }
+  // The upsert keeps the first-seen POS metadata, so derive visibility from the
+  // stored row (as the vocabulary summary does) rather than the incoming token.
+  const visible = isVocabularyStatsRowVisible(row) ? 1 : 0;
+  if (row.vocabularyVisible !== visible) {
+    stmts.wordVisibilityUpdateStmt.run(visible, row.id);
   }
   return row.id;
 }
