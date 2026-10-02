@@ -39,6 +39,7 @@ test('non-macOS modal overlay remains a regular window', () => {
   });
 
   assert.equal(options.type, undefined);
+  assert.equal(options.roundedCorners, false);
 });
 
 test('Linux visible overlay window allows compositor resize for mpv-sized placement', () => {

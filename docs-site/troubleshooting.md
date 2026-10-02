@@ -67,6 +67,16 @@ If you have not set up dictionaries yet, start with [Yomitan setup](/usage#yomit
 
 Word boundaries come from Yomitan's parser. Some splits will be wrong, since Japanese has no spaces.
 
+## "Electron downgrade blocked" or "Unsupported Electron runtime"
+
+SubMiner refuses to load Yomitan storage when the current Electron major does not match the app build, or when the profile was previously opened by a newer Electron major or minor version. Patch downgrades within the same major and minor version are allowed, such as `43.7.3` to `43.7.2`. Downgrades from `43.7.x` to `43.6.x`, or from Electron 43 to 42, are blocked. Launch the packaged app or use the repository's `bun run dev` command. Do not delete the runtime safety record to force an older major or minor version to open the profile.
+
+Older SubMiner builds without this guard cannot enforce the safety record. When testing Electron 43 before returning to an older Electron 42 build, use the separate `SubMiner-dev` profile described in [development](/development#run-locally) so the older build never opens the upgraded profile.
+
+## "Yomitan reported zero dictionaries after previously reporting ..."
+
+SubMiner detected that a previously non-empty Yomitan profile suddenly appears empty. Automatic character-dictionary changes are blocked so they cannot overwrite the suspicious state. Close SubMiner, preserve the profile directory, and restore a known-good backup before importing or deleting dictionaries.
+
 ## "Yomitan extension not found in any search path"
 
 The bundled Yomitan is missing. Re-download the AppImage, or place an unpacked Yomitan extension in `~/.config/SubMiner/yomitan`. Source builds must run `bun run build` first to produce `build/yomitan`.
