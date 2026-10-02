@@ -311,8 +311,13 @@ test('prepare youtube playback swaps a queued entry for its direct stream withou
       return value;
     },
     requestProperty: async (name) => {
-      if (name === 'playlist-pos') return 1;
-      if (name === 'playlist-count') return 3;
+      if (name === 'playlist') {
+        return [
+          { filename: 'https://www.youtube.com/watch?v=queued1' },
+          { filename: 'https://www.youtube.com/watch?v=queued2', current: true, playing: true },
+          { filename: 'https://www.youtube.com/watch?v=queued3' },
+        ];
+      }
       if (name === 'track-list') return [{ type: 'video', id: 1 }];
       return null;
     },
@@ -342,8 +347,11 @@ test('prepare youtube playback replaces the playlist when the current entry is a
   const prepare = createPrepareYoutubePlaybackInMpvHandler({
     requestPath: async () => 'https://www.youtube.com/watch?v=other',
     requestProperty: async (name) => {
-      if (name === 'playlist-pos') return 0;
-      if (name === 'playlist-count') return 3;
+      if (name === 'playlist') {
+        return [
+          { filename: 'https://www.youtube.com/watch?v=other', current: true, playing: true },
+        ];
+      }
       return [];
     },
     sendMpvCommand: (command) => commands.push(command),
@@ -361,5 +369,45 @@ test('prepare youtube playback replaces the playlist when the current entry is a
     pollIntervalMs: 1,
   });
 
+  assert.deepEqual(commands.slice(4), [['loadfile', directUrl, 'replace']]);
+});
+
+test('prepare youtube playback does not touch the playlist when the playing entry is another video', async () => {
+  const commands: Array<Array<string>> = [];
+  const directUrl = 'https://rr16---sn.example.googlevideo.com/videoplayback?id=abc';
+  let nowTick = 0;
+  const prepare = createPrepareYoutubePlaybackInMpvHandler({
+    // mpv's path still reports the queued video, but it is mid-advance: the selected entry moved
+    // on and the playing entry is another queued video.
+    requestPath: async () => 'https://www.youtube.com/watch?v=queued2',
+    requestProperty: async (name) => {
+      if (name === 'playlist') {
+        return [
+          { filename: 'https://www.youtube.com/watch?v=queued1', playing: true },
+          { filename: 'https://www.youtube.com/watch?v=queued2', current: true },
+          { filename: 'https://www.youtube.com/watch?v=queued3' },
+        ];
+      }
+      return [];
+    },
+    sendMpvCommand: (command) => commands.push(command),
+    wait: createWaitStub(),
+    now: () => {
+      nowTick += 100;
+      return nowTick;
+    },
+  });
+
+  await prepare({
+    url: directUrl,
+    sourceUrl: 'https://www.youtube.com/watch?v=queued2',
+    timeoutMs: 200,
+    pollIntervalMs: 1,
+  });
+
+  assert.equal(
+    commands.some((command) => command[0] === 'playlist-remove'),
+    false,
+  );
   assert.deepEqual(commands.slice(4), [['loadfile', directUrl, 'replace']]);
 });

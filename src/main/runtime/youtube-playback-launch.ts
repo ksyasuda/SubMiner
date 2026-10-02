@@ -86,36 +86,49 @@ function hasPlayableMediaTracks(trackListRaw: unknown): boolean {
   });
 }
 
-function toPlaylistIndex(value: unknown): number | null {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+/** Index of the entry mpv is actually playing, or null while it is between entries. */
+function findPlayingPlaylistEntry(playlist: unknown[]): { index: number; filename: string } | null {
+  const index = playlist.findIndex(
+    (entry) =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      (entry as Record<string, unknown>).playing === true,
+  );
+  if (index < 0) return null;
+  const filename = (playlist[index] as Record<string, unknown>).filename;
+  return typeof filename === 'string' ? { index, filename } : null;
 }
 
 /**
- * Swaps mpv's current playlist entry for `targetUrl` while keeping the rest of the playlist, e.g.
+ * Swaps mpv's playing playlist entry for `targetUrl` while keeping the rest of the playlist, e.g.
  * a queued YouTube watch URL replaced by its resolved direct stream on Windows. Uses only
  * long-standing playlist commands (no `loadfile insert-*`, which needs mpv 0.38+).
- * Returns false when the playlist position is unknown so the caller can fall back to `replace`.
+ * Returns false unless the playing entry is confirmed to be `sourceUrl`'s video, so the caller
+ * falls back to `replace` instead of removing some other queued entry.
  */
 async function swapCurrentPlaylistEntry(
   deps: YoutubePlaybackLaunchDeps,
   targetUrl: string,
+  sourceUrl: string,
 ): Promise<boolean> {
   if (!deps.requestProperty) return false;
-  let position: number | null = null;
-  let count: number | null = null;
+  let playlist: unknown;
   try {
-    position = toPlaylistIndex(await deps.requestProperty('playlist-pos'));
-    count = toPlaylistIndex(await deps.requestProperty('playlist-count'));
+    // One snapshot so the position, count, and entry identity agree with each other.
+    playlist = await deps.requestProperty('playlist');
   } catch {
     return false;
   }
-  if (position === null || count === null || position >= count) return false;
+  if (!Array.isArray(playlist)) return false;
+  const playing = findPlayingPlaylistEntry(playlist);
+  if (!playing || !targetsSameYoutubeVideo(playing.filename, sourceUrl)) return false;
 
-  // The appended entry lands at index `count`; move it right after the current entry, then remove
-  // the current entry so mpv advances onto it.
+  // The appended entry lands at index `count`; move it right after the playing entry, then remove
+  // the playing entry so mpv advances onto it.
+  const count = playlist.length;
   deps.sendMpvCommand(['loadfile', targetUrl, 'append']);
-  deps.sendMpvCommand(['playlist-move', String(count), String(position + 1)]);
-  deps.sendMpvCommand(['playlist-remove', String(position)]);
+  deps.sendMpvCommand(['playlist-move', String(count), String(playing.index + 1)]);
+  deps.sendMpvCommand(['playlist-remove', String(playing.index)]);
   return true;
 }
 
@@ -162,7 +175,7 @@ export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLa
       const swapped =
         sourceUrl !== '' &&
         targetsSameYoutubeVideo(previousPath, sourceUrl) &&
-        (await swapCurrentPlaylistEntry(deps, targetUrl));
+        (await swapCurrentPlaylistEntry(deps, targetUrl, sourceUrl));
       if (!swapped) {
         deps.sendMpvCommand(['loadfile', targetUrl, 'replace']);
       }
