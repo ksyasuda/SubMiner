@@ -643,90 +643,113 @@ test('configureEarlyAppPaths creates a fresh macOS config directory before Elect
 
 test('configureEarlyAppPaths isolates development runs from the production profile', () => {
   const calls: string[] = [];
-
-  const userDataPath = configureEarlyAppPaths(
-    {
-      setName: (name) => calls.push(`name:${name}`),
-      setPath: (key, value) => calls.push(`path:${key}:${value}`),
-    },
-    {
-      platform: 'linux',
-      homeDir: '/home/tester',
-      xdgConfigHome: '/tmp/xdg',
-      existsSync: () => false,
-      argv: ['electron', '.', '--start', '--dev'],
-      env: {},
-    },
-  );
-
-  assert.equal(userDataPath, '/tmp/xdg/SubMiner-dev');
-  assert.deepEqual(calls, ['name:SubMiner', 'path:userData:/tmp/xdg/SubMiner-dev']);
-});
-
-test('configureEarlyAppPaths ignores development flags forwarded to mpv', () => {
-  for (const forwardedFlag of ['--dev', '--debug']) {
-    let selectedPath = '';
+  const xdgConfigHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-entry-dev-profile-'));
+  const devProfileDir = path.posix.join(xdgConfigHome, 'SubMiner-dev');
+  try {
     const userDataPath = configureEarlyAppPaths(
       {
-        setName: () => {},
-        setPath: (_key, value) => {
-          selectedPath = value;
-        },
+        setName: (name) => calls.push(`name:${name}`),
+        setPath: (key, value) => calls.push(`path:${key}:${value}`),
       },
       {
         platform: 'linux',
-        homeDir: '/home/tester',
-        xdgConfigHome: '/tmp/xdg',
+        homeDir: xdgConfigHome,
+        xdgConfigHome,
         existsSync: () => false,
-        argv: ['electron', '.', '--launch-mpv', forwardedFlag],
+        argv: ['electron', '.', '--start', '--dev'],
         env: {},
       },
     );
 
-    assert.equal(userDataPath, '/tmp/xdg/SubMiner');
-    assert.equal(selectedPath, '/tmp/xdg/SubMiner');
+    assert.equal(userDataPath, devProfileDir);
+    assert.deepEqual(calls, ['name:SubMiner', `path:userData:${devProfileDir}`]);
+  } finally {
+    fs.rmSync(xdgConfigHome, { recursive: true, force: true });
+  }
+});
+
+test('configureEarlyAppPaths ignores development flags forwarded to mpv', () => {
+  const xdgConfigHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-entry-mpv-flags-'));
+  const configDir = path.posix.join(xdgConfigHome, 'SubMiner');
+  try {
+    for (const forwardedFlag of ['--dev', '--debug']) {
+      let selectedPath = '';
+      const userDataPath = configureEarlyAppPaths(
+        {
+          setName: () => {},
+          setPath: (_key, value) => {
+            selectedPath = value;
+          },
+        },
+        {
+          platform: 'linux',
+          homeDir: xdgConfigHome,
+          xdgConfigHome,
+          existsSync: () => false,
+          argv: ['electron', '.', '--launch-mpv', forwardedFlag],
+          env: {},
+        },
+      );
+
+      assert.equal(userDataPath, configDir);
+      assert.equal(selectedPath, configDir);
+    }
+  } finally {
+    fs.rmSync(xdgConfigHome, { recursive: true, force: true });
   }
 });
 
 test('configureEarlyAppPaths uses the supplied environment for config discovery', () => {
   const paths: string[] = [];
+  const xdgConfigHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-entry-injected-env-'));
+  const configDir = path.posix.join(xdgConfigHome, 'SubMiner');
+  try {
+    const userDataPath = configureEarlyAppPaths(
+      {
+        setName: () => {},
+        setPath: (_key, value) => paths.push(value),
+      },
+      {
+        platform: 'linux',
+        homeDir: path.posix.join(xdgConfigHome, 'home'),
+        existsSync: () => false,
+        argv: ['electron', '.', '--start'],
+        env: { XDG_CONFIG_HOME: xdgConfigHome },
+      },
+    );
 
-  const userDataPath = configureEarlyAppPaths(
-    {
-      setName: () => {},
-      setPath: (_key, value) => paths.push(value),
-    },
-    {
-      platform: 'linux',
-      homeDir: '/home/tester',
-      existsSync: () => false,
-      argv: ['electron', '.', '--start'],
-      env: { XDG_CONFIG_HOME: '/tmp/injected-xdg' },
-    },
-  );
-
-  assert.equal(userDataPath, '/tmp/injected-xdg/SubMiner');
-  assert.deepEqual(paths, ['/tmp/injected-xdg/SubMiner']);
+    assert.equal(userDataPath, configDir);
+    assert.deepEqual(paths, [configDir]);
+  } finally {
+    fs.rmSync(xdgConfigHome, { recursive: true, force: true });
+  }
 });
 
 test('configureEarlyAppPaths allows an explicit production-profile development run', () => {
   const paths: string[] = [];
+  const configBaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-entry-prod-profile-'));
+  // Use the host platform so the selected directory is a real path mkdirSync can create.
+  const configDir = path.join(configBaseDir, 'SubMiner');
+  try {
+    const userDataPath = configureEarlyAppPaths(
+      {
+        setName: () => {},
+        setPath: (_key, value) => paths.push(value),
+      },
+      {
+        platform: process.platform,
+        appDataDir: configBaseDir,
+        xdgConfigHome: configBaseDir,
+        homeDir: configBaseDir,
+        existsSync: () => false,
+        argv: ['electron', '.', '--debug'],
+        env: { SUBMINER_USE_PRODUCTION_PROFILE: '1' },
+      },
+    );
 
-  const userDataPath = configureEarlyAppPaths(
-    {
-      setName: () => {},
-      setPath: (_key, value) => paths.push(value),
-    },
-    {
-      platform: 'win32',
-      appDataDir: 'C:\\Users\\tester\\AppData\\Roaming',
-      homeDir: 'C:\\Users\\tester',
-      existsSync: () => false,
-      argv: ['electron.exe', '.', '--debug'],
-      env: { SUBMINER_USE_PRODUCTION_PROFILE: '1' },
-    },
-  );
-
-  assert.equal(userDataPath, 'C:\\Users\\tester\\AppData\\Roaming\\SubMiner');
-  assert.deepEqual(paths, ['C:\\Users\\tester\\AppData\\Roaming\\SubMiner']);
+    assert.equal(userDataPath, configDir);
+    assert.deepEqual(paths, [configDir]);
+  } finally {
+    fs.rmSync(configBaseDir, { recursive: true, force: true });
+  }
 });
