@@ -35,6 +35,8 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
   let quitOnDisconnectArmed = false;
   let quitOnDisconnectArmTimer: ReturnType<typeof setTimeout> | null = null;
   let playbackFlowGeneration = 0;
+  // Windows mpv plays a resolved stream URL, so remember which YouTube page it came from.
+  let directPlayback: { streamUrl: string; sourceUrl: string } | null = null;
 
   const clearYoutubePlayQuitOnDisconnectArmTimer = (): void => {
     if (quitOnDisconnectArmTimer) {
@@ -65,6 +67,7 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
             request.url,
             deps.directPlaybackFormat,
           );
+          directPlayback = { streamUrl: playbackUrl, sourceUrl: request.url };
           deps.logInfo('Resolved direct YouTube playback URL for Windows MPV startup.');
         } catch (error) {
           deps.logWarn(
@@ -156,5 +159,10 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
     clearYoutubePlayQuitOnDisconnectArmTimer,
     getQuitOnDisconnectArmed: (): boolean => quitOnDisconnectArmed,
     runYoutubePlaybackFlow,
+    /** YouTube page URL for a stream URL this runtime resolved for Windows playback, else null. */
+    getYoutubeSourceUrlForStream: (mediaPath: string | null | undefined): string | null =>
+      directPlayback && mediaPath?.trim() === directPlayback.streamUrl
+        ? directPlayback.sourceUrl
+        : null,
   };
 }

@@ -368,7 +368,10 @@ test('cancelling a YouTube Whisper job resolves to null, and failures throw', as
   );
 });
 
-function youtubeFixture(generateYoutube: SubtitleGenerationRuntimeDeps['generateYoutube']) {
+function youtubeFixture(
+  generateYoutube: SubtitleGenerationRuntimeDeps['generateYoutube'],
+  overrides: Partial<SubtitleGenerationRuntimeDeps> = {},
+) {
   const player = {
     path: 'https://www.youtube.com/watch?v=abcdefghijk&pp=search',
     paused: false,
@@ -385,7 +388,7 @@ function youtubeFixture(generateYoutube: SubtitleGenerationRuntimeDeps['generate
       return { error: 'success' };
     },
   };
-  const { runtime } = fixture({ getMpvClient: () => client, generateYoutube });
+  const { runtime } = fixture({ getMpvClient: () => client, generateYoutube, ...overrides });
   return { runtime, player, commands };
 }
 
@@ -442,4 +445,64 @@ test('switching videos cancels a YouTube job from the modal without loading its 
     commands.some((command) => command[0] === 'sub-add'),
     false,
   );
+});
+
+// Windows plays YouTube through a resolved googlevideo stream, so mpv's path is not a YouTube URL.
+const STREAM_URL = 'https://rr1---sn.example.googlevideo.com/videoplayback?expire=1777777777';
+const OTHER_STREAM_URL = 'https://rr2---sn.example.googlevideo.com/videoplayback?expire=1888888888';
+const resolveStreamSource = (mediaPath: string): string | null =>
+  mediaPath === STREAM_URL
+    ? 'https://www.youtube.com/watch?v=abcdefghijk'
+    : mediaPath === OTHER_STREAM_URL
+      ? 'https://www.youtube.com/watch?v=zyxwvutsrqp'
+      : null;
+
+test('the modal generates for a YouTube video playing through a resolved stream URL', async () => {
+  let jobSignal: AbortSignal | null = null;
+  const { runtime, player, commands } = youtubeFixture(
+    async (input) => {
+      jobSignal = input.signal;
+      assert.equal(input.url, 'https://www.youtube.com/watch?v=abcdefghijk');
+      // Reloading the same video's stream must not cancel the job.
+      runtime.handleMediaPathChange(STREAM_URL);
+      return '/tmp/subs/youtube-whisper.ja.srt';
+    },
+    { resolveYoutubeSourceUrl: resolveStreamSource },
+  );
+  player.path = STREAM_URL;
+
+  assert.equal(
+    (await runtime.getStatus()).mediaPath,
+    'https://www.youtube.com/watch?v=abcdefghijk',
+  );
+  assert.deepEqual(await runtime.start(), {
+    ok: true,
+    outputPath: '/tmp/subs/youtube-whisper.ja.srt',
+    message: 'Japanese subtitles generated and loaded.',
+  });
+  assert.equal((jobSignal as AbortSignal | null)?.aborted, false);
+  assert.deepEqual(
+    commands.find((command) => command[0] === 'sub-add'),
+    ['sub-add', '/tmp/subs/youtube-whisper.ja.srt', 'select', 'Generated Japanese', 'ja'],
+  );
+});
+
+test('switching to another resolved YouTube stream cancels the modal job', async () => {
+  let jobSignal: AbortSignal | null = null;
+  const { runtime, player } = youtubeFixture(
+    (input) =>
+      new Promise((_, reject) => {
+        jobSignal = input.signal;
+        input.signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
+      }),
+    { resolveYoutubeSourceUrl: resolveStreamSource },
+  );
+  player.path = STREAM_URL;
+
+  const job = runtime.start();
+  while (!jobSignal) await new Promise((resolve) => setImmediate(resolve));
+  player.path = OTHER_STREAM_URL;
+  runtime.handleMediaPathChange(player.path);
+
+  assert.deepEqual(await job, { ok: false, message: 'Cancelled.' });
 });

@@ -6818,6 +6818,8 @@ const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
         'youtube-whisper.ja.srt',
       ),
     }),
+  resolveYoutubeSourceUrl: (mediaPath) =>
+    youtubePlaybackRuntime.getYoutubeSourceUrlForStream(mediaPath),
   getMpvClient: () => appState.mpvClient,
   onProgress: (progress) => {
     for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {

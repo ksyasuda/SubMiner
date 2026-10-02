@@ -145,6 +145,47 @@ test('youtube playback runtime resolves the socket path lazily for windows start
   assert.ok(calls.some((entry) => entry.includes('--input-ipc-server=/tmp/updated.sock')));
 });
 
+test('youtube playback runtime maps the resolved windows stream back to its page url', async () => {
+  const streamUrl = 'https://rr1---sn.example.googlevideo.com/videoplayback?expire=1777777777';
+  const runtime = createYoutubePlaybackRuntime({
+    platform: 'win32',
+    directPlaybackFormat: 'b',
+    mpvYtdlFormat: 'bestvideo+bestaudio',
+    autoLaunchTimeoutMs: 2_000,
+    connectTimeoutMs: 1_000,
+    getSocketPath: () => '/tmp/mpv.sock',
+    getMpvConnected: () => true,
+    invalidatePendingAutoplayReadyFallbacks: () => {},
+    setAppOwnedFlowInFlight: () => {},
+    ensureYoutubePlaybackRuntimeReady: async () => {},
+    resolveYoutubePlaybackUrl: async () => streamUrl,
+    launchWindowsMpv: async () => ({ ok: false }),
+    waitForYoutubeMpvConnected: async () => true,
+    prepareYoutubePlaybackInMpv: async () => true,
+    runYoutubePlaybackFlow: async () => {},
+    logInfo: () => {},
+    logWarn: () => {},
+    schedule: () => 1 as never,
+    clearScheduled: () => {},
+  });
+
+  assert.equal(runtime.getYoutubeSourceUrlForStream(streamUrl), null);
+  await runtime.runYoutubePlaybackFlow({
+    url: 'https://www.youtube.com/watch?v=abcdefghijk',
+    source: 'second-instance',
+  });
+
+  assert.equal(
+    runtime.getYoutubeSourceUrlForStream(streamUrl),
+    'https://www.youtube.com/watch?v=abcdefghijk',
+  );
+  assert.equal(
+    runtime.getYoutubeSourceUrlForStream('https://rr2---sn.example.googlevideo.com/other'),
+    null,
+  );
+  assert.equal(runtime.getYoutubeSourceUrlForStream('/video/episode.mkv'), null);
+});
+
 test('youtube playback runtime starts media cache without blocking the subtitle flow', async () => {
   const calls: string[] = [];
   let resolveCache: (() => void) | undefined;
