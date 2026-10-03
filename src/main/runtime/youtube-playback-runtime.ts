@@ -22,7 +22,7 @@ export type YoutubePlaybackRuntimeDeps = {
   resolveYoutubePlaybackUrl: (url: string, format: string) => Promise<string>;
   launchWindowsMpv: (playbackUrl: string, args: string[]) => Promise<LaunchResult>;
   waitForYoutubeMpvConnected: (timeoutMs: number) => Promise<boolean>;
-  prepareYoutubePlaybackInMpv: (request: { url: string }) => Promise<boolean>;
+  prepareYoutubePlaybackInMpv: (request: { url: string; sourceUrl: string }) => Promise<boolean>;
   startYoutubeMediaCache?: (url: string) => void | Promise<void>;
   runYoutubePlaybackFlow: (request: { url: string }) => Promise<void>;
   logInfo: (message: string) => void;
@@ -127,7 +127,10 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
         }, 3000);
       }
 
-      const mediaReady = await deps.prepareYoutubePlaybackInMpv({ url: playbackUrl });
+      const mediaReady = await deps.prepareYoutubePlaybackInMpv({
+        url: playbackUrl,
+        sourceUrl: request.url,
+      });
       if (!mediaReady) {
         throw new Error('Timed out waiting for mpv to load the requested YouTube URL.');
       }

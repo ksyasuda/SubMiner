@@ -2,6 +2,11 @@ import { isYoutubeMediaPath } from './youtube-playback';
 
 type YoutubePlaybackLaunchInput = {
   url: string;
+  /**
+   * YouTube page URL `url` was resolved from (Windows loads a direct stream URL). Lets a playlist
+   * entry for the same video be swapped in place instead of replacing the whole playlist.
+   */
+  sourceUrl?: string;
   timeoutMs?: number;
   pollIntervalMs?: number;
 };
@@ -81,6 +86,52 @@ function hasPlayableMediaTracks(trackListRaw: unknown): boolean {
   });
 }
 
+/** Index of the entry mpv is actually playing, or null while it is between entries. */
+function findPlayingPlaylistEntry(playlist: unknown[]): { index: number; filename: string } | null {
+  const index = playlist.findIndex(
+    (entry) =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      (entry as Record<string, unknown>).playing === true,
+  );
+  if (index < 0) return null;
+  const filename = (playlist[index] as Record<string, unknown>).filename;
+  return typeof filename === 'string' ? { index, filename } : null;
+}
+
+/**
+ * Swaps mpv's playing playlist entry for `targetUrl` while keeping the rest of the playlist, e.g.
+ * a queued YouTube watch URL replaced by its resolved direct stream on Windows. Uses only
+ * long-standing playlist commands (no `loadfile insert-*`, which needs mpv 0.38+).
+ * Returns false unless the playing entry is confirmed to be `sourceUrl`'s video, so the caller
+ * falls back to `replace` instead of removing some other queued entry.
+ */
+async function swapCurrentPlaylistEntry(
+  deps: YoutubePlaybackLaunchDeps,
+  targetUrl: string,
+  sourceUrl: string,
+): Promise<boolean> {
+  if (!deps.requestProperty) return false;
+  let playlist: unknown;
+  try {
+    // One snapshot so the position, count, and entry identity agree with each other.
+    playlist = await deps.requestProperty('playlist');
+  } catch {
+    return false;
+  }
+  if (!Array.isArray(playlist)) return false;
+  const playing = findPlayingPlaylistEntry(playlist);
+  if (!playing || !targetsSameYoutubeVideo(playing.filename, sourceUrl)) return false;
+
+  // The appended entry lands at index `count`; move it right after the playing entry, then remove
+  // the playing entry so mpv advances onto it.
+  const count = playlist.length;
+  deps.sendMpvCommand(['loadfile', targetUrl, 'append']);
+  deps.sendMpvCommand(['playlist-move', String(count), String(playing.index + 1)]);
+  deps.sendMpvCommand(['playlist-remove', String(playing.index)]);
+  return true;
+}
+
 function sendPlaybackPrepCommands(sendMpvCommand: (command: Array<string>) => void): void {
   sendMpvCommand(['set_property', 'pause', 'yes']);
   sendMpvCommand(['set_property', 'sub-auto', 'no']);
@@ -120,7 +171,14 @@ export function createPrepareYoutubePlaybackInMpvHandler(deps: YoutubePlaybackLa
         // Keep polling; mpv can report the target path before tracks are ready.
       }
     } else {
-      deps.sendMpvCommand(['loadfile', targetUrl, 'replace']);
+      const sourceUrl = input.sourceUrl?.trim() ?? '';
+      const swapped =
+        sourceUrl !== '' &&
+        targetsSameYoutubeVideo(previousPath, sourceUrl) &&
+        (await swapCurrentPlaylistEntry(deps, targetUrl, sourceUrl));
+      if (!swapped) {
+        deps.sendMpvCommand(['loadfile', targetUrl, 'replace']);
+      }
     }
 
     const deadline = now() + timeoutMs;
