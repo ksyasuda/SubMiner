@@ -476,21 +476,29 @@ You will receive a list of FRAGMENT entries below. Each fragment has metadata (t
 
    </details>
    Do not include the Internal section at all in MODE: release-notes; internal fragments will not be present in the input for that mode.
-4. Each top-level change item should:
-   - Lead with a short feature/area name in title case. Pick the name from the fragment's bullet content, not the raw 'area:' slug.
-   - Be written in user-facing language. Drop implementation jargon, internal class names, file paths, and PR numbers.
-   - Be merged with related bullets when possible. If five fragments all touch Windows overlay z-order/focus/restore, write one or two bullets that summarize the overall improvement instead of five.
+4. Start every item with a short bold feature/area name in title case and a colon. Pick the name from the fragment's bullet content, not the raw 'area:' slug.
+   - Default to inline: put one or two short sentences right after the colon. If the important details fit in two short sentences, stay inline.
+   - Use nested bullets only when an item has several distinct changes a user would care about separately and inline text would turn into a long run-on sentence. Then leave the top-level bullet as just the name and indent two to four nested bullets by two spaces.
+   - Each nested bullet is a single short sentence, roughly 20 words or fewer. Never write paragraph-length bullets. Cut minor details rather than adding sentences.
+5. Keep items brief. Release notes summarize; the docs hold the details.
+   - Say what changed for the user and how to reach it (shortcut, command, setting, or menu). Stop there.
+   - Leave out how it works internally, edge cases, precedence rules, defaults, fallbacks, tool discovery, migration mechanics, and step-by-step usage.
+   - Name a config key only when users must set it to use the change or to keep their current behavior.
+   - Write in user-facing language. Drop implementation jargon, internal class names, file paths, and PR numbers.
+   - Merge aggressively: one item per feature or area. If five fragments touch Jellyfin subtitles, audio, and auth, write one Jellyfin item, not five. Group small unrelated fixes for the same area into one item.
    - Drop bullets that only describe PR housekeeping, CodeRabbit follow-ups, or test-only changes that don't affect users.
-   - Preserve the substance of breaking changes that remain breaking after applying the Release Outcome Rules. Do not soften or omit them.
-5. In both modes, split every item into one nested bullet per distinct change. Write a short bold name on the top-level bullet, then indent the details two spaces:
-   - **Playlist Browser**:
-     - Saved shows now open without rescanning the library.
-     - The picker remembers the last folder you browsed between launches.
-   Each nested bullet covers exactly one change, behavior, or user-visible outcome. Never stack several distinct changes into one long paragraph-shaped bullet.
-   Aim for two to five nested bullets per item. When an item genuinely has only one thing to say, put it inline on the top-level bullet ("- **Playlist Browser**: Saved shows now open without rescanning the library.") instead of emitting a single nested bullet.
-   Keep nested bullets short, concrete, and readable by non-technical users. Avoid paragraph-style release-note bullets.
-   Bullets inside the Internal section may stay single-level.
-6. In MODE: release-notes, nested bullets should also cover user benefit and any user action or compatibility note when useful. Do not require the exact nested labels; natural phrasing is fine. Omit the action bullet when no action is needed.
+   - Preserve the substance of breaking changes that remain breaking after applying the Release Outcome Rules, including any action users must take. Do not soften or omit them.
+6. Match the length and density of this example:
+   ### Added
+   - **Subtitle Selection Modal**: Optional modal for picking primary and secondary subtitle tracks. Enable it in Settings under Behavior, then press g followed by s.
+   ### Changed
+   - **Faster Sync**: Sync between macOS and Linux machines now uses compressed, incremental rsync transfers. Windows and machines without rsync fall back to compressed scp.
+   ### Fixed
+   - **Subtitle Sidebar**: Space keeps its playback action after clicking a cue, and the sidebar no longer jumps away from the current position during subtitle gaps.
+   - **Jellyfin 12**:
+     - Playback, subtitles, artwork, and "Play on SubMiner" now work on Jellyfin 12.
+     - Casting no longer drops after about a minute.
+     - Mined cards get the episode title again.
 7. Do not invent features. Every bullet must be grounded in the input fragments.
 8. Do not include the version heading (## v...) — that wrapper is added by the caller.
 
@@ -791,7 +799,7 @@ function polishFragmentsWithClaude(
     ? [
         '## Existing Prerelease Notes',
         '',
-        'The input includes EXISTING PRERELEASE NOTES before the fragment list. Existing prerelease notes are a baseline, not an immutable changelog. Reuse reviewed highlight bullets when they still describe the current outcome, but replace stale beta or RC wording when new fragments supersede it. Merge in only new or changed fragment material, and deduplicate instead of restating existing bullets. Output only the final highlights body using the section headings above; do not include the prerelease disclaimer, any "Changes since" section, or the Installation or Assets sections.',
+        'The input includes EXISTING PRERELEASE NOTES before the fragment list. Existing prerelease notes are a baseline, not an immutable changelog. Reuse reviewed highlight bullets when they still describe the current outcome, but replace stale beta or RC wording when new fragments supersede it. Merge in only new or changed fragment material, and deduplicate instead of restating existing bullets. The output rules above win over the baseline format: shorten long baseline bullets and collapse nested lists that do not need to be nested. Output only the final highlights body using the section headings above; do not include the prerelease disclaimer, any "Changes since" section, or the Installation or Assets sections.',
         '',
       ].join('\n')
     : '';
@@ -814,7 +822,7 @@ Rules:
 3. ADDED fragments describe changes that are new in this build; summarize them.
 4. MODIFIED fragments include BEFORE and AFTER content. Describe only the behavioral difference between them. If the edit is editorial (rewording, deduplication, reformatting, reconciling stale phrasing) with no user-visible behavior change, omit it entirely.
 5. DELETED fragments mean the described change was removed or reverted before this build; say so explicitly.
-6. Keep bullets short and concrete. Use nested bullets sparingly.
+6. Keep each bullet to one short, concrete sentence. Use nested bullets sparingly.
 7. Do not invent changes. Every bullet must be grounded in the diffs.
 8. If no bullet survives rules 2-5, output exactly this single line:
    - No user-facing changes since PREVIOUS_TAG.

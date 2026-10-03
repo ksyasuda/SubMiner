@@ -44,20 +44,12 @@ function fragmentTypesInPrompt(input: string): string[] {
     .map((line) => line.slice('type: '.length).trim());
 }
 
-function assertPromptRequestsNestedBullets(input: string): void {
-  assert.match(input, /In both modes, split every item into one nested bullet per distinct change/);
-  assert.match(input, /Never stack several distinct changes into one long paragraph-shaped bullet/);
-  assert.match(input, /Keep nested bullets short, concrete, and readable by non-technical users/);
-  assert.match(input, /Avoid paragraph-style release-note bullets/);
-}
-
-function assertReleaseNotesPromptRequestsNestedBullets(input: string): void {
-  assertPromptRequestsNestedBullets(input);
-  assert.match(
-    input,
-    /In MODE: release-notes, nested bullets should also cover user benefit and any user action/,
-  );
-  assert.match(input, /Do not require the exact nested labels/);
+function assertPromptRequestsConciseItems(input: string): void {
+  assert.match(input, /Default to inline/);
+  assert.match(input, /Use nested bullets only when an item has several distinct changes/);
+  assert.match(input, /Never write paragraph-length bullets/);
+  assert.match(input, /Merge aggressively: one item per feature or area/);
+  assert.match(input, /Release notes summarize; the docs hold the details/);
 }
 
 function defaultPolishedBody(input: string): string {
@@ -454,14 +446,13 @@ test('writeChangelogArtifacts prompts Claude to summarize the final stable outco
         prompt,
         /Multiple fixes within the same prerelease cycle should collapse into one current-state bullet/,
       );
-      assertPromptRequestsNestedBullets(prompt);
+      assertPromptRequestsConciseItems(prompt);
     }
 
     const releaseNotesPrompt = stub.calls.find(
       (call) => modeFromPrompt(call.input) === 'release-notes',
     );
     assert.ok(releaseNotesPrompt, 'expected a release-notes Claude invocation');
-    assertReleaseNotesPromptRequestsNestedBullets(releaseNotesPrompt.input);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }
@@ -817,7 +808,11 @@ test('writePrereleaseNotesForVersion prompts Claude to revise stale prerelease b
       prompt,
       /Multiple fixes within the same prerelease cycle should collapse into one current-state bullet/,
     );
-    assertReleaseNotesPromptRequestsNestedBullets(prompt);
+    assert.match(
+      prompt,
+      /shorten long baseline bullets and collapse nested lists that do not need to be nested/,
+    );
+    assertPromptRequestsConciseItems(prompt);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }
