@@ -6,6 +6,14 @@ import { ConfigService } from './config/service';
 import { createLogger, setLogLevel } from './logger';
 import { loadYomitanExtension } from './core/services/yomitan-extension-loader';
 import {
+  createHachidoriExtensionRuntime,
+  getHachidoriSession,
+} from './core/services/hachidori-extension';
+import {
+  getPreferredYomitanAnkiServerUrl,
+  shouldForceOverrideYomitanAnkiServer,
+} from './main/runtime/yomitan-anki-server';
+import {
   addYomitanNoteViaSearch,
   getYomitanCurrentAnkiDeckName,
   syncYomitanDefaultAnkiServer,
@@ -104,27 +112,38 @@ async function main(): Promise<void> {
   try {
     const configService = new ConfigService(userDataPath!);
     const config = configService.getConfig();
-    const extension = await loadYomitanExtension({
-      userDataPath: userDataPath!,
-      getYomitanParserWindow: () => yomitanParserWindow,
-      setYomitanParserWindow: (window) => {
-        yomitanParserWindow = window;
-      },
-      setYomitanParserReadyPromise: (promise) => {
-        yomitanParserReadyPromise = promise;
-      },
-      setYomitanParserInitPromise: (promise) => {
-        yomitanParserInitPromise = promise;
-      },
-      setYomitanExtension: (extensionValue) => {
-        yomitanExt = extensionValue;
-      },
-      setYomitanSession: (sessionValue) => {
-        yomitanSession = sessionValue;
-      },
-    });
+    // Mine with the same backend the app uses so notes come from the user's
+    // dictionaries and Anki templates, not an empty profile.
+    const extension =
+      config.dictionaryBackend === 'hachidori'
+        ? await createHachidoriExtensionRuntime(userDataPath!)
+            .ensureLoaded()
+            .then((loaded) => {
+              yomitanExt = loaded;
+              yomitanSession = getHachidoriSession();
+              return loaded;
+            })
+        : await loadYomitanExtension({
+            userDataPath: userDataPath!,
+            getYomitanParserWindow: () => yomitanParserWindow,
+            setYomitanParserWindow: (window) => {
+              yomitanParserWindow = window;
+            },
+            setYomitanParserReadyPromise: (promise) => {
+              yomitanParserReadyPromise = promise;
+            },
+            setYomitanParserInitPromise: (promise) => {
+              yomitanParserInitPromise = promise;
+            },
+            setYomitanExtension: (extensionValue) => {
+              yomitanExt = extensionValue;
+            },
+            setYomitanSession: (sessionValue) => {
+              yomitanSession = sessionValue;
+            },
+          });
     if (!extension) {
-      throw new Error('Yomitan extension failed to load.');
+      throw new Error(`${config.dictionaryBackend} extension failed to load.`);
     }
 
     const yomitanDeps = {
@@ -156,17 +175,21 @@ async function main(): Promise<void> {
     }
 
     await syncYomitanDefaultAnkiServer(
-      config.ankiConnect?.url || 'http://127.0.0.1:8765',
+      getPreferredYomitanAnkiServerUrl(config.ankiConnect),
       yomitanDeps,
       logger,
-      { forceOverride: true, deck: config.ankiConnect?.deck },
+      {
+        forceOverride: shouldForceOverrideYomitanAnkiServer(config.ankiConnect),
+        deck: config.ankiConnect?.deck,
+        ankiConfig: config.ankiConnect,
+      },
     );
 
     const addResult = await addYomitanNoteViaSearch(word!, yomitanDeps, logger);
 
     const noteId = addResult.noteId;
     if (typeof noteId !== 'number') {
-      throw new Error('Yomitan failed to create note.');
+      throw new Error(`${config.dictionaryBackend} failed to create note.`);
     }
 
     writeResponse(responsePath, {

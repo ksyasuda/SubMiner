@@ -230,12 +230,12 @@ async function loadYomitanAnkiDeckName(): Promise<void> {
       state.yomitanAnkiDeckNameError = null;
     } else {
       state.yomitanAnkiDeckName = '';
-      state.yomitanAnkiDeckNameError = result.error ?? 'Failed to read Yomitan Anki deck.';
+      state.yomitanAnkiDeckNameError = result.error ?? 'Failed to read the dictionary Anki deck.';
     }
   } catch (error) {
     state.yomitanAnkiDeckName = '';
     state.yomitanAnkiDeckNameError =
-      error instanceof Error ? error.message : 'Failed to read Yomitan Anki deck.';
+      error instanceof Error ? error.message : 'Failed to read the dictionary Anki deck.';
   } finally {
     state.yomitanAnkiDeckNameLoading = false;
     requestRender();

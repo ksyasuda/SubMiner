@@ -8,6 +8,7 @@ import {
 import type { SubtitleMiningContext } from '../types/subtitle';
 import type { CardKind } from '../types/anki';
 import { applyCardKindFlagFields } from './card-kinds';
+import { STATS_MINING_TAG } from '../shared/anki-source';
 
 function setCardTypeFields(
   updatedFields: Record<string, string>,
@@ -109,6 +110,27 @@ function createWorkflowHarness() {
     deps,
   };
 }
+
+test('NoteUpdateWorkflow preserves stats cards discovered by polling', async () => {
+  const { workflow, deps, updates } = createWorkflowHarness();
+  const note = {
+    noteId: 42,
+    tags: [STATS_MINING_TAG],
+    fields: { Expression: { value: '猫' }, Sentence: { value: '猫がいる。' } },
+  };
+  deps.client.notesInfo = async () => [note];
+  deps.captureSubtitleMediaContext = () => assert.fail('Must not capture current playback');
+  deps.findDuplicateNote = async () => assert.fail('Must not regroup a stats card');
+  let cachedNote: NoteUpdateWorkflowNoteInfo | undefined;
+  deps.appendKnownWordsFromNoteInfo = (value) => {
+    cachedNote = value;
+  };
+
+  await workflow.execute(42);
+
+  assert.deepEqual(updates, []);
+  assert.equal(cachedNote, note);
+});
 
 test('NoteUpdateWorkflow updates sentence field and emits notification', async () => {
   const harness = createWorkflowHarness();

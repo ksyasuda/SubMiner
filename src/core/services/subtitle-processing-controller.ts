@@ -43,6 +43,8 @@ export interface SubtitleProcessingController {
    */
   notePlainSubtitleEmitted: (text: string) => void;
   invalidateTokenizationCache: () => void;
+  /** Incremented by invalidateTokenizationCache; lets async writers detect stale results. */
+  getCacheGeneration: () => number;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
   consumeCachedSubtitle: (text: string) => SubtitleData | null;
   hasCachedSubtitle: (text: string) => boolean;
@@ -253,6 +255,7 @@ export function createSubtitleProcessingController(
       tokenizationCache.clear();
       cacheGeneration += 1;
     },
+    getCacheGeneration: () => cacheGeneration,
     preCacheTokenization: (text: string, data: SubtitleData) => {
       setCachedTokenization(text, data);
     },

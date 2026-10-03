@@ -20,6 +20,8 @@ coverage/
 /main-entry.js
 /main-entry.js.map
 
+/build/hachidori/
+
 # Logs
 *.log
 npm-debug.log*

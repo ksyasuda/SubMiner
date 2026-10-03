@@ -50,6 +50,7 @@ test('composeCliStartupHandlers returns callable CLI startup handlers', () => {
       runUpdateCommand: async () => {},
       runEnsureLinuxRuntimePluginAssetsCommand: async () => {},
       runYoutubePlaybackFlow: async () => {},
+      openHachidoriSettings: () => {},
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},
       openSyncUiWindow: () => {},

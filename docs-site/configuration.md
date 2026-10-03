@@ -67,6 +67,14 @@ Everything else needs a restart.
 
 ## Core settings
 
+### Dictionary backend
+
+`dictionaryBackend` accepts `"yomitan"` or `"hachidori"`. The default is defined in the [generated configuration example](/config.example.jsonc). Restart SubMiner after changing it. The tray shows the selected backend's settings, and the global dictionary-settings shortcut follows the same selection.
+
+Each backend stores its own dictionaries and mining settings. `yomitan.externalProfilePath` applies only to Yomitan. See [Hachidori setup](./usage.md#hachidori-setup) before switching an existing installation.
+
+`hachidori.externalHostManagementUrl` overrides the management origin that character dictionaries upload to when Hachidori is linked to a Docker host. Leave it empty to use the linked host's machine on the Docker management port. Set it only for a non-default `ADMIN_PORT` or a reverse proxy, and use the management port, not the sharing or dictionary API port. See [Hachidori setup](./usage.md#hachidori-setup).
+
 ### Logging
 
 Log files are named by date (`app-YYYY-MM-DD.log`, `launcher-...`, `mpv-...`). Log export writes a sanitized copy and leaves the originals alone.

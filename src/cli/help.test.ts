@@ -24,6 +24,7 @@ test('printHelp includes configured texthooker port', () => {
   assert.match(output, /--setup\s+Open first-run setup window/);
   assert.match(output, /--settings\s+Open SubMiner settings window/);
   assert.match(output, /--yomitan\s+Open Yomitan settings window/);
+  assert.match(output, /--hachidori\s+Open Hachidori settings window/);
   assert.match(output, /--mark-watched\s+Mark current video watched and advance playlist/);
   assert.match(output, /--anilist-status/);
   assert.match(output, /--anilist-retry-queue/);

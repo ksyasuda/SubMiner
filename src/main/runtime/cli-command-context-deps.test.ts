@@ -72,6 +72,7 @@ test('build cli command context deps maps handlers and values', () => {
     runYoutubePlaybackFlow: async () => {
       calls.push('run-youtube-playback');
     },
+    openHachidoriSettings: () => {},
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('config-settings'),
     openSyncUiWindow: () => {},

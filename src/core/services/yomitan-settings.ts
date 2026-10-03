@@ -7,6 +7,7 @@ const { BrowserWindow: ElectronBrowserWindow, Menu: ElectronMenu, session } = el
 const logger = createLogger('main:yomitan-settings');
 
 export interface OpenYomitanSettingsWindowOptions {
+  backend?: 'yomitan' | 'hachidori';
   yomitanExt: Extension | null;
   getExistingWindow: () => BrowserWindow | null;
   setWindow: (window: BrowserWindow | null) => void;
@@ -23,6 +24,7 @@ type HyprlandSessionEnv = {
 export interface InstallYomitanSettingsCloseButtonOptions {
   platform?: NodeJS.Platform;
   env?: HyprlandSessionEnv;
+  backend?: 'yomitan' | 'hachidori';
 }
 
 export function shouldInstallYomitanSettingsCloseButton(
@@ -53,7 +55,9 @@ export function buildYomitanSettingsWindowMenuTemplate(
   ];
 }
 
-export function buildYomitanSettingsCloseButtonScript(): string {
+export function buildYomitanSettingsCloseButtonScript(
+  backend: 'yomitan' | 'hachidori' = 'yomitan',
+): string {
   return `
 (() => {
   const buttonId = 'subminer-yomitan-settings-close';
@@ -97,7 +101,7 @@ export function buildYomitanSettingsCloseButtonScript(): string {
   button.id = buttonId;
   button.type = 'button';
   button.title = 'Close';
-  button.setAttribute('aria-label', 'Close Yomitan settings');
+  button.setAttribute('aria-label', 'Close ${backend === 'hachidori' ? 'Hachidori' : 'Yomitan'} settings');
   button.textContent = '\\u00d7';
   button.addEventListener('click', () => {
     window.close();
@@ -118,7 +122,7 @@ export function installYomitanSettingsCloseButton(
     return;
   }
   settingsWindow.webContents
-    .executeJavaScript(buildYomitanSettingsCloseButtonScript())
+    .executeJavaScript(buildYomitanSettingsCloseButtonScript(options.backend))
     .catch((error: Error) => {
       logger.warn('Failed to install Yomitan settings close button:', error.message);
     });
@@ -184,7 +188,7 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
   logger.info('Creating new settings window for extension:', options.yomitanExt.id);
 
   const settingsWindow = new ElectronBrowserWindow({
-    title: 'Yomitan Settings',
+    title: options.backend === 'hachidori' ? 'Hachidori Settings' : 'Yomitan Settings',
     width: 1200,
     height: 800,
     show: false,
@@ -228,7 +232,7 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
 
   settingsWindow.webContents.on('did-finish-load', () => {
     logger.info('Settings page loaded successfully');
-    installYomitanSettingsCloseButton(settingsWindow);
+    installYomitanSettingsCloseButton(settingsWindow, { backend: options.backend });
   });
 
   setTimeout(() => {

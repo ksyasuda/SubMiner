@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ensureLauncherSetupReady, waitForSetupCompletion } from './setup-gate';
-import type { SetupState } from '../src/shared/setup-state';
+import {
+  ensureLauncherSetupReady,
+  resolveLauncherGateBackend,
+  waitForSetupCompletion,
+} from './setup-gate';
+import { createDefaultSetupState, type SetupState } from '../src/shared/setup-state';
 
 const commandLineSetupDefaults = {
   bunInstallStatus: 'unknown',
@@ -294,4 +298,102 @@ test('ensureLauncherSetupReady ignores stale cancelled state after launching set
   });
 
   assert.equal(result, true);
+});
+
+test('Hachidori setup ignores completed Yomitan state and external Yomitan profiles', async () => {
+  let state: SetupState = { ...createDefaultSetupState(), status: 'completed' };
+  let launched = 0;
+  let polls = 0;
+  const ready = await ensureLauncherSetupReady({
+    dictionaryBackend: 'hachidori',
+    readSetupState: () => state,
+    isExternalYomitanConfigured: () => true,
+    launchSetupApp: () => {
+      launched += 1;
+    },
+    sleep: async () => {
+      polls += 1;
+      state = { ...state, dictionaryBackend: 'hachidori', lastSeenYomitanDictionaryCount: 1 };
+    },
+    now: () => polls,
+    timeoutMs: 5,
+    pollIntervalMs: 1,
+  });
+  assert.equal(ready, true);
+  assert.equal(launched, 1);
+  assert.equal(polls, 1);
+});
+
+test('matching Hachidori completion resumes playback without launching setup', async () => {
+  const ready = await ensureLauncherSetupReady({
+    dictionaryBackend: 'hachidori',
+    readSetupState: () => ({
+      ...createDefaultSetupState(),
+      dictionaryBackend: 'hachidori',
+      status: 'completed',
+      lastSeenYomitanDictionaryCount: 1,
+    }),
+    launchSetupApp: () => assert.fail('setup should not open'),
+    sleep: async () => undefined,
+    now: () => 0,
+    timeoutMs: 5,
+    pollIntervalMs: 1,
+  });
+  assert.equal(ready, true);
+});
+
+test('a backend that finished setup earlier passes the gate after switching back', async () => {
+  const ready = await ensureLauncherSetupReady({
+    dictionaryBackend: 'yomitan',
+    readSetupState: () => ({
+      ...createDefaultSetupState(),
+      dictionaryBackend: 'hachidori',
+      status: 'incomplete',
+      completedDictionaryBackends: ['yomitan'],
+    }),
+    launchSetupApp: () => assert.fail('setup should not open'),
+    sleep: async () => undefined,
+    now: () => 0,
+    timeoutMs: 5,
+    pollIntervalMs: 1,
+  });
+  assert.equal(ready, true);
+});
+
+test('gate follows the running app backend until it restarts into the configured one', async () => {
+  const warnings: string[] = [];
+  const state = {
+    ...createDefaultSetupState(),
+    dictionaryBackend: 'yomitan' as const,
+    status: 'completed' as const,
+  };
+  assert.equal(
+    await resolveLauncherGateBackend({
+      configuredBackend: 'hachidori',
+      state,
+      isAppRunning: async () => true,
+      warn: (message) => warnings.push(message),
+    }),
+    'yomitan',
+  );
+  assert.match(warnings[0] ?? '', /restart it to switch to hachidori/);
+  assert.equal(
+    await resolveLauncherGateBackend({
+      configuredBackend: 'hachidori',
+      state,
+      isAppRunning: async () => false,
+    }),
+    'hachidori',
+  );
+  const ready = await ensureLauncherSetupReady({
+    dictionaryBackend: 'hachidori',
+    isAppRunning: async () => true,
+    readSetupState: () => state,
+    launchSetupApp: () => assert.fail('the running Yomitan app already completed setup'),
+    sleep: async () => undefined,
+    now: () => 0,
+    timeoutMs: 5,
+    pollIntervalMs: 1,
+  });
+  assert.equal(ready, true);
 });

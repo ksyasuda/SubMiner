@@ -18,6 +18,7 @@ test('sidebar clipboard bridge writes exact text without renderer focus and reje
   let exposed: unknown;
   runInNewContext(output.text, {
     process: { argv: [] },
+    window: { addEventListener: () => {} },
     require: (name: string) => {
       assert.equal(name, 'electron');
       return {

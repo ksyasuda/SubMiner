@@ -4362,6 +4362,26 @@ test('tokenizeSubtitle keeps Yomitan frequency for noun-particle-noun compounds'
   assert.equal(result.tokens?.[0]?.frequencyRank, 581);
 });
 
+test('tokenizeSubtitle skips frequency requests for ranks supplied by the scanner', async () => {
+  const deps = makeDepsFromYomitanTokens(
+    [{ surface: '猫', reading: 'ねこ', headword: '猫', frequencyRank: 42 }],
+    { getFrequencyDictionaryEnabled: () => true },
+  );
+  const parserWindow = deps.getYomitanParserWindow();
+  assert.ok(parserWindow);
+  deps.getYomitanParserWindow = () => parserWindow;
+  const scripts: string[] = [];
+  const execute = parserWindow.webContents.executeJavaScript.bind(parserWindow.webContents);
+  parserWindow.webContents.executeJavaScript = async (script) => {
+    scripts.push(script);
+    return execute(script);
+  };
+  const result = await tokenizeSubtitle('猫', deps);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 42);
+  assert.ok(scripts.length > 0);
+  assert.equal(scripts.filter((script) => script.includes('getTermFrequencies')).length, 0);
+});
+
 test('tokenizeSubtitle keeps frequency for ordinal prefix-noun tokens', async () => {
   const result = await tokenizeSubtitle(
     '第二走者',

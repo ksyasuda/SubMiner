@@ -12,7 +12,7 @@ export type YomitanFrequencyMode = 'occurrence-based' | 'rank-based';
 
 // Bump whenever the install script below changes so already-loaded parser
 // windows re-install the new scan runtime instead of running the stale one.
-export const YOMITAN_SCAN_RUNTIME_VERSION = 12;
+export const YOMITAN_SCAN_RUNTIME_VERSION = 13;
 export const YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL = '__subminer-yomitan-scan-runtime-missing__';
 
 export interface YomitanScanRequestParams {
@@ -43,7 +43,7 @@ export const YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT = String.raw`
     }
     const invoke = (action, params) =>
       new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ action, params }, (response) => {
+        (globalThis.__subminerDictionarySendMessage ?? chrome.runtime.sendMessage.bind(chrome.runtime))({ action, params }, (response) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
             return;

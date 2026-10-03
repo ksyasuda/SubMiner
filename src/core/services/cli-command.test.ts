@@ -19,6 +19,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     yomitan: false,
+    hachidori: false,
     settings: false,
     syncWindow: false,
     youtubeBrowser: false,
@@ -132,6 +133,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     togglePrimarySubtitleBar: () => {
       calls.push('togglePrimarySubtitleBar');
+    },
+    openHachidoriSettingsDelayed: (delayMs) => {
+      calls.push(`openHachidoriSettingsDelayed:${delayMs}`);
     },
     openYomitanSettingsDelayed: (delayMs) => {
       calls.push(`openYomitanSettingsDelayed:${delayMs}`);
@@ -656,6 +660,7 @@ test('createCliCommandDepsRuntime reconnects MPV client when reconnect hook exis
     },
     ui: {
       openFirstRunSetup: () => {},
+      openHachidoriSettings: () => {},
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},
       openSyncUiWindow: () => {},
@@ -1119,3 +1124,14 @@ test('handleCliCommand reports async refresh-known-words errors to OSD', async (
   assert.ok(osd.some((value) => value.includes('Refresh known words failed: refresh boom')));
   assert.ok(calls.includes('stopApp'));
 });
+
+for (const source of ['initial', 'second-instance'] as const) {
+  test(`Hachidori settings command opens its own settings on ${source} invocation`, () => {
+    const { deps, calls } = createDeps();
+    handleCliCommand(makeArgs({ hachidori: true }), source, deps);
+    assert.ok(calls.includes('openHachidoriSettingsDelayed:1000'));
+    assert.equal(calls.includes('openYomitanSettingsDelayed:1000'), false);
+    assert.equal(calls.includes('initializeOverlayRuntime'), false);
+    assert.equal(calls.includes('connectMpvClient'), false);
+  });
+}

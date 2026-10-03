@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
+import * as vm from 'node:vm';
+import { createDeps } from '../../core/services/tokenizer/yomitan-scan-test-harness';
 import { DEFAULT_CONFIG } from '../../config';
 import { ImmersionTrackerService } from '../../core/services/immersion-tracker-service';
 import { createAnilistRateLimiter } from '../../core/services/anilist/rate-limiter';
@@ -34,6 +36,7 @@ function createDeferred<T>() {
 function createRuntimeHarness(
   startServer: NonNullable<StatsServerRuntimeDeps['startServer']>,
   backgroundState: BackgroundStatsServerState | null = null,
+  overrides: Partial<StatsServerRuntimeDeps> = {},
 ) {
   const appStateValues: Array<StatsServer | null> = [];
   const tracker = new ImmersionTrackerService({ dbPath: ':memory:' });
@@ -69,9 +72,53 @@ function createRuntimeHarness(
     removeBackgroundStatsServerState: () => {},
     isBackgroundStatsServerProcessAlive: () => false,
     startServer,
+    ...overrides,
   });
   return { runtime, appStateValues };
 }
+
+test('dashboard word mining keeps the configured proxy as Hachidori Anki endpoint', async () => {
+  const settings: unknown[] = [];
+  const context = vm.createContext({
+    chrome: {},
+    __subminerSyncAnkiSettings: async (value: unknown) => {
+      settings.push(value);
+      return { updated: true, matched: true };
+    },
+    __subminerAddNote: async () => ({ noteId: 123, duplicateNoteIds: [] }),
+  });
+  vm.runInContext('window = globalThis', context);
+  const configs: Parameters<NonNullable<StatsServerRuntimeDeps['startServer']>>[0][] = [];
+  const { runtime } = createRuntimeHarness(
+    async (config) => {
+      configs.push(config);
+      return { close: async () => {} };
+    },
+    null,
+    {
+      ...createDeps(async (script) => structuredClone(await vm.runInContext(script, context))),
+      getResolvedConfig: () => ({
+        ...DEFAULT_CONFIG,
+        ankiConnect: {
+          ...DEFAULT_CONFIG.ankiConnect,
+          enabled: true,
+          url: 'http://127.0.0.1:8765',
+          proxy: {
+            ...DEFAULT_CONFIG.ankiConnect.proxy,
+            enabled: true,
+            host: '127.0.0.1',
+            port: 8766,
+          },
+        },
+      }),
+    },
+  );
+  await runtime.ensureStatsServerStarted();
+  assert.equal(await configs[0]?.addYomitanNote?.('入れる'), 123);
+  assert.ok(settings[0] && typeof settings[0] === 'object' && 'server' in settings[0]);
+  assert.equal(settings[0].server, 'http://127.0.0.1:8766');
+  await runtime.stopStatsServer();
+});
 
 test('detects self-owned background stats daemon state', () => {
   assert.equal(

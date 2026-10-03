@@ -224,6 +224,31 @@ export class AnkiConnectProxyServer {
       typeof requestJson.action === 'string'
         ? requestJson.action
         : String(requestJson.action ?? '');
+    if (action === 'updateNoteFields') {
+      const params = requestJson.params;
+      if (
+        !params ||
+        typeof params !== 'object' ||
+        !('subminerEnrich' in params) ||
+        params.subminerEnrich !== true
+      )
+        return;
+      const note = 'note' in params ? params.note : null;
+      if (!note || typeof note !== 'object' || !('id' in note)) return;
+      const response = this.tryParseJsonValue(responseBody);
+      // AnkiConnect confirms updates with {result:null,error:null}; failures must never enrich.
+      if (
+        !response ||
+        typeof response !== 'object' ||
+        !('error' in response) ||
+        response.error !== null ||
+        !('result' in response) ||
+        response.result !== null
+      )
+        return;
+      this.enqueueNotes(this.collectSingleResultId(note.id), false);
+      return;
+    }
     if (action !== 'addNote' && action !== 'addNotes' && action !== 'multi') {
       return;
     }
@@ -239,12 +264,23 @@ export class AnkiConnectProxyServer {
       return;
     }
 
-    this.maybeTrackDuplicateNoteIds(requestJson, action, responseResult);
-
     const noteIds =
       action === 'multi'
         ? this.collectMultiResultIds(requestJson, responseResult)
         : this.collectNoteIdsForAction(action, responseResult);
+    const params = requestJson.params;
+    if (
+      action === 'addNote' &&
+      params &&
+      typeof params === 'object' &&
+      'subminerEnrich' in params &&
+      params.subminerEnrich === false
+    ) {
+      // Stats owns the saved sentence and media; the live mpv context is unrelated.
+      if (noteIds.length > 0) this.deps.recordCardsAdded?.(noteIds.length, noteIds);
+      return;
+    }
+    this.maybeTrackDuplicateNoteIds(requestJson, action, responseResult);
     if (noteIds.length === 0 && shouldFallbackToLatestAdded) {
       void this.enqueueMostRecentAddedNote();
       return;
@@ -293,7 +329,7 @@ export class AnkiConnectProxyServer {
       typeof requestJson.action === 'string'
         ? requestJson.action
         : String(requestJson.action ?? '');
-    if (action !== 'addNote') {
+    if (action !== 'addNote' && action !== 'updateNoteFields') {
       return requestJson;
     }
 
@@ -301,12 +337,17 @@ export class AnkiConnectProxyServer {
       requestJson.params && typeof requestJson.params === 'object'
         ? (requestJson.params as Record<string, unknown>)
         : null;
-    if (!params || !Object.prototype.hasOwnProperty.call(params, 'subminerDuplicateNoteIds')) {
+    if (
+      !params ||
+      (!Object.prototype.hasOwnProperty.call(params, 'subminerDuplicateNoteIds') &&
+        !Object.prototype.hasOwnProperty.call(params, 'subminerEnrich'))
+    ) {
       return requestJson;
     }
 
     const nextParams = { ...params };
     delete nextParams.subminerDuplicateNoteIds;
+    delete nextParams.subminerEnrich;
     return {
       ...requestJson,
       params: nextParams,
@@ -455,7 +496,7 @@ export class AnkiConnectProxyServer {
     });
   }
 
-  private enqueueNotes(noteIds: number[]): void {
+  private enqueueNotes(noteIds: number[], recordAdded = true): void {
     let enqueuedCount = 0;
     const acceptedIds: number[] = [];
     for (const noteId of noteIds) {
@@ -472,7 +513,7 @@ export class AnkiConnectProxyServer {
       return;
     }
 
-    this.deps.recordCardsAdded?.(enqueuedCount, acceptedIds);
+    if (recordAdded) this.deps.recordCardsAdded?.(enqueuedCount, acceptedIds);
     this.deps.logInfo(`[anki-proxy] Enqueued ${enqueuedCount} note(s) for enrichment`);
     this.processQueue();
   }

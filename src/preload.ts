@@ -18,6 +18,44 @@
 
 import { clipboard, contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron';
 import { resolveOverlayLayerFromArgv } from './preload-args';
+import {
+  DICTIONARY_EXTERNAL_LINK_CHANNEL,
+  parseDictionaryExternalUrl,
+} from './shared/dictionary-external-link';
+
+window.addEventListener('hachidori-open-external', (event) => {
+  if (!(event instanceof CustomEvent)) return;
+  const detail: unknown = event.detail;
+  if (
+    !detail ||
+    typeof detail !== 'object' ||
+    !('requestId' in detail) ||
+    typeof detail.requestId !== 'string' ||
+    !('url' in detail)
+  )
+    return;
+  const requestId = detail.requestId;
+  void Promise.resolve()
+    .then(() =>
+      ipcRenderer.invoke(DICTIONARY_EXTERNAL_LINK_CHANNEL, parseDictionaryExternalUrl(detail.url)),
+    )
+    .then(() => {
+      window.dispatchEvent(
+        new CustomEvent('hachidori-open-external-result', { detail: { requestId, ok: true } }),
+      );
+    })
+    .catch((error: unknown) => {
+      window.dispatchEvent(
+        new CustomEvent('hachidori-open-external-result', {
+          detail: {
+            requestId,
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        }),
+      );
+    });
+});
 import type {
   SubtitleData,
   SubtitlePosition,

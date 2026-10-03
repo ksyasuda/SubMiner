@@ -63,6 +63,7 @@ bun run docs:build
   Content checks run inside the electron-builder afterPack hook. See the
   [release guide](../RELEASING.md#package-contents-checks) for the
   installed-app verification checklist.
+- Dictionary backend windows: after a full build, run `xvfb-run -a bun run test:dictionary:electron` on headless Linux. It uses temporary profiles to check both named settings commands, backend session isolation, the overlay's external-link bridge, and Hachidori's native dictionary parser.
 - Coverage for the maintained source lane: `bun run test:coverage:src`
 - Deep/local full gate: default handoff gate above
 

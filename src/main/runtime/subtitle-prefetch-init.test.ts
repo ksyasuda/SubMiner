@@ -251,3 +251,99 @@ test('subtitle prefetch init logs a warning when the source parses to zero cues'
   assert.equal(warnings.length, 1);
   assert.match(warnings[0]!, /\[subtitle-prefetch\].*0 cues.*\/tmp\/broken\.ass/);
 });
+
+function createTrackingController(loadContent: () => string) {
+  let currentService: SubtitlePrefetchService | null = null;
+  const events: string[] = [];
+  const cueUpdates: Array<string | null> = [];
+  let serviceCount = 0;
+
+  const controller = createSubtitlePrefetchInitController({
+    getCurrentService: () => currentService,
+    setCurrentService: (service) => {
+      currentService = service;
+    },
+    loadSubtitleSourceText: async () => loadContent(),
+    parseSubtitleCues: (content): SubtitleCue[] => [{ startTime: 0, endTime: 1, text: content }],
+    createSubtitlePrefetchService: () => {
+      const id = ++serviceCount;
+      return {
+        start: () => events.push(`start:${id}`),
+        stop: () => events.push(`stop:${id}`),
+        onSeek: () => {},
+        pause: () => {},
+        resume: () => {},
+      };
+    },
+    tokenizeSubtitle: async () => null,
+    preCacheTokenization: () => {},
+    logInfo: () => {},
+    logWarn: () => {},
+    onParsedSubtitleCuesChanged: (cues, source) => {
+      cueUpdates.push(cues ? `${source}:${cues[0]!.text}` : null);
+    },
+  });
+
+  return { controller, events, cueUpdates };
+}
+
+test('re-initializing an unchanged source keeps the running service and republishes cues', async () => {
+  const { controller, events, cueUpdates } = createTrackingController(() => 'content');
+
+  await controller.initSubtitlePrefetch('track-1.srt', 0);
+  await controller.initSubtitlePrefetch('track-1.srt', 3);
+
+  assert.deepEqual(events, ['start:1']);
+  assert.deepEqual(cueUpdates, ['track-1.srt:content', 'track-1.srt:content']);
+});
+
+test('re-initializing a source whose content changed restarts the service', async () => {
+  let content = 'first';
+  const { controller, events } = createTrackingController(() => content);
+
+  await controller.initSubtitlePrefetch('track-1.srt', 0);
+  content = 'second';
+  await controller.initSubtitlePrefetch('track-1.srt', 0);
+
+  assert.deepEqual(events, ['start:1', 'stop:1', 'start:2']);
+});
+
+test('subtitle prefetch init warms overlap lines without publishing them as cues', async () => {
+  let prefetchedTexts: string[] = [];
+  let publishedTexts: string[] = [];
+  let currentService: SubtitlePrefetchService | null = null;
+
+  const controller = createSubtitlePrefetchInitController({
+    getCurrentService: () => currentService,
+    setCurrentService: (service) => {
+      currentService = service;
+    },
+    loadSubtitleSourceText: async () => 'content',
+    parseSubtitleCues: (): SubtitleCue[] => [
+      { startTime: 0, endTime: 4, text: 'first' },
+      { startTime: 2, endTime: 6, text: 'second' },
+    ],
+    createSubtitlePrefetchService: ({ cues }) => {
+      prefetchedTexts = cues.map((cue) => cue.text);
+      return {
+        start: () => {},
+        stop: () => {},
+        onSeek: () => {},
+        pause: () => {},
+        resume: () => {},
+      };
+    },
+    tokenizeSubtitle: async () => null,
+    preCacheTokenization: () => {},
+    logInfo: () => {},
+    logWarn: () => {},
+    onParsedSubtitleCuesChanged: (cues) => {
+      publishedTexts = cues?.map((cue) => cue.text) ?? [];
+    },
+  });
+
+  await controller.initSubtitlePrefetch('track.srt', 0);
+
+  assert.deepEqual(prefetchedTexts, ['first', 'second', 'first\n\nsecond']);
+  assert.deepEqual(publishedTexts, ['first', 'second']);
+});

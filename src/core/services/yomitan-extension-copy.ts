@@ -16,6 +16,7 @@ type ExtensionCopyResult = {
 
 type ExtensionCopyOptions = {
   platform?: NodeJS.Platform;
+  extensionName?: 'yomitan' | 'hachidori';
 };
 
 const asyncExtensionCopyInFlight = new Map<string, Promise<ExtensionCopyResult>>();
@@ -156,7 +157,7 @@ export function ensureExtensionCopy(
   }
 
   const extensionsRoot = path.join(userDataPath, 'extensions');
-  const targetDir = path.join(extensionsRoot, 'yomitan');
+  const targetDir = path.join(extensionsRoot, options?.extensionName ?? 'yomitan');
 
   let shouldCopy = !fs.existsSync(targetDir);
   if (!shouldCopy) {
@@ -182,7 +183,7 @@ export async function ensureExtensionCopyAsync(
   }
 
   const extensionsRoot = path.join(userDataPath, 'extensions');
-  const targetDir = path.join(extensionsRoot, 'yomitan');
+  const targetDir = path.join(extensionsRoot, options?.extensionName ?? 'yomitan');
   const inFlightKey = path.resolve(targetDir);
   const inFlight = asyncExtensionCopyInFlight.get(inFlightKey);
   if (inFlight) {

@@ -82,6 +82,20 @@ export function buildCoreConfigOptionRegistry(
 
   return [
     {
+      path: 'hachidori.externalHostManagementUrl',
+      kind: 'string',
+      defaultValue: defaultConfig.hachidori.externalHostManagementUrl,
+      description:
+        'Management URL override for character dictionary uploads to a linked Hachidori Docker host. Empty uses the linked host on the Docker default management port.',
+    },
+    {
+      path: 'dictionaryBackend',
+      kind: 'enum',
+      enumValues: ['yomitan', 'hachidori'],
+      defaultValue: defaultConfig.dictionaryBackend,
+      description: 'Dictionary lookup backend. Restart SubMiner after changing this setting.',
+    },
+    {
       path: 'logging.level',
       kind: 'enum',
       enumValues: ['debug', 'info', 'warn', 'error'],

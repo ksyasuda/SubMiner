@@ -8,3 +8,7 @@
 [submodule "vendor/subminer-yomitan"]
 	path = vendor/subminer-yomitan
 	url = https://github.com/ksyasuda/subminer-yomitan
+[submodule "vendor/hachidori"]
+	path = vendor/hachidori
+	url = https://github.com/ksyasuda/hachidori.git
+	branch = subminer

@@ -89,11 +89,13 @@ Searches the primary subtitle lines and titles in your history. **Search by head
 
 Search results and the Vocabulary word panel can create cards from past lines, as long as the source video file is still available:
 
-- **Mine Word**: full Yomitan lookup for the word, plus sentence, audio, and image.
+- **Mine Word**: looks up the word with the selected dictionary backend (Yomitan or Hachidori), plus sentence, audio, and image. The history line you picked is the card's sentence, even while mpv plays another line. Hachidori uses its own Anki template, dictionary aliases, and frequency data.
 - **Mine Sentence**: a sentence card with `IsSentenceCard` set, for Lapis and Kiku note types.
 - **Mine Audio**: an audio card with `IsAudioCard` set.
 
-Word and audio mining appear only when the word occurs in the sentence. All three use your `ankiConnect` deck, note type, fields, and media settings. Anki must be running, and Mine Word needs Yomitan dictionaries.
+Word and audio mining appear only when the word occurs in the sentence. All three use your `ankiConnect` deck, note type, fields, and media settings. Anki must be running, and Mine Word needs dictionaries in the selected backend.
+
+Dashboard cards also get the `SubMiner::Stats` tag. With the Anki proxy off, SubMiner uses it to keep the chosen history line when polling picks up the card.
 
 ## Repeated lines
 
