@@ -201,7 +201,6 @@ export function handleMineSentenceDigit(
     getCurrentSecondarySubText: () => string | undefined;
     showMpvOsd: (text: string) => void;
     logError: (message: string, err: unknown) => void;
-    onCardsMined?: (count: number) => void;
   },
 ): void {
   if (!deps.subtitleTimingTracker || !deps.ankiIntegration) return;
@@ -233,14 +232,9 @@ export function handleMineSentenceDigit(
     entries,
     deps.getCurrentSecondarySubText,
   );
-  const cardsToMine = 1;
+  // Card creation records the mined card (with its note id) itself.
   deps.ankiIntegration
     .createSentenceCard(sentence, rangeStart, rangeEnd, secondarySubText)
-    .then((created) => {
-      if (created) {
-        deps.onCardsMined?.(cardsToMine);
-      }
-    })
     .catch((err) => {
       deps.logError('mineSentenceMultiple failed:', err);
       deps.showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);

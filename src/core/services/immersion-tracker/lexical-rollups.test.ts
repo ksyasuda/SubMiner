@@ -16,7 +16,8 @@ import {
 } from './query-lexical';
 import { Database } from './sqlite';
 import type { DatabaseSync } from './sqlite';
-import { ensureSchema } from './storage';
+import { createTrackerPreparedStatements, ensureSchema, executeQueuedWrite } from './storage';
+import { BASE_MS, createDb, seedEndedSession, seedVideo } from './__tests__/lifetime-test-fixtures';
 
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-lexical-rollups-'));
@@ -122,6 +123,121 @@ test('lexical rollup rebuild excludes rows hidden by vocabulary persistence rule
   } finally {
     db.close();
     fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+  }
+});
+
+test('re-seeing a filtered legacy word keeps charts consistent with the summary', () => {
+  const db = createDb();
+
+  try {
+    const videoId = seedVideo(db, null, 'episode');
+    const sessionId = seedEndedSession(db, videoId, BASE_MS, { activeMs: 1_000 });
+    const firstSeen = BASE_MS / 1000;
+    // Legacy row whose stored merged-token POS fails the persistence filter.
+    db.prepare(
+      `INSERT INTO imm_words(
+         headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+       ) VALUES ('二死', 'にし', 'にし', 'other', '助詞|動詞', '格助詞|自立', '一般|*', ?, ?, 1)`,
+    ).run(firstSeen, firstSeen);
+    rebuildLexicalDailyRollups(db);
+
+    // The incoming token passes the filter, but the upsert keeps the stored POS.
+    executeQueuedWrite(
+      {
+        kind: 'subtitleLine',
+        sessionId,
+        videoId,
+        lineIndex: 1,
+        segmentStartMs: null,
+        segmentEndMs: null,
+        text: 'にし',
+        wordOccurrences: [
+          {
+            headword: '二死',
+            word: 'にし',
+            reading: 'にし',
+            partOfSpeech: 'verb',
+            pos1: '動詞',
+            pos2: '自立',
+            pos3: '*',
+            frequencyRank: null,
+            occurrenceCount: 1,
+          },
+        ],
+        kanjiOccurrences: [],
+        firstSeen: firstSeen + 60,
+        lastSeen: firstSeen + 60,
+      },
+      createTrackerPreparedStatements(db),
+    );
+
+    const plotted = getVocabularyChartData(db).newWordsTimeline.reduce(
+      (sum, day) => sum + day.wordCount,
+      0,
+    );
+    assert.equal(getVocabularySummary(db, null).uniqueWords, 0);
+    assert.equal(plotted, 0);
+  } finally {
+    db.close();
+  }
+});
+
+test('lexical rollup rebuild repairs last_seen left pointing at deleted history', () => {
+  const db = createDb();
+
+  try {
+    const videoId = seedVideo(db, null, 'episode');
+    const sessionId = seedEndedSession(db, videoId, BASE_MS, { activeMs: 1_000 });
+    const lineId = Number(
+      db
+        .prepare(
+          `INSERT INTO imm_subtitle_lines(session_id, video_id, line_index, text, CREATED_DATE, LAST_UPDATE_DATE)
+           VALUES (?, ?, 1, '猫', ?, ?)`,
+        )
+        .run(sessionId, videoId, BASE_MS, BASE_MS).lastInsertRowid,
+    );
+    const seen = (BASE_MS + 251) / 1000;
+    // first_seen this early may be real history pruned by retention; never touched.
+    const earlyFirst = seen - 86_400.5;
+    const staleLast = seen + 86_400.631;
+    db.prepare(
+      `INSERT INTO imm_words(id, headword, word, reading, first_seen, last_seen, frequency)
+       VALUES (1, '猫', '猫', 'ねこ', ?, ?, 1), (2, '犬', '犬', 'いぬ', ?, ?, 1)`,
+    ).run(earlyFirst, staleLast, seen - 0.1, seen - 0.1);
+    db.prepare(
+      `INSERT INTO imm_kanji(id, kanji, first_seen, last_seen, frequency) VALUES (1, '猫', ?, ?, 1)`,
+    ).run(earlyFirst, staleLast);
+    db.prepare(
+      `INSERT INTO imm_word_line_occurrences(line_id, word_id, occurrence_count, seen_ms)
+       VALUES (?, 1, 1, ?), (?, 2, 1, ?)`,
+    ).run(lineId, BASE_MS + 251, lineId, BASE_MS + 251);
+    db.prepare(
+      `INSERT INTO imm_kanji_line_occurrences(line_id, kanji_id, occurrence_count, seen_ms)
+       VALUES (?, 1, 1, ?)`,
+    ).run(lineId, BASE_MS + 251);
+
+    rebuildLexicalDailyRollups(db);
+
+    const bounds = (table: string): Array<[number, number]> =>
+      (
+        db
+          .prepare(`SELECT first_seen AS first, last_seen AS last FROM ${table} ORDER BY id`)
+          .all() as Array<{
+          first: number;
+          last: number;
+        }>
+      ).map((row) => [row.first, row.last]);
+    assert.deepEqual(
+      bounds('imm_words'),
+      [
+        [earlyFirst, seen],
+        [seen - 0.1, seen - 0.1],
+      ],
+      'healthy rows are untouched',
+    );
+    assert.deepEqual(bounds('imm_kanji'), [[earlyFirst, seen]]);
+  } finally {
+    db.close();
   }
 });
 
@@ -268,7 +384,7 @@ test('current lexical rollup readiness accepts legacy integer state storage', ()
         state_value INTEGER NOT NULL
       );
       INSERT INTO imm_rollup_state(state_key, state_value)
-      VALUES ('lexical_daily_rollups_version', 2);
+      VALUES ('lexical_daily_rollups_version', 3);
     `);
 
     assert.equal(areLexicalDailyRollupsReady(db), true);

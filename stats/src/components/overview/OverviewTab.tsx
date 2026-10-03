@@ -27,8 +27,9 @@ export function OverviewTab({
   onNavigateToSession,
   isActive = true,
 }: OverviewTabProps) {
-  const { data, sessions, setSessions, loading, error } = useOverview();
-  const { calendar, loading: calLoading } = useStreakCalendar(90);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { data, sessions, setSessions, loading, error } = useOverview(refreshKey);
+  const { calendar, loading: calLoading, error: calendarError } = useStreakCalendar(90, refreshKey);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   const [knownWordsSummary, setKnownWordsSummary] = useState<{
@@ -49,7 +50,7 @@ export function OverviewTab({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshKey]);
 
   const handleDeleteSession = async (session: SessionSummary) => {
     if (!(await confirmSessionDelete())) return;
@@ -58,6 +59,7 @@ export function OverviewTab({
     try {
       await apiClient.deleteSession(session.sessionId);
       setSessions((prev) => prev.filter((s) => s.sessionId !== session.sessionId));
+      setRefreshKey((prev) => prev + 1);
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete session.');
     } finally {
@@ -82,6 +84,7 @@ export function OverviewTab({
       await apiClient.deleteSessions(ids);
       const idSet = new Set(ids);
       setSessions((prev) => prev.filter((s) => !idSet.has(s.sessionId)));
+      setRefreshKey((prev) => prev + 1);
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete sessions.');
     } finally {
@@ -108,6 +111,7 @@ export function OverviewTab({
       await apiClient.deleteSessions(ids);
       const idSet = new Set(ids);
       setSessions((prev) => prev.filter((s) => !idSet.has(s.sessionId)));
+      setRefreshKey((prev) => prev + 1);
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete sessions.');
     } finally {
@@ -119,9 +123,32 @@ export function OverviewTab({
     }
   };
 
-  if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
-  if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
-  if (!data) return null;
+  const refreshError = error ?? calendarError;
+  const errorNotice = refreshError ? (
+    <div
+      role="alert"
+      className="flex items-center justify-between gap-3 rounded-lg border border-ctp-red/30 bg-ctp-red/10 p-3 text-sm text-ctp-red"
+    >
+      <span>
+        {!data
+          ? 'Could not load Overview.'
+          : error
+            ? 'Could not refresh Overview. Displayed totals may be out of date.'
+            : 'Could not refresh the activity calendar. It may be out of date.'}{' '}
+        {refreshError}
+      </span>
+      <button
+        type="button"
+        onClick={() => setRefreshKey((prev) => prev + 1)}
+        className="shrink-0 rounded border border-ctp-red/30 px-3 py-1 hover:bg-ctp-red/10"
+      >
+        Retry
+      </button>
+    </div>
+  ) : null;
+
+  if (loading && !data) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
+  if (!data) return errorNotice;
 
   const summary = buildOverviewSummary(data);
   const streakData = buildStreakCalendar(calendar);
@@ -129,6 +156,7 @@ export function OverviewTab({
 
   return (
     <div className="space-y-4">
+      {errorNotice}
       <HeroStats summary={summary} sessions={sessions} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

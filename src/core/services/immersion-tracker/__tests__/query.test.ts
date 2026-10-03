@@ -4567,13 +4567,13 @@ test('deleteSession rebuilds word and kanji aggregates from retained subtitle li
 
     assert.ok(sharedWordRow);
     assert.equal(sharedWordRow.frequency, 1);
-    assert.equal(sharedWordRow.first_seen, Math.floor(keptTs / 1000));
-    assert.equal(sharedWordRow.last_seen, Math.floor(keptTs / 1000));
+    assert.equal(sharedWordRow.first_seen, keptTs / 1000);
+    assert.equal(sharedWordRow.last_seen, keptTs / 1000);
     assert.equal(deletedOnlyWordRow ?? null, null);
     assert.ok(sharedKanjiRow);
     assert.equal(sharedKanjiRow.frequency, 1);
-    assert.equal(sharedKanjiRow.first_seen, Math.floor(keptTs / 1000));
-    assert.equal(sharedKanjiRow.last_seen, Math.floor(keptTs / 1000));
+    assert.equal(sharedKanjiRow.first_seen, keptTs / 1000);
+    assert.equal(sharedKanjiRow.last_seen, keptTs / 1000);
     assert.equal(deletedOnlyKanjiRow ?? null, null);
   } finally {
     db.close();

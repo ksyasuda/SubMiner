@@ -276,7 +276,6 @@ test('handleMultiCopyDigit copies backward from the current subtitle after a bac
 test('handleMineSentenceDigit reports async create failures', async () => {
   const osd: string[] = [];
   const logs: Array<{ message: string; err: unknown }> = [];
-  let cardsMined = 0;
 
   handleMineSentenceDigit(2, {
     subtitleTimingTracker: {
@@ -296,9 +295,6 @@ test('handleMineSentenceDigit reports async create failures', async () => {
     getCurrentSecondarySubText: () => 'sub2',
     showMpvOsd: (text) => osd.push(text),
     logError: (message, err) => logs.push({ message, err }),
-    onCardsMined: (count) => {
-      cardsMined += count;
-    },
   });
 
   await new Promise((resolve) => setImmediate(resolve));
@@ -307,37 +303,6 @@ test('handleMineSentenceDigit reports async create failures', async () => {
   assert.equal(logs[0]?.message, 'mineSentenceMultiple failed:');
   assert.equal((logs[0]?.err as Error).message, 'mine boom');
   assert.ok(osd.some((entry) => entry.includes('Mine sentence failed: mine boom')));
-  assert.equal(cardsMined, 0);
-});
-
-test('handleMineSentenceDigit increments successful card count', async () => {
-  const osd: string[] = [];
-  let cardsMined = 0;
-
-  handleMineSentenceDigit(2, {
-    subtitleTimingTracker: {
-      getRecentBlocks: () => ['one', 'two'],
-      getCurrentSubtitle: () => null,
-      findTiming: (text) =>
-        text === 'one' ? { startTime: 1, endTime: 3 } : { startTime: 4, endTime: 7 },
-    },
-    ankiIntegration: {
-      updateLastAddedFromClipboard: async () => {},
-      triggerFieldGroupingForLastAddedCard: async () => {},
-      markLastCardAsAudioCard: async () => {},
-      createSentenceCard: async () => true,
-    },
-    getCurrentSecondarySubText: () => 'sub2',
-    showMpvOsd: (text) => osd.push(text),
-    logError: () => {},
-    onCardsMined: (count) => {
-      cardsMined += count;
-    },
-  });
-
-  await new Promise((resolve) => setImmediate(resolve));
-
-  assert.equal(cardsMined, 1);
 });
 
 test('handleMineSentenceDigit keeps per-entry timings when subtitle text repeats', async () => {

@@ -5497,10 +5497,6 @@ const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDeps
   getPrimarySubtitle: () => captureCurrentPrimarySubtitleMiningContext(),
   showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   mineSentenceCardCore,
-  recordCardsMined: (count, noteIds) => {
-    ensureImmersionTrackerStarted();
-    appState.immersionTracker?.recordCardsMined(count, noteIds);
-  },
 });
 const mineSentenceCardHandler = createMineSentenceCardHandler(
   buildMineSentenceCardMainDepsHandler(),
@@ -5532,10 +5528,6 @@ const buildHandleMineSentenceDigitMainDepsHandler =
     showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     logError: (message, err) => {
       logger.error(message, err);
-    },
-    onCardsMined: (cards) => {
-      ensureImmersionTrackerStarted();
-      appState.immersionTracker?.recordCardsMined(cards);
     },
     handleMineSentenceDigitCore,
   });

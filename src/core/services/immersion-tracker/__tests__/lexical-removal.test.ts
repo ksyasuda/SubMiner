@@ -5,8 +5,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { Database } from '../sqlite.js';
 import type { DatabaseSync } from '../sqlite.js';
-import { ensureSchema } from '../storage.js';
+import { createTrackerPreparedStatements, ensureSchema, executeQueuedWrite } from '../storage.js';
 import { deleteSession, deleteSessions, deleteVideo } from '../query-maintenance.js';
+import { pruneRawRetention } from '../maintenance.js';
 
 const DAY_MS = 86_400_000;
 const BASE_MS = 1_700_000_000_000;
@@ -30,7 +31,13 @@ function cleanupDbPath(dbPath: string): void {
  */
 function seed(
   db: DatabaseSync,
-  lines: Array<{ session: 1 | 2; wordId: number; dayOffset: number; count?: number }>,
+  lines: Array<{
+    session: 1 | 2;
+    wordId: number;
+    dayOffset: number;
+    msOffset?: number;
+    count?: number;
+  }>,
   options: { legacyRows?: boolean } = {},
 ): void {
   db.exec(`
@@ -65,7 +72,7 @@ function seed(
   let lineId = 0;
   for (const line of lines) {
     lineId += 1;
-    const seenMs = BASE_MS + line.dayOffset * DAY_MS;
+    const seenMs = BASE_MS + line.dayOffset * DAY_MS + (line.msOffset ?? 0);
     insertLine.run(lineId, line.session, line.session, lineId, `line ${lineId}`, seenMs, seenMs);
     insertWord.run(line.wordId, `語${line.wordId}`, `語${line.wordId}`);
     if (options.legacyRows) {
@@ -83,13 +90,13 @@ function seed(
         FROM imm_word_line_occurrences o WHERE o.word_id = imm_words.id
       ),
       first_seen = (
-        SELECT MIN(sl.CREATED_DATE) / 1000
+        SELECT MIN(sl.CREATED_DATE) / 1000.0
         FROM imm_word_line_occurrences o
         JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
         WHERE o.word_id = imm_words.id
       ),
       last_seen = (
-        SELECT MAX(sl.LAST_UPDATE_DATE) / 1000
+        SELECT MAX(sl.LAST_UPDATE_DATE) / 1000.0
         FROM imm_word_line_occurrences o
         JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
         WHERE o.word_id = imm_words.id
@@ -194,6 +201,167 @@ test('deleting the latest session moves last_seen back to the surviving line', (
     assert.equal(word?.frequency, 1);
     assert.equal(word?.lastSeen, Math.floor(BASE_MS / 1000), 'last_seen falls back to session 1');
     assert.equal(word?.firstSeen, Math.floor(BASE_MS / 1000));
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+for (const legacyRows of [false, true]) {
+  test(`deleting the latest session keeps fractional seen timestamps exact (legacyRows=${legacyRows})`, () => {
+    // Stored seen values are fractional seconds; whole-second rounding used to miss
+    // the removed extreme (or truncate the refreshed one).
+    const { db, dbPath } = createDb(
+      [
+        { session: 1, wordId: 22, dayOffset: 0, msOffset: 251 },
+        { session: 2, wordId: 22, dayOffset: 5, msOffset: 882 },
+      ],
+      { legacyRows },
+    );
+
+    try {
+      deleteSession(db, 2);
+
+      const word = readWord(db, 22);
+      assert.equal(word?.frequency, 1);
+      assert.equal(word?.firstSeen, (BASE_MS + 251) / 1000);
+      assert.equal(word?.lastSeen, (BASE_MS + 251) / 1000);
+    } finally {
+      db.close();
+      cleanupDbPath(dbPath);
+    }
+  });
+}
+
+test('deleting legacy history preserves first_seen when it predates the flush timestamp', () => {
+  const { db, dbPath } = createDb([
+    { session: 1, wordId: 23, dayOffset: 0, msOffset: 400 },
+    { session: 2, wordId: 23, dayOffset: 5, msOffset: 400 },
+  ]);
+
+  try {
+    // A queue delay and retention-pruned history cannot be distinguished from
+    // the old flush-time timestamp. Preserve the earlier date in either case.
+    db.prepare('UPDATE imm_words SET first_seen = ? WHERE id = 23').run(BASE_MS / 1000);
+
+    deleteSession(db, 1);
+
+    assert.equal(readWord(db, 23)?.firstSeen, BASE_MS / 1000);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+for (const legacyRows of [false, true]) {
+  for (const deletedSession of [2, 3]) {
+    test(`deleting retained session ${deletedSession} preserves pruned first_seen (legacyRows=${legacyRows})`, () => {
+      const { db, dbPath } = createDb(
+        [
+          { session: 1, wordId: 24, dayOffset: 0 },
+          { session: 2, wordId: 24, dayOffset: 1 },
+        ],
+        { legacyRows },
+      );
+
+      try {
+        const latestMs = BASE_MS + 2 * DAY_MS;
+        db.exec(`
+          INSERT INTO imm_sessions(session_id, session_uuid, video_id, started_at_ms, ended_at_ms, status, CREATED_DATE, LAST_UPDATE_DATE)
+            VALUES (3, 's3', 2, '${latestMs}', '${latestMs + 1000}', 2, ${latestMs}, ${latestMs});
+          INSERT INTO imm_subtitle_lines(line_id, session_id, video_id, line_index, text, CREATED_DATE, LAST_UPDATE_DATE)
+            VALUES (3, 3, 2, 3, '猫', ${latestMs}, ${latestMs});
+          INSERT INTO imm_word_line_occurrences(line_id, word_id, occurrence_count, seen_ms)
+            VALUES (3, 24, 1, ${legacyRows ? 'NULL' : latestMs});
+          UPDATE imm_words SET frequency = 3, last_seen = ${latestMs / 1000} WHERE id = 24;
+          INSERT INTO imm_kanji(id, kanji, first_seen, last_seen, frequency)
+            SELECT 24, '猫', first_seen, last_seen, frequency FROM imm_words WHERE id = 24;
+          INSERT INTO imm_kanji_line_occurrences(line_id, kanji_id, occurrence_count, seen_ms)
+            SELECT line_id, 24, occurrence_count, seen_ms FROM imm_word_line_occurrences WHERE word_id = 24;
+        `);
+        pruneRawRetention(db, latestMs, {
+          eventsRetentionMs: Infinity,
+          telemetryRetentionMs: Infinity,
+          sessionsRetentionMs: 1.5 * DAY_MS,
+        });
+
+        deleteSession(db, deletedSession);
+
+        for (const table of ['imm_words', 'imm_kanji']) {
+          const row = db
+            .prepare(
+              `SELECT frequency, first_seen AS firstSeen, last_seen AS lastSeen FROM ${table} WHERE id = 24`,
+            )
+            .get() as { frequency: number; firstSeen: number; lastSeen: number };
+          assert.equal(row.frequency, 2);
+          assert.equal(row.firstSeen, BASE_MS / 1000, `${table} keeps the pruned discovery date`);
+          assert.equal(row.lastSeen, (BASE_MS + (deletedSession === 2 ? 2 : 1) * DAY_MS) / 1000);
+        }
+      } finally {
+        db.close();
+        cleanupDbPath(dbPath);
+      }
+    });
+  }
+}
+
+test('deleting a queued subtitle uses observation time despite a delayed flush', () => {
+  const { db, dbPath } = createDb([]);
+
+  try {
+    const stmts = createTrackerPreparedStatements(db);
+    for (const sessionId of [1, 2]) {
+      const seenMs = BASE_MS + (sessionId - 1) * DAY_MS + 400;
+      executeQueuedWrite(
+        {
+          kind: 'subtitleLine',
+          sessionId,
+          videoId: sessionId,
+          lineIndex: 1,
+          segmentStartMs: null,
+          segmentEndMs: null,
+          text: '猫',
+          wordOccurrences: [
+            {
+              headword: '猫',
+              word: '猫',
+              reading: 'ねこ',
+              partOfSpeech: 'noun',
+              pos1: '名詞',
+              pos2: '一般',
+              pos3: '',
+              occurrenceCount: 1,
+              frequencyRank: null,
+            },
+          ],
+          kanjiOccurrences: [{ kanji: '猫', occurrenceCount: 1 }],
+          firstSeen: seenMs / 1000,
+          lastSeen: seenMs / 1000,
+        },
+        stmts,
+      );
+      for (const table of ['imm_word_line_occurrences', 'imm_kanji_line_occurrences']) {
+        const row = db
+          .prepare(`SELECT seen_ms AS seenMs FROM ${table} WHERE line_id = ?`)
+          .get(sessionId) as { seenMs: number };
+        assert.equal(row.seenMs, seenMs);
+      }
+    }
+
+    deleteSession(db, 1);
+
+    for (const table of ['imm_words', 'imm_kanji']) {
+      const row = db
+        .prepare(`SELECT frequency, first_seen AS firstSeen, last_seen AS lastSeen FROM ${table}`)
+        .get() as {
+        frequency: number;
+        firstSeen: number;
+        lastSeen: number;
+      };
+      assert.equal(row.frequency, 1);
+      assert.equal(row.firstSeen, (BASE_MS + DAY_MS + 400) / 1000);
+      assert.equal(row.lastSeen, (BASE_MS + DAY_MS + 400) / 1000);
+    }
   } finally {
     db.close();
     cleanupDbPath(dbPath);

@@ -45,20 +45,17 @@ test('mining action main deps builders map callbacks', () => {
     getCurrentSecondarySubText: () => 'sub',
     showMpvOsd: (text) => calls.push(`mine-osd:${text}`),
     logError: (message) => calls.push(`err:${message}`),
-    onCardsMined: (count) => calls.push(`cards:${count}`),
     handleMineSentenceDigitCore: () => calls.push('mine-digit'),
   })();
   assert.equal(mineDigit.getCurrentSecondarySubText(), 'sub');
   mineDigit.showMpvOsd('done');
   mineDigit.logError('bad', null);
-  mineDigit.onCardsMined(2);
   mineDigit.handleMineSentenceDigitCore(2, {
     subtitleTimingTracker: { track: true },
     ankiIntegration: { enabled: true },
     getCurrentSecondarySubText: () => 'sub',
     showMpvOsd: () => {},
     logError: () => {},
-    onCardsMined: () => {},
   });
 
   assert.deepEqual(calls, [
@@ -70,7 +67,6 @@ test('mining action main deps builders map callbacks', () => {
     'copy-current',
     'mine-osd:done',
     'err:bad',
-    'cards:2',
     'mine-digit',
   ]);
 });
