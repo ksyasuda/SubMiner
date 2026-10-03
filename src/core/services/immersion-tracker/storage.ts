@@ -1963,18 +1963,16 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       currentMs,
     );
     const lineId = Number(lineResult.lastInsertRowid);
+    // Match aggregate bounds to the observation, even if this write was queued
+    // for a while. Flush time cannot identify which occurrence set first_seen.
+    const seenMs = toDbTimestamp(Math.round(write.firstSeen * 1000));
     for (const occurrence of write.wordOccurrences) {
       const wordId = incrementWordAggregate(stmts, occurrence, write.firstSeen, write.lastSeen);
-      stmts.wordLineOccurrenceUpsertStmt.run(lineId, wordId, occurrence.occurrenceCount, currentMs);
+      stmts.wordLineOccurrenceUpsertStmt.run(lineId, wordId, occurrence.occurrenceCount, seenMs);
     }
     for (const occurrence of write.kanjiOccurrences) {
       const kanjiId = incrementKanjiAggregate(stmts, occurrence, write.firstSeen, write.lastSeen);
-      stmts.kanjiLineOccurrenceUpsertStmt.run(
-        lineId,
-        kanjiId,
-        occurrence.occurrenceCount,
-        currentMs,
-      );
+      stmts.kanjiLineOccurrenceUpsertStmt.run(lineId, kanjiId, occurrence.occurrenceCount, seenMs);
     }
     return;
   }

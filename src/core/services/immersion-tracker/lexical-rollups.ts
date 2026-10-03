@@ -29,10 +29,10 @@ export function localEpochDaySql(value: string): string {
 }
 
 // Session deletes once rounded removed timestamps to whole seconds, missing
-// fractional last_seen extremes that pointed at deleted history. last_seen is
-// stamped at queue time, before seen_ms is stamped at flush, and retention
-// prunes the oldest sessions first, so healthy rows never exceed their newest
-// surviving occurrence. Rows with undated occurrences are skipped.
+// fractional last_seen extremes that pointed at deleted history. New seen_ms
+// values match observation time; legacy values were stamped later at flush.
+// Retention prunes the oldest sessions first, so healthy rows never exceed
+// their newest surviving occurrence. Rows with undated occurrences are skipped.
 //
 // first_seen is deliberately not repaired: a stale bound is indistinguishable
 // from real history whose occurrences retention pruned, and frequency does not

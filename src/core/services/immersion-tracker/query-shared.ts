@@ -322,6 +322,13 @@ export function applyLexicalRemovals(db: DatabaseSync, plan: LexicalRemovalPlan)
   applyRemovalsForEntity(db, 'kanji', plan.kanji);
 }
 
+// A timestamp repair must keep subtraction-exact lifetime counts and any
+// first_seen date that the deleted occurrences cannot account for.
+type LexicalAggregateOverride = {
+  frequency: number | null;
+  firstSeen: number | null;
+};
+
 function applyRemovalsForEntity(
   db: DatabaseSync,
   entity: LexicalEntity,
@@ -360,7 +367,7 @@ function applyRemovalsForEntity(
     `UPDATE ${entityTable} SET frequency = ?, first_seen = ?, last_seen = ? WHERE id = ?`,
   );
 
-  const needsExactRefresh: number[] = [];
+  const needsExactRefresh = new Map<number, LexicalAggregateOverride>();
 
   for (const removal of removals) {
     const current = selectStmt.get(removal.id) as {
@@ -371,47 +378,50 @@ function applyRemovalsForEntity(
     if (!current) continue;
 
     const nextFrequency = (current.frequency ?? 0) - removal.removedFrequency;
+    // Legacy occurrences use flush time, which can follow the actual observation.
+    // An earlier stored date may also belong to retention-pruned history. Only
+    // move it when the removed timestamps prove that its observation was deleted.
+    const removedFirstSeen = toStoredSeenSeconds(removal.removedFirstSeenMs);
+    const removedLastSeen = toStoredSeenSeconds(removal.removedLastSeenMs);
+    const firstSeenMayHaveMoved =
+      current.firstSeen === null ||
+      (removedFirstSeen !== null && removedFirstSeen <= current.firstSeen);
+    const lastSeenMayHaveMoved =
+      current.lastSeen === null ||
+      (removedLastSeen !== null && removedLastSeen >= current.lastSeen);
+    const exactRefreshOverride = {
+      frequency: nextFrequency > 0 ? nextFrequency : null,
+      firstSeen: firstSeenMayHaveMoved ? null : current.firstSeen,
+    };
     if (nextFrequency <= 0) {
       // The rows in scope are already gone by now, so anything still pointing at
       // this entity means the stored frequency was stale rather than exhausted.
       if (hasOccurrencesStmt.get(removal.id)) {
-        needsExactRefresh.push(removal.id);
+        needsExactRefresh.set(removal.id, exactRefreshOverride);
       } else {
         deleteStmt.run(removal.id);
       }
       continue;
     }
 
-    // Stored bounds are stamped when a line is queued, before its seen_ms is
-    // stamped at flush, and older refreshes rounded them down to whole seconds.
-    // So first_seen can sit just before the occurrence that produced it; decide
-    // against the surviving minimum instead. last_seen errs the safe way.
-    const minSeenMs = (minSeenStmt.get(removal.id) as { value: number | null }).value;
-    const removedLastSeen = toStoredSeenSeconds(removal.removedLastSeenMs);
-    const firstSeenMayHaveMoved =
-      current.firstSeen === null ||
-      (removal.removedFirstSeenMs !== null &&
-        (minSeenMs === null || Number(removal.removedFirstSeenMs) <= Number(minSeenMs)));
-    const lastSeenMayHaveMoved =
-      current.lastSeen === null ||
-      (removedLastSeen !== null && removedLastSeen >= current.lastSeen);
     if (firstSeenMayHaveMoved || lastSeenMayHaveMoved) {
       // Undated pre-migration occurrences are invisible to the seeks below;
-      // fall back to the full re-aggregate that resolves their dates.
+      // resolve their dates without discarding retention-pruned aggregates.
       if (hasUndatedOccurrenceStmt.get(removal.id)) {
-        needsExactRefresh.push(removal.id);
+        needsExactRefresh.set(removal.id, exactRefreshOverride);
         continue;
       }
+      const minSeenMs = (minSeenStmt.get(removal.id) as { value: number | null }).value;
       const maxSeenMs = (maxSeenStmt.get(removal.id) as { value: number | null }).value;
       if (minSeenMs === null || maxSeenMs === null) {
         // Frequency says occurrences remain but none exist: stale row, let the
         // exact refresh reconcile (it deletes rows with nothing left).
-        needsExactRefresh.push(removal.id);
+        needsExactRefresh.set(removal.id, exactRefreshOverride);
         continue;
       }
       updateAggregatesStmt.run(
         nextFrequency,
-        toStoredSeenSeconds(Number(minSeenMs)),
+        firstSeenMayHaveMoved ? toStoredSeenSeconds(Number(minSeenMs)) : current.firstSeen,
         toStoredSeenSeconds(Number(maxSeenMs)),
         removal.id,
       );
@@ -422,13 +432,17 @@ function applyRemovalsForEntity(
   }
 
   if (entity === 'word') {
-    refreshWordAggregates(db, needsExactRefresh);
+    refreshWordAggregates(db, [...needsExactRefresh.keys()], needsExactRefresh);
   } else {
-    refreshKanjiAggregates(db, needsExactRefresh);
+    refreshKanjiAggregates(db, [...needsExactRefresh.keys()], needsExactRefresh);
   }
 }
 
-function refreshWordAggregates(db: DatabaseSync, wordIds: number[]): void {
+function refreshWordAggregates(
+  db: DatabaseSync,
+  wordIds: number[],
+  overrides?: ReadonlyMap<number, LexicalAggregateOverride>,
+): void {
   if (wordIds.length === 0) {
     return;
   }
@@ -476,15 +490,19 @@ function refreshWordAggregates(db: DatabaseSync, wordIds: number[]): void {
       continue;
     }
     updateStmt.run(
-      row.frequency,
-      toStoredSeenSeconds(row.firstSeen),
+      overrides?.get(row.wordId)?.frequency ?? row.frequency,
+      overrides?.get(row.wordId)?.firstSeen ?? toStoredSeenSeconds(row.firstSeen),
       toStoredSeenSeconds(row.lastSeen),
       row.wordId,
     );
   }
 }
 
-function refreshKanjiAggregates(db: DatabaseSync, kanjiIds: number[]): void {
+function refreshKanjiAggregates(
+  db: DatabaseSync,
+  kanjiIds: number[],
+  overrides?: ReadonlyMap<number, LexicalAggregateOverride>,
+): void {
   if (kanjiIds.length === 0) {
     return;
   }
@@ -532,8 +550,8 @@ function refreshKanjiAggregates(db: DatabaseSync, kanjiIds: number[]): void {
       continue;
     }
     updateStmt.run(
-      row.frequency,
-      toStoredSeenSeconds(row.firstSeen),
+      overrides?.get(row.kanjiId)?.frequency ?? row.frequency,
+      overrides?.get(row.kanjiId)?.firstSeen ?? toStoredSeenSeconds(row.firstSeen),
       toStoredSeenSeconds(row.lastSeen),
       row.kanjiId,
     );
