@@ -51,6 +51,11 @@ export interface SubtitleGenerationRuntimeDeps {
     signal: AbortSignal;
     onProgress: (progress: SubtitleGenerationProgress) => void;
   }) => Promise<string>;
+  /**
+   * Maps a playing stream URL back to its YouTube page URL. Windows YouTube playback opens a
+   * resolved direct stream in mpv, so mpv's path alone does not identify the video.
+   */
+  resolveYoutubeSourceUrl?: (mediaPath: string) => string | null;
 }
 
 async function currentLocalMedia(client: GenerationMpvClient | null): Promise<string | null> {
@@ -60,12 +65,6 @@ async function currentLocalMedia(client: GenerationMpvClient | null): Promise<st
   if (path.isAbsolute(media)) return path.normalize(media);
   const directory = await client.requestProperty('working-directory');
   return typeof directory === 'string' ? path.resolve(directory, media) : null;
-}
-
-async function currentYoutubeMedia(client: GenerationMpvClient | null): Promise<string | null> {
-  if (!client?.connected) return null;
-  const media = await client.requestProperty('path');
-  return typeof media === 'string' ? toYoutubeWatchUrl(media) : null;
 }
 
 async function loadGeneratedSubtitles(client: GenerationMpvClient, outputPath: string) {
@@ -135,6 +134,15 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
               path.resolve(deps.getModelDirectory(), SUBTITLE_GENERATION_VAD_MODEL.filename)
             : '',
     };
+  }
+  // The YouTube page behind a resolved stream URL, or the media path itself.
+  function youtubeSource(mediaPath: string | null | undefined): string | null | undefined {
+    return (mediaPath && deps.resolveYoutubeSourceUrl?.(mediaPath)) || mediaPath;
+  }
+  async function currentYoutubeMedia(client: GenerationMpvClient | null): Promise<string | null> {
+    if (!client?.connected) return null;
+    const media = await client.requestProperty('path');
+    return typeof media === 'string' ? toYoutubeWatchUrl(youtubeSource(media)) : null;
   }
   const report = (update: SubtitleGenerationProgress) => {
     progress = update;
@@ -246,7 +254,7 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
     /** Stops a YouTube job once its video is no longer playing, which also deletes its audio. */
     handleMediaPathChange(mediaPath: string | null | undefined): void {
       if (!youtubeJobUrl) return;
-      if (extractYoutubeVideoId(mediaPath) !== extractYoutubeVideoId(youtubeJobUrl))
+      if (extractYoutubeVideoId(youtubeSource(mediaPath)) !== extractYoutubeVideoId(youtubeJobUrl))
         controller?.abort();
     },
     async setVadEnabled(enabled: boolean): Promise<SubtitleGenerationStatus> {

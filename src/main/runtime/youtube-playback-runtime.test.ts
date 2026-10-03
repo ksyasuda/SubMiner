@@ -145,6 +145,49 @@ test('youtube playback runtime resolves the socket path lazily for windows start
   assert.ok(calls.some((entry) => entry.includes('--input-ipc-server=/tmp/updated.sock')));
 });
 
+test('youtube playback runtime maps resolved windows streams back to their page urls', async () => {
+  const streamFor = (url: string) =>
+    `https://rr1---sn.example.googlevideo.com/videoplayback?src=${encodeURIComponent(url)}`;
+  const firstUrl = 'https://www.youtube.com/watch?v=abcdefghijk';
+  const secondUrl = 'https://www.youtube.com/watch?v=bcdefghijkl';
+  const runtime = createYoutubePlaybackRuntime({
+    platform: 'win32',
+    directPlaybackFormat: 'b',
+    mpvYtdlFormat: 'bestvideo+bestaudio',
+    autoLaunchTimeoutMs: 2_000,
+    connectTimeoutMs: 1_000,
+    getSocketPath: () => '/tmp/mpv.sock',
+    getMpvConnected: () => true,
+    invalidatePendingAutoplayReadyFallbacks: () => {},
+    setAppOwnedFlowInFlight: () => {},
+    ensureYoutubePlaybackRuntimeReady: async () => {},
+    resolveYoutubePlaybackUrl: async (url) => streamFor(url),
+    launchWindowsMpv: async () => ({ ok: false }),
+    waitForYoutubeMpvConnected: async () => true,
+    // The second video never loads, so the first stream keeps playing.
+    prepareYoutubePlaybackInMpv: async ({ url }) => url === streamFor(firstUrl),
+    runYoutubePlaybackFlow: async () => {},
+    logInfo: () => {},
+    logWarn: () => {},
+    schedule: () => 1 as never,
+    clearScheduled: () => {},
+  });
+
+  assert.equal(runtime.getYoutubeSourceUrlForStream(streamFor(firstUrl)), null);
+  await runtime.runYoutubePlaybackFlow({ url: firstUrl, source: 'second-instance' });
+  await runtime
+    .runYoutubePlaybackFlow({ url: secondUrl, source: 'second-instance' })
+    .catch(() => {});
+
+  assert.equal(runtime.getYoutubeSourceUrlForStream(streamFor(firstUrl)), firstUrl);
+  assert.equal(runtime.getYoutubeSourceUrlForStream(streamFor(secondUrl)), secondUrl);
+  assert.equal(
+    runtime.getYoutubeSourceUrlForStream('https://rr2---sn.example.googlevideo.com/other'),
+    null,
+  );
+  assert.equal(runtime.getYoutubeSourceUrlForStream('/video/episode.mkv'), null);
+});
+
 test('youtube playback runtime starts media cache without blocking the subtitle flow', async () => {
   const calls: string[] = [];
   let resolveCache: (() => void) | undefined;
