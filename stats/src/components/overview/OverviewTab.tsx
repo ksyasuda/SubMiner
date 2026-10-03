@@ -29,7 +29,7 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const { data, sessions, setSessions, loading, error } = useOverview(refreshKey);
-  const { calendar, loading: calLoading } = useStreakCalendar(90, refreshKey);
+  const { calendar, loading: calLoading, error: calendarError } = useStreakCalendar(90, refreshKey);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   const [knownWordsSummary, setKnownWordsSummary] = useState<{
@@ -123,16 +123,19 @@ export function OverviewTab({
     }
   };
 
-  const errorNotice = error ? (
+  const refreshError = error ?? calendarError;
+  const errorNotice = refreshError ? (
     <div
       role="alert"
       className="flex items-center justify-between gap-3 rounded-lg border border-ctp-red/30 bg-ctp-red/10 p-3 text-sm text-ctp-red"
     >
       <span>
-        {data
-          ? 'Could not refresh Overview. Displayed totals may be out of date.'
-          : 'Could not load Overview.'}{' '}
-        {error}
+        {!data
+          ? 'Could not load Overview.'
+          : error
+            ? 'Could not refresh Overview. Displayed totals may be out of date.'
+            : 'Could not refresh the activity calendar. It may be out of date.'}{' '}
+        {refreshError}
       </span>
       <button
         type="button"

@@ -196,7 +196,7 @@ for (const mode of ['session', 'day', 'anime', 'failed'] as const) {
   });
 }
 
-for (const failedRead of ['overview', 'sessions'] as const) {
+for (const failedRead of ['overview', 'sessions', 'calendar'] as const) {
   test(`Overview stays available during a failed ${failedRead} refresh and can retry`, async () => {
     const uninstallDom = installDom();
     const original = { ...apiClient };
@@ -216,7 +216,10 @@ for (const failedRead of ['overview', 'sessions'] as const) {
       if (refreshing && failRefresh && failedRead === 'sessions') return pendingRefresh;
       return sessions;
     };
-    apiClient.getStreakCalendar = async () => [];
+    apiClient.getStreakCalendar = async () => {
+      if (refreshing && failRefresh && failedRead === 'calendar') return pendingRefresh;
+      return [];
+    };
     apiClient.getKnownWordsSummary = async () => ({
       totalUniqueWords: 0,
       knownWordCount: 0,
@@ -225,6 +228,8 @@ for (const failedRead of ['overview', 'sessions'] as const) {
       sessions = [];
       refreshing = true;
     };
+    // A calendar-only failure still lets the overview totals refresh.
+    const staleCards = failedRead === 'calendar' ? '0' : '2';
     const container = document.createElement('div');
     document.body.append(container);
     const root = createRoot(container);
@@ -240,12 +245,12 @@ for (const failedRead of ['overview', 'sessions'] as const) {
       assert.ok(deleteButton);
       await act(async () => deleteButton.click());
       assert.match(container.textContent ?? '', /Tracking Snapshot/);
-      assert.equal(metric(container, 'Cards Mined Today'), '2');
+      assert.equal(metric(container, 'Cards Mined Today'), staleCards);
       assert.match(container.textContent ?? '', /No sessions yet/);
 
       await act(async () => rejectRefresh(new Error(`${failedRead} unavailable`)));
       assert.match(container.textContent ?? '', /Tracking Snapshot/);
-      assert.equal(metric(container, 'Cards Mined Today'), '2');
+      assert.equal(metric(container, 'Cards Mined Today'), staleCards);
       assert.match(container.querySelector('[role="alert"]')?.textContent ?? '', /unavailable/);
 
       const retryButton = [...container.querySelectorAll('button')].find(
