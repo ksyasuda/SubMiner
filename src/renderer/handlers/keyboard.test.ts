@@ -5,7 +5,7 @@ import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
 import { createRendererState } from '../state.js';
-import { YOMITAN_POPUP_HOST_SELECTOR } from '../yomitan-popup.js';
+import { HACHIDORI_HOST_SELECTOR } from '../yomitan-popup.js';
 import type { CompiledSessionBinding } from '../../types';
 import type { MpvInputBindingsSnapshot } from '../../types/session-bindings';
 import { DEFAULT_KEYBINDINGS, SPECIAL_COMMANDS } from '../../config/definitions';
@@ -482,7 +482,7 @@ function installKeyboardTestGlobals() {
         selector
           .split(',')
           .map((part) => part.trim())
-          .includes(YOMITAN_POPUP_HOST_SELECTOR)
+          .includes(HACHIDORI_HOST_SELECTOR)
           ? target
           : null;
       return target;
