@@ -67,7 +67,6 @@ test('anki action main deps builders map callbacks', async () => {
     getPrimarySubtitle: () => ({ text: '正式な字幕', startTime: 1, endTime: 3 }),
     showMpvOsd: (text) => calls.push(`mine:${text}`),
     mineSentenceCardCore: async () => true,
-    recordCardsMined: (count) => calls.push(`cards:${count}`),
   })();
   assert.deepEqual(mine.getMpvClient(), { connected: true });
   assert.deepEqual(mine.getPrimarySubtitle?.(), {
@@ -81,16 +80,6 @@ test('anki action main deps builders map callbacks', async () => {
     mpvClient: { connected: true },
     showMpvOsd: () => {},
   });
-  mine.recordCardsMined(1);
 
-  assert.deepEqual(calls, [
-    'osd:x',
-    'update',
-    'fg:fg',
-    'trigger',
-    'audio:a',
-    'mark',
-    'mine:m',
-    'cards:1',
-  ]);
+  assert.deepEqual(calls, ['osd:x', 'update', 'fg:fg', 'trigger', 'audio:a', 'mark', 'mine:m']);
 });

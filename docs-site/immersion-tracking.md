@@ -42,6 +42,8 @@ To share stats and watch history between machines, use [`subminer sync <host>`](
 
 Recent sessions, a streak calendar, watch-time history, and totals for completed episodes and shows.
 
+Deleting a session or session group refreshes the Overview totals, charts, calendar, and vocabulary summary automatically. If a refresh fails, Overview keeps the previous totals visible and offers **Retry**.
+
 ![Stats Overview](/screenshots/stats-overview.png)
 
 ### Library
@@ -121,5 +123,7 @@ Leave out `--lookback-days` to scan all history. Word and kanji counts are corre
 ## Retention
 
 By default SubMiner keeps everything. To limit history, set `immersionTracking.retentionPreset` to `minimal`, `balanced`, or `deep-history`, or set the `immersionTracking.retention.*Days` values yourself (`0` keeps all). Lifetime totals and vocabulary counts are stored separately and stay exact when old sessions are pruned.
+
+Deleting retained sessions preserves earlier word and kanji discovery dates from pruned history. New occurrences record observation time so deletion can update their dates exactly. Older history used write time, so an earlier discovery date is preserved when its origin cannot be determined.
 
 See [Immersion tracking](/configuration#immersion-tracking) and [Stats dashboard](/configuration#stats-dashboard) in the config reference for every option and default.

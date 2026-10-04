@@ -53,7 +53,6 @@ test('mine sentence digit handler forwards all dependencies', () => {
     getCurrentSecondarySubText: () => 'secondary',
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     logError: (message) => calls.push(`err:${message}`),
-    onCardsMined: (count) => calls.push(`cards:${count}`),
     handleMineSentenceDigitCore: (count, options) => {
       assert.equal(count, 4);
       assert.equal(options.subtitleTimingTracker, tracker);
@@ -61,10 +60,9 @@ test('mine sentence digit handler forwards all dependencies', () => {
       assert.equal(options.getCurrentSecondarySubText(), 'secondary');
       options.showMpvOsd('mine');
       options.logError('boom', new Error('x'));
-      options.onCardsMined(2);
     },
   });
 
   handleMineSentenceDigit(4);
-  assert.deepEqual(calls, ['osd:mine', 'err:boom', 'cards:2']);
+  assert.deepEqual(calls, ['osd:mine', 'err:boom']);
 });

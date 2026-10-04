@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { getStatsClient } from './useStatsApi';
 import type { StreakCalendarDay } from '../types/stats';
 
-export function useStreakCalendar(days = 90) {
+export function useStreakCalendar(days = 90, refreshKey = 0) {
   const [calendar, setCalendar] = useState<StreakCalendarDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     getStatsClient()
       .getStreakCalendar(days)
       .then((data) => {
@@ -23,7 +25,7 @@ export function useStreakCalendar(days = 90) {
     return () => {
       cancelled = true;
     };
-  }, [days]);
+  }, [days, refreshKey]);
 
   return { calendar, loading, error };
 }

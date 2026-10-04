@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getStatsClient } from './useStatsApi';
 import type { OverviewData, SessionSummary } from '../types/stats';
 
-export function useOverview() {
+export function useOverview(refreshKey = 0) {
   const [data, setData] = useState<OverviewData | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +30,7 @@ export function useOverview() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshKey]);
 
   return { data, sessions, setSessions, loading, error };
 }
