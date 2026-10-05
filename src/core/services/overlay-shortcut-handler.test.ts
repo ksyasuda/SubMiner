@@ -93,34 +93,6 @@ function createDeps(overrides: Partial<OverlayShortcutRuntimeDeps> = {}) {
   return { deps, calls, osd };
 }
 
-test('createOverlayShortcutRuntimeHandlers dispatches sync and async handlers', async () => {
-  const { deps, calls } = createDeps();
-  const { overlayHandlers, fallbackHandlers } = createOverlayShortcutRuntimeHandlers(deps);
-
-  overlayHandlers.copySubtitle();
-  overlayHandlers.copySubtitleMultiple(1111);
-  overlayHandlers.toggleSecondarySub();
-  overlayHandlers.openRuntimeOptions();
-  overlayHandlers.openCharacterDictionaryManager();
-  overlayHandlers.openJimaku();
-  overlayHandlers.mineSentenceMultiple(2222);
-  overlayHandlers.updateLastCardFromClipboard();
-  fallbackHandlers.mineSentence();
-  await new Promise((resolve) => setImmediate(resolve));
-
-  assert.deepEqual(calls, [
-    'copySubtitle',
-    'copySubtitleMultiple:1111',
-    'toggleSecondarySub',
-    'openRuntimeOptions',
-    'openCharacterDictionaryManager',
-    'openJimaku',
-    'mineSentenceMultiple:2222',
-    'updateLastCardFromClipboard',
-    'mineSentence',
-  ]);
-});
-
 test('createOverlayShortcutRuntimeHandlers reports async failures via OSD', async () => {
   const logs: unknown[][] = [];
   const originalError = console.error;
@@ -243,79 +215,58 @@ test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for re
   assert.deepEqual(handled, []);
 });
 
-test('runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-sub toggle', () => {
-  const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> = [];
-  const shortcuts = makeShortcuts({
-    toggleSecondarySub: 'Ctrl+2',
+const allowWhenRegisteredCases: Array<{
+  name: string;
+  shortcut: Partial<ConfiguredShortcuts>;
+  accelerator: string;
+}> = [
+  {
+    name: 'secondary-sub toggle',
+    shortcut: { toggleSecondarySub: 'Ctrl+2' },
+    accelerator: 'Ctrl+2',
+  },
+  {
+    name: 'registered-global jimaku shortcut',
+    shortcut: { openJimaku: 'Ctrl+J' },
+    accelerator: 'Ctrl+J',
+  },
+];
+
+for (const c of allowWhenRegisteredCases) {
+  test(`runOverlayShortcutLocalFallback passes allowWhenRegistered for ${c.name}`, () => {
+    const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> = [];
+
+    const result = runOverlayShortcutLocalFallback(
+      {} as Electron.Input,
+      makeShortcuts(c.shortcut),
+      (_input, accelerator, allowWhenRegistered) => {
+        matched.push({
+          accelerator,
+          allowWhenRegistered: allowWhenRegistered === true,
+        });
+        return accelerator === c.accelerator;
+      },
+      {
+        openRuntimeOptions: () => {},
+        openCharacterDictionaryManager: () => {},
+        openJimaku: () => {},
+        openTsukihime: () => {},
+        markAudioCard: () => {},
+        copySubtitleMultiple: () => {},
+        copySubtitle: () => {},
+        toggleSecondarySub: () => {},
+        updateLastCardFromClipboard: () => {},
+        triggerFieldGrouping: () => {},
+        triggerSubsync: () => {},
+        mineSentence: () => {},
+        mineSentenceMultiple: () => {},
+      },
+    );
+
+    assert.equal(result, true);
+    assert.deepEqual(matched, [{ accelerator: c.accelerator, allowWhenRegistered: true }]);
   });
-
-  const result = runOverlayShortcutLocalFallback(
-    {} as Electron.Input,
-    shortcuts,
-    (_input, accelerator, allowWhenRegistered) => {
-      matched.push({
-        accelerator,
-        allowWhenRegistered: allowWhenRegistered === true,
-      });
-      return accelerator === 'Ctrl+2';
-    },
-    {
-      openRuntimeOptions: () => {},
-      openCharacterDictionaryManager: () => {},
-      openJimaku: () => {},
-      openTsukihime: () => {},
-      markAudioCard: () => {},
-      copySubtitleMultiple: () => {},
-      copySubtitle: () => {},
-      toggleSecondarySub: () => {},
-      updateLastCardFromClipboard: () => {},
-      triggerFieldGrouping: () => {},
-      triggerSubsync: () => {},
-      mineSentence: () => {},
-      mineSentenceMultiple: () => {},
-    },
-  );
-
-  assert.equal(result, true);
-  assert.deepEqual(matched, [{ accelerator: 'Ctrl+2', allowWhenRegistered: true }]);
-});
-
-test('runOverlayShortcutLocalFallback allows registered-global jimaku shortcut', () => {
-  const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> = [];
-  const shortcuts = makeShortcuts({
-    openJimaku: 'Ctrl+J',
-  });
-
-  const result = runOverlayShortcutLocalFallback(
-    {} as Electron.Input,
-    shortcuts,
-    (_input, accelerator, allowWhenRegistered) => {
-      matched.push({
-        accelerator,
-        allowWhenRegistered: allowWhenRegistered === true,
-      });
-      return accelerator === 'Ctrl+J';
-    },
-    {
-      openRuntimeOptions: () => {},
-      openCharacterDictionaryManager: () => {},
-      openJimaku: () => {},
-      openTsukihime: () => {},
-      markAudioCard: () => {},
-      copySubtitleMultiple: () => {},
-      copySubtitle: () => {},
-      toggleSecondarySub: () => {},
-      updateLastCardFromClipboard: () => {},
-      triggerFieldGrouping: () => {},
-      triggerSubsync: () => {},
-      mineSentence: () => {},
-      mineSentenceMultiple: () => {},
-    },
-  );
-
-  assert.equal(result, true);
-  assert.deepEqual(matched, [{ accelerator: 'Ctrl+J', allowWhenRegistered: true }]);
-});
+}
 
 test('runOverlayShortcutLocalFallback returns false when no action matches', () => {
   const shortcuts = makeShortcuts({

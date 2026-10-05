@@ -83,18 +83,15 @@ export function createMineSentenceCardHandler<TAnki, TMpv>(deps: {
     primarySubtitle?: PrimarySubtitle;
     showMpvOsd: (text: string) => void;
   }) => Promise<boolean>;
-  recordCardsMined: (count: number, noteIds?: number[]) => void;
 }) {
+  // Card creation records the mined card (with its note id) itself.
   return async (): Promise<void> => {
     const primarySubtitle = deps.getPrimarySubtitle?.();
-    const created = await deps.mineSentenceCardCore({
+    await deps.mineSentenceCardCore({
       ankiIntegration: deps.getAnkiIntegration(),
       mpvClient: deps.getMpvClient(),
       ...(primarySubtitle ? { primarySubtitle } : {}),
       showMpvOsd: deps.showMpvOsd,
     });
-    if (created) {
-      deps.recordCardsMined(1);
-    }
   };
 }

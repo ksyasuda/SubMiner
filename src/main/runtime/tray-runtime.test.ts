@@ -26,136 +26,10 @@ test('resolve tray icon returns null when no asset exists', () => {
   assert.equal(path, null);
 });
 
-for (const dictionaryBackend of ['yomitan', 'hachidori'] as const) {
-  const settingsLabel =
-    dictionaryBackend === 'hachidori' ? 'Open Hachidori Settings' : 'Open Yomitan Settings';
-  test(`tray menu shows only ${dictionaryBackend} settings and dispatches its handler`, () => {
-    const calls: string[] = [];
-    const template = buildTrayMenuTemplateRuntime({
-      openSessionHelp: () => calls.push('help'),
-      openChangelog: () => calls.push('changelog'),
-      openTexthookerInBrowser: () => calls.push('texthooker'),
-      showTexthookerPage: true,
-      openFirstRunSetup: () => calls.push('setup'),
-      showFirstRunSetup: true,
-      openWindowsMpvLauncherSetup: () => calls.push('windows-mpv'),
-      showWindowsMpvLauncherSetup: true,
-      dictionaryBackend,
-      openHachidoriSettings: () => calls.push('hachidori'),
-      openYomitanSettings: () => calls.push('yomitan'),
-      openConfigSettings: () => calls.push('configuration'),
-      openSyncUi: () => calls.push('sync-ui'),
-      openYoutubeBrowser: () => calls.push('youtube'),
-      exportLogs: () => calls.push('export-logs'),
-      openJellyfinSetup: () => calls.push('jellyfin'),
-      showJellyfinDiscovery: true,
-      jellyfinDiscoveryActive: false,
-      toggleJellyfinDiscovery: (checked) => calls.push(`jellyfin-discovery:${checked}`),
-      openAnilistSetup: () => calls.push('anilist'),
-      checkForUpdates: () => calls.push('updates'),
-      quitApp: () => calls.push('quit'),
-    });
+type TrayMenuHandlers = Parameters<typeof buildTrayMenuTemplateRuntime>[0];
 
-    // Resolve by label, not index: adding a menu entry should not force every
-    // later assertion in this test to be renumbered.
-    const entryFor = (label: string) => {
-      const entry = template.find((candidate) => candidate.label === label);
-      assert.ok(entry, `expected a "${label}" tray entry`);
-      return entry;
-    };
-
-    assert.deepEqual(
-      template.map((entry) => entry.label ?? `<${entry.type}>`),
-      [
-        'Open Help',
-        'View Changelog',
-        'Open Texthooker',
-        'Complete Setup',
-        'Open SubMiner Setup',
-        settingsLabel,
-        'Open SubMiner Settings',
-        'Sync Stats && History',
-        'Browse YouTube',
-        'Export Logs',
-        'Configure Jellyfin',
-        'Jellyfin Discovery',
-        'Configure AniList',
-        'Check for Updates',
-        '<separator>',
-        'Quit',
-      ],
-    );
-
-    entryFor(settingsLabel).click?.();
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0], dictionaryBackend);
-    calls.length = 0;
-
-    const discovery = entryFor('Jellyfin Discovery');
-    assert.equal(discovery.type, 'checkbox');
-    assert.equal(discovery.checked, false);
-    discovery.click?.({ checked: true });
-
-    entryFor('Open Help').click?.();
-    entryFor('View Changelog').click?.();
-    entryFor('Open Texthooker').click?.();
-    entryFor('Sync Stats && History').click?.();
-    entryFor('Browse YouTube').click?.();
-    entryFor('Export Logs').click?.();
-    entryFor('Check for Updates').click?.();
-    calls.push(template.some((entry) => entry.type === 'separator') ? 'separator' : 'bad');
-    entryFor('Quit').click?.();
-
-    assert.deepEqual(calls, [
-      'jellyfin-discovery:true',
-      'help',
-      'changelog',
-      'texthooker',
-      'sync-ui',
-      'youtube',
-      'export-logs',
-      'updates',
-      'separator',
-      'quit',
-    ]);
-  });
-}
-
-test('tray menu template omits first-run setup entry when setup is complete', () => {
-  const labels = buildTrayMenuTemplateRuntime({
-    openSessionHelp: () => undefined,
-    openChangelog: () => undefined,
-    openTexthookerInBrowser: () => undefined,
-    showTexthookerPage: true,
-    openFirstRunSetup: () => undefined,
-    showFirstRunSetup: false,
-    openWindowsMpvLauncherSetup: () => undefined,
-    showWindowsMpvLauncherSetup: false,
-    dictionaryBackend: 'yomitan',
-    openHachidoriSettings: () => {},
-    openYomitanSettings: () => undefined,
-    openConfigSettings: () => undefined,
-    openSyncUi: () => undefined,
-    openYoutubeBrowser: () => undefined,
-    exportLogs: () => undefined,
-    openJellyfinSetup: () => undefined,
-    showJellyfinDiscovery: false,
-    jellyfinDiscoveryActive: false,
-    toggleJellyfinDiscovery: () => undefined,
-    openAnilistSetup: () => undefined,
-    checkForUpdates: () => undefined,
-    quitApp: () => undefined,
-  })
-    .map((entry) => entry.label)
-    .filter(Boolean);
-
-  assert.equal(labels.includes('Complete Setup'), false);
-  assert.equal(labels.includes('Open SubMiner Setup'), false);
-  assert.equal(labels.includes('Jellyfin Discovery'), false);
-});
-
-test('tray menu template omits texthooker entry when texthooker page is disabled', () => {
-  const labels = buildTrayMenuTemplateRuntime({
+function baseHandlers(overrides: Partial<TrayMenuHandlers> = {}): TrayMenuHandlers {
+  return {
     openSessionHelp: () => undefined,
     openChangelog: () => undefined,
     openTexthookerInBrowser: () => undefined,
@@ -165,7 +39,7 @@ test('tray menu template omits texthooker entry when texthooker page is disabled
     openWindowsMpvLauncherSetup: () => undefined,
     showWindowsMpvLauncherSetup: false,
     dictionaryBackend: 'yomitan',
-    openHachidoriSettings: () => {},
+    openHachidoriSettings: () => undefined,
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
     openSyncUi: () => undefined,
@@ -178,70 +52,86 @@ test('tray menu template omits texthooker entry when texthooker page is disabled
     openAnilistSetup: () => undefined,
     checkForUpdates: () => undefined,
     quitApp: () => undefined,
-  })
-    .map((entry) => entry.label)
-    .filter(Boolean);
+    ...overrides,
+  };
+}
 
-  assert.equal(labels.includes('Open Texthooker'), false);
+function labelsFor(overrides: Partial<TrayMenuHandlers>): string[] {
+  return buildTrayMenuTemplateRuntime(baseHandlers(overrides)).flatMap((entry) =>
+    entry.label ? [entry.label] : [],
+  );
+}
+
+const optionalEntries: Array<{ label: string; flag: Partial<TrayMenuHandlers> }> = [
+  { label: 'Open Texthooker', flag: { showTexthookerPage: true } },
+  { label: 'Complete Setup', flag: { showFirstRunSetup: true } },
+  { label: 'Open SubMiner Setup', flag: { showWindowsMpvLauncherSetup: true } },
+  { label: 'Jellyfin Discovery', flag: { showJellyfinDiscovery: true } },
+];
+
+for (const entry of optionalEntries) {
+  test(`tray menu shows "${entry.label}" only when its flag is set`, () => {
+    assert.equal(labelsFor({}).includes(entry.label), false);
+    assert.equal(labelsFor(entry.flag).includes(entry.label), true);
+  });
+}
+
+for (const dictionaryBackend of ['yomitan', 'hachidori'] as const) {
+  test(`tray menu shows only ${dictionaryBackend} settings and dispatches its handler`, () => {
+    const calls: string[] = [];
+    const template = buildTrayMenuTemplateRuntime(
+      baseHandlers({
+        dictionaryBackend,
+        openHachidoriSettings: () => calls.push('hachidori'),
+        openYomitanSettings: () => calls.push('yomitan'),
+      }),
+    );
+    const labels = template.flatMap((entry) => (entry.label ? [entry.label] : []));
+    const [shown, hidden] =
+      dictionaryBackend === 'hachidori'
+        ? ['Open Hachidori Settings', 'Open Yomitan Settings']
+        : ['Open Yomitan Settings', 'Open Hachidori Settings'];
+    assert.equal(labels.includes(hidden), false);
+    template.find((entry) => entry.label === shown)?.click?.();
+    assert.deepEqual(calls, [dictionaryBackend]);
+  });
+}
+
+test('tray menu ends with a separator and Quit', () => {
+  const template = buildTrayMenuTemplateRuntime(baseHandlers());
+  assert.deepEqual(
+    template.slice(-2).map((entry) => entry.label ?? entry.type),
+    ['separator', 'Quit'],
+  );
 });
 
-test('tray menu template renders active jellyfin discovery checkbox', () => {
-  const template = buildTrayMenuTemplateRuntime({
-    openSessionHelp: () => undefined,
-    openChangelog: () => undefined,
-    openTexthookerInBrowser: () => undefined,
-    showTexthookerPage: true,
-    openFirstRunSetup: () => undefined,
-    showFirstRunSetup: false,
-    openWindowsMpvLauncherSetup: () => undefined,
-    showWindowsMpvLauncherSetup: false,
-    dictionaryBackend: 'yomitan',
-    openHachidoriSettings: () => {},
-    openYomitanSettings: () => undefined,
-    openConfigSettings: () => undefined,
-    openSyncUi: () => undefined,
-    openYoutubeBrowser: () => undefined,
-    exportLogs: () => undefined,
-    openJellyfinSetup: () => undefined,
-    showJellyfinDiscovery: true,
-    jellyfinDiscoveryActive: true,
-    toggleJellyfinDiscovery: () => undefined,
-    openAnilistSetup: () => undefined,
-    checkForUpdates: () => undefined,
-    quitApp: () => undefined,
-  });
+test('jellyfin discovery checkbox reflects state and forwards toggles', () => {
+  const toggles: boolean[] = [];
+  const template = buildTrayMenuTemplateRuntime(
+    baseHandlers({
+      showJellyfinDiscovery: true,
+      jellyfinDiscoveryActive: true,
+      toggleJellyfinDiscovery: (checked) => toggles.push(checked),
+    }),
+  );
 
   const discovery = template.find((entry) => entry.label === 'Jellyfin Discovery');
   assert.equal(discovery?.type, 'checkbox');
   assert.equal(discovery?.checked, true);
+  discovery?.click?.({ checked: true });
+  // Without a menu item state the click inverts the current discovery state.
+  discovery?.click?.();
+  assert.deepEqual(toggles, [true, false]);
 });
 
 test('tray menu template renders a visible linux discovery check mark when active', () => {
-  const template = buildTrayMenuTemplateRuntime({
-    platform: 'linux',
-    openSessionHelp: () => undefined,
-    openChangelog: () => undefined,
-    openTexthookerInBrowser: () => undefined,
-    showTexthookerPage: true,
-    openFirstRunSetup: () => undefined,
-    showFirstRunSetup: false,
-    openWindowsMpvLauncherSetup: () => undefined,
-    showWindowsMpvLauncherSetup: false,
-    dictionaryBackend: 'yomitan',
-    openHachidoriSettings: () => {},
-    openYomitanSettings: () => undefined,
-    openConfigSettings: () => undefined,
-    openSyncUi: () => undefined,
-    openYoutubeBrowser: () => undefined,
-    exportLogs: () => undefined,
-    openJellyfinSetup: () => undefined,
-    showJellyfinDiscovery: true,
-    jellyfinDiscoveryActive: true,
-    toggleJellyfinDiscovery: () => undefined,
-    openAnilistSetup: () => undefined,
-    checkForUpdates: () => undefined,
-    quitApp: () => undefined,
-  });
+  const template = buildTrayMenuTemplateRuntime(
+    baseHandlers({
+      platform: 'linux',
+      showJellyfinDiscovery: true,
+      jellyfinDiscoveryActive: true,
+    }),
+  );
 
   const discovery = template.find((entry) => entry.label === '✓ Jellyfin Discovery');
   assert.equal(discovery?.type, 'checkbox');

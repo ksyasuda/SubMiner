@@ -7,29 +7,41 @@ import {
   parseMacOSHelperOutput,
 } from './macos-tracker';
 
-test('parseMacOSHelperOutput parses minimized state', () => {
-  assert.deepEqual(parseMacOSHelperOutput('minimized'), {
-    geometry: null,
-    focused: false,
-    minimized: true,
-  });
-});
+const GEOMETRY = { x: 10, y: 20, width: 1280, height: 720 };
 
-test('parseMacOSHelperOutput parses active focused state without geometry', () => {
-  assert.deepEqual(parseMacOSHelperOutput('active'), {
-    geometry: null,
-    focused: true,
-    active: true,
-  });
-});
+const PARSE_CASES = [
+  {
+    name: 'geometry and focused state',
+    input: '120,240,1280,720,1',
+    expected: { geometry: { x: 120, y: 240, width: 1280, height: 720 }, focused: true },
+  },
+  {
+    name: 'geometry with unfocused state',
+    input: '120,240,1280,720,0',
+    expected: { geometry: { x: 120, y: 240, width: 1280, height: 720 }, focused: false },
+  },
+  {
+    name: 'minimized state',
+    input: 'minimized',
+    expected: { geometry: null, focused: false, minimized: true },
+  },
+  {
+    name: 'active focused state without geometry',
+    input: 'active',
+    expected: { geometry: null, focused: true, active: true },
+  },
+  {
+    name: 'inactive state without geometry',
+    input: 'inactive',
+    expected: { geometry: null, focused: false, inactive: true },
+  },
+];
 
-test('parseMacOSHelperOutput parses inactive state without geometry', () => {
-  assert.deepEqual(parseMacOSHelperOutput('inactive'), {
-    geometry: null,
-    focused: false,
-    inactive: true,
+for (const c of PARSE_CASES) {
+  test(`parseMacOSHelperOutput parses ${c.name}`, () => {
+    assert.deepEqual(parseMacOSHelperOutput(c.input), c.expected);
   });
-});
+}
 
 test('isCompiledMacOSHelperCurrent rejects binaries older than the Swift source', () => {
   const binaryPath = '/tmp/get-mpv-window-macos';
@@ -103,451 +115,196 @@ test('MacOSWindowTracker keeps fast polling while target is not focused', async 
   assert.deepEqual(scheduledDelays, [250]);
 });
 
-test('MacOSWindowTracker keeps the last geometry through a single helper miss', async () => {
-  let callIndex = 0;
-  const outputs = [
-    { stdout: '10,20,1280,720,1', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-    { stdout: '10,20,1280,720,1', stderr: '' },
-  ];
+type HelperReply = string | Error;
 
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-    trackingLossGraceMs: 0,
-  });
+type PollExpectation = {
+  tracking: boolean;
+  focused: boolean;
+  geometry: typeof GEOMETRY | null;
+  minimized?: boolean;
+  focusChanges?: boolean[];
+};
 
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
-  });
+type PollStep = {
+  reply: HelperReply;
+  // Clock advance before this poll; drives the tracking-loss grace window.
+  advanceMs?: number;
+  expect: PollExpectation;
+};
 
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
-  });
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
-  });
+const FOCUSED = `${GEOMETRY.x},${GEOMETRY.y},${GEOMETRY.width},${GEOMETRY.height},1`;
+const UNFOCUSED = `${GEOMETRY.x},${GEOMETRY.y},${GEOMETRY.width},${GEOMETRY.height},0`;
+const tracked = (focused: boolean, extra: Partial<PollExpectation> = {}): PollExpectation => ({
+  tracking: true,
+  focused,
+  geometry: GEOMETRY,
+  ...extra,
 });
+const lost: PollExpectation = { tracking: false, focused: false, geometry: null };
 
-test('MacOSWindowTracker preserves target focus on helper not-found while retaining geometry', async () => {
-  let callIndex = 0;
-  const focusChanges: boolean[] = [];
-  const outputs = [
-    { stdout: '10,20,1280,720,1', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-  ];
-
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-    trackingLossGraceMs: 1_500,
-  });
-  tracker.onWindowFocusChange = (focused) => {
-    focusChanges.push(focused);
-  };
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTargetWindowFocused(), true);
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.equal(tracker.isTracking(), true);
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
-  });
-  assert.equal(tracker.isTargetWindowFocused(), true);
-  assert.deepEqual(focusChanges, [true]);
-});
-
-test('MacOSWindowTracker keeps focused fullscreen target through active helper misses after grace', async () => {
-  let callIndex = 0;
-  let now = 1_000;
-  const outputs = [
-    { stdout: '10,20,1280,720,1', stderr: '' },
-    { stdout: 'active', stderr: '' },
-    { stdout: 'active', stderr: '' },
-  ];
-
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-    now: () => now,
-    trackingLossGraceMs: 500,
-  });
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-  assert.equal(tracker.isTargetWindowFocused(), true);
-
-  now += 1_000;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-
-  now += 1_000;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.equal(tracker.isTracking(), true);
-  assert.equal(tracker.isTargetWindowFocused(), true);
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
-  });
-});
-
-test('MacOSWindowTracker drops previously focused target after repeated not-found misses exceed grace', async () => {
+function createTracker(
+  replies: HelperReply[],
+  options: ConstructorParameters<typeof MacOSWindowTracker>[1] = {},
+) {
   let callIndex = 0;
   let now = 1_000;
   const focusChanges: boolean[] = [];
-  const outputs = [
-    { stdout: '10,20,1280,720,1', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-  ];
-
   const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-    now: () => now,
-    trackingLossGraceMs: 500,
-  });
-  tracker.onWindowFocusChange = (focused) => {
-    focusChanges.push(focused);
-  };
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-  assert.equal(tracker.isTargetWindowFocused(), true);
-
-  now += 1_000;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.equal(tracker.isTracking(), true);
-  assert.equal(tracker.isTargetWindowFocused(), true);
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
-  });
-  assert.deepEqual(focusChanges, [true]);
-
-  now += 1_000;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.equal(tracker.isTracking(), false);
-  assert.equal(tracker.isTargetWindowFocused(), false);
-  assert.equal(tracker.getGeometry(), null);
-  assert.deepEqual(focusChanges, [true, false]);
-});
-
-test('MacOSWindowTracker drops previously focused target after repeated helper execution failures exceed grace', async () => {
-  let callIndex = 0;
-  let now = 1_000;
-  const focusChanges: boolean[] = [];
-
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
+    resolveHelper: () => ({ helperPath: 'helper.swift', helperType: 'swift' }),
     runHelper: async () => {
-      callIndex += 1;
-      if (callIndex === 1) {
-        return { stdout: '10,20,1280,720,1', stderr: '' };
-      }
-      throw Object.assign(new Error('helper timed out'), { stderr: 'timeout' });
+      const reply = replies[callIndex++] ?? replies.at(-1)!;
+      if (reply instanceof Error) throw Object.assign(reply, { stderr: 'timeout' });
+      return { stdout: reply, stderr: '' };
     },
     now: () => now,
-    trackingLossGraceMs: 500,
+    ...options,
   });
   tracker.onWindowFocusChange = (focused) => {
     focusChanges.push(focused);
   };
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  now += 1_000;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  now += 1_000;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.equal(tracker.isTracking(), false);
-  assert.equal(tracker.isTargetWindowFocused(), false);
-  assert.equal(tracker.getGeometry(), null);
-  assert.deepEqual(focusChanges, [true, false]);
-});
-
-test('MacOSWindowTracker marks target unfocused on explicit inactive helper signal', async () => {
-  let callIndex = 0;
-  const focusChanges: boolean[] = [];
-  const outputs = [
-    { stdout: '10,20,1280,720,1', stderr: '' },
-    { stdout: 'inactive', stderr: '' },
-  ];
-
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-    trackingLossGraceMs: 1_500,
-  });
-  tracker.onWindowFocusChange = (focused) => {
-    focusChanges.push(focused);
+  return {
+    tracker,
+    focusChanges,
+    async poll(advanceMs = 0): Promise<void> {
+      now += advanceMs;
+      await tracker.refreshNow();
+    },
   };
+}
 
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+const POLL_SEQUENCES: Array<{
+  name: string;
+  options: ConstructorParameters<typeof MacOSWindowTracker>[1];
+  steps: PollStep[];
+}> = [
+  {
+    name: 'keeps the last geometry through a single helper miss',
+    options: { trackingLossGraceMs: 0 },
+    steps: [
+      { reply: FOCUSED, expect: tracked(true) },
+      { reply: 'not-found', expect: tracked(true) },
+      { reply: FOCUSED, expect: tracked(true) },
+    ],
+  },
+  {
+    name: 'preserves target focus on helper not-found while retaining geometry',
+    options: { trackingLossGraceMs: 1_500 },
+    steps: [
+      { reply: FOCUSED, expect: tracked(true, { focusChanges: [true] }) },
+      { reply: 'not-found', expect: tracked(true, { focusChanges: [true] }) },
+    ],
+  },
+  {
+    name: 'keeps focused fullscreen target through active helper misses after grace',
+    options: { trackingLossGraceMs: 500 },
+    steps: [
+      { reply: FOCUSED, expect: tracked(true) },
+      { reply: 'active', advanceMs: 1_000, expect: tracked(true) },
+      { reply: 'active', advanceMs: 1_000, expect: tracked(true) },
+    ],
+  },
+  {
+    name: 'drops previously focused target after repeated not-found misses exceed grace',
+    options: { trackingLossGraceMs: 500 },
+    steps: [
+      { reply: FOCUSED, expect: tracked(true) },
+      { reply: 'not-found', advanceMs: 1_000, expect: tracked(true, { focusChanges: [true] }) },
+      { reply: 'not-found', advanceMs: 1_000, expect: { ...lost, focusChanges: [true, false] } },
+    ],
+  },
+  {
+    name: 'drops previously focused target after repeated helper execution failures exceed grace',
+    options: { trackingLossGraceMs: 500 },
+    steps: [
+      { reply: FOCUSED, expect: tracked(true) },
+      { reply: new Error('helper timed out'), advanceMs: 1_000, expect: tracked(true) },
+      {
+        reply: new Error('helper timed out'),
+        advanceMs: 1_000,
+        expect: { ...lost, focusChanges: [true, false] },
+      },
+    ],
+  },
+  {
+    name: 'marks target unfocused on explicit inactive helper signal',
+    options: { trackingLossGraceMs: 1_500 },
+    steps: [
+      { reply: FOCUSED, expect: tracked(true) },
+      { reply: 'inactive', expect: tracked(false, { focusChanges: [true, false] }) },
+    ],
+  },
+  {
+    name: 'refreshes to focused when the helper reports the target active',
+    options: {},
+    steps: [
+      { reply: UNFOCUSED, expect: tracked(false) },
+      { reply: 'active', expect: tracked(true) },
+    ],
+  },
+  {
+    name: 'drops tracking after consecutive helper misses',
+    options: { trackingLossGraceMs: 0 },
+    steps: [
+      { reply: UNFOCUSED, expect: tracked(false) },
+      { reply: 'not-found', expect: tracked(false) },
+      { reply: 'not-found', expect: lost },
+    ],
+  },
+  {
+    name: 'keeps tracking through repeated helper misses inside grace window',
+    options: { trackingLossGraceMs: 1_500 },
+    steps: [
+      { reply: FOCUSED, expect: tracked(true) },
+      { reply: 'not-found', advanceMs: 250, expect: tracked(true) },
+      { reply: 'not-found', advanceMs: 250, expect: tracked(true) },
+      { reply: 'not-found', advanceMs: 250, expect: tracked(true) },
+    ],
+  },
+  {
+    name: 'drops tracking after grace window expires',
+    options: { trackingLossGraceMs: 500 },
+    steps: [
+      { reply: UNFOCUSED, expect: tracked(false) },
+      { reply: 'not-found', advanceMs: 250, expect: tracked(false) },
+      { reply: 'not-found', advanceMs: 250, expect: tracked(false) },
+      { reply: 'not-found', advanceMs: 250, expect: tracked(false) },
+      { reply: 'not-found', advanceMs: 250, expect: lost },
+    ],
+  },
+  {
+    name: 'reports minimized target, then drops tracking after the minimized grace',
+    options: { minimizedTrackingLossGraceMs: 200 },
+    steps: [
+      { reply: FOCUSED, expect: tracked(true, { minimized: false }) },
+      { reply: 'minimized', advanceMs: 250, expect: tracked(false, { minimized: true }) },
+      { reply: 'minimized', advanceMs: 250, expect: { ...lost, minimized: true } },
+    ],
+  },
+];
 
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+for (const sequence of POLL_SEQUENCES) {
+  test(`MacOSWindowTracker ${sequence.name}`, async () => {
+    const { tracker, focusChanges, poll } = createTracker(
+      sequence.steps.map((step) => step.reply),
+      sequence.options,
+    );
 
-  assert.equal(tracker.isTracking(), true);
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
+    for (const [index, step] of sequence.steps.entries()) {
+      await poll(step.advanceMs);
+      const label = `poll ${index + 1}`;
+      assert.equal(tracker.isTracking(), step.expect.tracking, `${label}: isTracking`);
+      assert.equal(tracker.isTargetWindowFocused(), step.expect.focused, `${label}: focused`);
+      assert.deepEqual(tracker.getGeometry(), step.expect.geometry, `${label}: geometry`);
+      if (step.expect.minimized !== undefined) {
+        assert.equal(
+          tracker.isTargetWindowMinimized(),
+          step.expect.minimized,
+          `${label}: minimized`,
+        );
+      }
+      if (step.expect.focusChanges) {
+        assert.deepEqual(focusChanges, step.expect.focusChanges, `${label}: focus changes`);
+      }
+    }
   });
-  assert.equal(tracker.isTargetWindowFocused(), false);
-  assert.deepEqual(focusChanges, [true, false]);
-});
-
-test('MacOSWindowTracker refreshNow immediately samples frontmost mpv state', async () => {
-  let callIndex = 0;
-  const outputs = [
-    { stdout: '10,20,1280,720,0', stderr: '' },
-    { stdout: 'active', stderr: '' },
-  ];
-
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-  });
-
-  await (tracker as unknown as { refreshNow: () => Promise<void> }).refreshNow();
-  assert.equal(tracker.isTargetWindowFocused(), false);
-
-  await (tracker as unknown as { refreshNow: () => Promise<void> }).refreshNow();
-  assert.equal(tracker.isTracking(), true);
-  assert.equal(tracker.isTargetWindowFocused(), true);
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
-  });
-});
-
-test('MacOSWindowTracker drops tracking after consecutive helper misses', async () => {
-  let callIndex = 0;
-  const outputs = [
-    { stdout: '10,20,1280,720,0', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-  ];
-
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-    trackingLossGraceMs: 0,
-  });
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-  assert.equal(tracker.isTargetWindowFocused(), false);
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), false);
-  assert.equal(tracker.getGeometry(), null);
-  assert.equal(tracker.isTargetWindowFocused(), false);
-});
-
-test('MacOSWindowTracker keeps tracking through repeated helper misses inside grace window', async () => {
-  let callIndex = 0;
-  let now = 1_000;
-  const outputs = [
-    { stdout: '10,20,1280,720,1', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-  ];
-
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-    now: () => now,
-    trackingLossGraceMs: 1_500,
-  });
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-
-  now += 250;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-
-  now += 250;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-
-  now += 250;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-  assert.deepEqual(tracker.getGeometry(), {
-    x: 10,
-    y: 20,
-    width: 1280,
-    height: 720,
-  });
-});
-
-test('MacOSWindowTracker drops tracking after grace window expires', async () => {
-  let callIndex = 0;
-  let now = 1_000;
-  const outputs = [
-    { stdout: '10,20,1280,720,0', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-    { stdout: 'not-found', stderr: '' },
-  ];
-
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-    now: () => now,
-    trackingLossGraceMs: 500,
-  });
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-  assert.equal(tracker.isTargetWindowFocused(), false);
-
-  now += 250;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-
-  now += 250;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-
-  now += 250;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-
-  now += 250;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), false);
-  assert.equal(tracker.getGeometry(), null);
-});
-
-test('MacOSWindowTracker reports minimized target when helper reports minimized', async () => {
-  let callIndex = 0;
-  let now = 1_000;
-  const outputs = [
-    { stdout: '10,20,1280,720,1', stderr: '' },
-    { stdout: 'minimized', stderr: '' },
-    { stdout: 'minimized', stderr: '' },
-  ];
-
-  const tracker = new MacOSWindowTracker('/tmp/mpv.sock', {
-    resolveHelper: () => ({
-      helperPath: 'helper.swift',
-      helperType: 'swift',
-    }),
-    runHelper: async () => outputs[callIndex++] ?? outputs.at(-1)!,
-    now: () => now,
-    minimizedTrackingLossGraceMs: 200,
-  });
-
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTracking(), true);
-  assert.equal(tracker.isTargetWindowMinimized(), false);
-
-  now += 250;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTargetWindowMinimized(), true);
-  assert.equal(tracker.isTracking(), true);
-
-  now += 250;
-  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(tracker.isTargetWindowMinimized(), true);
-  assert.equal(tracker.isTracking(), false);
-});
+}

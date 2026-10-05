@@ -75,7 +75,7 @@ test('resolveCoverageDir keeps coverage output inside the repository', () => {
   assert.throws(() => resolveCoverageDir(repoRoot, ['--coverage-dir', '/tmp/escape']));
 });
 
-test('runCoverageLane returns a failure when a discovered test fails', () => {
+test('runCoverageLane returns a failure when a discovered test fails', async () => {
   const repoRoot = mkdtempSync(join(tmpdir(), 'subminer-coverage-failure-'));
   try {
     mkdirSync(join(repoRoot, 'src'));
@@ -93,10 +93,10 @@ test('runCoverageLane returns a failure when a discovered test fails', () => {
     );
 
     assert.notEqual(
-      runCoverageLane({
+      await runCoverageLane({
         repoRootDir: repoRoot,
         argv: ['bun-src-full', '--coverage-dir', 'coverage/test-src'],
-        stdio: 'pipe',
+        quiet: true,
       }),
       0,
     );

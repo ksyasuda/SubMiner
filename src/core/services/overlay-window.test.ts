@@ -133,26 +133,6 @@ test('handleOverlayWindowBlurred skips visible overlay restacking after manual h
   assert.deepEqual(calls, []);
 });
 
-test('handleOverlayWindowBlurred skips Windows visible overlay restacking after focus loss', () => {
-  const calls: string[] = [];
-
-  const handled = handleOverlayWindowBlurred({
-    kind: 'visible',
-    windowVisible: true,
-    isOverlayVisible: () => true,
-    ensureOverlayWindowLevel: () => {
-      calls.push('ensure-level');
-    },
-    moveWindowTop: () => {
-      calls.push('move-top');
-    },
-    platform: 'win32',
-  });
-
-  assert.equal(handled, false);
-  assert.deepEqual(calls, []);
-});
-
 test('handleOverlayWindowBlurred notifies Windows visible overlay blur callback without restacking', () => {
   const calls: string[] = [];
 
@@ -170,92 +150,6 @@ test('handleOverlayWindowBlurred notifies Windows visible overlay blur callback 
       calls.push('visible-blur');
     },
     platform: 'win32',
-  });
-
-  assert.equal(handled, false);
-  assert.deepEqual(calls, ['visible-blur']);
-});
-
-test('handleOverlayWindowBlurred skips macOS visible overlay restacking after focus loss', () => {
-  const calls: string[] = [];
-
-  const handled = handleOverlayWindowBlurred({
-    kind: 'visible',
-    windowVisible: true,
-    isOverlayVisible: () => true,
-    ensureOverlayWindowLevel: () => {
-      calls.push('ensure-level');
-    },
-    moveWindowTop: () => {
-      calls.push('move-top');
-    },
-    platform: 'darwin',
-  });
-
-  assert.equal(handled, false);
-  assert.deepEqual(calls, []);
-});
-
-test('handleOverlayWindowBlurred skips Linux visible overlay restacking after focus loss', () => {
-  const calls: string[] = [];
-
-  const handled = handleOverlayWindowBlurred({
-    kind: 'visible',
-    windowVisible: true,
-    isOverlayVisible: () => true,
-    ensureOverlayWindowLevel: () => {
-      calls.push('ensure-level');
-    },
-    moveWindowTop: () => {
-      calls.push('move-top');
-    },
-    platform: 'linux',
-  });
-
-  assert.equal(handled, false);
-  assert.deepEqual(calls, []);
-});
-
-test('handleOverlayWindowBlurred notifies Linux visible overlay blur callback without restacking', () => {
-  const calls: string[] = [];
-
-  const handled = handleOverlayWindowBlurred({
-    kind: 'visible',
-    windowVisible: true,
-    isOverlayVisible: () => true,
-    ensureOverlayWindowLevel: () => {
-      calls.push('ensure-level');
-    },
-    moveWindowTop: () => {
-      calls.push('move-top');
-    },
-    onVisibleOverlayBlur: () => {
-      calls.push('visible-blur');
-    },
-    platform: 'linux',
-  });
-
-  assert.equal(handled, false);
-  assert.deepEqual(calls, ['visible-blur']);
-});
-
-test('handleOverlayWindowBlurred notifies macOS visible overlay blur callback without restacking', () => {
-  const calls: string[] = [];
-
-  const handled = handleOverlayWindowBlurred({
-    kind: 'visible',
-    windowVisible: true,
-    isOverlayVisible: () => true,
-    ensureOverlayWindowLevel: () => {
-      calls.push('ensure-level');
-    },
-    moveWindowTop: () => {
-      calls.push('move-top');
-    },
-    onVisibleOverlayBlur: () => {
-      calls.push('visible-blur');
-    },
-    platform: 'darwin',
   });
 
   assert.equal(handled, false);

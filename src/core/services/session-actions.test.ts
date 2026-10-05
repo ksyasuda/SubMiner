@@ -81,17 +81,3 @@ test('dispatchSessionAction does not advance playlist when mark watched no-ops',
 
   assert.deepEqual(calls, ['mark-watched']);
 });
-
-test('dispatchSessionAction opens the character dictionary manager', async () => {
-  const { calls, deps } = createDeps();
-
-  await dispatchSessionAction({ actionId: 'openCharacterDictionaryManager' }, deps);
-
-  assert.deepEqual(calls, ['character-dictionary-manager']);
-});
-
-test('dispatchSessionAction opens subtitle generation without opening the sidebar', async () => {
-  const { calls, deps } = createDeps();
-  await dispatchSessionAction({ actionId: 'openSubtitleGeneration' }, deps);
-  assert.deepEqual(calls, ['subtitle-generation']);
-});

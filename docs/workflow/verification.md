@@ -14,8 +14,9 @@ Read when: selecting the right verification lane for a change
   files in `package.json`.
 - `scripts/run-test-lane.mjs` runs each test file in its own `bun test` process
   (per-file isolation with a wall timeout) so a hanging test or leaked global in
-  one file cannot cascade into the rest of the lane. `--jobs N` parallelizes;
-  `--single-process` restores the shared-process mode for debugging.
+  one file cannot cascade into the rest of the lane. Files run in parallel, one
+  worker per CPU by default; `--jobs 1` runs serially and `--single-process`
+  restores the shared-process mode for debugging.
 - `bun run test:fast` is the full source gate: discovered `src/**`, launcher
   unit, and `scripts/**`.
 - `.github/workflows/quality-gate.yml` is the reusable `workflow_call` gate for
@@ -71,7 +72,7 @@ bun run docs:build
 
 - `bun run test:coverage:src` runs the same discovered `bun-src-full` membership as
   `test:src` through a sharded coverage runner: one Bun coverage process per test
-  file, then merged LCOV output.
+  file (parallel, one per CPU unless `--jobs N`), then merged LCOV output.
 - A failing coverage shard stops the runner with a nonzero status. Coverage is a
   source test gate, not a report-only step.
 - Machine-readable output lands at `coverage/test-src/lcov.info`.

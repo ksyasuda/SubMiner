@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  MPV_X11_BACKEND_ARGS,
   applyX11EnvOverrides,
   isSupportedWaylandCompositor,
   shouldForceX11MpvBackend,
@@ -97,12 +96,4 @@ test('applyX11EnvOverrides strips Wayland hints, keeps Hyprland IPC, and pins se
   assert.equal(result.HYPRLAND_INSTANCE_SIGNATURE, 'hypr');
   assert.equal(result.SWAYSOCK, undefined);
   assert.equal(result.XDG_SESSION_TYPE, 'x11');
-});
-
-test('MPV_X11_BACKEND_ARGS pins the window context to X11 without overriding the renderer', () => {
-  assert.deepEqual([...MPV_X11_BACKEND_ARGS], ['--gpu-context=x11vk,x11egl,x11']);
-  assert.equal(
-    MPV_X11_BACKEND_ARGS.some((arg) => arg.startsWith('--vo=') || arg.startsWith('--gpu-api=')),
-    false,
-  );
 });

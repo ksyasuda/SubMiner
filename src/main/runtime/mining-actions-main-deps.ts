@@ -57,7 +57,6 @@ export function createBuildHandleMineSentenceDigitMainDepsHandler<
   getCurrentSecondarySubText: () => string | undefined;
   showMpvOsd: (text: string) => void;
   logError: (message: string, err: unknown) => void;
-  onCardsMined: (count: number) => void;
   handleMineSentenceDigitCore: (
     count: number,
     options: {
@@ -66,7 +65,6 @@ export function createBuildHandleMineSentenceDigitMainDepsHandler<
       getCurrentSecondarySubText: () => string | undefined;
       showMpvOsd: (text: string) => void;
       logError: (message: string, err: unknown) => void;
-      onCardsMined: (count: number) => void;
     },
   ) => void;
 }) {
@@ -76,7 +74,6 @@ export function createBuildHandleMineSentenceDigitMainDepsHandler<
     getCurrentSecondarySubText: () => deps.getCurrentSecondarySubText(),
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
     logError: (message: string, err: unknown) => deps.logError(message, err),
-    onCardsMined: (count: number) => deps.onCardsMined(count),
     handleMineSentenceDigitCore: (
       count: number,
       options: {
@@ -85,7 +82,6 @@ export function createBuildHandleMineSentenceDigitMainDepsHandler<
         getCurrentSecondarySubText: () => string | undefined;
         showMpvOsd: (text: string) => void;
         logError: (message: string, err: unknown) => void;
-        onCardsMined: (count: number) => void;
       },
     ) => deps.handleMineSentenceDigitCore(count, options),
   });

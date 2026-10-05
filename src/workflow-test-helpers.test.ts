@@ -4,7 +4,7 @@ import {
   commandPositions,
   executableRunLines,
   stepRunsCommand,
-  stepsMissingEnvDeclaration,
+  stepsReadingUndeclaredEnv,
   templateExpressionsInRunBodies,
 } from './workflow-test-helpers';
 
@@ -53,10 +53,13 @@ test('commandPositions splits on separators and strips control-flow prefixes', (
   );
 });
 
-test('executableRunLines drops blank and comment-only lines', () => {
-  assert.deepEqual(executableRunLines({ run: '\n# a comment\n  \nreal command\n' }), [
-    'real command',
-  ]);
+test('executableRunLines drops blank and comment-only lines and joins continuations', () => {
+  assert.deepEqual(
+    executableRunLines({
+      run: '\n# a comment\n  \nreal command\ngh release create \\\n  --draft\n',
+    }),
+    ['real command', 'gh release create --draft'],
+  );
 });
 
 test('templateExpressionsInRunBodies reports every expression spelling in a run body', () => {
@@ -80,18 +83,23 @@ test('templateExpressionsInRunBodies reports every expression spelling in a run 
   ]);
 });
 
-test('stepsMissingEnvDeclaration finds shell reads with no matching env entry', () => {
+test('stepsReadingUndeclaredEnv finds shell reads of workflow env names the step cannot see', () => {
   const workflow = {
     jobs: {
       release: {
+        env: { JOB_SCOPED: 'y' },
         steps: [
-          { name: 'Declared', env: { TAG: 'x' }, run: 'echo "$TAG"' },
+          { name: 'Declared', env: { TAG: 'x' }, run: 'echo "$TAG" "$JOB_SCOPED"' },
           { name: 'Undeclared', run: 'echo "${TAG}"' },
           { name: 'Unrelated', run: 'echo "$TAGGED"' },
         ],
       },
+      other: { steps: [{ name: 'Other job', run: 'echo "$JOB_SCOPED"' }] },
     },
   };
 
-  assert.deepEqual(stepsMissingEnvDeclaration(workflow, 'TAG'), ['release/Undeclared']);
+  assert.deepEqual(stepsReadingUndeclaredEnv(workflow), [
+    'release/Undeclared: $TAG',
+    'other/Other job: $JOB_SCOPED',
+  ]);
 });

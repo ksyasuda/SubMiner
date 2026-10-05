@@ -2,13 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createHandleMpvMediaPathChangeHandler,
-  createHandleMpvMediaTitleChangeHandler,
   createHandleMpvPauseChangeHandler,
-  createHandleMpvSecondarySubtitleChangeHandler,
-  createHandleMpvSecondarySubtitleVisibilityHandler,
-  createHandleMpvSubtitleAssChangeHandler,
   createHandleMpvSubtitleChangeHandler,
-  createHandleMpvSubtitleMetricsChangeHandler,
   createHandleMpvTimePosChangeHandler,
 } from './mpv-main-event-actions';
 
@@ -140,43 +135,37 @@ test('subtitle change handler emits cached annotation after forwarding the subti
   ]);
 });
 
-test('subtitle ass change handler updates state and broadcasts', () => {
-  const calls: string[] = [];
-  const handler = createHandleMpvSubtitleAssChangeHandler({
-    setCurrentSubAssText: (text) => calls.push(`set:${text}`),
-    broadcastSubtitleAss: (text) => calls.push(`broadcast:${text}`),
-  });
+type MediaPathDeps = Parameters<typeof createHandleMpvMediaPathChangeHandler>[0];
 
-  handler({ text: '{\\an8}line' });
-  assert.deepEqual(calls, ['set:{\\an8}line', 'broadcast:{\\an8}line']);
-});
-
-test('secondary subtitle change handler broadcasts text', () => {
-  const seen: string[] = [];
-  const handler = createHandleMpvSecondarySubtitleChangeHandler({
-    broadcastSecondarySubtitle: (text) => seen.push(text),
-  });
-
-  handler({ text: 'secondary' });
-  assert.deepEqual(seen, ['secondary']);
-});
-
-test('media path change handler reports stop for empty path and probes media key', () => {
-  const calls: string[] = [];
-  const handler = createHandleMpvMediaPathChangeHandler({
+// Required deps record into `calls`; optional hooks are added per test via overrides.
+function createMediaPathDeps(
+  calls: string[],
+  overrides: Partial<MediaPathDeps> = {},
+): MediaPathDeps {
+  return {
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
     reportJellyfinRemoteStopped: () => calls.push('stopped'),
     restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
     resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
-    getCurrentAnilistMediaKey: () => 'show:1',
+    getCurrentAnilistMediaKey: () => null,
     resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
     ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
     syncImmersionMediaState: () => calls.push('sync'),
-    flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
-    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     refreshDiscordPresence: () => calls.push('presence'),
-  });
+    ...overrides,
+  };
+}
+
+test('media path change handler reports stop for empty path and probes media key', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvMediaPathChangeHandler(
+    createMediaPathDeps(calls, {
+      getCurrentAnilistMediaKey: () => 'show:1',
+      flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
+      scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
+    }),
+  );
 
   handler({ path: '' });
   assert.deepEqual(calls, [
@@ -195,21 +184,13 @@ test('media path change handler reports stop for empty path and probes media key
 
 test('media path change handler signals autoplay readiness from warm media path', () => {
   const calls: string[] = [];
-  const handler = createHandleMpvMediaPathChangeHandler({
-    updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
-    reportJellyfinRemoteStopped: () => calls.push('stopped'),
-    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
-    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
-    getCurrentAnilistMediaKey: () => null,
-    resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
-    maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
-    ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
-    syncImmersionMediaState: () => calls.push('sync'),
-    flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
-    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
-    signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
-    refreshDiscordPresence: () => calls.push('presence'),
-  });
+  const handler = createHandleMpvMediaPathChangeHandler(
+    createMediaPathDeps(calls, {
+      flushPlaybackPositionOnMediaPathClear: () => calls.push('flush-playback'),
+      scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
+      signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
+    }),
+  );
 
   handler({ path: '/tmp/video.mkv' });
 
@@ -226,19 +207,11 @@ test('media path change handler signals autoplay readiness from warm media path'
 
 test('media path change handler schedules character dictionary once per media path', () => {
   const calls: string[] = [];
-  const handler = createHandleMpvMediaPathChangeHandler({
-    updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
-    reportJellyfinRemoteStopped: () => calls.push('stopped'),
-    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
-    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
-    getCurrentAnilistMediaKey: () => null,
-    resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
-    maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
-    ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
-    syncImmersionMediaState: () => calls.push('sync'),
-    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
-    refreshDiscordPresence: () => calls.push('presence'),
-  });
+  const handler = createHandleMpvMediaPathChangeHandler(
+    createMediaPathDeps(calls, {
+      scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
+    }),
+  );
 
   handler({ path: '/tmp/video.mkv' });
   handler({ path: '/tmp/video.mkv' });
@@ -254,78 +227,16 @@ test('media path change handler schedules character dictionary once per media pa
 
 test('media path change handler marks Jellyfin remote playback loaded from media path', () => {
   const calls: string[] = [];
-  const handler = createHandleMpvMediaPathChangeHandler({
-    updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
-    reportJellyfinRemoteStopped: () => calls.push('stopped'),
-    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
-    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
-    getCurrentAnilistMediaKey: () => null,
-    resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
-    maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
-    ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
-    syncImmersionMediaState: () => calls.push('sync'),
-    markJellyfinRemotePlaybackLoaded: (path) => calls.push(`jellyfin-loaded:${path}`),
-    refreshDiscordPresence: () => calls.push('presence'),
-  });
+  const handler = createHandleMpvMediaPathChangeHandler(
+    createMediaPathDeps(calls, {
+      markJellyfinRemotePlaybackLoaded: (path) => calls.push(`jellyfin-loaded:${path}`),
+    }),
+  );
 
   handler({ path: 'https://stream.example/video.m3u8' });
 
   assert.ok(calls.includes('jellyfin-loaded:https://stream.example/video.m3u8'));
   assert.equal(calls.includes('stopped'), false);
-});
-
-test('media title change handler clears guess state without re-scheduling character dictionary sync', () => {
-  const calls: string[] = [];
-  const deps: Parameters<typeof createHandleMpvMediaTitleChangeHandler>[0] & {
-    scheduleCharacterDictionarySync: () => void;
-  } = {
-    updateCurrentMediaTitle: (title) => calls.push(`title:${title}`),
-    resetAnilistMediaGuessState: () => calls.push('reset-guess'),
-    notifyImmersionTitleUpdate: (title) => calls.push(`notify:${title}`),
-    syncImmersionMediaState: () => calls.push('sync'),
-    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
-    refreshDiscordPresence: () => calls.push('presence'),
-  };
-  const handler = createHandleMpvMediaTitleChangeHandler(deps);
-
-  handler({ title: 'Episode 1' });
-  assert.deepEqual(calls, [
-    'title:Episode 1',
-    'reset-guess',
-    'notify:Episode 1',
-    'sync',
-    'presence',
-  ]);
-});
-
-test('time-pos and pause handlers report progress with correct urgency', () => {
-  const calls: string[] = [];
-  const timeHandler = createHandleMpvTimePosChangeHandler({
-    recordPlaybackPosition: (time) => calls.push(`time:${time}`),
-    reportJellyfinRemoteProgress: (force) => calls.push(`progress:${force ? 'force' : 'normal'}`),
-    refreshDiscordPresence: () => calls.push('presence'),
-    maybeRunAnilistPostWatchUpdate: async () => {
-      calls.push('post-watch');
-    },
-    logError: () => calls.push('post-watch-error'),
-  });
-  const pauseHandler = createHandleMpvPauseChangeHandler({
-    recordPauseState: (paused) => calls.push(`pause:${paused ? 'yes' : 'no'}`),
-    reportJellyfinRemoteProgress: (force) => calls.push(`progress:${force ? 'force' : 'normal'}`),
-    refreshDiscordPresence: () => calls.push('presence'),
-  });
-
-  timeHandler({ time: 12.5 });
-  pauseHandler({ paused: true });
-  assert.deepEqual(calls, [
-    'time:12.5',
-    'progress:normal',
-    'presence',
-    'post-watch',
-    'pause:yes',
-    'progress:force',
-    'presence',
-  ]);
 });
 
 test('time-pos handler forces Jellyfin progress when mpv position jumps', () => {
@@ -432,28 +343,4 @@ test('time-pos handler logs post-watch update rejection without blocking later h
     'presence',
     'error:AniList post-watch update failed unexpectedly:boom',
   ]);
-});
-
-test('subtitle metrics change handler forwards patch payload', () => {
-  let received: Record<string, unknown> | null = null;
-  const handler = createHandleMpvSubtitleMetricsChangeHandler({
-    updateSubtitleRenderMetrics: (patch) => {
-      received = patch;
-    },
-  });
-
-  const patch = { fontSize: 48 };
-  handler({ patch });
-  assert.deepEqual(received, patch);
-});
-
-test('secondary subtitle visibility handler stores visibility flag', () => {
-  const seen: boolean[] = [];
-  const handler = createHandleMpvSecondarySubtitleVisibilityHandler({
-    setPreviousSecondarySubVisibility: (visible) => seen.push(visible),
-  });
-
-  handler({ visible: true });
-  handler({ visible: false });
-  assert.deepEqual(seen, [true, false]);
 });

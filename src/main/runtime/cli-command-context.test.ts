@@ -3,16 +3,12 @@ import assert from 'node:assert/strict';
 import { createCliCommandContext } from './cli-command-context';
 
 function createDeps() {
-  let socketPath = '/tmp/mpv.sock';
-  const logs: string[] = [];
   const browserErrors: string[] = [];
 
   return {
     deps: {
-      getSocketPath: () => socketPath,
-      setSocketPath: (value: string) => {
-        socketPath = value;
-      },
+      getSocketPath: () => '/tmp/mpv.sock',
+      setSocketPath: () => {},
       getMpvClient: () => null,
       showOsd: () => {},
       texthookerService: {} as never,
@@ -68,31 +64,14 @@ function createDeps() {
       hasMainWindow: () => true,
       getMultiCopyTimeoutMs: () => 1000,
       schedule: (fn: () => void) => setTimeout(fn, 0),
-      logInfo: (message: string) => {
-        logs.push(`i:${message}`);
-      },
-      logDebug: (message: string) => {
-        logs.push(`d:${message}`);
-      },
-      logWarn: (message: string) => {
-        logs.push(`w:${message}`);
-      },
-      logError: (message: string) => {
-        logs.push(`e:${message}`);
-      },
+      logInfo: () => {},
+      logDebug: () => {},
+      logWarn: () => {},
+      logError: () => {},
     },
-    getLogs: () => logs,
     getBrowserErrors: () => browserErrors,
   };
 }
-
-test('cli command context proxies socket path getters/setters', () => {
-  const { deps } = createDeps();
-  const context = createCliCommandContext(deps);
-  assert.equal(context.getSocketPath(), '/tmp/mpv.sock');
-  context.setSocketPath('/tmp/next.sock');
-  assert.equal(context.getSocketPath(), '/tmp/next.sock');
-});
 
 test('cli command context openInBrowser reports failures', async () => {
   const { deps, getBrowserErrors } = createDeps();
@@ -104,14 +83,4 @@ test('cli command context openInBrowser reports failures', async () => {
   await Promise.resolve();
   await Promise.resolve();
   assert.deepEqual(getBrowserErrors(), ['https://example.com']);
-});
-
-test('cli command context log methods map to deps loggers', () => {
-  const { deps, getLogs } = createDeps();
-  const context = createCliCommandContext(deps);
-  context.log('info');
-  context.logDebug('debug');
-  context.warn('warn');
-  context.error('error', new Error('x'));
-  assert.deepEqual(getLogs(), ['i:info', 'd:debug', 'w:warn', 'e:error']);
 });

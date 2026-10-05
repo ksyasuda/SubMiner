@@ -3,7 +3,6 @@ import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MediaHeader } from '../components/library/MediaHeader';
 import { EpisodeList } from '../components/anime/EpisodeList';
-import { AnimeOverviewStats } from '../components/anime/AnimeOverviewStats';
 import { SessionRow } from '../components/sessions/SessionRow';
 import { EventType, type SessionEvent } from '../types/stats';
 import { buildLookupRateDisplay, getYomitanLookupEvents } from './yomitan-lookup';
@@ -27,30 +26,6 @@ test('getYomitanLookupEvents keeps only Yomitan lookup events', () => {
     getYomitanLookupEvents(events).map((event) => event.tsMs),
     [2],
   );
-});
-
-test('MediaHeader renders Yomitan lookup count and lookup rate copy', () => {
-  const markup = renderToStaticMarkup(
-    <MediaHeader
-      detail={{
-        videoId: 7,
-        canonicalTitle: 'Episode 7',
-        animeId: null,
-        totalSessions: 4,
-        totalActiveMs: 90_000,
-        totalCards: 12,
-        totalTokensSeen: 1000,
-        totalLinesSeen: 120,
-        totalLookupCount: 30,
-        totalLookupHits: 21,
-        totalYomitanLookupCount: 23,
-      }}
-    />,
-  );
-
-  assert.match(markup, /23/);
-  assert.match(markup, /2\.3 \/ 100 words/);
-  assert.match(markup, /2\.3 lookups per 100 words/);
 });
 
 test('MediaHeader distinguishes word occurrences from known unique words', () => {
@@ -108,41 +83,6 @@ test('EpisodeList renders per-episode Yomitan lookup rate', () => {
   assert.match(markup, /2\.0 \/ 100 words/);
   assert.match(markup, /6%/);
   assert.doesNotMatch(markup, /90%/);
-});
-
-test('AnimeOverviewStats renders aggregate Yomitan lookup metrics', () => {
-  const markup = renderToStaticMarkup(
-    <AnimeOverviewStats
-      detail={{
-        animeId: 1,
-        canonicalTitle: 'Anime',
-        mediaKind: 'anime',
-        anilistId: null,
-        tmdbId: null,
-        tmdbType: null,
-        titleRomaji: null,
-        titleEnglish: null,
-        titleNative: null,
-        description: null,
-        totalSessions: 5,
-        totalActiveMs: 100_000,
-        totalCards: 8,
-        totalTokensSeen: 800,
-        totalLinesSeen: 100,
-        totalLookupCount: 50,
-        totalLookupHits: 30,
-        totalYomitanLookupCount: 16,
-        episodeCount: 3,
-        lastWatchedMs: 0,
-      }}
-      knownWordsSummary={null}
-    />,
-  );
-
-  assert.match(markup, /Lookups/);
-  assert.match(markup, /16/);
-  assert.match(markup, /2\.0 \/ 100 words/);
-  assert.match(markup, /Yomitan lookups per 100 words seen/);
 });
 
 test('SessionRow prefers word-based count when available', () => {

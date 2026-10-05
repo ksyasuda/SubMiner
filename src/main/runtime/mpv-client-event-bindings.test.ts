@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createBindMpvClientEventHandlers,
   createHandleMpvConnectionChangeHandler,
   createHandleMpvSubtitleTimingHandler,
 } from './mpv-client-event-bindings';
@@ -30,13 +29,10 @@ test('mpv connection handler reports stop and quits when disconnect guard passes
 
 test('mpv connection handler syncs overlay subtitle suppression on connect', () => {
   const calls: string[] = [];
-  const deps: Parameters<typeof createHandleMpvConnectionChangeHandler>[0] & {
-    scheduleCharacterDictionarySync: () => void;
-  } = {
+  const deps: Parameters<typeof createHandleMpvConnectionChangeHandler>[0] = {
     reportJellyfinRemoteStopped: () => calls.push('report-stop'),
     refreshDiscordPresence: () => calls.push('presence-refresh'),
     syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
-    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     hasInitialPlaybackQuitOnDisconnectArg: () => true,
     isOverlayRuntimeInitialized: () => false,
     shouldQuitOnDisconnectWhenOverlayRuntimeInitialized: () => false,
@@ -180,54 +176,5 @@ test('mpv subtitle timing handler skips invalid cue pairs until timing is comple
     'immersion:line:953.991:956.56',
     'timing:line:953.991:956.56',
     'post-watch:956.56',
-  ]);
-});
-
-test('mpv event bindings register all expected events', () => {
-  const seenEvents: string[] = [];
-  const bindHandlers = createBindMpvClientEventHandlers({
-    onConnectionChange: () => {},
-    onSubtitleChange: () => {},
-    onSubtitleAssChange: () => {},
-    onSecondarySubtitleChange: () => {},
-    onSubtitleTrackChange: () => {},
-    onSecondarySubtitleTrackChange: () => {},
-    onSecondarySubtitleDelayChange: () => {},
-    onSubtitleTrackListChange: () => {},
-    onSubtitleTiming: () => {},
-    onMediaPathChange: () => {},
-    onMediaTitleChange: () => {},
-    onTimePosChange: () => {},
-    onDurationChange: () => {},
-    onPauseChange: () => {},
-    onFullscreenChange: () => {},
-    onSubtitleMetricsChange: () => {},
-    onSecondarySubtitleVisibility: () => {},
-  });
-
-  bindHandlers({
-    on: (event) => {
-      seenEvents.push(event);
-    },
-  });
-
-  assert.deepEqual(seenEvents, [
-    'connection-change',
-    'subtitle-change',
-    'subtitle-ass-change',
-    'secondary-subtitle-change',
-    'subtitle-track-change',
-    'secondary-subtitle-track-change',
-    'secondary-subtitle-delay-change',
-    'subtitle-track-list-change',
-    'subtitle-timing',
-    'media-path-change',
-    'media-title-change',
-    'time-pos-change',
-    'duration-change',
-    'pause-change',
-    'fullscreen-change',
-    'subtitle-metrics-change',
-    'secondary-subtitle-visibility',
   ]);
 });

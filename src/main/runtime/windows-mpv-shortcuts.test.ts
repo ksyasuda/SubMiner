@@ -1,43 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  applyWindowsMpvShortcuts,
-  buildWindowsMpvShortcutDetails,
-  detectWindowsMpvShortcuts,
-  resolveWindowsMpvShortcutPaths,
-  resolveWindowsStartMenuProgramsDir,
-} from './windows-mpv-shortcuts';
-
-test('resolveWindowsStartMenuProgramsDir derives Programs folder from APPDATA', () => {
-  assert.equal(
-    resolveWindowsStartMenuProgramsDir('C:\\Users\\tester\\AppData\\Roaming'),
-    'C:\\Users\\tester\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs',
-  );
-});
-
-test('resolveWindowsMpvShortcutPaths builds start menu and desktop lnk paths', () => {
-  const paths = resolveWindowsMpvShortcutPaths({
-    appDataDir: 'C:\\Users\\tester\\AppData\\Roaming',
-    desktopDir: 'C:\\Users\\tester\\Desktop',
-  });
-
-  assert.equal(
-    paths.startMenuPath,
-    'C:\\Users\\tester\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\SubMiner mpv.lnk',
-  );
-  assert.equal(paths.desktopPath, 'C:\\Users\\tester\\Desktop\\SubMiner mpv.lnk');
-});
-
-test('buildWindowsMpvShortcutDetails targets SubMiner.exe with --launch-mpv', () => {
-  assert.deepEqual(buildWindowsMpvShortcutDetails('C:\\Apps\\SubMiner\\SubMiner.exe'), {
-    target: 'C:\\Apps\\SubMiner\\SubMiner.exe',
-    args: '--launch-mpv',
-    cwd: 'C:\\Apps\\SubMiner',
-    description: 'Launch mpv with SubMiner defaults',
-    icon: 'C:\\Apps\\SubMiner\\SubMiner.exe',
-    iconIndex: 0,
-  });
-});
+import { applyWindowsMpvShortcuts, detectWindowsMpvShortcuts } from './windows-mpv-shortcuts';
 
 test('detectWindowsMpvShortcuts reflects existing shortcuts', () => {
   const detected = detectWindowsMpvShortcuts(

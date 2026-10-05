@@ -275,67 +275,6 @@ test('compileSessionBindings drops conflicting bindings that canonicalize to the
   ]);
 });
 
-test('compileSessionBindings keeps default replay and next subtitle session actions on Linux', () => {
-  const result = compileSessionBindings({
-    shortcuts: resolveConfiguredShortcuts(DEFAULT_CONFIG, DEFAULT_CONFIG),
-    keybindings: DEFAULT_KEYBINDINGS,
-    statsToggleKey: DEFAULT_CONFIG.stats.toggleKey,
-    platform: 'linux',
-    rawConfig: DEFAULT_CONFIG,
-  });
-
-  assert.deepEqual(
-    result.warnings.filter((warning) => warning.kind === 'conflict'),
-    [],
-  );
-  const bySignature = new Map(
-    result.bindings.map((binding) => [
-      `${binding.key.modifiers.join('+')}+${binding.key.code}`,
-      binding,
-    ]),
-  );
-
-  const replay = bySignature.get('ctrl+shift+KeyH');
-  assert.equal(replay?.actionType, 'session-action');
-  assert.equal(replay?.actionId, 'replayCurrentSubtitle');
-
-  const next = bySignature.get('ctrl+shift+KeyL');
-  assert.equal(next?.actionType, 'session-action');
-  assert.equal(next?.actionId, 'playNextSubtitle');
-});
-
-test('compileSessionBindings keeps only the character dictionary manager bound by default', () => {
-  const result = compileSessionBindings({
-    shortcuts: resolveConfiguredShortcuts(DEFAULT_CONFIG, DEFAULT_CONFIG),
-    keybindings: DEFAULT_KEYBINDINGS,
-    statsToggleKey: DEFAULT_CONFIG.stats.toggleKey,
-    platform: 'linux',
-    rawConfig: DEFAULT_CONFIG,
-  });
-
-  const characterDictionaryBindings = result.bindings.flatMap((binding) => {
-    if (binding.actionType !== 'session-action') return [];
-    if (binding.actionId !== 'openCharacterDictionaryManager') {
-      return [];
-    }
-    return [
-      {
-        sourcePath: binding.sourcePath,
-        originalKey: binding.originalKey,
-        actionId: binding.actionId,
-      },
-    ];
-  });
-
-  assert.deepEqual(characterDictionaryBindings, [
-    {
-      sourcePath: 'shortcuts.openCharacterDictionaryManager',
-      originalKey: 'CommandOrControl+D',
-      actionId: 'openCharacterDictionaryManager',
-    },
-  ]);
-});
-
 test('compileSessionBindings wires every default keybinding to an overlay or mpv action', () => {
   const expectedSpecialActions: Record<string, string> = {
     [SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN]: 'openYoutubePicker',

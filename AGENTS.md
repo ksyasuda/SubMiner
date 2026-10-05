@@ -8,6 +8,7 @@ Start here, then leave this file.
 - Architecture map: [`docs/architecture/README.md`](./docs/architecture/README.md)
 - Workflow map: [`docs/workflow/README.md`](./docs/workflow/README.md)
 - Verification lanes: [`docs/workflow/verification.md`](./docs/workflow/verification.md)
+- Testing guidelines: [`docs/workflow/testing.md`](./docs/workflow/testing.md)
 - Knowledge-base rules: [`docs/knowledge-base/README.md`](./docs/knowledge-base/README.md)
 - Release guide: [`docs/RELEASING.md`](./docs/RELEASING.md)
 
@@ -47,7 +48,7 @@ Start here, then leave this file.
 - Build/release scripts (`scripts/**`): `bun run test:scripts`
 - Internal docs, `AGENTS.md`, or repo skills: `bun run test:docs:kb`
 - User-facing `docs-site/`: `bun run docs:test`, then `bun run docs:build`
-- macOS mpv window helper: `bun test scripts/get-mpv-window-macos.test.ts`
+- macOS mpv window helper (`scripts/get-mpv-window-macos.swift`): compile it on macOS with `bun run build`
 - Test lanes are directory-discovered via `scripts/test-lanes.ts`; never hand-list test files in `package.json`
 
 ## Docs Upkeep

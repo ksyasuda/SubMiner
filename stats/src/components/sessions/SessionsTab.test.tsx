@@ -132,29 +132,9 @@ test('deleting session counts keep rows disabled during overlapping delete flows
   assert.equal(deleting.size, 0);
 });
 
-test('buildBucketDeleteHandler does not call onStart when confirm returns false', async () => {
-  let startCalled = false;
-
-  const bucket = makeBucket([makeSession({ sessionId: 1 }), makeSession({ sessionId: 2 })]);
-
-  const handler = buildBucketDeleteHandler({
-    bucket,
-    apiClient: { deleteSessions: async () => {} },
-    confirm: () => false,
-    onStart: () => {
-      startCalled = true;
-    },
-    onSuccess: () => {},
-    onError: () => {},
-  });
-
-  await handler();
-
-  assert.equal(startCalled, false);
-});
-
 test('buildBucketDeleteHandler is a no-op when confirm returns false', async () => {
   let deleteCalled = false;
+  let startCalled = false;
   let successCalled = false;
 
   const bucket = makeBucket([makeSession({ sessionId: 1 }), makeSession({ sessionId: 2 })]);
@@ -167,6 +147,9 @@ test('buildBucketDeleteHandler is a no-op when confirm returns false', async () 
       },
     },
     confirm: () => false,
+    onStart: () => {
+      startCalled = true;
+    },
     onSuccess: () => {
       successCalled = true;
     },
@@ -176,6 +159,7 @@ test('buildBucketDeleteHandler is a no-op when confirm returns false', async () 
   await handler();
 
   assert.equal(deleteCalled, false);
+  assert.equal(startCalled, false);
   assert.equal(successCalled, false);
 });
 

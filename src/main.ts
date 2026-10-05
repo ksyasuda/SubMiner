@@ -5683,10 +5683,6 @@ const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDeps
   getPrimarySubtitle: () => captureCurrentPrimarySubtitleMiningContext(),
   showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   mineSentenceCardCore,
-  recordCardsMined: (count, noteIds) => {
-    ensureImmersionTrackerStarted();
-    appState.immersionTracker?.recordCardsMined(count, noteIds);
-  },
 });
 const mineSentenceCardHandler = createMineSentenceCardHandler(
   buildMineSentenceCardMainDepsHandler(),
@@ -5718,10 +5714,6 @@ const buildHandleMineSentenceDigitMainDepsHandler =
     showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     logError: (message, err) => {
       logger.error(message, err);
-    },
-    onCardsMined: (cards) => {
-      ensureImmersionTrackerStarted();
-      appState.immersionTracker?.recordCardsMined(cards);
     },
     handleMineSentenceDigitCore,
   });
@@ -7024,6 +7016,8 @@ const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
         'youtube-whisper.ja.srt',
       ),
     }),
+  resolveYoutubeSourceUrl: (mediaPath) =>
+    youtubePlaybackRuntime.getYoutubeSourceUrlForStream(mediaPath),
   getMpvClient: () => appState.mpvClient,
   onProgress: (progress) => {
     for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {

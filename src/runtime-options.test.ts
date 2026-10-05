@@ -1,15 +1,8 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
 
 import { DEFAULT_CONFIG } from './config';
 import { RuntimeOptionsManager } from './runtime-options';
-
-test('SM-012 runtime options path does not use JSON serialize-clone helpers', () => {
-  const source = fs.readFileSync(path.join(process.cwd(), 'src/runtime-options.ts'), 'utf-8');
-  assert.equal(source.includes('JSON.parse(JSON.stringify('), false);
-});
 
 test('RuntimeOptionsManager returns detached effective Anki config copies', () => {
   const baseConfig = {

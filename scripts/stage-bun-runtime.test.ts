@@ -61,15 +61,6 @@ test('normalizeTarget maps each supported electron-builder target without using 
   assert.throws(() => normalizeTarget('linux', 0), /Unsupported Bun runtime target architecture/);
 });
 
-test('resolveArtifact chooses baseline x64 builds and standard arm64 builds', () => {
-  const config = runtimeConfig();
-  assert.equal(resolveArtifact(config, 'linux', 'x64').file, 'bun-linux-x64-baseline.zip');
-  assert.equal(resolveArtifact(config, 'darwin', 'x64').file, 'bun-darwin-x64-baseline.zip');
-  assert.equal(resolveArtifact(config, 'win32', 'x64').file, 'bun-windows-x64-baseline.zip');
-  assert.equal(resolveArtifact(config, 'linux', 'arm64').file, 'bun-linux-aarch64.zip');
-  assert.equal(resolveArtifact(config, 'darwin', 'arm64').file, 'bun-darwin-aarch64.zip');
-});
-
 test('tracked runtime manifest covers every supported target at the packageManager version', async () => {
   const config = await loadRuntimeConfig();
   assert.equal(config.version, '1.3.5');

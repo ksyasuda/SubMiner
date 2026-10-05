@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { JellyfinPlaybackPlan } from '../../core/services/jellyfin';
 import { createPlayJellyfinItemInMpvHandler } from './jellyfin-playback-launch';
+
+type Deps = Parameters<typeof createPlayJellyfinItemInMpvHandler>[0];
+type PlayParams = Parameters<ReturnType<typeof createPlayJellyfinItemInMpvHandler>>[0];
 
 const baseSession = {
   serverUrl: 'http://localhost:8096',
@@ -15,51 +19,95 @@ const baseClientInfo = {
   deviceId: 'did',
 };
 
-test('playback handler throws when mpv is not connected', async () => {
+const SUPPRESSED_SUBTITLE_OPTIONS =
+  'sid=no,secondary-sid=no,sub-auto=no,sub-visibility=no,secondary-sub-visibility=no';
+
+function makePlan(overrides: Partial<JellyfinPlaybackPlan> = {}): JellyfinPlaybackPlan {
+  return {
+    url: 'https://stream.example/video.m3u8',
+    mode: 'direct',
+    title: 'Episode 1',
+    itemTitle: 'Episode 1',
+    seriesTitle: null,
+    seasonNumber: null,
+    episodeNumber: null,
+    startTimeTicks: 0,
+    audioStreamIndex: null,
+    subtitleStreamIndex: null,
+    ...overrides,
+  };
+}
+
+/**
+ * Builds the playback handler with recording fakes. `events` is one ordered log
+ * of everything the handler did, for the few tests where order is the behavior.
+ */
+function makeHarness(options: { plan?: Partial<JellyfinPlaybackPlan>; deps?: Partial<Deps> } = {}) {
+  const commands: Array<Array<string | number>> = [];
+  const events: string[] = [];
+  const activeStates: Array<Parameters<Deps['setActivePlayback']>[0]> = [];
+  const reports: Array<Parameters<Deps['reportPlaying']>[0]> = [];
+
   const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => false,
-    getMpvClient: () => null,
-    resolvePlaybackPlan: async () => {
-      throw new Error('unreachable');
-    },
+    ensureMpvConnectedForPlayback: async () => true,
+    getMpvClient: () => ({ connected: true, send: () => {} }),
+    resolvePlaybackPlan: async () => makePlan(options.plan),
     applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: () => {},
-    armQuitOnDisconnect: () => {},
+    showVisibleOverlay: () => events.push('visible-overlay'),
+    sendMpvCommand: (command) => {
+      commands.push(command);
+      events.push(`cmd:${command[0]}`);
+    },
+    armQuitOnDisconnect: () => events.push('arm'),
     schedule: () => {},
     convertTicksToSeconds: (ticks) => ticks / 10_000_000,
     preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
+    setActivePlayback: (state) => {
+      activeStates.push(state);
+      events.push(`active:${String(state.loadedMediaPath)}`);
+    },
     setLastProgressAtMs: () => {},
-    reportPlaying: () => {},
+    reportPlaying: (payload) => reports.push(payload),
     showMpvOsd: () => {},
+    ...options.deps,
   });
 
-  await assert.rejects(
-    () =>
+  return {
+    commands,
+    events,
+    activeStates,
+    reports,
+    play: (params: Partial<PlayParams> = {}) =>
       handler({
         session: baseSession,
         clientInfo: baseClientInfo,
         jellyfinConfig: {},
         itemId: 'item-1',
+        ...params,
       }),
-    /MPV not connected and auto-launch failed/,
-  );
+    loadfile: () => commands.find((command) => command[0] === 'loadfile'),
+    loadedUrl: () => new URL(String(commands.find((command) => command[0] === 'loadfile')?.[1])),
+  };
+}
+
+test('playback handler throws when mpv is not connected', async () => {
+  const harness = makeHarness({
+    deps: {
+      ensureMpvConnectedForPlayback: async () => false,
+      getMpvClient: () => null,
+      resolvePlaybackPlan: async () => {
+        throw new Error('unreachable');
+      },
+    },
+  });
+
+  await assert.rejects(() => harness.play(), /MPV not connected and auto-launch failed/);
 });
 
-test('playback handler drives mpv commands and playback state', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const scheduled: Array<{ delay: number; callback: () => void }> = [];
-  const calls: string[] = [];
-  const activeStates: Array<Record<string, unknown>> = [];
-  const reportPayloads: Array<Record<string, unknown>> = [];
-  const statsMetadata: Array<Record<string, unknown>> = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8',
-      mode: 'direct',
+test('playback handler disables mpv subtitle selection, then loads media and reports playback', async () => {
+  const statsMetadata: unknown[] = [];
+  const harness = makeHarness({
+    plan: {
       title: 'Episode 1',
       itemTitle: 'Episode 1',
       seriesTitle: 'Show Title',
@@ -68,35 +116,13 @@ test('playback handler drives mpv commands and playback state', async () => {
       startTimeTicks: 12_000_000,
       audioStreamIndex: 1,
       subtitleStreamIndex: 2,
-    }),
-    applyJellyfinMpvDefaults: () => calls.push('defaults'),
-    showVisibleOverlay: () => calls.push('visible-overlay'),
-    sendMpvCommand: (command) => commands.push(command),
-    armQuitOnDisconnect: () => calls.push('arm'),
-    schedule: (callback, delayMs) => {
-      scheduled.push({ delay: delayMs, callback });
     },
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {
-      calls.push('preload');
-    },
-    setActivePlayback: (state) => activeStates.push(state as Record<string, unknown>),
-    setLastProgressAtMs: (value) => calls.push(`progress:${value}`),
-    reportPlaying: (payload) => reportPayloads.push(payload as Record<string, unknown>),
-    showMpvOsd: (text) => calls.push(`osd:${text}`),
-    recordJellyfinPlaybackMetadata: (metadata) => {
-      statsMetadata.push(metadata as Record<string, unknown>);
-    },
+    deps: { recordJellyfinPlaybackMetadata: (metadata) => void statsMetadata.push(metadata) },
   });
 
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-1',
-  });
+  await harness.play();
 
-  assert.deepEqual(commands.slice(0, 8), [
+  assert.deepEqual(harness.commands, [
     ['set_property', 'sub-auto', 'no'],
     ['set_property', 'sid', 'no'],
     ['set_property', 'secondary-sid', 'no'],
@@ -109,33 +135,16 @@ test('playback handler drives mpv commands and playback state', async () => {
       'https://stream.example/video.m3u8',
       'replace',
       -1,
-      'sid=no,secondary-sid=no,sub-auto=no,sub-visibility=no,secondary-sub-visibility=no,start=1.2',
+      `${SUPPRESSED_SUBTITLE_OPTIONS},start=1.2`,
     ],
   ]);
-  assert.equal(scheduled.length, 0);
-  assert.equal(
-    commands.filter((command) => command[0] === 'set_property' && command[1] === 'sid').length,
-    1,
-  );
-
-  assert.ok(calls.includes('defaults'));
-  assert.ok(
-    calls.indexOf('preload') < calls.indexOf('visible-overlay'),
-    'visible overlay should be shown after Jellyfin subtitles are selected',
-  );
-  assert.ok(calls.includes('visible-overlay'));
-  assert.ok(calls.includes('arm'));
-  assert.ok(calls.includes('preload'));
-  assert.ok(calls.includes('progress:0'));
-  assert.ok(calls.includes('osd:Jellyfin direct: Episode 1'));
-
-  assert.equal(activeStates.length, 1);
-  assert.equal(activeStates[0]?.playMethod, 'DirectPlay');
-  assert.equal(activeStates[0]?.lastKnownPositionSeconds, 1.2);
-  assert.equal(reportPayloads.length, 1);
-  assert.equal(reportPayloads[0]?.eventName, 'start');
-  assert.equal(reportPayloads[0]?.positionTicks, 12_000_000);
-  assert.equal(reportPayloads[0]?.isPaused, false);
+  assert.equal(harness.activeStates.length, 1);
+  assert.equal(harness.activeStates[0]?.playMethod, 'DirectPlay');
+  assert.equal(harness.activeStates[0]?.lastKnownPositionSeconds, 1.2);
+  assert.equal(harness.reports.length, 1);
+  assert.equal(harness.reports[0]?.eventName, 'start');
+  assert.equal(harness.reports[0]?.positionTicks, 12_000_000);
+  assert.equal(harness.reports[0]?.isPaused, false);
   assert.deepEqual(statsMetadata, [
     {
       mediaPath: 'https://stream.example/video.m3u8',
@@ -147,6 +156,7 @@ test('playback handler drives mpv commands and playback state', async () => {
       itemId: 'item-1',
     },
   ]);
+  assert.ok(harness.events.includes('arm'));
 });
 
 test('playback handler waits for Jellyfin subtitle preload before showing visible overlay', async () => {
@@ -155,50 +165,23 @@ test('playback handler waits for Jellyfin subtitle preload before showing visibl
   const preloadComplete = new Promise<void>((resolve) => {
     resolvePreload = resolve;
   });
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8',
-      mode: 'direct',
-      title: 'Episode 1',
-      itemTitle: 'Episode 1',
-      seriesTitle: 'Show Title',
-      seasonNumber: 1,
-      episodeNumber: 1,
-      startTimeTicks: 0,
-      audioStreamIndex: 1,
-      subtitleStreamIndex: 2,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => calls.push('visible-overlay'),
-    sendMpvCommand: () => {},
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: async () => {
-      calls.push('preload-start');
-      await preloadComplete;
-      calls.push('preload-done');
+  const harness = makeHarness({
+    deps: {
+      showVisibleOverlay: () => calls.push('visible-overlay'),
+      preloadExternalSubtitles: async () => {
+        calls.push('preload-start');
+        await preloadComplete;
+        calls.push('preload-done');
+      },
     },
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: () => {},
-    showMpvOsd: () => {},
   });
 
-  const playback = handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-1',
-  });
+  const playback = harness.play();
   for (let i = 0; i < 5 && calls.length === 0; i += 1) {
     await Promise.resolve();
   }
 
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0], 'preload-start');
+  assert.deepEqual(calls, ['preload-start']);
   resolvePreload();
   await playback;
 
@@ -206,541 +189,159 @@ test('playback handler waits for Jellyfin subtitle preload before showing visibl
 });
 
 test('playback handler strips Jellyfin subtitle stream from mpv load URL', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const reports: Array<Record<string, unknown>> = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
+  const harness = makeHarness({
+    plan: {
       url: 'https://jellyfin.local/Videos/ep-1/stream?static=true&api_key=secret-token&MediaSourceId=ms-1&AudioStreamIndex=3&SubtitleStreamIndex=4',
-      mode: 'direct',
-      title: 'Episode 1',
-      itemTitle: 'Episode 1',
-      seriesTitle: null,
-      seasonNumber: null,
-      episodeNumber: null,
-      startTimeTicks: 0,
       audioStreamIndex: 3,
       subtitleStreamIndex: 4,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => commands.push(command),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: (payload) => reports.push(payload),
-    showMpvOsd: () => {},
-  });
-
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'ep-1',
-  });
-
-  const loadCommand = commands.find((command) => command[0] === 'loadfile');
-  assert.ok(loadCommand);
-  const url = new URL(String(loadCommand[1]));
-  assert.equal(url.searchParams.get('AudioStreamIndex'), '3');
-  assert.equal(url.searchParams.has('SubtitleStreamIndex'), false);
-  assert.equal(reports[0]?.subtitleStreamIndex, 4);
-});
-
-test('playback handler starts remote Play from beginning when requested despite saved plan progress', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const reportPayloads: Array<Record<string, unknown>> = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8?api_key=token&StartTimeTicks=35000000',
-      mode: 'transcode',
-      title: 'Episode 2',
-      itemTitle: 'Episode 2',
-      seriesTitle: null,
-      seasonNumber: null,
-      episodeNumber: null,
-      startTimeTicks: 35_000_000,
-      audioStreamIndex: null,
-      subtitleStreamIndex: null,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => commands.push(command),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: (payload) => reportPayloads.push(payload as Record<string, unknown>),
-    showMpvOsd: () => {},
-  });
-
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-2',
-    startTimeTicksOverride: 0,
-    fallbackToPlanStartTimeOnZeroOverride: false,
-  });
-
-  const loadCommand = commands.find((command) => command[0] === 'loadfile');
-  assert.ok(loadCommand);
-  const loadedUrl = String(loadCommand[1] ?? '');
-  const parsed = new URL(loadedUrl);
-  assert.equal(parsed.searchParams.get('StartTimeTicks'), null);
-  assert.equal(
-    commands.some((command) => command[0] === 'seek'),
-    false,
-  );
-  assert.equal(reportPayloads[0]?.positionTicks, 0);
-});
-
-test('playback handler disables mpv subtitle selection before Jellyfin media loads', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8',
-      mode: 'direct',
-      title: 'Episode 1',
-      itemTitle: 'Episode 1',
-      seriesTitle: null,
-      seasonNumber: null,
-      episodeNumber: null,
-      startTimeTicks: 0,
-      audioStreamIndex: null,
-      subtitleStreamIndex: null,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => commands.push(command),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: () => {},
-    showMpvOsd: () => {},
-  });
-
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-1',
-  });
-
-  const loadIndex = commands.findIndex((command) => command[0] === 'loadfile');
-  assert.ok(loadIndex > 0);
-  assert.ok(
-    commands.findIndex(
-      (command, index) =>
-        index < loadIndex &&
-        command[0] === 'script-message' &&
-        command[1] === 'subminer-managed-subtitles-loading',
-    ) >= 0,
-  );
-  assert.ok(
-    commands.findIndex(
-      (command, index) =>
-        index < loadIndex &&
-        command[0] === 'set_property' &&
-        command[1] === 'sid' &&
-        command[2] === 'no',
-    ) >= 0,
-  );
-  assert.ok(
-    commands.findIndex(
-      (command, index) =>
-        index < loadIndex &&
-        command[0] === 'set_property' &&
-        command[1] === 'secondary-sid' &&
-        command[2] === 'no',
-    ) >= 0,
-  );
-  assert.ok(
-    commands.findIndex(
-      (command, index) =>
-        index < loadIndex &&
-        command[0] === 'set_property' &&
-        command[1] === 'sub-visibility' &&
-        command[2] === 'no',
-    ) >= 0,
-  );
-  assert.ok(
-    commands.findIndex(
-      (command, index) =>
-        index < loadIndex &&
-        command[0] === 'set_property' &&
-        command[1] === 'secondary-sub-visibility' &&
-        command[2] === 'no',
-    ) >= 0,
-  );
-  assert.equal(
-    commands[loadIndex]?.[4],
-    'sid=no,secondary-sid=no,sub-auto=no,sub-visibility=no,secondary-sub-visibility=no',
-  );
-});
-
-test('playback handler publishes Jellyfin title before loading tokenized stream url', async () => {
-  const timeline: string[] = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://jellyfin.local/Videos/ep-1/stream?static=true&api_key=secret-token&MediaSourceId=ms-1',
-      mode: 'direct',
-      title: 'Galaxy Quest S02E07 A New Hope',
-      itemTitle: 'A New Hope',
-      seriesTitle: 'Galaxy Quest',
-      seasonNumber: 2,
-      episodeNumber: 7,
-      startTimeTicks: 0,
-      audioStreamIndex: null,
-      subtitleStreamIndex: null,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => timeline.push(`cmd:${command[0]}:${String(command[1] ?? '')}`),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: () => {},
-    showMpvOsd: () => {},
-    updateCurrentMediaTitle: (title) => {
-      timeline.push(`title:${title}`);
     },
   });
 
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'ep-1',
+  await harness.play({ itemId: 'ep-1' });
+
+  const url = harness.loadedUrl();
+  assert.equal(url.searchParams.get('AudioStreamIndex'), '3');
+  assert.equal(url.searchParams.has('SubtitleStreamIndex'), false);
+  assert.equal(harness.reports[0]?.subtitleStreamIndex, 4);
+});
+
+const START_TICKS_CASES: Array<{
+  name: string;
+  planTicks: number;
+  params: Partial<PlayParams>;
+  expectedUrlTicks: string | null;
+  expectedPositionTicks: number;
+}> = [
+  {
+    name: 'keeps plan resume ticks when no override is given',
+    planTicks: 35_000_000,
+    params: {},
+    expectedUrlTicks: '35000000',
+    expectedPositionTicks: 35_000_000,
+  },
+  {
+    name: 'applies a positive override to the stream url for remote resume',
+    planTicks: 0,
+    params: { startTimeTicksOverride: 55_000_000 },
+    expectedUrlTicks: '55000000',
+    expectedPositionTicks: 55_000_000,
+  },
+  {
+    name: 'starts from the beginning on a zero override despite saved plan progress',
+    planTicks: 35_000_000,
+    params: { startTimeTicksOverride: 0, fallbackToPlanStartTimeOnZeroOverride: false },
+    expectedUrlTicks: null,
+    expectedPositionTicks: 0,
+  },
+  {
+    name: 'keeps plan resume ticks on a zero override when fallback is enabled',
+    planTicks: 35_000_000,
+    params: { startTimeTicksOverride: 0, fallbackToPlanStartTimeOnZeroOverride: true },
+    expectedUrlTicks: '35000000',
+    expectedPositionTicks: 35_000_000,
+  },
+];
+
+for (const c of START_TICKS_CASES) {
+  test(`playback handler ${c.name}`, async () => {
+    const harness = makeHarness({
+      plan: {
+        url: `https://stream.example/video.m3u8?api_key=token${
+          c.planTicks > 0 ? `&StartTimeTicks=${c.planTicks}` : ''
+        }`,
+        mode: 'transcode',
+        startTimeTicks: c.planTicks,
+      },
+    });
+
+    await harness.play(c.params);
+
+    assert.equal(harness.loadedUrl().searchParams.get('StartTimeTicks'), c.expectedUrlTicks);
+    assert.equal(harness.reports[0]?.positionTicks, c.expectedPositionTicks);
+    assert.equal(
+      harness.commands.some((command) => command[0] === 'seek'),
+      false,
+    );
+  });
+}
+
+test('playback handler publishes Jellyfin title before loading tokenized stream url', async () => {
+  const harness = makeHarness({
+    plan: {
+      url: 'https://jellyfin.local/Videos/ep-1/stream?static=true&api_key=secret-token&MediaSourceId=ms-1',
+      title: 'Galaxy Quest S02E07 A New Hope',
+    },
+    deps: {
+      updateCurrentMediaTitle: (title) => void harness.events.push(`title:${title}`),
+    },
   });
 
-  const titleIndex = timeline.indexOf('title:Galaxy Quest S02E07 A New Hope');
-  const loadIndex = timeline.findIndex((entry) => entry.startsWith('cmd:loadfile:'));
+  await harness.play({ itemId: 'ep-1' });
+
+  const titleIndex = harness.events.indexOf('title:Galaxy Quest S02E07 A New Hope');
+  const loadIndex = harness.events.indexOf('cmd:loadfile');
   assert.ok(titleIndex >= 0);
-  assert.ok(loadIndex >= 0);
   assert.ok(titleIndex < loadIndex);
-  const mpvTitleIndex = timeline.indexOf('cmd:set_property:force-media-title');
-  assert.ok(mpvTitleIndex >= 0 && mpvTitleIndex < loadIndex);
-  assert.equal(timeline[titleIndex]?.includes('api_key'), false);
+  const mpvTitleIndex = harness.commands.findIndex((command) => command[1] === 'force-media-title');
+  assert.ok(
+    mpvTitleIndex >= 0 && mpvTitleIndex < harness.commands.findIndex((c) => c[0] === 'loadfile'),
+  );
 });
 
 test('playback handler arms unloaded active playback before loading mpv media', async () => {
-  const timeline: string[] = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8',
-      mode: 'direct',
-      title: 'Episode 1',
-      itemTitle: 'Episode 1',
-      seriesTitle: null,
-      seasonNumber: null,
-      episodeNumber: null,
-      startTimeTicks: 0,
-      audioStreamIndex: null,
-      subtitleStreamIndex: null,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => timeline.push(`cmd:${command[0]}`),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: (state) => timeline.push(`active:${String(state.loadedMediaPath)}`),
-    setLastProgressAtMs: () => {},
-    reportPlaying: () => {},
-    showMpvOsd: () => {},
-  });
+  const harness = makeHarness();
 
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-1',
-  });
+  await harness.play();
 
-  assert.ok(timeline.indexOf('active:null') >= 0);
-  assert.ok(timeline.indexOf('active:null') < timeline.indexOf('cmd:loadfile'));
+  const activeIndex = harness.events.indexOf('active:null');
+  assert.ok(activeIndex >= 0);
+  assert.ok(activeIndex < harness.events.indexOf('cmd:loadfile'));
 });
 
-test('playback handler applies start override to stream url for remote resume', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8?api_key=token',
-      mode: 'transcode',
-      title: 'Episode 2',
-      itemTitle: 'Episode 2',
-      seriesTitle: null,
-      seasonNumber: null,
-      episodeNumber: null,
-      startTimeTicks: 0,
-      audioStreamIndex: null,
-      subtitleStreamIndex: null,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => commands.push(command),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: () => {},
-    showMpvOsd: () => {},
-  });
-
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-2',
-    startTimeTicksOverride: 55_000_000,
-  });
-
-  const loadCommand = commands.find((command) => command[0] === 'loadfile');
-  assert.ok(loadCommand);
-  const loadedUrl = String(loadCommand[1] ?? '');
-  const parsed = new URL(loadedUrl);
-  assert.equal(parsed.searchParams.get('StartTimeTicks'), '55000000');
-  assert.equal(
-    commands.some((command) => command[0] === 'seek'),
-    false,
-  );
-});
-
-test('playback handler keeps Jellyfin resume ticks when remote start override is zero', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const reportPayloads: Array<Record<string, unknown>> = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8?api_key=token&StartTimeTicks=35000000',
-      mode: 'transcode',
-      title: 'Episode 2',
-      itemTitle: 'Episode 2',
-      seriesTitle: null,
-      seasonNumber: null,
-      episodeNumber: null,
-      startTimeTicks: 35_000_000,
-      audioStreamIndex: null,
-      subtitleStreamIndex: null,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => commands.push(command),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: (payload) => reportPayloads.push(payload as Record<string, unknown>),
-    showMpvOsd: () => {},
-  });
-
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-2',
-    startTimeTicksOverride: 0,
-    fallbackToPlanStartTimeOnZeroOverride: true,
-  });
-
-  const loadCommand = commands.find((command) => command[0] === 'loadfile');
-  assert.ok(loadCommand);
-  const loadedUrl = String(loadCommand[1] ?? '');
-  const parsed = new URL(loadedUrl);
-  assert.equal(parsed.searchParams.get('StartTimeTicks'), '35000000');
-  assert.equal(
-    commands.some((command) => command[0] === 'seek'),
-    false,
-  );
-  assert.equal(reportPayloads[0]?.positionTicks, 35_000_000);
-});
-
-test('playback handler does not let stats metadata failures block playback startup', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8',
-      mode: 'direct',
-      title: 'Episode 3',
-      itemTitle: 'Episode 3',
-      seriesTitle: null,
-      seasonNumber: null,
-      episodeNumber: null,
-      startTimeTicks: 0,
-      audioStreamIndex: null,
-      subtitleStreamIndex: null,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => commands.push(command),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: () => {},
-    showMpvOsd: () => {},
-    recordJellyfinPlaybackMetadata: () => {
-      throw new Error('stats db unavailable');
+const HOOK_FAILURE_CASES: Array<{ name: string; deps: Partial<Deps> }> = [
+  {
+    name: 'stats metadata failures',
+    deps: {
+      recordJellyfinPlaybackMetadata: () => {
+        throw new Error('stats db unavailable');
+      },
     },
-  });
+  },
+  {
+    name: 'media title failures',
+    deps: {
+      updateCurrentMediaTitle: () => {
+        throw new Error('title state unavailable');
+      },
+    },
+  },
+  {
+    name: 'rejected best-effort hook promises',
+    deps: {
+      updateCurrentMediaTitle: async () => {
+        throw new Error('title async unavailable');
+      },
+      recordJellyfinPlaybackMetadata: async () => {
+        throw new Error('stats async unavailable');
+      },
+    },
+  },
+];
 
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-3',
-  });
+for (const c of HOOK_FAILURE_CASES) {
+  test(`playback handler does not let ${c.name} block playback startup`, async () => {
+    const harness = makeHarness({ deps: c.deps });
 
-  assert.deepEqual(
-    commands.find((command) => command[0] === 'loadfile'),
-    [
+    await harness.play();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.deepEqual(harness.loadfile(), [
       'loadfile',
       'https://stream.example/video.m3u8',
       'replace',
       -1,
-      'sid=no,secondary-sid=no,sub-auto=no,sub-visibility=no,secondary-sub-visibility=no',
-    ],
-  );
-});
-
-test('playback handler does not let media title failures block playback startup', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8',
-      mode: 'direct',
-      title: 'Episode 4',
-      itemTitle: 'Episode 4',
-      seriesTitle: null,
-      seasonNumber: null,
-      episodeNumber: null,
-      startTimeTicks: 0,
-      audioStreamIndex: null,
-      subtitleStreamIndex: null,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => commands.push(command),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: () => {},
-    showMpvOsd: () => {},
-    updateCurrentMediaTitle: () => {
-      throw new Error('title state unavailable');
-    },
+      SUPPRESSED_SUBTITLE_OPTIONS,
+    ]);
   });
-
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-4',
-  });
-
-  assert.deepEqual(
-    commands.find((command) => command[0] === 'loadfile'),
-    [
-      'loadfile',
-      'https://stream.example/video.m3u8',
-      'replace',
-      -1,
-      'sid=no,secondary-sid=no,sub-auto=no,sub-visibility=no,secondary-sub-visibility=no',
-    ],
-  );
-});
-
-test('playback handler handles rejected best-effort hook promises', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const handler = createPlayJellyfinItemInMpvHandler({
-    ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true, send: () => {} }),
-    resolvePlaybackPlan: async () => ({
-      url: 'https://stream.example/video.m3u8',
-      mode: 'direct',
-      title: 'Episode 5',
-      itemTitle: 'Episode 5',
-      seriesTitle: null,
-      seasonNumber: null,
-      episodeNumber: null,
-      startTimeTicks: 0,
-      audioStreamIndex: null,
-      subtitleStreamIndex: null,
-    }),
-    applyJellyfinMpvDefaults: () => {},
-    showVisibleOverlay: () => {},
-    sendMpvCommand: (command) => commands.push(command),
-    armQuitOnDisconnect: () => {},
-    schedule: () => {},
-    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
-    preloadExternalSubtitles: () => {},
-    setActivePlayback: () => {},
-    setLastProgressAtMs: () => {},
-    reportPlaying: () => {},
-    showMpvOsd: () => {},
-    updateCurrentMediaTitle: async () => {
-      throw new Error('title async unavailable');
-    },
-    recordJellyfinPlaybackMetadata: async () => {
-      throw new Error('stats async unavailable');
-    },
-  });
-
-  await handler({
-    session: baseSession,
-    clientInfo: baseClientInfo,
-    jellyfinConfig: {},
-    itemId: 'item-5',
-  });
-  await Promise.resolve();
-  await Promise.resolve();
-
-  assert.deepEqual(
-    commands.find((command) => command[0] === 'loadfile'),
-    [
-      'loadfile',
-      'https://stream.example/video.m3u8',
-      'replace',
-      -1,
-      'sid=no,secondary-sid=no,sub-auto=no,sub-visibility=no,secondary-sub-visibility=no',
-    ],
-  );
-});
+}

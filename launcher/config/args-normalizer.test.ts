@@ -9,6 +9,7 @@ import {
   applyRootOptionsToArgs,
   createDefaultArgs,
 } from './args-normalizer.js';
+import type { CliInvocations } from './cli-parser-builder.js';
 
 function withTempDir<T>(fn: (dir: string) => T): T {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-launcher-args-'));
@@ -17,6 +18,48 @@ function withTempDir<T>(fn: (dir: string) => T): T {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** An invocations bag with nothing triggered; tests pass only the fields under test. */
+function emptyInvocations(overrides: Partial<CliInvocations> = {}): CliInvocations {
+  return {
+    jellyfinInvocation: null,
+    configInvocation: null,
+    settingsInvocation: null,
+    youtubeBrowserInvocation: null,
+    mpvInvocation: null,
+    appInvocation: null,
+    dictionaryTriggered: false,
+    dictionaryTarget: null,
+    dictionaryLogLevel: null,
+    dictionaryCandidates: false,
+    dictionarySelect: false,
+    dictionaryAnilistId: null,
+    statsTriggered: false,
+    statsBackground: false,
+    statsStop: false,
+    statsCleanup: false,
+    statsCleanupVocab: false,
+    statsCleanupLifetime: false,
+    statsCleanupDuplicateLines: false,
+    statsCleanupDryRun: false,
+    statsCleanupLookbackDays: null,
+    statsLogLevel: null,
+    syncTriggered: false,
+    syncCliTokens: [],
+    syncLogLevel: null,
+    syncUiTriggered: false,
+    syncUiLogLevel: null,
+    doctorTriggered: false,
+    doctorLogLevel: null,
+    doctorRefreshKnownWords: false,
+    logsTriggered: false,
+    logsExport: false,
+    texthookerTriggered: false,
+    texthookerLogLevel: null,
+    texthookerOpenBrowser: false,
+    ...overrides,
+  };
 }
 
 test('createDefaultArgs normalizes configured language codes', () => {
@@ -92,53 +135,23 @@ test('applyRootOptionsToArgs rejects unsupported targets', () => {
 test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
   const parsed = createDefaultArgs({});
 
-  applyInvocationsToArgs(parsed, {
-    jellyfinInvocation: {
-      action: 'play',
-      play: true,
-      server: 'https://jf.example',
-      username: 'alice',
-      password: 'secret',
-      logLevel: 'debug',
-    },
-    configInvocation: {
-      action: 'show',
-      logLevel: 'warn',
-    },
-    settingsInvocation: null,
-    youtubeBrowserInvocation: null,
-    mpvInvocation: null,
-    appInvocation: null,
-    dictionaryTriggered: false,
-    dictionaryTarget: null,
-    dictionaryLogLevel: null,
-    dictionaryCandidates: false,
-    dictionarySelect: false,
-    dictionaryAnilistId: null,
-    statsTriggered: false,
-    statsBackground: false,
-    statsStop: false,
-    statsCleanup: false,
-    statsCleanupVocab: false,
-    statsCleanupLifetime: false,
-    statsCleanupDuplicateLines: false,
-    statsCleanupDryRun: false,
-    statsCleanupLookbackDays: null,
-    statsLogLevel: null,
-    syncTriggered: false,
-    syncCliTokens: [],
-    syncLogLevel: null,
-    syncUiTriggered: false,
-    syncUiLogLevel: null,
-    doctorTriggered: false,
-    doctorLogLevel: null,
-    doctorRefreshKnownWords: false,
-    logsTriggered: false,
-    logsExport: false,
-    texthookerTriggered: false,
-    texthookerLogLevel: null,
-    texthookerOpenBrowser: false,
-  });
+  applyInvocationsToArgs(
+    parsed,
+    emptyInvocations({
+      jellyfinInvocation: {
+        action: 'play',
+        play: true,
+        server: 'https://jf.example',
+        username: 'alice',
+        password: 'secret',
+        logLevel: 'debug',
+      },
+      configInvocation: {
+        action: 'show',
+        logLevel: 'warn',
+      },
+    }),
+  );
 
   assert.equal(parsed.jellyfin, false);
   assert.equal(parsed.jellyfinPlay, true);
@@ -155,45 +168,14 @@ test('applyInvocationsToArgs maps config and jellyfin invocation state', () => {
 test('applyInvocationsToArgs maps settings invocation to settings window', () => {
   const parsed = createDefaultArgs({});
 
-  applyInvocationsToArgs(parsed, {
-    jellyfinInvocation: null,
-    configInvocation: null,
-    settingsInvocation: {
-      logLevel: undefined,
-    },
-    youtubeBrowserInvocation: null,
-    mpvInvocation: null,
-    appInvocation: null,
-    dictionaryTriggered: false,
-    dictionaryTarget: null,
-    dictionaryLogLevel: null,
-    dictionaryCandidates: false,
-    dictionarySelect: false,
-    dictionaryAnilistId: null,
-    statsTriggered: false,
-    statsBackground: false,
-    statsStop: false,
-    statsCleanup: false,
-    statsCleanupVocab: false,
-    statsCleanupLifetime: false,
-    statsCleanupDuplicateLines: false,
-    statsCleanupDryRun: false,
-    statsCleanupLookbackDays: null,
-    statsLogLevel: null,
-    syncTriggered: false,
-    syncCliTokens: [],
-    syncLogLevel: null,
-    syncUiTriggered: false,
-    syncUiLogLevel: null,
-    doctorTriggered: false,
-    doctorLogLevel: null,
-    doctorRefreshKnownWords: false,
-    logsTriggered: false,
-    logsExport: false,
-    texthookerTriggered: false,
-    texthookerLogLevel: null,
-    texthookerOpenBrowser: false,
-  });
+  applyInvocationsToArgs(
+    parsed,
+    emptyInvocations({
+      settingsInvocation: {
+        logLevel: undefined,
+      },
+    }),
+  );
 
   assert.equal(parsed.settings, true);
   assert.equal(parsed.configPath, false);
@@ -203,45 +185,14 @@ test('applyInvocationsToArgs fails when config invocation has no action', () => 
   const parsed = createDefaultArgs({});
 
   const error = withProcessExitIntercept(() => {
-    applyInvocationsToArgs(parsed, {
-      jellyfinInvocation: null,
-      configInvocation: {
-        action: undefined,
-      },
-      settingsInvocation: null,
-      youtubeBrowserInvocation: null,
-      mpvInvocation: null,
-      appInvocation: null,
-      dictionaryTriggered: false,
-      dictionaryTarget: null,
-      dictionaryLogLevel: null,
-      dictionaryCandidates: false,
-      dictionarySelect: false,
-      dictionaryAnilistId: null,
-      statsTriggered: false,
-      statsBackground: false,
-      statsStop: false,
-      statsCleanup: false,
-      statsCleanupVocab: false,
-      statsCleanupLifetime: false,
-      statsCleanupDuplicateLines: false,
-      statsCleanupDryRun: false,
-      statsCleanupLookbackDays: null,
-      statsLogLevel: null,
-      syncTriggered: false,
-      syncCliTokens: [],
-      syncLogLevel: null,
-      syncUiTriggered: false,
-      syncUiLogLevel: null,
-      doctorTriggered: false,
-      doctorLogLevel: null,
-      doctorRefreshKnownWords: false,
-      logsTriggered: false,
-      logsExport: false,
-      texthookerTriggered: false,
-      texthookerLogLevel: null,
-      texthookerOpenBrowser: false,
-    });
+    applyInvocationsToArgs(
+      parsed,
+      emptyInvocations({
+        configInvocation: {
+          action: undefined,
+        },
+      }),
+    );
   });
 
   assert.equal(error.code, 1);
@@ -251,43 +202,13 @@ test('applyInvocationsToArgs fails when config invocation has no action', () => 
 test('applyInvocationsToArgs maps texthooker browser-open request', () => {
   const parsed = createDefaultArgs({});
 
-  applyInvocationsToArgs(parsed, {
-    jellyfinInvocation: null,
-    configInvocation: null,
-    settingsInvocation: null,
-    youtubeBrowserInvocation: null,
-    mpvInvocation: null,
-    appInvocation: null,
-    dictionaryTriggered: false,
-    dictionaryTarget: null,
-    dictionaryLogLevel: null,
-    dictionaryCandidates: false,
-    dictionarySelect: false,
-    dictionaryAnilistId: null,
-    statsTriggered: false,
-    statsBackground: false,
-    statsStop: false,
-    statsCleanup: false,
-    statsCleanupVocab: false,
-    statsCleanupLifetime: false,
-    statsCleanupDuplicateLines: false,
-    statsCleanupDryRun: false,
-    statsCleanupLookbackDays: null,
-    statsLogLevel: null,
-    syncTriggered: false,
-    syncCliTokens: [],
-    syncLogLevel: null,
-    syncUiTriggered: false,
-    syncUiLogLevel: null,
-    doctorTriggered: false,
-    doctorLogLevel: null,
-    doctorRefreshKnownWords: false,
-    logsTriggered: false,
-    logsExport: false,
-    texthookerTriggered: true,
-    texthookerLogLevel: null,
-    texthookerOpenBrowser: true,
-  });
+  applyInvocationsToArgs(
+    parsed,
+    emptyInvocations({
+      texthookerTriggered: true,
+      texthookerOpenBrowser: true,
+    }),
+  );
 
   assert.equal(parsed.texthookerOnly, true);
   assert.equal(parsed.texthookerOpenBrowser, true);

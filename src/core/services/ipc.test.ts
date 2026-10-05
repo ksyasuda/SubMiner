@@ -3,11 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from './ipc';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
-import type {
-  PlaylistBrowserSnapshot,
-  SessionActionDispatchRequest,
-  SubtitleSidebarSnapshot,
-} from '../../types';
+import type { SessionActionDispatchRequest, SubtitleSidebarSnapshot } from '../../types';
 
 interface FakeIpcRegistrar {
   on: Map<string, (event: unknown, ...args: unknown[]) => void>;
@@ -187,107 +183,6 @@ function createFakeImmersionTracker(
   };
 }
 
-test('createIpcDepsRuntime wires AniList handlers', async () => {
-  const calls: string[] = [];
-  const deps = createIpcDepsRuntime({
-    getMainWindow: () => null,
-    getVisibleOverlayVisibility: () => false,
-    onOverlayModalClosed: () => {},
-    onOverlayMouseInteractionChanged: (active) => {
-      calls.push(`overlay-interaction:${active}`);
-    },
-    openYomitanSettings: () => {},
-    quitApp: () => {},
-    toggleVisibleOverlay: () => {},
-    tokenizeCurrentSubtitle: async () => null,
-    getCurrentSubtitleRaw: () => '',
-    getCurrentSubtitleAss: () => '',
-    getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
-    getPlaybackPaused: () => true,
-    getSubtitlePosition: () => null,
-    getSubtitleStyle: () => null,
-    saveSubtitlePosition: () => {},
-    getMecabTokenizer: () => null,
-    handleMpvCommand: () => {},
-    getKeybindings: () => [],
-    getSessionBindings: () => [],
-    getConfiguredShortcuts: () => ({}),
-    dispatchSessionAction: async () => {},
-    getStatsToggleKey: () => 'Backquote',
-    getMarkWatchedKey: () => 'KeyW',
-    getOverlayNotificationPosition: () => 'top-right',
-    getControllerConfig: () => createControllerConfigFixture(),
-    saveControllerConfig: () => {},
-    saveControllerPreference: () => {},
-    getSecondarySubMode: () => 'hover',
-    getMpvClient: () => null,
-    focusMainWindow: () => {},
-    activatePlaybackWindowForOverlayInteraction: () => false,
-    runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
-    getAnkiConnectStatus: () => false,
-    getRuntimeOptions: () => ({}),
-    setRuntimeOption: () => ({ ok: true }),
-    cycleRuntimeOption: () => ({ ok: true }),
-    reportOverlayContentBounds: () => {},
-    getAnilistStatus: () => ({ tokenStatus: 'resolved' }),
-    clearAnilistToken: () => {
-      calls.push('clearAnilistToken');
-    },
-    openAnilistSetup: () => {
-      calls.push('openAnilistSetup');
-    },
-    getAnilistQueueStatus: () => ({ pending: 1, ready: 0, deadLetter: 0 }),
-    retryAnilistQueueNow: async () => {
-      calls.push('retryAnilistQueueNow');
-      return { ok: true, message: 'done' };
-    },
-    appendClipboardVideoToQueue: () => ({ ok: true, message: 'queued' }),
-    getPlaylistBrowserSnapshot: async () => ({
-      directoryPath: '/tmp',
-      directoryAvailable: true,
-      directoryStatus: '/tmp',
-      directoryItems: [],
-      playlistItems: [],
-      playingIndex: 0,
-      currentFilePath: '/tmp/current.mkv',
-    }),
-    appendPlaylistBrowserFile: async () => ({ ok: true, message: 'append' }),
-    playPlaylistBrowserIndex: async () => ({ ok: true, message: 'play' }),
-    removePlaylistBrowserIndex: async () => ({ ok: true, message: 'remove' }),
-    movePlaylistBrowserIndex: async () => ({ ok: true, message: 'move' }),
-    onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
-  });
-
-  assert.deepEqual(deps.getAnilistStatus(), { tokenStatus: 'resolved' });
-  deps.clearAnilistToken();
-  deps.openAnilistSetup();
-  deps.onOverlayMouseInteractionChanged?.(true, null);
-  assert.deepEqual(deps.getAnilistQueueStatus(), {
-    pending: 1,
-    ready: 0,
-    deadLetter: 0,
-  });
-  assert.deepEqual(await deps.retryAnilistQueueNow(), {
-    ok: true,
-    message: 'done',
-  });
-  assert.equal((await deps.getPlaylistBrowserSnapshot()).directoryAvailable, true);
-  assert.deepEqual(await deps.appendPlaylistBrowserFile('/tmp/new.mkv'), {
-    ok: true,
-    message: 'append',
-  });
-  assert.deepEqual(await deps.playPlaylistBrowserIndex(2), { ok: true, message: 'play' });
-  assert.deepEqual(await deps.removePlaylistBrowserIndex(2), { ok: true, message: 'remove' });
-  assert.deepEqual(await deps.movePlaylistBrowserIndex(2, -1), { ok: true, message: 'move' });
-  assert.deepEqual(calls, [
-    'clearAnilistToken',
-    'openAnilistSetup',
-    'overlay-interaction:true',
-    'retryAnilistQueueNow',
-  ]);
-  assert.equal(deps.getPlaybackPaused(), true);
-});
-
 test('createIpcDepsRuntime ignores overlay content reports from stale visible renderers', () => {
   const mainWindow = { id: 'main', isDestroyed: () => false } as never;
   const staleWindow = { id: 'stale', isDestroyed: () => false } as never;
@@ -330,27 +225,6 @@ test('registerIpcHandlers maps setIgnoreMouseEvents to overlay interaction activ
   handler?.({}, false, {});
 
   assert.deepEqual(calls, ['overlay-interaction:false', 'overlay-interaction:true']);
-});
-
-test('registerIpcHandlers passes sender window to overlay content bounds reports', () => {
-  const { registrar, handlers } = createFakeIpcRegistrar();
-  const senderWindows: unknown[] = [];
-
-  registerIpcHandlers(
-    createRegisterIpcDeps({
-      reportOverlayContentBounds: ((_payload: unknown, senderWindow: unknown) => {
-        senderWindows.push(senderWindow);
-      }) as IpcServiceDeps['reportOverlayContentBounds'],
-    }),
-    registrar,
-  );
-
-  const handler = handlers.on.get(IPC_CHANNELS.command.reportOverlayContentBounds);
-  assert.equal(typeof handler, 'function');
-
-  handler?.({}, { layer: 'visible' });
-
-  assert.deepEqual(senderWindows, [null]);
 });
 
 test('registerIpcHandlers runs AniList update after manual mark watched succeeds', async () => {
@@ -431,71 +305,6 @@ test('registerIpcHandlers skips AniList update when manual mark watched has no a
 
   assert.equal(result, false);
   assert.deepEqual(calls, ['mark']);
-});
-
-test('registerIpcHandlers exposes playlist browser snapshot and mutations', async () => {
-  const { registrar, handlers } = createFakeIpcRegistrar();
-  const calls: Array<[string, unknown[]]> = [];
-  registerIpcHandlers(
-    createRegisterIpcDeps({
-      getPlaylistBrowserSnapshot: async () => ({
-        directoryPath: '/tmp/videos',
-        directoryAvailable: true,
-        directoryStatus: '/tmp/videos',
-        directoryItems: [],
-        playlistItems: [],
-        playingIndex: 1,
-        currentFilePath: '/tmp/videos/ep2.mkv',
-      }),
-      appendPlaylistBrowserFile: async (filePath) => {
-        calls.push(['append', [filePath]]);
-        return { ok: true, message: 'append-ok' };
-      },
-      playPlaylistBrowserIndex: async (index) => {
-        calls.push(['play', [index]]);
-        return { ok: true, message: 'play-ok' };
-      },
-      removePlaylistBrowserIndex: async (index) => {
-        calls.push(['remove', [index]]);
-        return { ok: true, message: 'remove-ok' };
-      },
-      movePlaylistBrowserIndex: async (index, direction) => {
-        calls.push(['move', [index, direction]]);
-        return { ok: true, message: 'move-ok' };
-      },
-    }),
-    registrar,
-  );
-
-  const snapshot = (await handlers.handle.get(IPC_CHANNELS.request.getPlaylistBrowserSnapshot)?.(
-    {},
-  )) as PlaylistBrowserSnapshot | undefined;
-  const append = await handlers.handle.get(IPC_CHANNELS.request.appendPlaylistBrowserFile)?.(
-    {},
-    '/tmp/videos/ep3.mkv',
-  );
-  const play = await handlers.handle.get(IPC_CHANNELS.request.playPlaylistBrowserIndex)?.({}, 2);
-  const remove = await handlers.handle.get(IPC_CHANNELS.request.removePlaylistBrowserIndex)?.(
-    {},
-    2,
-  );
-  const move = await handlers.handle.get(IPC_CHANNELS.request.movePlaylistBrowserIndex)?.(
-    {},
-    2,
-    -1,
-  );
-
-  assert.equal(snapshot?.playingIndex, 1);
-  assert.deepEqual(append, { ok: true, message: 'append-ok' });
-  assert.deepEqual(play, { ok: true, message: 'play-ok' });
-  assert.deepEqual(remove, { ok: true, message: 'remove-ok' });
-  assert.deepEqual(move, { ok: true, message: 'move-ok' });
-  assert.deepEqual(calls, [
-    ['append', ['/tmp/videos/ep3.mkv']],
-    ['play', [2]],
-    ['remove', [2]],
-    ['move', [2, -1]],
-  ]);
 });
 
 test('registerIpcHandlers rejects malformed runtime-option payloads', async () => {
@@ -610,45 +419,6 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
   );
 });
 
-test('registerIpcHandlers exposes subtitle sidebar snapshot request', async () => {
-  const { registrar, handlers } = createFakeIpcRegistrar();
-  const snapshot = createSubtitleSidebarSnapshotFixture();
-  snapshot.cues = [{ startTime: 1, endTime: 2, text: 'line-1' }];
-  snapshot.config.enabled = true;
-
-  registerIpcHandlers(
-    createRegisterIpcDeps({
-      getSubtitleSidebarSnapshot: async () => snapshot,
-    }),
-    registrar,
-  );
-
-  const handler = handlers.handle.get(IPC_CHANNELS.request.getSubtitleSidebarSnapshot);
-  assert.ok(handler);
-  assert.deepEqual(await handler!({}), snapshot);
-});
-
-test('registerIpcHandlers exposes playback window activation request', async () => {
-  const { registrar, handlers } = createFakeIpcRegistrar();
-  const calls: string[] = [];
-  registerIpcHandlers(
-    createRegisterIpcDeps({
-      activatePlaybackWindowForOverlayInteraction: async () => {
-        calls.push('activate');
-        return true;
-      },
-    }),
-    registrar,
-  );
-
-  const handler = handlers.handle.get(
-    IPC_CHANNELS.request.activatePlaybackWindowForOverlayInteraction,
-  );
-  assert.ok(handler);
-  assert.equal(await handler!({}), true);
-  assert.deepEqual(calls, ['activate']);
-});
-
 test('registerIpcHandlers accepts the keep-without-media timing decision', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const requests: unknown[] = [];
@@ -755,28 +525,6 @@ test('registerIpcHandlers validates and forwards timing review text and screensh
     );
   }
   assert.equal(requests.length, 1);
-});
-
-test('registerIpcHandlers forwards yomitan lookup tracking commands to immersion tracker', () => {
-  const { registrar, handlers } = createFakeIpcRegistrar();
-  const calls: string[] = [];
-  registerIpcHandlers(
-    createRegisterIpcDeps({
-      immersionTracker: createFakeImmersionTracker({
-        recordYomitanLookup: () => {
-          calls.push('lookup');
-        },
-      }),
-    }),
-    registrar,
-  );
-
-  const handler = handlers.on.get(IPC_CHANNELS.command.recordYomitanLookup);
-  assert.equal(typeof handler, 'function');
-
-  handler?.({}, null);
-
-  assert.deepEqual(calls, ['lookup']);
 });
 
 test('registerIpcHandlers forwards valid subtitle sidebar mining context', () => {
@@ -1368,4 +1116,40 @@ test('mpv discovery has its own request and does not change session bindings', a
   assert.ok(session);
   assert.deepEqual(await discovery({}), snapshot);
   assert.deepEqual(await session({}), []);
+});
+
+test('registerIpcHandlers validates playlist browser mutation payloads before forwarding', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const forwarded: unknown[][] = [];
+  const ok = { ok: true, message: 'ok' };
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      appendPlaylistBrowserFile: async (...args) => (forwarded.push(args), ok),
+      playPlaylistBrowserIndex: async (...args) => (forwarded.push(args), ok),
+      removePlaylistBrowserIndex: async (...args) => (forwarded.push(args), ok),
+      movePlaylistBrowserIndex: async (...args) => (forwarded.push(args), ok),
+    }),
+    registrar,
+  );
+  const { request } = IPC_CHANNELS;
+  const cases: Array<{ channel: string; args: unknown[]; valid: boolean }> = [
+    { channel: request.appendPlaylistBrowserFile, args: ['/media/ep01.mkv'], valid: true },
+    { channel: request.appendPlaylistBrowserFile, args: ['   '], valid: false },
+    { channel: request.appendPlaylistBrowserFile, args: [42], valid: false },
+    { channel: request.playPlaylistBrowserIndex, args: [0], valid: true },
+    { channel: request.playPlaylistBrowserIndex, args: [-1], valid: false },
+    { channel: request.removePlaylistBrowserIndex, args: [1.5], valid: false },
+    { channel: request.removePlaylistBrowserIndex, args: ['2'], valid: false },
+    { channel: request.movePlaylistBrowserIndex, args: [2, -1], valid: true },
+    { channel: request.movePlaylistBrowserIndex, args: [2, 2], valid: false },
+    { channel: request.movePlaylistBrowserIndex, args: [Number.NaN, 1], valid: false },
+  ];
+
+  for (const { channel, args, valid } of cases) {
+    forwarded.length = 0;
+    const result = (await handlers.handle.get(channel)?.({}, ...args)) as { ok: boolean };
+    const label = `${channel}(${args.map(String).join(', ')})`;
+    assert.equal(result.ok, valid, label);
+    assert.deepEqual(forwarded, valid ? [args] : [], label);
+  }
 });

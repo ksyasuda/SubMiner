@@ -3,91 +3,134 @@ import test from 'node:test';
 import {
   createInvokeStatsWordHelperHandler,
   createReadStatsYomitanDeckNameHandler,
+  type StatsWordHelperResponse,
+  type StatsWordHelperSpawnOptions,
 } from './stats-word-helper-client';
 
-test('word helper client returns note id when helper responds before exit', async () => {
-  const calls: string[] = [];
-  const handler = createInvokeStatsWordHelperHandler({
-    createTempDir: () => '/tmp/stats-word-helper',
-    joinPath: (...parts) => parts.join('/'),
-    spawnHelper: async (options) => {
-      calls.push(
-        `spawnHelper:${options.scriptPath}:${options.responsePath}:${options.userDataPath}:${options.word}`,
-      );
-      return new Promise<number>((resolve) => setTimeout(() => resolve(0), 20));
-    },
-    waitForResponse: async (responsePath) => {
-      calls.push(`waitForResponse:${responsePath}`);
-      return { ok: true, noteId: 123 };
-    },
-    removeDir: (targetPath) => {
-      calls.push(`removeDir:${targetPath}`);
-    },
-  });
+type Script = {
+  response: StatsWordHelperResponse;
+  exitStatus?: number;
+  // When true the helper exits before any response is readable, so the client must read it after exit.
+  helperExitsFirst?: boolean;
+};
 
-  const noteId = await handler({
-    helperScriptPath: '/tmp/stats-word-helper.js',
-    userDataPath: '/tmp/SubMiner',
-    word: '猫',
-  });
+function createHarness(script: Script) {
+  const spawned: StatsWordHelperSpawnOptions[] = [];
+  const removedDirs: string[] = [];
+  let waitCalls = 0;
+  const deps = {
+    createTempDir: () => '/tmp/stats-word-helper',
+    joinPath: (...parts: string[]) => parts.join('/'),
+    spawnHelper: async (options: StatsWordHelperSpawnOptions) => {
+      spawned.push(options);
+      const status = script.exitStatus ?? 0;
+      if (script.helperExitsFirst) return status;
+      return new Promise<number>((resolve) => setTimeout(() => resolve(status), 5));
+    },
+    waitForResponse: async () => {
+      waitCalls += 1;
+      if (script.helperExitsFirst && waitCalls === 1) return new Promise<never>(() => {});
+      return script.response;
+    },
+    removeDir: (targetPath: string) => {
+      removedDirs.push(targetPath);
+    },
+  };
+  return { deps, spawned, removedDirs };
+}
+
+const addWordOptions = {
+  helperScriptPath: '/tmp/stats-word-helper.js',
+  userDataPath: '/tmp/SubMiner',
+  word: '猫',
+};
+const deckNameOptions = {
+  helperScriptPath: '/tmp/stats-word-helper.js',
+  userDataPath: '/tmp/SubMiner',
+};
+
+const ADD_WORD_FAILURES: Array<{ name: string; script: Script; error: RegExp }> = [
+  {
+    name: 'helper reports an error response',
+    script: { response: { ok: false, error: 'helper failed' } },
+    error: /helper failed/,
+  },
+  {
+    name: 'helper reports failure without a message',
+    script: { response: { ok: false } },
+    error: /Stats word helper failed/,
+  },
+  {
+    name: 'response has no note id',
+    script: { response: { ok: true } },
+    error: /Stats word helper failed/,
+  },
+  {
+    name: 'helper exits non-zero before responding',
+    script: { response: { ok: true, noteId: 1 }, exitStatus: 3, helperExitsFirst: true },
+    error: /exited before response \(status 3\)/,
+  },
+  {
+    name: 'helper exits non-zero after a successful response',
+    script: { response: { ok: true, noteId: 1 }, exitStatus: 2 },
+    error: /exited with status 2/,
+  },
+];
+
+test('word helper client returns note id and spawns the helper in add-word mode', async () => {
+  const { deps, spawned, removedDirs } = createHarness({ response: { ok: true, noteId: 123 } });
+
+  const noteId = await createInvokeStatsWordHelperHandler(deps)(addWordOptions);
 
   assert.equal(noteId, 123);
-  assert.deepEqual(calls, [
-    'spawnHelper:/tmp/stats-word-helper.js:/tmp/stats-word-helper/response.json:/tmp/SubMiner:猫',
-    'waitForResponse:/tmp/stats-word-helper/response.json',
-    'removeDir:/tmp/stats-word-helper',
-  ]);
+  assert.equal(spawned.length, 1);
+  assert.deepEqual(spawned[0], {
+    scriptPath: addWordOptions.helperScriptPath,
+    responsePath: '/tmp/stats-word-helper/response.json',
+    userDataPath: addWordOptions.userDataPath,
+    mode: 'add-word',
+    word: '猫',
+  });
+  assert.deepEqual(removedDirs, ['/tmp/stats-word-helper']);
 });
 
-test('word helper client returns Yomitan deck name from helper read-deck mode', async () => {
-  const calls: string[] = [];
-  const handler = createReadStatsYomitanDeckNameHandler({
-    createTempDir: () => '/tmp/stats-word-helper',
-    joinPath: (...parts) => parts.join('/'),
-    spawnHelper: async (options) => {
-      calls.push(
-        `spawnHelper:${options.scriptPath}:${options.responsePath}:${options.userDataPath}:${options.mode}`,
-      );
-      return new Promise<number>((resolve) => setTimeout(() => resolve(0), 20));
-    },
-    waitForResponse: async (responsePath) => {
-      calls.push(`waitForResponse:${responsePath}`);
-      return { ok: true, deckName: ' Minecraft ' };
-    },
-    removeDir: (targetPath) => {
-      calls.push(`removeDir:${targetPath}`);
-    },
+test('word helper client reads the response after a clean helper exit', async () => {
+  const { deps } = createHarness({
+    response: { ok: true, noteId: 7 },
+    helperExitsFirst: true,
   });
 
-  const deckName = await handler({
-    helperScriptPath: '/tmp/stats-word-helper.js',
-    userDataPath: '/tmp/SubMiner',
+  assert.equal(await createInvokeStatsWordHelperHandler(deps)(addWordOptions), 7);
+});
+
+for (const c of ADD_WORD_FAILURES) {
+  test(`word helper client rejects and cleans up when ${c.name}`, async () => {
+    const { deps, removedDirs } = createHarness(c.script);
+
+    await assert.rejects(createInvokeStatsWordHelperHandler(deps)(addWordOptions), c.error);
+    assert.deepEqual(removedDirs, ['/tmp/stats-word-helper']);
   });
+}
+
+test('word helper client returns the trimmed Yomitan deck name from deck-name mode', async () => {
+  const { deps, spawned, removedDirs } = createHarness({
+    response: { ok: true, deckName: ' Minecraft ' },
+  });
+
+  const deckName = await createReadStatsYomitanDeckNameHandler(deps)(deckNameOptions);
 
   assert.equal(deckName, 'Minecraft');
-  assert.deepEqual(calls, [
-    'spawnHelper:/tmp/stats-word-helper.js:/tmp/stats-word-helper/response.json:/tmp/SubMiner:deck-name',
-    'waitForResponse:/tmp/stats-word-helper/response.json',
-    'removeDir:/tmp/stats-word-helper',
-  ]);
+  assert.equal(spawned[0]?.mode, 'deck-name');
+  assert.equal(spawned[0]?.word, undefined);
+  assert.deepEqual(removedDirs, ['/tmp/stats-word-helper']);
 });
 
-test('word helper client throws helper response errors', async () => {
-  const handler = createInvokeStatsWordHelperHandler({
-    createTempDir: () => '/tmp/stats-word-helper',
-    joinPath: (...parts) => parts.join('/'),
-    spawnHelper: async () => 0,
-    waitForResponse: async () => ({ ok: false, error: 'helper failed' }),
-    removeDir: () => {},
-  });
+test('word helper client rejects a deck-name response without a deck name', async () => {
+  const { deps, removedDirs } = createHarness({ response: { ok: true } });
 
   await assert.rejects(
-    async () =>
-      handler({
-        helperScriptPath: '/tmp/stats-word-helper.js',
-        userDataPath: '/tmp/SubMiner',
-        word: '猫',
-      }),
-    /helper failed/,
+    createReadStatsYomitanDeckNameHandler(deps)(deckNameOptions),
+    /Stats word helper failed/,
   );
+  assert.deepEqual(removedDirs, ['/tmp/stats-word-helper']);
 });

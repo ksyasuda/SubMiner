@@ -5,8 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import {
-  APPIMAGE_MOUNT_KEEPALIVE_LABEL,
-  APPIMAGE_MOUNT_KEEPALIVE_SCRIPT,
   resolveAppImageMountKeepaliveInvocation,
   resolveMountFsType,
 } from './appimage-mount-keepalive';
@@ -79,32 +77,17 @@ test('resolveMountFsType picks the longest containing mount point', () => {
   assert.equal(resolveMountFsType('/usr/bin/sh', ''), null);
 });
 
-test('resolveAppImageMountKeepaliveInvocation builds sh invocation with AppImage path', () => {
-  const invocation = resolveOnFuse({ APPIMAGE: '/opt/SubMiner.AppImage' }, 'linux');
-  assert.ok(invocation);
-  assert.equal(invocation.command, '/bin/sh');
-  assert.deepEqual(invocation.args, [
-    '-c',
-    APPIMAGE_MOUNT_KEEPALIVE_SCRIPT,
-    APPIMAGE_MOUNT_KEEPALIVE_LABEL,
-    '/opt/SubMiner.AppImage',
-  ]);
-});
-
 function runKeepaliveScript(
   appImagePath: string,
   extraArgs: string[] = [],
 ): Promise<{ status: number }> {
+  // Run the exact invocation the app would spawn, so the argv is exercised too.
+  const invocation = resolveOnFuse({ APPIMAGE: appImagePath }, 'linux');
+  assert.ok(invocation);
   return new Promise((resolve, reject) => {
     execFile(
-      '/bin/sh',
-      [
-        '-c',
-        APPIMAGE_MOUNT_KEEPALIVE_SCRIPT,
-        APPIMAGE_MOUNT_KEEPALIVE_LABEL,
-        appImagePath,
-        ...extraArgs,
-      ],
+      invocation.command,
+      [...invocation.args, ...extraArgs],
       { timeout: 30_000 },
       (error) => {
         if (error && typeof error.code !== 'number') {

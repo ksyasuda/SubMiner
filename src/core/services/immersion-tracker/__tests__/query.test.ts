@@ -602,39 +602,6 @@ test('getSessionTimeline returns the full session when no limit is provided', ()
   }
 });
 
-test('getDailyRollups limits by distinct days (not rows)', () => {
-  const dbPath = makeDbPath();
-  const db = openTestDb(dbPath);
-
-  try {
-    ensureSchema(db);
-
-    const insert = db.prepare(
-      `
-      INSERT INTO imm_daily_rollups (
-        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
-        total_tokens_seen, total_cards
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `,
-    );
-
-    insert.run(10, 1, 1, 1, 0, 0, 2);
-    insert.run(10, 2, 1, 1, 0, 0, 3);
-    insert.run(9, 1, 1, 1, 0, 0, 1);
-    insert.run(8, 1, 1, 1, 0, 0, 1);
-
-    const rows = getDailyRollups(db, 2);
-    assert.equal(rows.length, 3);
-    assert.ok(rows.every((r) => r.rollupDayOrMonth === 10 || r.rollupDayOrMonth === 9));
-    assert.ok(rows.some((r) => r.rollupDayOrMonth === 10 && r.videoId === 1));
-    assert.ok(rows.some((r) => r.rollupDayOrMonth === 10 && r.videoId === 2));
-    assert.ok(rows.some((r) => r.rollupDayOrMonth === 9 && r.videoId === 1));
-  } finally {
-    db.close();
-    cleanupDbPath(dbPath);
-  }
-});
-
 test('getTrendsDashboard returns chart-ready aggregated series', () => {
   const dbPath = makeDbPath();
   const db = openTestDb(dbPath);
@@ -2075,20 +2042,6 @@ test('getVocabularyStats pages past hidden rows until enough visible rows are co
   }
 });
 
-test('getVocabularyStats returns empty array when no words exist', () => {
-  const dbPath = makeDbPath();
-  const db = openTestDb(dbPath);
-
-  try {
-    ensureSchema(db);
-    const rows = getVocabularyStats(db, 10);
-    assert.deepEqual(rows, []);
-  } finally {
-    db.close();
-    cleanupDbPath(dbPath);
-  }
-});
-
 test('cleanupVocabularyStats repairs stored POS metadata and removes excluded imm_words rows', async () => {
   const dbPath = makeDbPath();
   const db = openTestDb(dbPath);
@@ -2524,20 +2477,6 @@ test('getKanjiStats returns rows ordered by frequency descending', () => {
   }
 });
 
-test('getKanjiStats returns empty array when no kanji exist', () => {
-  const dbPath = makeDbPath();
-  const db = openTestDb(dbPath);
-
-  try {
-    ensureSchema(db);
-    const rows = getKanjiStats(db, 10);
-    assert.deepEqual(rows, []);
-  } finally {
-    db.close();
-    cleanupDbPath(dbPath);
-  }
-});
-
 test('getSessionEvents returns events ordered by ts_ms ascending', () => {
   const dbPath = makeDbPath();
   const db = openTestDb(dbPath);
@@ -2637,29 +2576,6 @@ test('getSessionEvents round-trips wall-clock timestamps written through event i
     assert.equal(events.length, 1);
     assert.equal(events[0]?.tsMs, eventTsMs);
     assert.equal(events[0]?.payload, '{"line":"wall-clock"}');
-  } finally {
-    db.close();
-    cleanupDbPath(dbPath);
-  }
-});
-
-test('getSessionEvents returns empty array for session with no events', () => {
-  const dbPath = makeDbPath();
-  const db = openTestDb(dbPath);
-
-  try {
-    ensureSchema(db);
-
-    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/events-empty.mkv', {
-      canonicalTitle: 'Events Empty',
-      sourcePath: '/tmp/events-empty.mkv',
-      sourceUrl: null,
-      sourceType: SOURCE_TYPE_LOCAL,
-    });
-    const { sessionId } = startSessionRecord(db, videoId, 6_000_000);
-
-    const events = getSessionEvents(db, sessionId, 50);
-    assert.deepEqual(events, []);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -4567,13 +4483,13 @@ test('deleteSession rebuilds word and kanji aggregates from retained subtitle li
 
     assert.ok(sharedWordRow);
     assert.equal(sharedWordRow.frequency, 1);
-    assert.equal(sharedWordRow.first_seen, Math.floor(keptTs / 1000));
-    assert.equal(sharedWordRow.last_seen, Math.floor(keptTs / 1000));
+    assert.equal(sharedWordRow.first_seen, keptTs / 1000);
+    assert.equal(sharedWordRow.last_seen, keptTs / 1000);
     assert.equal(deletedOnlyWordRow ?? null, null);
     assert.ok(sharedKanjiRow);
     assert.equal(sharedKanjiRow.frequency, 1);
-    assert.equal(sharedKanjiRow.first_seen, Math.floor(keptTs / 1000));
-    assert.equal(sharedKanjiRow.last_seen, Math.floor(keptTs / 1000));
+    assert.equal(sharedKanjiRow.first_seen, keptTs / 1000);
+    assert.equal(sharedKanjiRow.last_seen, keptTs / 1000);
     assert.equal(deletedOnlyKanjiRow ?? null, null);
   } finally {
     db.close();

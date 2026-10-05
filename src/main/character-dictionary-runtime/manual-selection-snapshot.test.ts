@@ -161,6 +161,36 @@ test('getManualSelectionSnapshot hydrates override episode count from searched c
   }
 });
 
+test('getManualSelectionSnapshot falls back to mpv current video path when app media path is not ready', async () => {
+  const userDataPath = makeTempDir();
+  const mpvPath =
+    'C:\\Videos\\KonoSuba - God’s blessing on this wonderful world!! (2016) - S02E05.mkv';
+  const calls: Array<{ mediaPath: string | null; mediaTitle: string | null }> = [];
+  const runtime = createCharacterDictionaryRuntimeService({
+    userDataPath,
+    getCurrentMediaPath: () => null,
+    getCurrentVideoPath: () => mpvPath,
+    getCurrentMediaTitle: () => null,
+    resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+    guessAnilistMediaInfo: async (mediaPath, mediaTitle) => {
+      calls.push({ mediaPath, mediaTitle });
+      return {
+        title: 'KonoSuba - God’s blessing on this wonderful world!!',
+        season: 2,
+        episode: 5,
+        source: 'fallback',
+      };
+    },
+    now: () => 1_700_000_000_000,
+  });
+
+  const snapshot = await runtime.getManualSelectionSnapshot(undefined, '');
+
+  assert.deepEqual(calls, [{ mediaPath: mpvPath, mediaTitle: null }]);
+  assert.equal(snapshot.guessTitle, 'KonoSuba - God’s blessing on this wonderful world!!');
+  assert.equal(snapshot.candidates.length, 0);
+});
+
 test('resolvePinnedMediaId returns the manual override for the current season', async () => {
   const userDataPath = makeTempDir();
   const seasonThreePath = '/anime/Oregairu/My Teen Romantic Comedy SNAFU (2013) - S03E01.mkv';

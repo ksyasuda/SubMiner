@@ -6,17 +6,23 @@ export type WorkflowStep = {
   env?: Record<string, unknown>;
   uses?: string;
   with?: Record<string, unknown>;
+  'continue-on-error'?: boolean | string;
 };
 
 export type ParsedWorkflow = {
-  on?: { workflow_call?: { secrets?: Record<string, { required?: boolean }> } };
+  on?: {
+    workflow_call?: { secrets?: Record<string, { required?: boolean }> } | null;
+  };
+  permissions?: string | Record<string, string>;
+  env?: Record<string, unknown>;
   jobs?: Record<
     string,
     | {
         steps?: WorkflowStep[];
         uses?: string;
         needs?: string | string[];
-        permissions?: Record<string, string>;
+        env?: Record<string, unknown>;
+        permissions?: string | Record<string, string>;
         secrets?: string | Record<string, string>;
       }
     | undefined
@@ -49,16 +55,23 @@ export function jobSteps(workflow: ParsedWorkflow, jobName: string): WorkflowSte
   return job.steps ?? [];
 }
 
-function allSteps(workflow: ParsedWorkflow): Array<{ job: string; step: WorkflowStep }> {
+type StepInJob = { job: string; step: WorkflowStep; inheritedEnv: Record<string, unknown> };
+
+function allSteps(workflow: ParsedWorkflow): StepInJob[] {
   return Object.entries(workflow.jobs ?? {}).flatMap(([job, definition]) =>
-    (definition?.steps ?? []).map((step) => ({ job, step })),
+    (definition?.steps ?? []).map((step) => ({
+      job,
+      step,
+      inheritedEnv: { ...workflow.env, ...definition?.env },
+    })),
   );
 }
 
-// Lines of a step's shell body that actually execute. Comments are dropped so a
+// Lines of a step's shell body that actually execute. Backslash continuations are
+// joined so a multi-line command reads as one line, and comments are dropped so a
 // commented-out command cannot satisfy a "this step runs X" assertion.
 export function executableRunLines(step: WorkflowStep): string[] {
-  return (typeof step.run === 'string' ? step.run.split('\n') : [])
+  return (typeof step.run === 'string' ? step.run.replace(/\s*\\\n\s*/g, ' ').split('\n') : [])
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && !line.startsWith('#'));
 }
@@ -171,12 +184,24 @@ export function templateExpressionsInRunBodies(workflow: ParsedWorkflow): string
   );
 }
 
-// Steps whose shell body reads $NAME without the step declaring it in env, which
-// would silently expand to an empty string at run time.
-export function stepsMissingEnvDeclaration(workflow: ParsedWorkflow, name: string): string[] {
-  const reference = new RegExp(`\\$${name}\\b|\\$\\{${name}\\b`);
-  return allSteps(workflow)
-    .filter(({ step }) => typeof step.run === 'string' && reference.test(step.run))
-    .filter(({ step }) => !Object.prototype.hasOwnProperty.call(step.env ?? {}, name))
-    .map(({ job, step }) => `${job}/${step.name ?? '<unnamed>'}`);
+// Steps whose shell body reads $NAME, where NAME is declared in env somewhere in
+// the workflow, without that env reaching the step. Such a read silently expands
+// to an empty string at run time (typically a step copied without its env block).
+export function stepsReadingUndeclaredEnv(workflow: ParsedWorkflow): string[] {
+  const steps = allSteps(workflow);
+  const names = new Set(
+    steps.flatMap(({ step, inheritedEnv }) => [
+      ...Object.keys(inheritedEnv),
+      ...Object.keys(step.env ?? {}),
+    ]),
+  );
+  return steps.flatMap(({ job, step, inheritedEnv }) => {
+    const run = step.run;
+    if (typeof run !== 'string') return [];
+    const available = { ...inheritedEnv, ...step.env };
+    return [...names]
+      .filter((name) => new RegExp(`\\$${name}\\b|\\$\\{${name}\\b`).test(run))
+      .filter((name) => !Object.prototype.hasOwnProperty.call(available, name))
+      .map((name) => `${job}/${step.name ?? '<unnamed>'}: $${name}`);
+  });
 }

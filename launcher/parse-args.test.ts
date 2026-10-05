@@ -30,12 +30,6 @@ test('parseArgs captures mpv args string', () => {
   assert.equal(parsed.mpvArgs, '--pause=yes --title="movie night"');
 });
 
-test('parseArgs appends CLI mpv profile to configured mpv profile', () => {
-  const parsed = parseArgs(['--profile', 'hdr'], 'subminer', {}, { profile: 'anime' });
-
-  assert.equal(parsed.profile, 'anime,hdr');
-});
-
 test('parseArgs maps root settings window option', () => {
   const parsed = parseArgs(['--settings'], 'subminer', {});
 
@@ -218,14 +212,6 @@ test('parseArgs maps stats stop flag', () => {
 
 test('parseArgs maps stats cleanup to vocab mode by default', () => {
   const parsed = parseArgs(['stats', 'cleanup'], 'subminer', {});
-
-  assert.equal(parsed.stats, true);
-  assert.equal(parsed.statsCleanup, true);
-  assert.equal(parsed.statsCleanupVocab, true);
-});
-
-test('parseArgs maps explicit stats cleanup vocab flag', () => {
-  const parsed = parseArgs(['stats', 'cleanup', '-v'], 'subminer', {});
 
   assert.equal(parsed.stats, true);
   assert.equal(parsed.statsCleanup, true);

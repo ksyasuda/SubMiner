@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,13 +8,10 @@ import { DEFAULT_CONFIG } from './config/definitions';
 import { readConfiguredWindowsMpvLaunch } from './main-entry-launch-config';
 import {
   configureEarlyAppPaths,
-  exitBackgroundBootstrap,
   normalizeLaunchMpvExtraArgs,
   normalizeStartupArgv,
   normalizeLaunchMpvTargets,
   resolveStatsDaemonCommandAction,
-  sanitizeHelpEnv,
-  sanitizeLaunchMpvEnv,
   sanitizeStartupEnv,
   sanitizeBackgroundEnv,
   shouldDetachBackgroundLaunch,
@@ -24,36 +22,26 @@ import {
   shouldForwardStartupArgvViaAppControl,
   applyBackgroundBootstrapCommandLineSwitches,
   applyEarlyLinuxCommandLineSwitches,
-  resolveAppControlHandoffTimeoutMs,
   resolveLinuxPasswordStoreValue,
   spawnDetachedApp,
 } from './main-entry-runtime';
 
-test('app-control handoffs allow for macOS application activation latency', () => {
-  assert.equal(resolveAppControlHandoffTimeoutMs('darwin'), 3000);
-  assert.equal(resolveAppControlHandoffTimeoutMs('linux'), 500);
-  assert.equal(resolveAppControlHandoffTimeoutMs('win32'), 500);
-});
-
-test('detached app launch policy stays in the startup runtime utilities', () => {
-  const entrySource = fs.readFileSync(path.join(process.cwd(), 'src/main-entry.ts'), 'utf8');
-  const runtimeSource = fs.readFileSync(
-    path.join(process.cwd(), 'src/main-entry-runtime.ts'),
-    'utf8',
-  );
-
-  assert.equal(typeof spawnDetachedApp, 'function');
-  assert.doesNotMatch(entrySource, /function spawnDetachedApp/);
-  assert.match(
-    runtimeSource,
-    /child\.once\('error', \(error\) => \{\s*console\.error\([^;]*error\);\s*\}\);\s*child\.unref\(\)/,
-  );
-});
-
-test('background bootstrap exits through Electron so Chromium children shut down', () => {
-  const exitCodes: number[] = [];
-  exitBackgroundBootstrap({ exit: (code) => exitCodes.push(code) });
-  assert.deepEqual(exitCodes, [0]);
+test('spawnDetachedApp survives a failed spawn of the detached app', () => {
+  const child = Object.assign(new EventEmitter(), { unref: () => {} });
+  const fakeSpawn = (() => child) as unknown as Parameters<typeof spawnDetachedApp>[2];
+  const originalConsoleError = console.error;
+  const logged: unknown[][] = [];
+  console.error = (...args: unknown[]) => {
+    logged.push(args);
+  };
+  try {
+    spawnDetachedApp(['--start'], {}, fakeSpawn);
+    // An unhandled 'error' event would throw here and crash the entry process.
+    child.emit('error', new Error('spawn ENOENT'));
+  } finally {
+    console.error = originalConsoleError;
+  }
+  assert.equal(logged.length, 1);
 });
 
 test('normalizeStartupArgv defaults no-arg startup to --start --background on non-Windows', () => {
@@ -539,22 +527,6 @@ test('stats-daemon entry helper resolves daemon action for public and internal c
 
 test('sanitizeStartupEnv suppresses warnings and lsfg layer', () => {
   const env = sanitizeStartupEnv({
-    VK_INSTANCE_LAYERS: 'foo:lsfg-vk:bar',
-  });
-  assert.equal(env.NODE_NO_WARNINGS, '1');
-  assert.equal('VK_INSTANCE_LAYERS' in env, false);
-});
-
-test('sanitizeHelpEnv suppresses warnings and lsfg layer', () => {
-  const env = sanitizeHelpEnv({
-    VK_INSTANCE_LAYERS: 'foo:lsfg-vk:bar',
-  });
-  assert.equal(env.NODE_NO_WARNINGS, '1');
-  assert.equal('VK_INSTANCE_LAYERS' in env, false);
-});
-
-test('sanitizeLaunchMpvEnv suppresses warnings and lsfg layer', () => {
-  const env = sanitizeLaunchMpvEnv({
     VK_INSTANCE_LAYERS: 'foo:lsfg-vk:bar',
   });
   assert.equal(env.NODE_NO_WARNINGS, '1');

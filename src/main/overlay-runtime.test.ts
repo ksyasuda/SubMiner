@@ -1,652 +1,382 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createOverlayModalRuntimeService } from './overlay-runtime';
+import type { HyprlandPlacementStatus } from '../core/services/hyprland-window-placement';
+import {
+  FakeOverlayWindow,
+  LOADING_BLANK_WINDOW,
+  MODAL_GEOMETRY,
+  createHarness,
+  type FakeOverlayWindowInit,
+} from './overlay-runtime-test-harness';
+import type { OverlayHostedModal } from '../shared/ipc/contracts';
 
-type MockWindow = {
-  destroyed: boolean;
-  visible: boolean;
-  focused: boolean;
-  ignoreMouseEvents: boolean;
-  forwardedIgnoreMouseEvents: boolean;
-  webContentsFocused: boolean;
-  alwaysOnTopCalls: string[];
-  showCount: number;
-  hideCount: number;
-  sent: unknown[][];
-  loading: boolean;
-  url: string;
-  contentReady: boolean;
-  documentLoaded: boolean;
-  loadCallbacks: Array<() => void>;
-  stopLoadingCallbacks: Array<() => void>;
-  readyToShowCallbacks: Array<() => void>;
+const SUBSYNC_PAYLOAD = {
+  ffsubsyncAvailable: true,
+  videoReferenceAvailable: true,
+  subtitleTracks: [],
+  defaultReferenceTrackId: null,
+  defaultTargetTrackId: null,
 };
 
-function createMockWindow(): MockWindow & {
-  isDestroyed: () => boolean;
-  isVisible: () => boolean;
-  isFocused: () => boolean;
-  getURL: () => string;
-  setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
-  setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => void;
-  moveTop: () => void;
-  getShowCount: () => number;
-  getHideCount: () => number;
-  show: () => void;
-  showInactive: () => void;
-  hide: () => void;
-  destroy: () => void;
-  focus: () => void;
-  emitDidFinishLoad: () => void;
-  emitDidStopLoading: () => void;
-  emitReadyToShow: () => void;
-  once: (event: 'ready-to-show', cb: () => void) => void;
-  webContents: {
-    focused: boolean;
-    isLoading: () => boolean;
-    getURL: () => string;
-    send: (channel: string, payload?: unknown) => void;
-    isFocused: () => boolean;
-    once: (event: 'did-finish-load' | 'did-stop-loading', cb: () => void) => void;
-    focus: () => void;
+const PENDING_PLACEMENT: HyprlandPlacementStatus = {
+  applicable: true,
+  clientFound: false,
+  dispatched: false,
+};
+
+type FakeTimer = { callback: () => void; active: boolean; unref: () => void };
+
+/**
+ * Swaps the global setTimeout/clearTimeout for a manual queue while `run` executes. The
+ * placement reconcile ladder calls the globals directly, so there is no option to inject.
+ */
+function withFakeTimers(
+  run: (timers: { runNext: () => boolean; runAll: () => void; activeCount: () => number }) => void,
+): void {
+  const timers: FakeTimer[] = [];
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  globalThis.setTimeout = ((callback: () => void) => {
+    const timer: FakeTimer = { callback, active: true, unref() {} };
+    timers.push(timer);
+    return timer;
+  }) as unknown as typeof globalThis.setTimeout;
+  globalThis.clearTimeout = ((timer?: FakeTimer) => {
+    if (timer) timer.active = false;
+  }) as unknown as typeof globalThis.clearTimeout;
+
+  const runNext = (): boolean => {
+    const timer = timers.find((candidate) => candidate.active);
+    if (!timer) return false;
+    timer.active = false;
+    timer.callback();
+    return true;
   };
-} {
-  const state: MockWindow = {
-    destroyed: false,
-    visible: false,
-    focused: false,
-    ignoreMouseEvents: false,
-    forwardedIgnoreMouseEvents: false,
-    webContentsFocused: false,
-    alwaysOnTopCalls: [],
-    showCount: 0,
-    hideCount: 0,
-    sent: [],
-    loading: false,
-    url: 'file:///overlay/index.html?layer=modal',
-    contentReady: true,
-    documentLoaded: true,
-    loadCallbacks: [],
-    stopLoadingCallbacks: [],
-    readyToShowCallbacks: [],
-  };
-  const window = {
-    ...state,
-    isDestroyed: () => state.destroyed,
-    isVisible: () => state.visible,
-    isFocused: () => state.focused,
-    getURL: () => state.url,
-    setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
-      state.ignoreMouseEvents = ignore;
-      state.forwardedIgnoreMouseEvents = options?.forward === true;
-    },
-    setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => {
-      state.alwaysOnTopCalls.push(`top:${flag}:${level ?? ''}:${relativeLevel ?? ''}`);
-    },
-    moveTop: () => {},
-    getShowCount: () => state.showCount,
-    getHideCount: () => state.hideCount,
-    show: () => {
-      state.visible = true;
-      state.showCount += 1;
-    },
-    showInactive: () => {
-      state.visible = true;
-      state.showCount += 1;
-    },
-    hide: () => {
-      state.visible = false;
-      state.hideCount += 1;
-    },
-    destroy: () => {
-      state.destroyed = true;
-      state.visible = false;
-    },
-    focus: () => {
-      state.focused = true;
-    },
-    emitDidFinishLoad: () => {
-      state.documentLoaded = true;
-      (
-        window as typeof window & { __subminerOverlayDocumentLoaded?: boolean }
-      ).__subminerOverlayDocumentLoaded = true;
-      const callbacks = state.loadCallbacks.splice(0);
-      for (const callback of callbacks) {
-        callback();
-      }
-    },
-    emitDidStopLoading: () => {
-      state.loading = false;
-      const callbacks = state.stopLoadingCallbacks.splice(0);
-      for (const callback of callbacks) {
-        callback();
-      }
-    },
-    emitReadyToShow: () => {
-      const callbacks = state.readyToShowCallbacks.splice(0);
-      for (const callback of callbacks) {
-        callback();
-      }
-    },
-    once: (_event: 'ready-to-show', cb: () => void) => {
-      state.readyToShowCallbacks.push(cb);
-    },
-    webContents: {
-      isLoading: () => state.loading,
-      getURL: () => state.url,
-      send: (channel: string, payload?: unknown) => {
-        if (payload === undefined) {
-          state.sent.push([channel]);
-          return;
+  try {
+    run({
+      runNext,
+      runAll: () => {
+        for (let ran = 0; runNext(); ran += 1) {
+          assert.ok(ran < 50, 'timer queue did not drain');
         }
-        state.sent.push([channel, payload]);
       },
-      focused: false,
-      isFocused: () => state.webContentsFocused,
-      once: (event: 'did-finish-load' | 'did-stop-loading', cb: () => void) => {
-        if (event === 'did-stop-loading') {
-          state.stopLoadingCallbacks.push(cb);
-          return;
-        }
-        state.loadCallbacks.push(cb);
-      },
-      focus: () => {
-        state.webContentsFocused = true;
-      },
-    },
-  };
-
-  Object.defineProperty(window, 'loading', {
-    get: () => state.loading,
-    set: (value: boolean) => {
-      state.loading = value;
-    },
-  });
-
-  Object.defineProperty(window, 'visible', {
-    get: () => state.visible,
-    set: (value: boolean) => {
-      state.visible = value;
-    },
-  });
-
-  Object.defineProperty(window, 'focused', {
-    get: () => state.focused,
-    set: (value: boolean) => {
-      state.focused = value;
-    },
-  });
-
-  Object.defineProperty(window, 'webContentsFocused', {
-    get: () => state.webContentsFocused,
-    set: (value: boolean) => {
-      state.webContentsFocused = value;
-    },
-  });
-
-  Object.defineProperty(window, 'alwaysOnTopCalls', {
-    get: () => state.alwaysOnTopCalls,
-    set: (value: string[]) => {
-      state.alwaysOnTopCalls = value;
-    },
-  });
-
-  Object.defineProperty(window, 'url', {
-    get: () => state.url,
-    set: (value: string) => {
-      state.url = value;
-    },
-  });
-
-  Object.defineProperty(window, 'ignoreMouseEvents', {
-    get: () => state.ignoreMouseEvents,
-    set: (value: boolean) => {
-      state.ignoreMouseEvents = value;
-    },
-  });
-
-  Object.defineProperty(window, 'forwardedIgnoreMouseEvents', {
-    get: () => state.forwardedIgnoreMouseEvents,
-    set: (value: boolean) => {
-      state.forwardedIgnoreMouseEvents = value;
-    },
-  });
-
-  Object.defineProperty(window, 'contentReady', {
-    get: () => state.contentReady,
-    set: (value: boolean) => {
-      state.contentReady = value;
-      (
-        window as typeof window & { __subminerOverlayContentReady?: boolean }
-      ).__subminerOverlayContentReady = value;
-    },
-  });
-
-  Object.defineProperty(window, 'documentLoaded', {
-    get: () => state.documentLoaded,
-    set: (value: boolean) => {
-      state.documentLoaded = value;
-      (
-        window as typeof window & { __subminerOverlayDocumentLoaded?: boolean }
-      ).__subminerOverlayDocumentLoaded = value;
-    },
-  });
-
-  (
-    window as typeof window & { __subminerOverlayContentReady?: boolean }
-  ).__subminerOverlayContentReady = state.contentReady;
-  (
-    window as typeof window & { __subminerOverlayDocumentLoaded?: boolean }
-  ).__subminerOverlayDocumentLoaded = state.documentLoaded;
-
-  return window;
+      activeCount: () => timers.filter((timer) => timer.active).length,
+    });
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
 }
 
 test('sendToActiveOverlayWindow targets modal window with full geometry and tracks close restore', () => {
-  const window = createMockWindow();
-  const calls: string[] = [];
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => window as never,
-    createModalWindow: () => {
-      calls.push('create-modal-window');
-      return window as never;
-    },
-    getModalGeometry: () => ({ x: 10, y: 20, width: 300, height: 200 }),
-    setModalWindowBounds: (geometry) => {
-      calls.push(`bounds:${geometry.x},${geometry.y},${geometry.width},${geometry.height}`);
-    },
-  });
+  const modal = new FakeOverlayWindow();
+  const h = createHarness({ modal });
 
-  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  const sent = h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
   assert.equal(sent, true);
-  assert.equal(runtime.getRestoreVisibleOverlayOnModalClose().has('runtime-options'), true);
-  assert.deepEqual(calls, ['bounds:10,20,300,200']);
-  assert.equal(window.getShowCount(), 0);
-  runtime.notifyOverlayModalOpened('runtime-options');
-  assert.equal(window.getShowCount(), 1);
-  assert.equal(window.isFocused(), true);
-  assert.deepEqual(calls, ['bounds:10,20,300,200', 'bounds:10,20,300,200']);
-  assert.deepEqual(window.alwaysOnTopCalls, ['top:true:screen-saver:3']);
-  assert.deepEqual(window.sent, [['runtime-options:open']]);
+  assert.equal(h.runtime.getRestoreVisibleOverlayOnModalClose().has('runtime-options'), true);
+  assert.deepEqual(h.boundsCalls, [MODAL_GEOMETRY]);
+  assert.equal(modal.showCount, 0);
+
+  h.runtime.notifyOverlayModalOpened('runtime-options');
+  assert.equal(h.createCalls, 0);
+  assert.equal(modal.showCount, 1);
+  assert.equal(modal.isFocused(), true);
+  assert.deepEqual(h.boundsCalls, [MODAL_GEOMETRY, MODAL_GEOMETRY]);
+  assert.deepEqual(modal.alwaysOnTopCalls, ['top:true:screen-saver:3']);
+  assert.deepEqual(modal.sent, [['runtime-options:open']]);
 });
 
 test('sendToActiveOverlayWindow creates modal window lazily when absent', () => {
-  const window = createMockWindow();
-  let modalWindow: ReturnType<typeof createMockWindow> | null = null;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => modalWindow as never,
-    createModalWindow: () => {
-      modalWindow = window;
-      return modalWindow as never;
-    },
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
+  const modal = new FakeOverlayWindow();
+  const h = createHarness({ createModal: () => modal });
 
   assert.equal(
-    runtime.sendToActiveOverlayWindow('jimaku:open', undefined, { restoreOnModalClose: 'jimaku' }),
+    h.runtime.sendToActiveOverlayWindow('jimaku:open', undefined, {
+      restoreOnModalClose: 'jimaku',
+    }),
     true,
   );
-  assert.equal(window.getShowCount(), 0);
-  runtime.notifyOverlayModalOpened('jimaku');
-  assert.equal(window.getShowCount(), 1);
-  assert.deepEqual(window.sent, [['jimaku:open']]);
+  assert.equal(h.createCalls, 1);
+  assert.equal(modal.showCount, 0);
+  h.runtime.notifyOverlayModalOpened('jimaku');
+  assert.equal(modal.showCount, 1);
+  assert.deepEqual(modal.sent, [['jimaku:open']]);
 });
 
 for (const platform of ['darwin', 'win32'] as const) {
   test(`primeModalWindow creates and warms a hidden modal on ${platform}`, () => {
-    const modalWindow = createMockWindow();
-    modalWindow.loading = true;
-    modalWindow.url = '';
-    modalWindow.contentReady = false;
-    modalWindow.documentLoaded = false;
-    let currentModal: ReturnType<typeof createMockWindow> | null = null;
-    let createCalls = 0;
-    const runtime = createOverlayModalRuntimeService(
-      {
-        getMainWindow: () => null,
-        getModalWindow: () => currentModal as never,
-        createModalWindow: () => {
-          createCalls += 1;
-          currentModal = modalWindow;
-          return modalWindow as never;
-        },
-        getModalGeometry: () => ({ x: 1, y: 2, width: 300, height: 200 }),
-        setModalWindowBounds: () => {},
-      },
-      { platform },
-    );
+    const modal = new FakeOverlayWindow({ ...LOADING_BLANK_WINDOW, documentLoaded: false });
+    const h = createHarness({ createModal: () => modal, platform });
 
-    assert.equal(runtime.primeModalWindow(), true);
-    assert.equal(createCalls, 1);
-    assert.equal(modalWindow.isVisible(), false);
+    assert.equal(h.runtime.primeModalWindow(), true);
+    assert.equal(h.createCalls, 1);
+    assert.equal(modal.isVisible(), false);
 
-    modalWindow.loading = false;
-    modalWindow.url = 'file:///overlay/index.html?layer=modal';
-    modalWindow.emitDidFinishLoad();
-    modalWindow.emitReadyToShow();
-    modalWindow.contentReady = true;
+    modal.finishLoad();
+    modal.emitReadyToShow();
 
     assert.equal(
-      runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
+      h.runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
         restoreOnModalClose: 'session-help',
         preferModalWindow: true,
       }),
       true,
     );
-    assert.equal(createCalls, 1);
-    assert.equal(modalWindow.isVisible(), true);
-    assert.deepEqual(modalWindow.sent, [['session-help:open']]);
+    assert.equal(h.createCalls, 1);
+    assert.equal(modal.isVisible(), true);
+    assert.deepEqual(modal.sent, [['session-help:open']]);
   });
 }
 
-test('primeModalWindow leaves Linux modal creation lazy', () => {
-  let createCalls = 0;
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => null,
-      createModalWindow: () => {
-        createCalls += 1;
-        return createMockWindow() as never;
-      },
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    { platform: 'linux' },
-  );
+test('sendToActiveOverlayWindow delivers to a modal window created for the send', () => {
+  // ready-to-show can fire before the document loads, and Electron still reports
+  // isLoading() inside did-finish-load; only did-stop-loading sees the settled state.
+  const modal = new FakeOverlayWindow({ ...LOADING_BLANK_WINDOW, documentLoaded: false });
+  const h = createHarness({ createModal: () => modal });
 
-  assert.equal(runtime.primeModalWindow(), false);
-  assert.equal(createCalls, 0);
+  assert.equal(
+    h.runtime.sendToActiveOverlayWindow(
+      'media-timing-review:open',
+      { reviewId: 'r1' },
+      { restoreOnModalClose: 'media-timing-review', preferModalWindow: true },
+    ),
+    true,
+  );
+  modal.emitReadyToShow();
+  assert.deepEqual(modal.sent, []);
+  modal.finishLoad();
+  assert.deepEqual(modal.sent, [['media-timing-review:open', { reviewId: 'r1' }]]);
+});
+
+test('primeModalWindow leaves Linux modal creation lazy', () => {
+  const h = createHarness({ createModal: () => new FakeOverlayWindow(), platform: 'linux' });
+
+  assert.equal(h.runtime.primeModalWindow(), false);
+  assert.equal(h.createCalls, 0);
 });
 
 test('sendToActiveOverlayWindow does not retain restore state when modal creation fails', () => {
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => null,
-    createModalWindow: () => null,
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
+  const h = createHarness({ createModal: () => null });
 
   assert.equal(
-    runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
       restoreOnModalClose: 'runtime-options',
     }),
     false,
   );
-  assert.equal(runtime.getRestoreVisibleOverlayOnModalClose().has('runtime-options'), false);
+  assert.equal(h.runtime.getRestoreVisibleOverlayOnModalClose().has('runtime-options'), false);
 });
 
-test('sendToActiveOverlayWindow waits for blank modal URL before sending open command', () => {
-  const window = createMockWindow();
-  window.url = '';
-  window.loading = true;
-  window.contentReady = false;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => window as never,
-    createModalWindow: () => {
-      throw new Error('modal window should not be created when already present');
-    },
-    getModalGeometry: () => ({ x: 10, y: 20, width: 300, height: 200 }),
-    setModalWindowBounds: () => {},
+const readinessCases: Array<{
+  name: string;
+  window: FakeOverlayWindowInit;
+  opens: OverlayHostedModal[];
+  sentBeforeLoad: unknown[][];
+}> = [
+  {
+    name: 'delivers on first modal load without waiting for ready-to-show',
+    window: LOADING_BLANK_WINDOW,
+    opens: ['runtime-options'],
+    sentBeforeLoad: [],
+  },
+  {
+    name: 'delivers when the modal loaded before listeners were registered',
+    window: { contentReady: false },
+    opens: ['runtime-options'],
+    sentBeforeLoad: [['runtime-options:open']],
+  },
+  {
+    name: 'does not infer document readiness from a pending file URL',
+    window: { contentReady: false, documentLoaded: false },
+    opens: ['runtime-options'],
+    sentBeforeLoad: [],
+  },
+  {
+    name: 'rejects stale content readiness during document reload',
+    window: { contentReady: true, documentLoaded: false },
+    opens: ['session-help'],
+    sentBeforeLoad: [],
+  },
+  {
+    name: 'flushes every queued open in order once the modal loads',
+    window: LOADING_BLANK_WINDOW,
+    opens: ['runtime-options', 'session-help'],
+    sentBeforeLoad: [],
+  },
+];
+
+for (const c of readinessCases) {
+  test(`sendToActiveOverlayWindow ${c.name}`, () => {
+    const modal = new FakeOverlayWindow(c.window);
+    const h = createHarness({ modal });
+
+    for (const modalId of c.opens) {
+      assert.equal(
+        h.runtime.sendToActiveOverlayWindow(`${modalId}:open`, undefined, {
+          restoreOnModalClose: modalId,
+        }),
+        true,
+      );
+    }
+    assert.deepEqual(modal.sent, c.sentBeforeLoad);
+
+    const expected = c.opens.map((modalId) => [`${modalId}:open`]);
+    modal.finishLoad();
+    assert.deepEqual(modal.sent, expected);
+
+    // Later ready-to-show and the renderer ack must not resend, and the ack reveals once.
+    modal.emitReadyToShow();
+    h.runtime.notifyOverlayModalOpened(c.opens[0]!);
+    assert.deepEqual(modal.sent, expected);
+    assert.equal(modal.showCount, 1);
+    assert.equal(h.createCalls, 0);
   });
-
-  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-    restoreOnModalClose: 'runtime-options',
-  });
-
-  assert.equal(sent, true);
-  assert.deepEqual(window.sent, []);
-  window.loading = false;
-  window.url = 'file:///overlay/index.html?layer=modal';
-  window.emitDidFinishLoad();
-  assert.deepEqual(window.sent, [['runtime-options:open']]);
-
-  window.contentReady = true;
-  window.emitReadyToShow();
-
-  runtime.notifyOverlayModalOpened('runtime-options');
-  assert.deepEqual(window.sent, [['runtime-options:open']]);
-  assert.equal(window.getShowCount(), 1);
-});
+}
 
 test('handleOverlayModalClosed keeps the modal window warm after all pending modals close', () => {
-  const window = createMockWindow();
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => window as never,
-      createModalWindow: () => window as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    { platform: 'darwin' },
-  );
+  const modal = new FakeOverlayWindow();
+  const h = createHarness({ modal, platform: 'darwin' });
 
-  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
-  runtime.sendToActiveOverlayWindow(
-    'subsync:open-manual',
-    {
-      ffsubsyncAvailable: true,
-      videoReferenceAvailable: true,
-      subtitleTracks: [],
-      defaultReferenceTrackId: null,
-      defaultTargetTrackId: null,
-    },
-    {
-      restoreOnModalClose: 'subsync',
-    },
-  );
+  h.runtime.sendToActiveOverlayWindow('subsync:open-manual', SUBSYNC_PAYLOAD, {
+    restoreOnModalClose: 'subsync',
+  });
 
-  runtime.handleOverlayModalClosed('runtime-options');
-  assert.equal(window.isDestroyed(), false);
+  h.runtime.handleOverlayModalClosed('runtime-options');
+  assert.equal(modal.isDestroyed(), false);
 
-  runtime.handleOverlayModalClosed('subsync');
-  assert.equal(window.isDestroyed(), false);
-  assert.equal(window.isVisible(), false);
-  assert.equal(window.ignoreMouseEvents, true);
+  h.runtime.handleOverlayModalClosed('subsync');
+  assert.equal(modal.isDestroyed(), false);
+  assert.equal(modal.isVisible(), false);
+  assert.equal(modal.ignoreMouseEvents, true);
+  assert.equal(h.runtime.getRestoreVisibleOverlayOnModalClose().size, 0);
 });
 
 test('sendToActiveOverlayWindow prefers visible main overlay window for modal open', () => {
-  const mainWindow = createMockWindow();
-  mainWindow.visible = true;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => mainWindow as never,
-    getModalWindow: () => null,
-    createModalWindow: () => {
-      throw new Error('modal window should not be created when main overlay is visible');
-    },
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
+  const main = new FakeOverlayWindow({ visible: true });
+  const h = createHarness({ main, createModal: () => new FakeOverlayWindow() });
 
-  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  const sent = h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
 
   assert.equal(sent, true);
-  assert.deepEqual(mainWindow.sent, [['runtime-options:open']]);
+  assert.equal(h.createCalls, 0);
+  assert.deepEqual(main.sent, [['runtime-options:open']]);
 });
 
 test('sendToActiveOverlayWindow can prefer modal window even when main overlay is visible', () => {
-  const mainWindow = createMockWindow();
-  mainWindow.visible = true;
-  const modalWindow = createMockWindow();
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => mainWindow as never,
-    getModalWindow: () => modalWindow as never,
-    createModalWindow: () => modalWindow as never,
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
+  const main = new FakeOverlayWindow({ visible: true });
+  const modal = new FakeOverlayWindow();
+  const h = createHarness({ main, modal });
 
-  const sent = runtime.sendToActiveOverlayWindow(
+  const sent = h.runtime.sendToActiveOverlayWindow(
     'youtube:picker-open',
     { sessionId: 'yt-1' },
-    {
-      restoreOnModalClose: 'youtube-track-picker',
-      preferModalWindow: true,
-    },
+    { restoreOnModalClose: 'youtube-track-picker', preferModalWindow: true },
   );
 
   assert.equal(sent, true);
-  assert.deepEqual(mainWindow.sent, []);
-  assert.deepEqual(modalWindow.sent, [['youtube:picker-open', { sessionId: 'yt-1' }]]);
+  assert.deepEqual(main.sent, []);
+  assert.deepEqual(modal.sent, [['youtube:picker-open', { sessionId: 'yt-1' }]]);
 });
 
 test('modal window path makes visible main overlay click-through until modal closes', () => {
-  const mainWindow = createMockWindow();
-  mainWindow.visible = true;
-  const modalWindow = createMockWindow();
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => mainWindow as never,
-    getModalWindow: () => modalWindow as never,
-    createModalWindow: () => modalWindow as never,
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
+  const main = new FakeOverlayWindow({ visible: true });
+  const modal = new FakeOverlayWindow();
+  const h = createHarness({ main, modal });
 
-  const sent = runtime.sendToActiveOverlayWindow(
+  const sent = h.runtime.sendToActiveOverlayWindow(
     'youtube:picker-open',
     { sessionId: 'yt-1' },
-    {
-      restoreOnModalClose: 'youtube-track-picker',
-      preferModalWindow: true,
-    },
+    { restoreOnModalClose: 'youtube-track-picker', preferModalWindow: true },
   );
-  runtime.notifyOverlayModalOpened('youtube-track-picker');
+  h.runtime.notifyOverlayModalOpened('youtube-track-picker');
 
   assert.equal(sent, true);
-  assert.equal(mainWindow.ignoreMouseEvents, true);
-  assert.equal(mainWindow.forwardedIgnoreMouseEvents, true);
-  assert.equal(modalWindow.ignoreMouseEvents, false);
+  assert.equal(main.ignoreMouseEvents, true);
+  assert.equal(main.forwardedIgnoreMouseEvents, true);
+  assert.equal(modal.ignoreMouseEvents, false);
 
-  runtime.handleOverlayModalClosed('youtube-track-picker');
+  h.runtime.handleOverlayModalClosed('youtube-track-picker');
 
-  assert.equal(mainWindow.ignoreMouseEvents, true);
+  assert.equal(main.ignoreMouseEvents, true);
 });
 
 test('modal window path restores visible main overlay before modal input deactivates', () => {
-  const mainWindow = createMockWindow();
-  mainWindow.visible = true;
-  const modalWindow = createMockWindow();
+  const main = new FakeOverlayWindow({ visible: true });
   const events: string[] = [];
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => mainWindow as never,
-      getModalWindow: () => modalWindow as never,
-      createModalWindow: () => modalWindow as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
+  const h = createHarness({
+    main,
+    modal: new FakeOverlayWindow(),
+    options: {
+      onModalStateChange: (active) => events.push(`state:${active}:visible:${main.isVisible()}`),
     },
-    {
-      onModalStateChange: (active: boolean): void => {
-        events.push(`state:${active}:visible:${mainWindow.isVisible()}`);
-      },
-    },
-  );
+  });
 
-  runtime.sendToActiveOverlayWindow(
+  h.runtime.sendToActiveOverlayWindow(
     'youtube:picker-open',
     { sessionId: 'yt-1' },
-    {
-      restoreOnModalClose: 'youtube-track-picker',
-      preferModalWindow: true,
-    },
+    { restoreOnModalClose: 'youtube-track-picker', preferModalWindow: true },
   );
-  runtime.notifyOverlayModalOpened('youtube-track-picker');
+  h.runtime.notifyOverlayModalOpened('youtube-track-picker');
 
-  assert.equal(mainWindow.getHideCount(), 1);
-  assert.equal(mainWindow.isVisible(), false);
+  assert.equal(main.hideCount, 1);
+  assert.equal(main.isVisible(), false);
 
-  runtime.handleOverlayModalClosed('youtube-track-picker');
+  h.runtime.handleOverlayModalClosed('youtube-track-picker');
 
-  assert.equal(mainWindow.getShowCount(), 1);
-  assert.equal(mainWindow.isVisible(), true);
+  assert.equal(main.showCount, 1);
+  assert.equal(main.isVisible(), true);
   assert.deepEqual(events, ['state:true:visible:true', 'state:false:visible:true']);
 });
 
 test('macOS maps a new modal panel before focusing SubMiner and hiding the subtitle overlay', () => {
-  const mainWindow = createMockWindow();
-  mainWindow.visible = true;
-  const modalWindow = createMockWindow();
-  const events: string[] = [];
-  const showInactive = modalWindow.showInactive;
-  modalWindow.showInactive = () => {
-    events.push('show-inactive');
-    showInactive();
-  };
-  const hideMainWindow = mainWindow.hide;
-  mainWindow.hide = () => {
-    events.push('hide-main');
-    hideMainWindow();
-  };
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => mainWindow as never,
-      getModalWindow: () => modalWindow as never,
-      createModalWindow: () => modalWindow as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    {
-      platform: 'darwin',
-      focusApplication: () => events.push('focus-application'),
-    },
-  );
+  const log: string[] = [];
+  const main = new FakeOverlayWindow({ name: 'main', log, visible: true });
+  const modal = new FakeOverlayWindow({ name: 'modal', log });
+  const h = createHarness({
+    main,
+    modal,
+    platform: 'darwin',
+    options: { focusApplication: () => log.push('focus-application') },
+  });
 
-  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
     preferModalWindow: true,
   });
-  runtime.notifyOverlayModalOpened('runtime-options');
+  h.runtime.notifyOverlayModalOpened('runtime-options');
 
-  assert.deepEqual(events, ['show-inactive', 'focus-application', 'hide-main']);
-  assert.equal(modalWindow.isVisible(), true);
-  assert.equal(mainWindow.isVisible(), false);
+  assert.deepEqual(log, ['modal:show-inactive', 'focus-application', 'main:hide']);
+  assert.equal(modal.isVisible(), true);
+  assert.equal(main.isVisible(), false);
 });
 
 test('modal window path runs final close handoff before modal input deactivates', () => {
-  const mainWindow = createMockWindow();
-  mainWindow.visible = true;
-  const modalWindow = createMockWindow();
+  const main = new FakeOverlayWindow({ visible: true });
   const events: string[] = [];
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => mainWindow as never,
-      getModalWindow: () => modalWindow as never,
-      createModalWindow: () => modalWindow as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
+  const h = createHarness({
+    main,
+    modal: new FakeOverlayWindow(),
+    options: {
+      onFinalModalClosed: () => events.push(`handoff:visible:${main.isVisible()}`),
+      onModalStateChange: (active) => events.push(`state:${active}:visible:${main.isVisible()}`),
     },
-    {
-      onFinalModalClosed: (): void => {
-        events.push(`handoff:visible:${mainWindow.isVisible()}`);
-      },
-      onModalStateChange: (active: boolean): void => {
-        events.push(`state:${active}:visible:${mainWindow.isVisible()}`);
-      },
-    },
-  );
+  });
 
-  runtime.sendToActiveOverlayWindow(
+  h.runtime.sendToActiveOverlayWindow(
     'youtube:picker-open',
     { sessionId: 'yt-1' },
-    {
-      restoreOnModalClose: 'youtube-track-picker',
-      preferModalWindow: true,
-    },
+    { restoreOnModalClose: 'youtube-track-picker', preferModalWindow: true },
   );
-  runtime.notifyOverlayModalOpened('youtube-track-picker');
-  runtime.handleOverlayModalClosed('youtube-track-picker');
+  h.runtime.notifyOverlayModalOpened('youtube-track-picker');
+  h.runtime.handleOverlayModalClosed('youtube-track-picker');
 
   assert.deepEqual(events, [
     'state:true:visible:true',
@@ -656,193 +386,99 @@ test('modal window path runs final close handoff before modal input deactivates'
 });
 
 test('modal runtime deactivates modal state when final close handoff throws', () => {
-  const mainWindow = createMockWindow();
-  mainWindow.visible = true;
-  const modalWindow = createMockWindow();
   const events: string[] = [];
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => mainWindow as never,
-      getModalWindow: () => modalWindow as never,
-      createModalWindow: () => modalWindow as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    {
-      onFinalModalClosed: (): void => {
+  const h = createHarness({
+    main: new FakeOverlayWindow({ visible: true }),
+    modal: new FakeOverlayWindow(),
+    options: {
+      onFinalModalClosed: () => {
         events.push('handoff');
         throw new Error('handoff failed');
       },
-      onModalStateChange: (active: boolean): void => {
-        events.push(`state:${active}`);
-      },
+      onModalStateChange: (active) => events.push(`state:${active}`),
     },
-  );
+  });
 
-  runtime.sendToActiveOverlayWindow(
+  h.runtime.sendToActiveOverlayWindow(
     'youtube:picker-open',
     { sessionId: 'yt-1' },
-    {
-      restoreOnModalClose: 'youtube-track-picker',
-      preferModalWindow: true,
-    },
+    { restoreOnModalClose: 'youtube-track-picker', preferModalWindow: true },
   );
-  runtime.notifyOverlayModalOpened('youtube-track-picker');
+  h.runtime.notifyOverlayModalOpened('youtube-track-picker');
 
-  assert.doesNotThrow(() => runtime.handleOverlayModalClosed('youtube-track-picker'));
+  assert.doesNotThrow(() => h.runtime.handleOverlayModalClosed('youtube-track-picker'));
   assert.deepEqual(events, ['state:true', 'handoff', 'state:false']);
 });
 
 test('modal runtime notifies callers when modal input state becomes active/inactive', () => {
-  const window = createMockWindow();
   const state: boolean[] = [];
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => window as never,
-      createModalWindow: () => window as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    {
-      onModalStateChange: (active: boolean): void => {
-        state.push(active);
-      },
-    },
-  );
+  const h = createHarness({
+    modal: new FakeOverlayWindow(),
+    options: { onModalStateChange: (active) => state.push(active) },
+  });
 
-  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
-  runtime.sendToActiveOverlayWindow(
-    'subsync:open-manual',
-    {
-      ffsubsyncAvailable: true,
-      videoReferenceAvailable: true,
-      subtitleTracks: [],
-      defaultReferenceTrackId: null,
-      defaultTargetTrackId: null,
-    },
-    {
-      restoreOnModalClose: 'subsync',
-    },
-  );
+  h.runtime.sendToActiveOverlayWindow('subsync:open-manual', SUBSYNC_PAYLOAD, {
+    restoreOnModalClose: 'subsync',
+  });
   assert.deepEqual(state, []);
-  runtime.notifyOverlayModalOpened('runtime-options');
+  h.runtime.notifyOverlayModalOpened('runtime-options');
   assert.deepEqual(state, [true]);
 
-  runtime.handleOverlayModalClosed('runtime-options');
+  h.runtime.handleOverlayModalClosed('runtime-options');
   assert.deepEqual(state, [true]);
 
-  runtime.handleOverlayModalClosed('subsync');
+  h.runtime.handleOverlayModalClosed('subsync');
   assert.deepEqual(state, [true, false]);
 });
 
 test('notifyOverlayModalOpened enables input on visible main overlay window when no modal window exists', () => {
-  const mainWindow = createMockWindow();
-  mainWindow.visible = true;
-  mainWindow.ignoreMouseEvents = true;
+  const main = new FakeOverlayWindow({ visible: true, ignoreMouseEvents: true });
   const state: boolean[] = [];
+  const h = createHarness({
+    main,
+    options: { onModalStateChange: (active) => state.push(active) },
+  });
 
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => mainWindow as never,
-      getModalWindow: () => null,
-      createModalWindow: () => {
-        throw new Error('modal window should not be created when main overlay is visible');
-      },
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    {
-      onModalStateChange: (active: boolean): void => {
-        state.push(active);
-      },
-    },
-  );
-
-  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  const sent = h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
-  runtime.notifyOverlayModalOpened('runtime-options');
+  h.runtime.notifyOverlayModalOpened('runtime-options');
 
   assert.equal(sent, true);
+  assert.equal(h.createCalls, 0);
   assert.deepEqual(state, [true]);
-  assert.equal(mainWindow.ignoreMouseEvents, false);
-  assert.equal(mainWindow.isFocused(), true);
-  assert.equal(mainWindow.webContentsFocused, true);
+  assert.equal(main.ignoreMouseEvents, false);
+  assert.equal(main.isFocused(), true);
+  assert.equal(main.webContentsFocused, true);
 });
 
 test('handleOverlayModalClosed is a no-op when no modal window can be targeted', () => {
   const state: boolean[] = [];
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => null,
-      createModalWindow: () => null,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    {
-      onModalStateChange: (active: boolean): void => {
-        state.push(active);
-      },
-    },
-  );
+  const h = createHarness({
+    createModal: () => null,
+    options: { onModalStateChange: (active) => state.push(active) },
+  });
 
-  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  const sent = h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
   assert.equal(sent, false);
-  runtime.notifyOverlayModalOpened('runtime-options');
-  runtime.handleOverlayModalClosed('runtime-options');
+  h.runtime.notifyOverlayModalOpened('runtime-options');
+  h.runtime.handleOverlayModalClosed('runtime-options');
 
   assert.deepEqual(state, []);
 });
 
-test('handleOverlayModalClosed hides and retains modal window for single kiku modal', () => {
-  const window = createMockWindow();
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => window as never,
-      createModalWindow: () => window as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    { platform: 'darwin' },
-  );
-
-  runtime.sendToActiveOverlayWindow(
-    'kiku:field-grouping-open',
-    { test: true },
-    {
-      restoreOnModalClose: 'kiku',
-    },
-  );
-  runtime.handleOverlayModalClosed('kiku');
-
-  assert.equal(window.isDestroyed(), false);
-  assert.equal(window.isVisible(), false);
-  assert.equal(window.ignoreMouseEvents, true);
-  assert.equal(runtime.getRestoreVisibleOverlayOnModalClose().size, 0);
-});
-
-test('modal fallback reveal skips showing window when content is not ready', async () => {
-  const window = createMockWindow();
+test('modal fallback reveal skips showing window when content is not ready', () => {
+  const modal = new FakeOverlayWindow(LOADING_BLANK_WINDOW);
   let scheduledReveal: (() => void) | null = null;
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => window as never,
-      createModalWindow: () => {
-        throw new Error('modal window should not be created when already present');
-      },
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    {
-      platform: 'darwin',
+  const h = createHarness({
+    modal,
+    platform: 'darwin',
+    options: {
       scheduleRevealFallback: (callback) => {
         scheduledReveal = callback;
         return { scheduled: true } as never;
@@ -851,627 +487,239 @@ test('modal fallback reveal skips showing window when content is not ready', asy
         scheduledReveal = null;
       },
     },
-  );
+  });
 
-  window.loading = true;
-  window.url = '';
-  window.contentReady = false;
-
-  const sent = runtime.sendToActiveOverlayWindow('jimaku:open', undefined, {
+  const sent = h.runtime.sendToActiveOverlayWindow('jimaku:open', undefined, {
     restoreOnModalClose: 'jimaku',
   });
 
   assert.equal(sent, true);
-  if (scheduledReveal === null) {
-    throw new Error('expected reveal callback');
-  }
-  const runScheduledReveal: () => void = scheduledReveal;
-  runScheduledReveal();
+  assert.ok(scheduledReveal, 'expected reveal callback');
+  (scheduledReveal as () => void)();
+  assert.equal(modal.showCount, 0);
 
-  assert.equal(window.getShowCount(), 0);
-
-  runtime.notifyOverlayModalOpened('jimaku');
-  assert.equal(window.getShowCount(), 1);
-  assert.equal(window.ignoreMouseEvents, false);
-});
-
-test('sendToActiveOverlayWindow delivers on first modal load without waiting for ready-to-show', () => {
-  const window = createMockWindow();
-  window.loading = true;
-  window.url = '';
-  window.contentReady = false;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => window as never,
-    createModalWindow: () => {
-      throw new Error('modal window should not be created when already present');
-    },
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
-
-  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-    restoreOnModalClose: 'runtime-options',
-  });
-
-  assert.equal(sent, true);
-  assert.deepEqual(window.sent, []);
-  window.loading = false;
-  window.url = 'file:///overlay/index.html?layer=modal';
-  window.emitDidFinishLoad();
-  assert.deepEqual(window.sent, [['runtime-options:open']]);
-
-  window.contentReady = true;
-  window.emitReadyToShow();
-  assert.deepEqual(window.sent, [['runtime-options:open']]);
-});
-
-test('sendToActiveOverlayWindow delivers to a modal window created for the send', () => {
-  // Electron keeps isLoading() true inside did-finish-load, and ready-to-show can fire
-  // before it; only did-stop-loading sees the settled state.
-  const window = createMockWindow();
-  window.loading = true;
-  window.url = '';
-  window.contentReady = false;
-  window.documentLoaded = false;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => null,
-    createModalWindow: () => window as never,
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
-
-  assert.equal(
-    runtime.sendToActiveOverlayWindow(
-      'media-timing-review:open',
-      { reviewId: 'r1' },
-      {
-        restoreOnModalClose: 'media-timing-review',
-        preferModalWindow: true,
-      },
-    ),
-    true,
-  );
-  assert.deepEqual(window.sent, []);
-  window.contentReady = true;
-  window.emitReadyToShow();
-  window.url = 'file:///overlay/index.html?layer=modal';
-  window.documentLoaded = true;
-  window.emitDidFinishLoad();
-  assert.deepEqual(window.sent, []);
-  window.emitDidStopLoading();
-  assert.deepEqual(window.sent, [['media-timing-review:open', { reviewId: 'r1' }]]);
-});
-
-test('sendToActiveOverlayWindow delivers when the modal loaded before listeners were registered', () => {
-  const window = createMockWindow();
-  window.contentReady = false;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => window as never,
-    createModalWindow: () => {
-      throw new Error('modal window should not be created when already present');
-    },
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
-
-  assert.equal(
-    runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-      restoreOnModalClose: 'runtime-options',
-    }),
-    true,
-  );
-  assert.deepEqual(window.sent, [['runtime-options:open']]);
-
-  window.contentReady = true;
-  window.emitReadyToShow();
-  assert.deepEqual(window.sent, [['runtime-options:open']]);
-});
-
-test('sendToActiveOverlayWindow does not infer document readiness from a pending file URL', () => {
-  const window = createMockWindow();
-  window.contentReady = false;
-  window.documentLoaded = false;
-  window.loading = false;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => window as never,
-    createModalWindow: () => {
-      throw new Error('modal window should not be created when already present');
-    },
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
-
-  assert.equal(
-    runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-      restoreOnModalClose: 'runtime-options',
-    }),
-    true,
-  );
-  assert.deepEqual(window.sent, []);
-
-  window.emitDidFinishLoad();
-  assert.deepEqual(window.sent, [['runtime-options:open']]);
-});
-
-test('sendToActiveOverlayWindow rejects stale content readiness during document reload', () => {
-  const window = createMockWindow();
-  window.contentReady = true;
-  window.documentLoaded = false;
-  window.loading = false;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => window as never,
-    createModalWindow: () => {
-      throw new Error('modal window should not be created when already present');
-    },
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
-
-  assert.equal(
-    runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
-      restoreOnModalClose: 'session-help',
-    }),
-    true,
-  );
-  assert.deepEqual(window.sent, []);
-
-  window.emitDidFinishLoad();
-  assert.deepEqual(window.sent, [['session-help:open']]);
-});
-
-test('sendToActiveOverlayWindow flushes every queued load and ready listener before sending', () => {
-  const window = createMockWindow();
-  window.loading = true;
-  window.url = '';
-  window.contentReady = false;
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => window as never,
-    createModalWindow: () => {
-      throw new Error('modal window should not be created when already present');
-    },
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
-
-  assert.equal(
-    runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-      restoreOnModalClose: 'runtime-options',
-    }),
-    true,
-  );
-  assert.equal(
-    runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
-      restoreOnModalClose: 'session-help',
-    }),
-    true,
-  );
-  assert.deepEqual(window.sent, []);
-
-  window.loading = false;
-  window.url = 'file:///overlay/index.html?layer=modal';
-  window.emitDidFinishLoad();
-  assert.deepEqual(window.sent, [['runtime-options:open'], ['session-help:open']]);
-
-  window.contentReady = true;
-  window.emitReadyToShow();
-  assert.deepEqual(window.sent, [['runtime-options:open'], ['session-help:open']]);
+  h.runtime.notifyOverlayModalOpened('jimaku');
+  assert.equal(modal.showCount, 1);
+  assert.equal(modal.ignoreMouseEvents, false);
 });
 
 test('modal reopen reuses the warm window and shows it immediately on macOS', () => {
-  const modalWindow = createMockWindow();
-  let createCalls = 0;
+  const modal = new FakeOverlayWindow();
+  const state: boolean[] = [];
+  const h = createHarness({
+    modal,
+    createModal: () => modal,
+    platform: 'darwin',
+    options: { onModalStateChange: (active) => state.push(active) },
+  });
 
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => modalWindow as never,
-      createModalWindow: () => {
-        createCalls += 1;
-        return modalWindow as never;
-      },
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    { platform: 'darwin' },
-  );
-
-  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
-  runtime.notifyOverlayModalOpened('runtime-options');
-  runtime.handleOverlayModalClosed('runtime-options');
+  h.runtime.notifyOverlayModalOpened('runtime-options');
+  h.runtime.handleOverlayModalClosed('runtime-options');
 
-  assert.equal(modalWindow.isDestroyed(), false);
-  assert.equal(modalWindow.isVisible(), false);
+  assert.equal(modal.isDestroyed(), false);
+  assert.equal(modal.isVisible(), false);
+  assert.deepEqual(state, [true, false]);
 
-  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  const sent = h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
 
   assert.equal(sent, true);
-  assert.equal(createCalls, 0);
-  assert.equal(modalWindow.isVisible(), true);
-  assert.equal(modalWindow.getShowCount(), 2);
+  assert.equal(h.createCalls, 0);
+  assert.equal(modal.isVisible(), true);
+  assert.equal(modal.showCount, 2);
+
+  h.runtime.notifyOverlayModalOpened('runtime-options');
+  assert.deepEqual(state, [true, false, true]);
 });
 
 test('modal reopen on Windows uses a fresh prewarmed interactive window', () => {
-  const firstWindow = createMockWindow();
-  const replacementWindow = createMockWindow();
-  let currentModal = firstWindow;
-  let createCalls = 0;
+  const firstWindow = new FakeOverlayWindow();
+  const replacementWindow = new FakeOverlayWindow();
+  const h = createHarness({
+    modal: firstWindow,
+    createModal: () => replacementWindow,
+    platform: 'win32',
+  });
 
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => currentModal as never,
-      createModalWindow: () => {
-        createCalls += 1;
-        currentModal = replacementWindow;
-        return replacementWindow as never;
-      },
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    { platform: 'win32' },
-  );
-
-  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
-  runtime.notifyOverlayModalOpened('runtime-options');
-  runtime.handleOverlayModalClosed('runtime-options');
+  h.runtime.notifyOverlayModalOpened('runtime-options');
+  h.runtime.handleOverlayModalClosed('runtime-options');
 
   assert.equal(firstWindow.isDestroyed(), true);
-  assert.equal(currentModal, replacementWindow);
+  assert.equal(h.modal, replacementWindow);
   assert.equal(replacementWindow.isVisible(), false);
-  assert.equal(createCalls, 1);
+  assert.equal(h.createCalls, 1);
 
-  const sent = runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
+  const sent = h.runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
     restoreOnModalClose: 'session-help',
   });
 
   assert.equal(sent, true);
-  assert.equal(createCalls, 1);
+  assert.equal(h.createCalls, 1);
   assert.equal(replacementWindow.isVisible(), true);
   assert.equal(replacementWindow.ignoreMouseEvents, false);
   assert.deepEqual(replacementWindow.sent, [['session-help:open']]);
 });
 
-test('modal reopen on the warm window notifies state change for each lifecycle', () => {
-  const modalWindow = createMockWindow();
-  const state: boolean[] = [];
-
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => modalWindow as never,
-      createModalWindow: () => modalWindow as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    {
-      onModalStateChange: (active: boolean): void => {
-        state.push(active);
-      },
-      platform: 'darwin',
-    },
-  );
-
-  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-    restoreOnModalClose: 'runtime-options',
-  });
-  runtime.notifyOverlayModalOpened('runtime-options');
-  runtime.handleOverlayModalClosed('runtime-options');
-
-  assert.deepEqual(state, [true, false]);
-  assert.equal(modalWindow.isDestroyed(), false);
-
-  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-    restoreOnModalClose: 'runtime-options',
-  });
-  runtime.notifyOverlayModalOpened('runtime-options');
-
-  assert.deepEqual(state, [true, false, true]);
-  assert.equal(modalWindow.isVisible(), true);
-});
-
 test('visible stale modal window is made interactive again before reopening', () => {
-  const window = createMockWindow();
-  window.visible = true;
-  window.focused = true;
-  window.webContentsFocused = false;
-  window.ignoreMouseEvents = true;
-
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => window as never,
-    createModalWindow: () => window as never,
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
+  const modal = new FakeOverlayWindow({
+    visible: true,
+    focused: true,
+    webContentsFocused: false,
+    ignoreMouseEvents: true,
   });
+  const h = createHarness({ modal });
 
-  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+  const sent = h.runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
 
   assert.equal(sent, true);
-  assert.equal(window.ignoreMouseEvents, false);
-  assert.equal(window.isFocused(), true);
-  assert.equal(window.webContentsFocused, true);
-  assert.deepEqual(window.sent, [['runtime-options:open']]);
+  assert.equal(modal.ignoreMouseEvents, false);
+  assert.equal(modal.isFocused(), true);
+  assert.equal(modal.webContentsFocused, true);
+  assert.deepEqual(modal.sent, [['runtime-options:open']]);
 });
 
 test('waitForModalOpen resolves true after modal acknowledgement', async () => {
-  const modalWindow = createMockWindow();
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => modalWindow as never,
-    createModalWindow: () => modalWindow as never,
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
+  const h = createHarness({ modal: new FakeOverlayWindow() });
 
-  runtime.sendToActiveOverlayWindow(
+  h.runtime.sendToActiveOverlayWindow(
     'youtube:picker-open',
     { sessionId: 'yt-1' },
-    {
-      restoreOnModalClose: 'youtube-track-picker',
-    },
+    { restoreOnModalClose: 'youtube-track-picker' },
   );
-  const pending = runtime.waitForModalOpen('youtube-track-picker', 1000);
-  runtime.notifyOverlayModalOpened('youtube-track-picker');
+  const pending = h.runtime.waitForModalOpen('youtube-track-picker', 1000);
+  h.runtime.notifyOverlayModalOpened('youtube-track-picker');
 
   assert.equal(await pending, true);
 });
 
 test('waitForModalOpen resolves true when modal acknowledgement arrives before waiter registration', async () => {
-  const modalWindow = createMockWindow();
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => modalWindow as never,
-    createModalWindow: () => modalWindow as never,
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
+  const h = createHarness({ modal: new FakeOverlayWindow() });
 
-  runtime.sendToActiveOverlayWindow(
+  h.runtime.sendToActiveOverlayWindow(
     'kiku:field-grouping-request',
     {},
-    {
-      restoreOnModalClose: 'kiku',
-    },
+    { restoreOnModalClose: 'kiku' },
   );
-  runtime.notifyOverlayModalOpened('kiku');
+  h.runtime.notifyOverlayModalOpened('kiku');
 
-  assert.equal(await runtime.waitForModalOpen('kiku', 5), true);
+  assert.equal(await h.runtime.waitForModalOpen('kiku', 5), true);
 });
 
 test('waitForModalOpen resolves false on timeout', async () => {
-  const runtime = createOverlayModalRuntimeService({
-    getMainWindow: () => null,
-    getModalWindow: () => null,
-    createModalWindow: () => null,
-    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-    setModalWindowBounds: () => {},
-  });
+  const h = createHarness();
 
-  assert.equal(await runtime.waitForModalOpen('youtube-track-picker', 5), false);
+  assert.equal(await h.runtime.waitForModalOpen('youtube-track-picker', 5), false);
 });
 
+function openKikuInModalWindow(h: ReturnType<typeof createHarness>): void {
+  h.runtime.sendToActiveOverlayWindow(
+    'kiku:field-grouping-open',
+    { test: true },
+    { restoreOnModalClose: 'kiku', preferModalWindow: true },
+  );
+}
+
 test('modal placement reconcile retries until the Hyprland client is mapped', () => {
-  const window = createMockWindow();
-  const timers: Array<() => void> = [];
-  const originalSetTimeout = globalThis.setTimeout;
-  globalThis.setTimeout = ((cb: () => void) => {
-    timers.push(cb);
-    return { unref() {} };
-  }) as unknown as typeof globalThis.setTimeout;
-
-  const statuses: Array<{ applicable: boolean; clientFound: boolean }> = [];
-  try {
-    const runtime = createOverlayModalRuntimeService({
-      getMainWindow: () => null,
-      getModalWindow: () => window as never,
-      createModalWindow: () => window as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {
-        // The compositor never maps the window, so every reconcile reports pending.
-        const status = { applicable: true, clientFound: false, dispatched: false };
-        statuses.push(status);
-        return status;
-      },
+  withFakeTimers((timers) => {
+    // The compositor never maps the window, so every reconcile reports pending.
+    const h = createHarness({
+      modal: new FakeOverlayWindow(),
+      setModalWindowBounds: () => PENDING_PLACEMENT,
     });
+    openKikuInModalWindow(h);
+    h.runtime.notifyOverlayModalOpened('kiku');
+    const reconcilesBeforeLadder = h.boundsCalls.length;
 
-    runtime.sendToActiveOverlayWindow(
-      'kiku:field-grouping-open',
-      { test: true },
-      { restoreOnModalClose: 'kiku', preferModalWindow: true },
-    );
-    runtime.notifyOverlayModalOpened('kiku');
+    timers.runAll();
 
-    let iterations = 0;
-    while (timers.length > 0 && iterations < 50) {
-      const next = timers.shift();
-      next?.();
-      iterations += 1;
-    }
-
-    // The reconcile ladder re-asserts placement across all six delays while the client
-    // stays unmapped, instead of the old single post-show attempt.
-    assert.ok(
-      statuses.length >= 6,
-      `expected at least 6 pending reconcile attempts, saw ${statuses.length}`,
-    );
-  } finally {
-    globalThis.setTimeout = originalSetTimeout;
-  }
+    // One re-assert per post-show ladder delay.
+    assert.equal(h.boundsCalls.length - reconcilesBeforeLadder, 6);
+  });
 });
 
 test('modal placement reconcile stops retrying once the client is mapped', () => {
-  const window = createMockWindow();
-  const timers: Array<() => void> = [];
-  const originalSetTimeout = globalThis.setTimeout;
-  globalThis.setTimeout = ((cb: () => void) => {
-    timers.push(cb);
-    return { unref() {} };
-  }) as unknown as typeof globalThis.setTimeout;
-
-  let reconcileCount = 0;
-  try {
-    const runtime = createOverlayModalRuntimeService({
-      getMainWindow: () => null,
-      getModalWindow: () => window as never,
-      createModalWindow: () => window as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {
-        reconcileCount += 1;
-        // Client is already mapped, so placement is settled on the first attempt.
-        return { applicable: true, clientFound: true, dispatched: true };
-      },
+  withFakeTimers((timers) => {
+    const h = createHarness({
+      modal: new FakeOverlayWindow(),
+      setModalWindowBounds: () => ({ applicable: true, clientFound: true, dispatched: true }),
     });
+    openKikuInModalWindow(h);
+    h.runtime.notifyOverlayModalOpened('kiku');
+    const reconcilesBeforeLadder = h.boundsCalls.length;
 
-    runtime.sendToActiveOverlayWindow(
-      'kiku:field-grouping-open',
-      { test: true },
-      { restoreOnModalClose: 'kiku', preferModalWindow: true },
-    );
-    runtime.notifyOverlayModalOpened('kiku');
+    timers.runAll();
 
-    let iterations = 0;
-    while (timers.length > 0 && iterations < 50) {
-      const next = timers.shift();
-      next?.();
-      iterations += 1;
-    }
-
-    // No 6-deep ladder: a settled placement should not keep rescheduling.
-    assert.ok(
-      reconcileCount < 6,
-      `expected the ladder to stop early, saw ${reconcileCount} reconcile attempts`,
-    );
-  } finally {
-    globalThis.setTimeout = originalSetTimeout;
-  }
+    assert.equal(h.boundsCalls.length - reconcilesBeforeLadder, 1);
+  });
 });
 
 test('modal placement reconcile cancels stale retry ladder after a newer visible modal interaction', () => {
-  const window = createMockWindow();
-  type TimerEntry = { active: boolean; callback: () => void };
-  const timers: TimerEntry[] = [];
-  const activeTimerCount = () => timers.filter((timer) => timer.active).length;
-  const runNextActiveTimer = () => {
-    const timer = timers.find((candidate) => candidate.active);
-    if (!timer) return;
-    timer.active = false;
-    timer.callback();
-  };
-  const originalSetTimeout = globalThis.setTimeout;
-  const originalClearTimeout = globalThis.clearTimeout;
-  globalThis.setTimeout = ((cb: () => void) => {
-    const timer = { active: true, callback: cb, unref() {} };
-    timers.push(timer);
-    return timer;
-  }) as unknown as typeof globalThis.setTimeout;
-  globalThis.clearTimeout = ((timeout: TimerEntry | undefined) => {
-    if (timeout) {
-      timeout.active = false;
-    }
-  }) as unknown as typeof globalThis.clearTimeout;
-
-  try {
-    const runtime = createOverlayModalRuntimeService({
-      getMainWindow: () => null,
-      getModalWindow: () => window as never,
-      createModalWindow: () => window as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => ({ applicable: true, clientFound: false, dispatched: false }),
+  withFakeTimers((timers) => {
+    const h = createHarness({
+      modal: new FakeOverlayWindow(),
+      setModalWindowBounds: () => PENDING_PLACEMENT,
     });
+    openKikuInModalWindow(h);
+    h.runtime.notifyOverlayModalOpened('kiku');
+    assert.equal(timers.activeCount(), 1);
 
-    runtime.sendToActiveOverlayWindow(
-      'kiku:field-grouping-open',
-      { test: true },
-      { restoreOnModalClose: 'kiku', preferModalWindow: true },
-    );
-    runtime.notifyOverlayModalOpened('kiku');
-    assert.equal(activeTimerCount(), 1);
+    openKikuInModalWindow(h);
+    assert.equal(timers.activeCount(), 2);
 
-    runtime.sendToActiveOverlayWindow(
-      'kiku:field-grouping-open',
-      { test: true },
-      { restoreOnModalClose: 'kiku', preferModalWindow: true },
-    );
-    assert.equal(activeTimerCount(), 2);
+    timers.runNext();
 
-    runNextActiveTimer();
-
-    assert.equal(activeTimerCount(), 1, 'stale retry should not schedule a continuation');
-  } finally {
-    globalThis.setTimeout = originalSetTimeout;
-    globalThis.clearTimeout = originalClearTimeout;
-  }
+    assert.equal(timers.activeCount(), 1, 'stale retry should not schedule a continuation');
+  });
 });
 
 test('Linux keeps the dedicated modal window unmapped until the renderer opens the modal, then hides the overlay before revealing it', () => {
-  const mainWindow = createMockWindow();
-  mainWindow.visible = true;
-  const modalWindow = createMockWindow();
-  const order: string[] = [];
-  const hideMain = mainWindow.hide;
-  mainWindow.hide = () => {
-    order.push('main:hide');
-    hideMain();
-  };
-  const showModal = modalWindow.show;
-  modalWindow.show = () => {
-    order.push('modal:show');
-    showModal();
-  };
+  const log: string[] = [];
+  const main = new FakeOverlayWindow({ name: 'main', log, visible: true });
+  const modal = new FakeOverlayWindow({ name: 'modal', log });
   let revealScheduled = false;
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => mainWindow as never,
-      getModalWindow: () => modalWindow as never,
-      createModalWindow: () => modalWindow as never,
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    {
-      platform: 'linux',
+  const h = createHarness({
+    main,
+    modal,
+    platform: 'linux',
+    options: {
       scheduleRevealFallback: () => {
         revealScheduled = true;
         return { scheduled: true } as never;
       },
       clearRevealFallback: () => {},
     },
-  );
+  });
 
   const open = () =>
-    runtime.sendToActiveOverlayWindow(
+    h.runtime.sendToActiveOverlayWindow(
       'media-timing-review:open',
       { reviewId: 'review' },
       { restoreOnModalClose: 'media-timing-review', preferModalWindow: true },
     );
 
   assert.equal(open(), true);
-  assert.deepEqual(modalWindow.sent, [['media-timing-review:open', { reviewId: 'review' }]]);
+  assert.deepEqual(modal.sent, [['media-timing-review:open', { reviewId: 'review' }]]);
   assert.equal(revealScheduled, false);
-  assert.equal(modalWindow.getShowCount(), 0);
-  assert.equal(mainWindow.getHideCount(), 0);
+  assert.equal(modal.showCount, 0);
+  assert.equal(main.hideCount, 0);
 
   // The open retry must not map the window before the renderer answers either.
   assert.equal(open(), true);
-  assert.equal(modalWindow.getShowCount(), 0);
+  assert.equal(modal.showCount, 0);
 
-  runtime.notifyOverlayModalOpened('media-timing-review');
+  h.runtime.notifyOverlayModalOpened('media-timing-review');
 
-  assert.deepEqual(order, ['main:hide', 'modal:show']);
-  assert.equal(mainWindow.isVisible(), false);
-  assert.equal(modalWindow.isVisible(), true);
-  assert.equal(modalWindow.ignoreMouseEvents, false);
+  assert.deepEqual(log, ['main:hide', 'modal:show']);
+  assert.equal(main.isVisible(), false);
+  assert.equal(modal.isVisible(), true);
+  assert.equal(modal.ignoreMouseEvents, false);
 });

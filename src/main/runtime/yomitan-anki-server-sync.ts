@@ -12,6 +12,7 @@ export interface YomitanAnkiServerSyncRuntimeDeps {
   getYomitanParserRuntimeDeps: () => Parameters<typeof syncYomitanDefaultAnkiServerCore>[1];
   logError: (message: string, ...args: unknown[]) => void;
   logInfo: (message: string, ...args: unknown[]) => void;
+  syncDefaultAnkiServer?: typeof syncYomitanDefaultAnkiServerCore;
 }
 
 export function buildYomitanAnkiSettingsKey(options: {
@@ -27,6 +28,7 @@ export function createYomitanAnkiServerSyncRuntime(deps: YomitanAnkiServerSyncRu
   syncYomitanDefaultProfileAnkiServer: () => Promise<void>;
 } {
   let lastSyncedYomitanAnkiSettingsKey: string | null = null;
+  const syncDefaultAnkiServer = deps.syncDefaultAnkiServer ?? syncYomitanDefaultAnkiServerCore;
 
   function getPreferredYomitanAnkiServerUrl(): string {
     return getPreferredYomitanAnkiServerUrlRuntime(deps.getResolvedConfig().ankiConnect);
@@ -53,7 +55,7 @@ export function createYomitanAnkiServerSyncRuntime(deps: YomitanAnkiServerSyncRu
       return;
     }
 
-    const synced = await syncYomitanDefaultAnkiServerCore(
+    const synced = await syncDefaultAnkiServer(
       targetUrl,
       deps.getYomitanParserRuntimeDeps(),
       {

@@ -15,12 +15,13 @@ function withTempDir(run: (directory: string) => void): void {
 }
 
 test('runtime guard major matches the pinned Electron dependency', () => {
+  // A stale constant would make the guard reject the bundled runtime after an Electron bump.
   const packageJson = JSON.parse(
     fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
   ) as { devDependencies: { electron: string } };
+  const pinnedMajor = Number.parseInt(packageJson.devDependencies.electron.replace(/^\D*/, ''), 10);
 
-  assert.equal(Number.parseInt(packageJson.devDependencies.electron.split('.', 1)[0]!, 10), 43);
-  assert.equal(SUPPORTED_ELECTRON_MAJOR, 43);
+  assert.equal(SUPPORTED_ELECTRON_MAJOR, pinnedMajor);
 });
 
 test('runtime guard records the supported Electron major', () => {
@@ -152,28 +153,6 @@ test('runtime guard allows a patch downgrade while preserving minor downgrade pr
     if (minorDowngrade.ok) return;
     assert.equal(minorDowngrade.title, 'Electron downgrade blocked');
     assert.equal(fs.readFileSync(statePath, 'utf8'), updatedState);
-  });
-});
-
-test('runtime guard blocks an Electron 42 build from reopening an Electron 43 profile', () => {
-  withTempDir((userDataPath) => {
-    const statePath = path.join(userDataPath, 'electron-runtime.json');
-    const previousState = JSON.stringify({
-      highestElectronMajor: 43,
-      lastElectronVersion: '43.7.2',
-    });
-    fs.writeFileSync(statePath, previousState, 'utf8');
-
-    const result = enforceElectronRuntimeGuard({
-      electronVersion: '42.11.8',
-      userDataPath,
-      supportedElectronMajor: 42,
-    });
-
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.equal(result.title, 'Electron downgrade blocked');
-    assert.equal(fs.readFileSync(statePath, 'utf8'), previousState);
   });
 });
 

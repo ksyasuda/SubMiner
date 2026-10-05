@@ -296,15 +296,20 @@ export function exitBackgroundBootstrap(app: BackgroundBootstrapAppLike): void {
   app.exit(0);
 }
 
-export function spawnDetachedApp(childArgs: string[], env: NodeJS.ProcessEnv): void {
+// spawnProcess is a test seam; production callers use node's spawn.
+export function spawnDetachedApp(
+  childArgs: string[],
+  env: NodeJS.ProcessEnv,
+  spawnProcess: typeof spawn = spawn,
+): void {
   const keepalive = resolveAppImageMountKeepaliveInvocation(env);
   const child = keepalive
-    ? spawn(keepalive.command, [...keepalive.args, ...childArgs], {
+    ? spawnProcess(keepalive.command, [...keepalive.args, ...childArgs], {
         detached: true,
         stdio: 'ignore',
         env,
       })
-    : spawn(process.execPath, childArgs, {
+    : spawnProcess(process.execPath, childArgs, {
         detached: true,
         stdio: 'ignore',
         env,

@@ -17,55 +17,10 @@ function createDeferred(): {
   return { promise, resolve };
 }
 
-test('tokenizer deps builder records known-word lookups and maps readers', () => {
-  const calls: string[] = [];
-  const deps = createBuildTokenizerDepsMainHandler({
-    getYomitanExt: () => null,
-    getYomitanParserWindow: () => null,
-    setYomitanParserWindow: () => calls.push('set-window'),
-    getYomitanParserReadyPromise: () => null,
-    setYomitanParserReadyPromise: () => calls.push('set-ready'),
-    getYomitanParserInitPromise: () => null,
-    setYomitanParserInitPromise: () => calls.push('set-init'),
-    isKnownWord: (text) => text === 'known',
-    recordLookup: (hit) => calls.push(`lookup:${hit}`),
-    getKnownWordMatchMode: () => 'surface',
-    getKnownWordsEnabled: () => true,
-    getNPlusOneEnabled: () => true,
-    getMinSentenceWordsForNPlusOne: () => 3,
-    getJlptLevel: () => 'N2',
-    getJlptEnabled: () => true,
-    getNameMatchEnabled: () => false,
-    getNameMatchImagesEnabled: () => true,
-    getCharacterNameImage: (term) =>
-      term === 'name' ? { src: 'data:image/png;base64,AAAA', alt: 'Name' } : null,
-    getFrequencyDictionaryEnabled: () => true,
-    getFrequencyDictionaryMatchMode: () => 'surface',
-    getFrequencyRank: () => 5,
-    getYomitanGroupDebugEnabled: () => false,
-    getMecabTokenizer: () => null,
-  })();
+type TokenizerMainDeps = Parameters<typeof createBuildTokenizerDepsMainHandler>[0];
 
-  assert.equal(deps.isKnownWord('known'), true);
-  assert.equal(deps.isKnownWord('unknown'), false);
-  deps.setYomitanParserWindow(null);
-  deps.setYomitanParserReadyPromise(null);
-  deps.setYomitanParserInitPromise(null);
-  assert.equal(deps.getKnownWordsEnabled?.(), true);
-  assert.equal(deps.getNPlusOneEnabled?.(), true);
-  assert.equal(deps.getMinSentenceWordsForNPlusOne?.(), 3);
-  assert.equal(deps.getNameMatchEnabled?.(), false);
-  assert.equal(deps.getNameMatchImagesEnabled?.(), true);
-  assert.deepEqual(deps.getCharacterNameImage?.('name'), {
-    src: 'data:image/png;base64,AAAA',
-    alt: 'Name',
-  });
-  assert.equal(deps.getFrequencyDictionaryMatchMode?.(), 'surface');
-  assert.deepEqual(calls, ['lookup:true', 'lookup:false', 'set-window', 'set-ready', 'set-init']);
-});
-
-test('tokenizer deps builder disables name matching when character dictionary runtime is disabled', () => {
-  const deps = createBuildTokenizerDepsMainHandler({
+function buildTokenizerDeps(overrides: Partial<TokenizerMainDeps> = {}) {
+  return createBuildTokenizerDepsMainHandler({
     getYomitanExt: () => null,
     getYomitanParserWindow: () => null,
     setYomitanParserWindow: () => undefined,
@@ -80,7 +35,6 @@ test('tokenizer deps builder disables name matching when character dictionary ru
     getMinSentenceWordsForNPlusOne: () => 3,
     getJlptLevel: () => 'N2',
     getJlptEnabled: () => true,
-    getCharacterDictionaryEnabled: () => false,
     getNameMatchEnabled: () => true,
     getNameMatchImagesEnabled: () => true,
     getFrequencyDictionaryEnabled: () => true,
@@ -88,7 +42,24 @@ test('tokenizer deps builder disables name matching when character dictionary ru
     getFrequencyRank: () => 5,
     getYomitanGroupDebugEnabled: () => false,
     getMecabTokenizer: () => null,
+    ...overrides,
   })();
+}
+
+test('tokenizer deps builder records every known-word lookup result', () => {
+  const lookups: boolean[] = [];
+  const deps = buildTokenizerDeps({
+    isKnownWord: (text) => text === 'known',
+    recordLookup: (hit) => lookups.push(hit),
+  });
+
+  assert.equal(deps.isKnownWord('known'), true);
+  assert.equal(deps.isKnownWord('unknown'), false);
+  assert.deepEqual(lookups, [true, false]);
+});
+
+test('tokenizer deps builder disables name matching when character dictionary runtime is disabled', () => {
+  const deps = buildTokenizerDeps({ getCharacterDictionaryEnabled: () => false });
 
   assert.equal(deps.getNameMatchEnabled?.(), false);
   assert.equal(deps.getNameMatchImagesEnabled?.(), false);

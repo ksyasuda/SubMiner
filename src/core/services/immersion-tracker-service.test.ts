@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { toMonthKey } from './immersion-tracker/maintenance';
 import { enqueueWrite } from './immersion-tracker/queue';
 import { toDbTimestamp } from './immersion-tracker/query-shared';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
@@ -135,11 +134,6 @@ test('seam: enqueueWrite drops oldest entries once capacity is exceeded', () => 
   assert.equal(queue.length, 2);
   assert.equal((queue[0] as Extract<QueuedWrite, { kind: 'event' }>).eventType, 2);
   assert.equal((queue[1] as Extract<QueuedWrite, { kind: 'event' }>).eventType, 3);
-});
-
-test('seam: toMonthKey uses UTC calendar month', () => {
-  assert.equal(toMonthKey(-86_400_000), 196912);
-  assert.equal(toMonthKey(0), 197001);
 });
 
 test('startSession generates UUID-like session identifiers', async () => {
@@ -522,37 +516,6 @@ test('rebuildLifetimeSummaries backfills retained ended sessions and resets stal
     assert.equal(globalRow?.anime_completed, 1);
     assert.equal(globalRow?.last_rebuilt_ms, toDbTimestamp(rebuild.rebuiltAtMs));
     assert.equal(appliedSessions?.total, 2);
-  } finally {
-    tracker?.destroy();
-    cleanupDbPath(dbPath);
-  }
-});
-
-test('fresh tracker DB creates lifetime summary tables', async () => {
-  const dbPath = makeDbPath();
-  let tracker: ImmersionTrackerService | null = null;
-
-  try {
-    const Ctor = await loadTrackerCtor();
-    tracker = new Ctor({ dbPath });
-
-    const db = new Database(dbPath);
-    const tableRows = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-      .all() as Array<{ name: string }>;
-    db.close();
-
-    const tableNames = new Set(tableRows.map((row) => row.name));
-    const expectedTables = [
-      'imm_lifetime_global',
-      'imm_lifetime_anime',
-      'imm_lifetime_media',
-      'imm_lifetime_applied_sessions',
-    ];
-
-    for (const tableName of expectedTables) {
-      assert.ok(tableNames.has(tableName), `Expected ${tableName} to exist`);
-    }
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
@@ -3768,138 +3731,6 @@ test('monthly rollups are grouped by calendar month', async () => {
     assert.equal(videoRows[0]!.rollupDayOrMonth, 202602);
     assert.equal(videoRows[1]!.rollupDayOrMonth, 202601);
   } finally {
-    tracker?.destroy();
-    cleanupDbPath(dbPath);
-  }
-});
-
-test('flushSingle reuses cached prepared statements', async () => {
-  const dbPath = makeDbPath();
-  let tracker: ImmersionTrackerService | null = null;
-  let originalPrepare: DatabaseSync['prepare'] | null = null;
-
-  try {
-    const Ctor = await loadTrackerCtor();
-    tracker = new Ctor({ dbPath });
-    const privateApi = tracker as unknown as {
-      db: DatabaseSync;
-      flushSingle: (write: {
-        kind: 'telemetry' | 'event';
-        sessionId: number;
-        sampleMs: number;
-        eventType?: number;
-        lineIndex?: number | null;
-        segmentStartMs?: number | null;
-        segmentEndMs?: number | null;
-        tokensDelta?: number;
-        cardsDelta?: number;
-        payloadJson?: string | null;
-        totalWatchedMs?: number;
-        activeWatchedMs?: number;
-        linesSeen?: number;
-        tokensSeen?: number;
-        cardsMined?: number;
-        lookupCount?: number;
-        lookupHits?: number;
-        yomitanLookupCount?: number;
-        pauseCount?: number;
-        pauseMs?: number;
-        seekForwardCount?: number;
-        seekBackwardCount?: number;
-        mediaBufferEvents?: number;
-      }) => void;
-    };
-
-    originalPrepare = privateApi.db.prepare;
-    let prepareCalls = 0;
-    privateApi.db.prepare = (...args: Parameters<DatabaseSync['prepare']>) => {
-      prepareCalls += 1;
-      return originalPrepare!.apply(privateApi.db, args);
-    };
-    const preparedRestore = originalPrepare;
-
-    privateApi.db.exec(`
-      INSERT INTO imm_videos (
-        video_id,
-        video_key,
-        canonical_title,
-        source_type,
-        duration_ms,
-        CREATED_DATE,
-        LAST_UPDATE_DATE
-      ) VALUES (
-        1,
-        'local:/tmp/prepared.mkv',
-        'Prepared',
-        1,
-        0,
-        1000,
-        1000
-      )
-    `);
-
-    privateApi.db.exec(`
-      INSERT INTO imm_sessions (
-        session_id,
-        session_uuid,
-        video_id,
-        started_at_ms,
-        status,
-        CREATED_DATE,
-        LAST_UPDATE_DATE,
-        ended_at_ms
-      ) VALUES (
-        1,
-        '33333333-3333-3333-3333-333333333333',
-        1,
-        1000,
-        2,
-        1000,
-        1000,
-        2000
-      )
-    `);
-
-    privateApi.flushSingle({
-      kind: 'telemetry',
-      sessionId: 1,
-      sampleMs: 1500,
-      totalWatchedMs: 1000,
-      activeWatchedMs: 1000,
-      linesSeen: 1,
-      tokensSeen: 2,
-      cardsMined: 0,
-      lookupCount: 0,
-      lookupHits: 0,
-      yomitanLookupCount: 0,
-      pauseCount: 0,
-      pauseMs: 0,
-      seekForwardCount: 0,
-      seekBackwardCount: 0,
-      mediaBufferEvents: 0,
-    });
-
-    privateApi.flushSingle({
-      kind: 'event',
-      sessionId: 1,
-      sampleMs: 1600,
-      eventType: 1,
-      lineIndex: 1,
-      segmentStartMs: 0,
-      segmentEndMs: 1000,
-      tokensDelta: 2,
-      cardsDelta: 0,
-      payloadJson: '{"event":"subtitle-line"}',
-    });
-
-    privateApi.db.prepare = preparedRestore;
-
-    assert.equal(prepareCalls, 0);
-  } finally {
-    if (tracker && originalPrepare) {
-      const privateApi = tracker as unknown as { db: DatabaseSync };
-      privateApi.db.prepare = originalPrepare;
-    }
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }

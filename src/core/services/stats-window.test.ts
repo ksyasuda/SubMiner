@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildStatsWindowUrl,
-  buildStatsWindowOptions,
   buildStatsNativeConfirmDialogOptions,
   demoteVisibleStatsWindowBelowDialogs,
   presentStatsWindow,
@@ -12,59 +11,7 @@ import {
   scheduleStatsWindowPostShowReconciles,
   showStatsNativeConfirmDialog,
   shouldHideStatsWindowForInput,
-  shouldPresentStatsWindowAfterLoad,
 } from './stats-window-runtime';
-
-test('buildStatsWindowOptions uses tracked overlay bounds and preload-friendly web preferences', () => {
-  const options = buildStatsWindowOptions({
-    preloadPath: '/tmp/preload-stats.js',
-    bounds: {
-      x: 120,
-      y: 80,
-      width: 1440,
-      height: 900,
-    },
-  });
-
-  assert.equal(options.title, 'SubMiner Stats');
-  assert.equal(options.x, 120);
-  assert.equal(options.y, 80);
-  assert.equal(options.width, 1440);
-  assert.equal(options.height, 900);
-  assert.equal(options.frame, false);
-  assert.equal(options.transparent, false);
-  assert.equal(options.backgroundColor, '#24273a');
-  assert.equal(options.resizable, false);
-  assert.equal(options.webPreferences?.preload, '/tmp/preload-stats.js');
-  assert.equal(options.webPreferences?.contextIsolation, true);
-  assert.equal(options.webPreferences?.nodeIntegration, false);
-  assert.equal(options.webPreferences?.sandbox, true);
-});
-
-test('buildStatsWindowOptions uses a fullscreen auxiliary panel on macOS', () => {
-  const options = buildStatsWindowOptions({
-    preloadPath: '/tmp/preload-stats.js',
-    platform: 'darwin',
-  });
-
-  assert.equal(options.type, 'panel');
-});
-
-test('buildStatsWindowOptions remains a regular window off macOS', () => {
-  const options = buildStatsWindowOptions({
-    preloadPath: '/tmp/preload-stats.js',
-    platform: 'linux',
-  });
-
-  assert.equal(options.type, undefined);
-  assert.equal(options.roundedCorners, false);
-});
-
-test('stats panels present after document load on macOS', () => {
-  assert.equal(shouldPresentStatsWindowAfterLoad('darwin'), true);
-  assert.equal(shouldPresentStatsWindowAfterLoad('linux'), false);
-  assert.equal(shouldPresentStatsWindowAfterLoad('win32'), false);
-});
 
 test('shouldHideStatsWindowForInput matches Escape and configured bare toggle key', () => {
   assert.equal(
@@ -171,10 +118,6 @@ test('shouldHideStatsWindowForInput matches Escape and configured bare toggle ke
 
 test('buildStatsWindowUrl enables overlay rendering on the local HTTP origin', () => {
   assert.equal(buildStatsWindowUrl('http://127.0.0.1:6969'), 'http://127.0.0.1:6969/?overlay=1');
-});
-
-test('buildStatsWindowUrl uses the active server port as the document origin', () => {
-  assert.equal(buildStatsWindowUrl('http://127.0.0.1:6123'), 'http://127.0.0.1:6123/?overlay=1');
 });
 
 test('resolveStatsWindowOuterBoundsForContent compensates for Wayland content insets', () => {

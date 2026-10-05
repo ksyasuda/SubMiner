@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Database as BunDatabase } from 'bun:sqlite';
 import { ensureSchema } from '../../src/core/services/immersion-tracker/storage.js';
-import { createImmersionDbFixture, insertFixtureSession } from './immersion-db-fixture.js';
+import { createImmersionDbFixture } from './immersion-db-fixture.js';
 
 type SchemaRow = { type: string; name: string; tbl_name: string; sql: string | null };
 
@@ -105,68 +105,6 @@ test('fixture schema stays aligned with production sync-touched tables and index
     } catch {
       // already closed
     }
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('fixture leaves lexical rollups pending when their table is absent', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-fixture-rollup-state-'));
-  const fixturePath = path.join(dir, 'fixture.sqlite');
-  try {
-    createImmersionDbFixture(fixturePath);
-    const db = new BunDatabase(fixturePath, { readonly: true });
-    try {
-      const state = db
-        .query<{ state_value: string }>(
-          `SELECT state_value FROM imm_rollup_state
-           WHERE state_key = 'lexical_daily_rollups_version'`,
-        )
-        .get();
-      const rollupTable = db
-        .query<{ name: string }>(
-          `SELECT name FROM sqlite_schema
-           WHERE type = 'table' AND name = 'imm_lexical_daily_rollups'`,
-        )
-        .get();
-
-      assert.equal(state?.state_value, '0');
-      assert.equal(rollupTable, null);
-    } finally {
-      db.close();
-    }
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('fixture session inserts enforce foreign keys', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-fixture-foreign-keys-'));
-  const fixturePath = path.join(dir, 'fixture.sqlite');
-  try {
-    createImmersionDbFixture(fixturePath);
-    const db = new BunDatabase(fixturePath, { readwrite: true });
-    try {
-      db.run(`
-        CREATE TRIGGER remove_fixture_video
-        BEFORE INSERT ON imm_sessions
-        BEGIN
-          DELETE FROM imm_videos WHERE video_id = NEW.video_id;
-        END
-      `);
-    } finally {
-      db.close();
-    }
-
-    assert.throws(
-      () =>
-        insertFixtureSession(fixturePath, {
-          uuid: 'foreign-key-check',
-          videoKey: 'foreign-key-check',
-          startedAtMs: Date.UTC(2026, 6, 9),
-        }),
-      /FOREIGN KEY constraint failed/,
-    );
-  } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -48,7 +48,6 @@ export function createHandleMineSentenceDigitHandler<
   getCurrentSecondarySubText: () => string | undefined;
   showMpvOsd: (text: string) => void;
   logError: (message: string, err: unknown) => void;
-  onCardsMined: (count: number) => void;
   handleMineSentenceDigitCore: (
     count: number,
     options: {
@@ -57,7 +56,6 @@ export function createHandleMineSentenceDigitHandler<
       getCurrentSecondarySubText: () => string | undefined;
       showMpvOsd: (text: string) => void;
       logError: (message: string, err: unknown) => void;
-      onCardsMined: (count: number) => void;
     },
   ) => void;
 }) {
@@ -68,7 +66,6 @@ export function createHandleMineSentenceDigitHandler<
       getCurrentSecondarySubText: deps.getCurrentSecondarySubText,
       showMpvOsd: deps.showMpvOsd,
       logError: deps.logError,
-      onCardsMined: deps.onCardsMined,
     });
   };
 }

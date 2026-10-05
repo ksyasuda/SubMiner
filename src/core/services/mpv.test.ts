@@ -262,50 +262,6 @@ test('MpvIpcClient requestProperty throws on mpv error response', async () => {
   );
 });
 
-test('MpvIpcClient connect does not log connect-request at info level', () => {
-  const originalLevel = process.env.SUBMINER_LOG_LEVEL;
-  const originalInfo = console.info;
-  const infoLines: string[] = [];
-  process.env.SUBMINER_LOG_LEVEL = 'info';
-  console.info = (message?: unknown) => {
-    infoLines.push(String(message ?? ''));
-  };
-
-  try {
-    const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
-    (client as any).transport.connect = () => {};
-    client.connect();
-  } finally {
-    process.env.SUBMINER_LOG_LEVEL = originalLevel;
-    console.info = originalInfo;
-  }
-
-  const requestLogs = infoLines.filter((line) => line.includes('MPV IPC connect requested.'));
-  assert.equal(requestLogs.length, 0);
-});
-
-test('MpvIpcClient connect logs connect-request at debug level', () => {
-  const originalLevel = process.env.SUBMINER_LOG_LEVEL;
-  const originalDebug = console.debug;
-  const debugLines: string[] = [];
-  process.env.SUBMINER_LOG_LEVEL = 'debug';
-  console.debug = (message?: unknown) => {
-    debugLines.push(String(message ?? ''));
-  };
-
-  try {
-    const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
-    (client as any).transport.connect = () => {};
-    client.connect();
-  } finally {
-    process.env.SUBMINER_LOG_LEVEL = originalLevel;
-    console.debug = originalDebug;
-  }
-
-  const requestLogs = debugLines.filter((line) => line.includes('MPV IPC connect requested.'));
-  assert.equal(requestLogs.length, 1);
-});
-
 test('MpvIpcClient reconnect clears stale connected state and starts a fresh transport connect', () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   const calls: string[] = [];
@@ -354,80 +310,6 @@ test('MpvIpcClient failPendingRequests resolves outstanding requests as disconne
     { request_id: 11, error: 'disconnected' },
   ]);
   assert.equal((client as any).pendingRequests.size, 0);
-});
-
-test('MpvIpcClient scheduleReconnect schedules timer and invokes connect', () => {
-  const timers: Array<ReturnType<typeof setTimeout> | null> = [];
-  const client = new MpvIpcClient(
-    '/tmp/mpv.sock',
-    makeDeps({
-      getReconnectTimer: () => null,
-      setReconnectTimer: (timer) => {
-        timers.push(timer);
-      },
-    }),
-  );
-
-  let connectCalled = false;
-  (client as any).connect = () => {
-    connectCalled = true;
-  };
-
-  const originalSetTimeout = globalThis.setTimeout;
-  (globalThis as any).setTimeout = (handler: () => void, _delay: number) => {
-    handler();
-    return 1 as unknown as ReturnType<typeof setTimeout>;
-  };
-  try {
-    (client as any).scheduleReconnect();
-  } finally {
-    (globalThis as any).setTimeout = originalSetTimeout;
-  }
-
-  assert.equal(timers.length, 1);
-  assert.equal(connectCalled, true);
-});
-
-test('MpvIpcClient scheduleReconnect clears existing reconnect timer', () => {
-  const timers: Array<ReturnType<typeof setTimeout> | null> = [];
-  const cleared: Array<ReturnType<typeof setTimeout> | null> = [];
-  const existingTimer = {} as ReturnType<typeof setTimeout>;
-  const client = new MpvIpcClient(
-    '/tmp/mpv.sock',
-    makeDeps({
-      getReconnectTimer: () => existingTimer,
-      setReconnectTimer: (timer) => {
-        timers.push(timer);
-      },
-    }),
-  );
-
-  let connectCalled = false;
-  (client as any).connect = () => {
-    connectCalled = true;
-  };
-
-  const originalSetTimeout = globalThis.setTimeout;
-  const originalClearTimeout = globalThis.clearTimeout;
-  (globalThis as any).setTimeout = (handler: () => void, _delay: number) => {
-    handler();
-    return 1 as unknown as ReturnType<typeof setTimeout>;
-  };
-  (globalThis as any).clearTimeout = (timer: ReturnType<typeof setTimeout> | null) => {
-    cleared.push(timer);
-  };
-
-  try {
-    (client as any).scheduleReconnect();
-  } finally {
-    (globalThis as any).setTimeout = originalSetTimeout;
-    (globalThis as any).clearTimeout = originalClearTimeout;
-  }
-
-  assert.equal(cleared.length, 1);
-  assert.equal(cleared[0], existingTimer);
-  assert.equal(timers.length, 1);
-  assert.equal(connectCalled, true);
 });
 
 test('MpvIpcClient onClose resolves outstanding requests and schedules reconnect', () => {

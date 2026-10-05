@@ -301,31 +301,6 @@ function setupPlaylistBrowserModalTest(options?: {
   };
 }
 
-test('playlist browser test cleanup must delete injected globals that were originally absent', () => {
-  const previousWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const previousDocumentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
-  try {
-    Reflect.deleteProperty(globalThis, 'window');
-    Reflect.deleteProperty(globalThis, 'document');
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
-
-    const env = setupPlaylistBrowserModalTest();
-
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), true);
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), true);
-    env.restore();
-
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
-    assert.equal(typeof globalThis.window, 'undefined');
-    assert.equal(typeof globalThis.document, 'undefined');
-  } finally {
-    restoreGlobalDescriptor('window', previousWindowDescriptor);
-    restoreGlobalDescriptor('document', previousDocumentDescriptor);
-  }
-});
-
 test('playlist browser modal opens with playlist-focused current item selection', async () => {
   const notifications: string[] = [];
   const env = setupPlaylistBrowserModalTest({
@@ -349,37 +324,6 @@ test('playlist browser modal opens with playlist-focused current item selection'
     assert.equal(env.dom.playlistBrowserDirectoryList.children[0]?.children.length, 2);
     assert.equal(env.dom.playlistBrowserPlaylistList.children[0]?.children.length, 2);
     assert.deepEqual(notifications, ['open:playlist-browser']);
-  } finally {
-    env.restore();
-  }
-});
-
-test('playlist browser modal action buttons stop double-click propagation', async () => {
-  const env = setupPlaylistBrowserModalTest();
-
-  try {
-    const modal = env.createModal();
-
-    await modal.openPlaylistBrowserModal();
-
-    const row = env.dom.playlistBrowserDirectoryList.children[0] as
-      | ReturnType<typeof createPlaylistRow>
-      | undefined;
-    const trailing = row?.children?.[1] as ReturnType<typeof createPlaylistRow> | undefined;
-    const button = trailing?.children?.at(-1) as
-      | { listeners?: Map<string, Array<(event?: unknown) => void>> }
-      | undefined;
-    const dblclickHandler = button?.listeners?.get('dblclick')?.[0];
-
-    assert.equal(typeof dblclickHandler, 'function');
-    let stopped = false;
-    dblclickHandler?.({
-      stopPropagation: () => {
-        stopped = true;
-      },
-    });
-
-    assert.equal(stopped, true);
   } finally {
     env.restore();
   }

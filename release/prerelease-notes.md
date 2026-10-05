@@ -1,73 +1,76 @@
 > This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.
 
-<!-- prerelease-version: 0.20.1-beta.1 -->
+<!-- prerelease-version: 0.20.1-beta.2; since: v0.20.1-beta.1 -->
+
+## Changes since v0.20.1-beta.1
+
+- Upgraded the desktop runtime to Electron 43.7.7.
+- SubMiner now refuses to start on an unsupported Electron runtime, or after an Electron major or minor downgrade, so your Yomitan profile data stays safe; patch downgrades are still allowed.
+- Automatic character-dictionary updates now stop if a Yomitan profile that had dictionaries suddenly reports none.
+- Development launches now use a separate `SubMiner-dev` profile unless you explicitly ask for the production profile.
+- Sentence mining (single and multi-line) no longer counts each card twice in session and lifetime stats.
+- Deleting sessions now updates word and kanji "first seen" and "last seen" dates correctly, and retention pruning keeps historical discovery dates and counts.
+- Words hidden by the vocabulary filter are no longer counted in the new-words charts, so the charts now match the vocabulary summary.
+- A one-time background repair on next launch fixes stale "last seen" dates and existing chart mismatches.
+- Overview totals, charts, the activity calendar, and the vocabulary summary now refresh after you delete sessions, and a failed refresh keeps the dashboard visible with a retry option.
+- Subtitle generation now works during Windows YouTube playback and loads the generated subtitles into the playing video.
+- On Windows, moving on to a video queued from the YouTube browser window no longer drops the rest of mpv's queue.
+- The stats docs now cover the automatic Overview refresh after deletions and how discovery dates are kept through retention pruning.
 
 ## Highlights
-
 ### Added
 
 - **YouTube Browser Window**:
-  - Open a YouTube browser with `subminer youtube` (or `subminer yt`), or pick **Browse YouTube** from the tray. It stays logged in to YouTube across restarts.
-  - Clicking a video plays it in mpv instead of on the page.
-  - Middle-click, Shift-click, Ctrl-click, or the right-click menu adds a video to mpv's playlist.
-  - When a queued video starts, it gets the same Japanese subtitle setup.
-  - If you started SubMiner with `subminer youtube`, closing the YouTube window quits SubMiner. If a video is still playing, SubMiner quits after mpv closes.
+  - Open it with `subminer youtube` (or `subminer yt`), or pick **Browse YouTube** from the tray. It stays logged in across restarts.
+  - Clicking a video plays it in mpv. Middle-click, Shift-click, Ctrl-click, or the right-click menu adds it to mpv's playlist.
+  - Queued videos get the same Japanese subtitle setup when they start.
+  - Closing the window quits SubMiner if you started it with `subminer youtube`. If a video is still playing, SubMiner waits until mpv closes.
 - **Whisper Subtitles for YouTube**:
-  - Set `youtube.subtitleSource` to `whisper` to make subtitles with Whisper instead of downloading YouTube's captions. The default is still `youtube`.
-  - The video stays paused while Whisper works, and progress shows in the subtitle generation modal. Close the modal to keep watching, or cancel to carry on without subtitles.
-  - The subtitle generation modal (`Ctrl+Shift+G`) now works on YouTube videos with either `youtube.subtitleSource` setting.
-  - Whisper downloads only a small audio stream and deletes it when generation ends, or when you switch videos, close mpv, or quit.
+  - Set `youtube.subtitleSource` to `whisper` to make subtitles with Whisper instead of downloading YouTube's captions.
+  - The video stays paused while Whisper works, and progress shows in the subtitle generation modal. You can close the modal to keep watching, or cancel.
+  - The subtitle generation modal (`Ctrl+Shift+G`) now works on YouTube videos, including on Windows.
 - **Mouse and Scroll Wheel Bindings**:
-  - `keybindings` now accepts scroll wheel keys (`WHEEL_UP`, `WHEEL_DOWN`, `WHEEL_LEFT`, `WHEEL_RIGHT`), with or without modifiers. You can also record them in the settings key editor.
-  - Mouse button and scroll wheel bindings from mpv now work while the cursor is over the overlay. This covers your `input.conf` and mpv's defaults, such as double-click for fullscreen, the wheel for volume, and back/forward for the playlist.
-  - Hyprland users benefit most: the overlay always takes input there, so these bindings did nothing before.
-  - SubMiner's own bindings and right-click pause still win over mpv's.
-- **Session Help Commands**:
-  - During playback, press `Enter` or double-click a row in session help to run that command.
-  - Hovering over a row makes it the target for `Enter`.
-  - Session help opened from the tray with no video loaded is still read-only.
+  - You can now use scroll wheel keys (`WHEEL_UP`, `WHEEL_DOWN`, `WHEEL_LEFT`, `WHEEL_RIGHT`) in `keybindings` and record them in the settings key editor.
+  - mpv's mouse button and wheel bindings now work while the cursor is over the overlay. This matters most on Hyprland, where these bindings did nothing before.
+  - When a binding conflicts, SubMiner's own bindings and right-click pause take priority over mpv's.
+- **Session Help Commands**: During playback, press `Enter` or double-click a row in session help to run that command. Hovering over a row makes it the target for `Enter`.
 
 ### Changed
 
-- **Release Assets**: Releases no longer include package-size JSON reports. Package contents are still validated before release.
+- **Release Assets**: Releases no longer include package-size JSON reports.
 
 ### Fixed
 
 - **Jellyfin Subtitles**:
-  - The Japanese subtitle track is selected, and annotations start, as soon as that track downloads. SubMiner no longer waits for every other track.
-  - Subtitle tracks now download in parallel, so a slow embedded track no longer holds up the main subtitles.
-  - Episodes with image-based subtitles (PGS, DVD, DVB) now select the Japanese and English tracks automatically.
-  - If one subtitle track fails to download, the other tracks are still selected.
-- **Jellyfin Audio Track**: On direct-play Jellyfin streams, timing review previews and mined card audio now use the audio track you're playing, not the one Jellyfin marks as default.
+  - The Japanese track is selected, and annotations start, as soon as it downloads. SubMiner no longer waits for the other tracks.
+  - Japanese and English tracks are now picked automatically on episodes with image-based subtitles (PGS, DVD, DVB).
+  - If one track fails to download, the other tracks are still selected.
+- **Jellyfin Audio Track**: On direct-play streams, timing review previews and mined card audio now use the audio track you're playing.
 - **Media Timing Review**:
-  - Trim handles are now thin lines centered on the clip edges. The start and end of the clip are easier to see, and less of the waveform is hidden.
-  - The original subtitle boundaries are now plain orange bars without text labels, so the waveform stays visible.
-  - On macOS with Bluetooth headphones such as AirPods, the preview cursor now moves smoothly. Before, it stuttered and jumped to the end partway through. This affected Opus audio, including Jellyfin streams.
-- **Hyprland Fullscreen**:
-  - The subtitle overlay now stays visible when mpv enters or leaves fullscreen, so focus changes no longer cancel fullscreen. Sway still refreshes the overlay as before.
-  - With `mpv.backend: x11`, subtitles and the sidebar no longer stop responding to clicks after mpv goes fullscreen.
-- **mpv Key Bindings in the Overlay**:
-  - mpv key bindings, such as `9`/`0` for volume, now work while the overlay has focus.
-  - They used to do nothing if the overlay loaded before SubMiner connected to mpv, which was common with `mpv.backend: x11`. The overlay now reloads mpv's bindings once mpv connects.
-- **YouTube Japanese Subtitles**:
-  - Some videos also list a machine-translated Japanese track. On those, Japanese subtitles no longer fail with "HTTP 429", because SubMiner now picks the real Japanese track.
-  - If YouTube refuses a direct subtitle download, SubMiner retries with yt-dlp.
-- **AppImage in Sandboxes**: The AppImage now opens its window when started in a sandbox that mounts the image itself, such as `firejail --appimage`. Before, it exited without opening a window.
-- **Ctrl+C Crash**: Stopping the terminal command that started SubMiner with Ctrl+C no longer crashes SubMiner with a "write EPIPE" error.
-- **Security Updates**: Electron is updated to 42.10.0 and undici to 7.29.1 to fix known security advisories.
+  - Trim handles are now thin lines centered on the clip edges.
+  - Original subtitle boundaries are now plain orange bars with no labels.
+  - The preview cursor no longer stutters on macOS with Bluetooth headphones such as AirPods.
+- **Hyprland Fullscreen**: The overlay stays visible when mpv enters or leaves fullscreen. With `mpv.backend: x11`, subtitles and the sidebar stay clickable after going fullscreen.
+- **mpv Key Bindings in the Overlay**: mpv key bindings, such as `9`/`0` for volume, now work while the overlay has focus, even when the overlay loaded before mpv connected.
+- **YouTube Japanese Subtitles**: Some videos also list a machine-translated Japanese track. On those, Japanese subtitles no longer fail with "HTTP 429". If YouTube refuses a direct download, SubMiner retries with yt-dlp.
+- **Stats Accuracy**:
+  - Sentence mining no longer counts each card twice in session and lifetime stats.
+  - Overview totals, charts, the activity calendar, and the vocabulary summary now update after you delete sessions.
+  - Word and kanji dates stay correct after deleting sessions. New-word charts now match the vocabulary summary.
+- **Dictionary Safety**: Automatic character dictionary changes now stop if a Yomitan profile that had dictionaries suddenly reports none. SubMiner also refuses to load Yomitan data after a downgrade to an older Electron version.
+- **AppImage in Sandboxes**: The AppImage now opens its window in sandboxes that mount the image themselves, such as `firejail --appimage`.
+- **Ctrl+C Crash**: Stopping the terminal command that started SubMiner with Ctrl+C no longer crashes it with a "write EPIPE" error.
+- **Security Updates**: Electron is updated to 43.7.7 and undici to 7.29.1, which fixes known security advisories.
 
 ### Docs
 
-- **Docs Site Rewrite**:
-  - Pages are shorter and easier to scan. Each one starts with setup and usage, and reference details are in compact tables.
-  - The configuration reference now gives each config block a short explanation and a table of keys and defaults.
-  - Pages that no longer matched how SubMiner works have been corrected.
-- **Arch Linux Install**:
-  - The MeCab install command is fixed. MeCab is only in the AUR, as `mecab-git`.
-  - The README's requirements and quick start now match the installation guide.
+- **Docs Site Rewrite**: Pages are shorter and easier to scan. The configuration reference now has a short explanation and a table of keys and defaults for each config block. Pages that no longer matched current behavior are fixed.
+- **Arch Linux Install**: The MeCab install command now uses the AUR package `mecab-git`. The README now matches the installation guide.
+- **Stats**: The docs now cover the Overview refreshing after you delete sessions, and how first-seen dates are kept when old sessions are cleaned up.
 
 ## What's Changed
 
+- fix(storage): protect Yomitan profiles across Electron runtime changes by @ksyasuda in #211
 - fix(jellyfin): select subtitles faster and survive failed track downloads by @ksyasuda in #270
 - fix(jellyfin): use the current audio track for media generation by @ksyasuda in #271
 - feat(youtube): add YouTube browser window and Whisper subtitle source by @ksyasuda in #273
@@ -77,14 +80,17 @@
 - fix(linux): skip AppImage mount keepalive on sandbox squashfs mounts by @ksyasuda in #277
 - fix(overlay): reload imported mpv keys after mpv connects by @ksyasuda in #278
 - feat(overlay): forward mpv mouse button and wheel bindings by @ksyasuda in #279
+- fix(stats): count mined cards once and keep lexical stats exact after deletes by @ksyasuda in #280
+- fix(youtube): keep mpv queue when advancing to a queued video on Windows by @ksyasuda in #281
+- fix(subtitles): allow Whisper generation during Windows YouTube stream playback by @ksyasuda in #282
 
 ## Installation
 
-See the [installation guide](https://docs.subminer.moe/installation) for full setup steps.
+See the README and docs/installation guide for full setup steps.
 
 ## Assets
 
-- Linux: `SubMiner-*.AppImage`
+- Linux: `SubMiner.AppImage`
 - macOS: `SubMiner-*.dmg` and `SubMiner-*.zip`
 - Windows: `SubMiner-*.exe` and `SubMiner-*-win.zip`
 - Optional extras: `subminer-assets.tar.gz`, the `subminer` launcher, and the Windows `subminer.cmd` launcher

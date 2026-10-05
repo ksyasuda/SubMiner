@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { availableParallelism } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { collectLaneFiles } from './test-lanes';
 
@@ -201,9 +202,40 @@ export function mergeLcovReports(reports: string[]): string {
   return chunks.length > 0 ? `${chunks.join('\n')}\n` : '';
 }
 
-export function runCoverageLane(
-  options: { repoRootDir?: string; argv?: string[]; stdio?: 'inherit' | 'pipe' } = {},
-): number {
+type ShardResult = { status: number; output: string; lcov: string | null };
+
+// Runs one test file under coverage into its own shard directory, buffering
+// output so parallel shards do not interleave on the terminal.
+function runShard(repoRootDir: string, file: string, shardDir: string): Promise<ShardResult> {
+  return new Promise((resolveShard) => {
+    const child = spawn(
+      'bun',
+      ['test', '--coverage', '--coverage-reporter=lcov', '--coverage-dir', shardDir, `./${file}`],
+      { cwd: repoRootDir },
+    );
+    let output = '';
+    child.stdout.on('data', (chunk) => (output += chunk));
+    child.stderr.on('data', (chunk) => (output += chunk));
+    child.on('error', (error) => resolveShard({ status: 1, output: String(error), lcov: null }));
+    child.on('close', (code) => {
+      const lcovPath = join(shardDir, 'lcov.info');
+      const lcov = existsSync(lcovPath) ? readFileSync(lcovPath, 'utf8') : null;
+      resolveShard({ status: code ?? 1, output, lcov });
+    });
+  });
+}
+
+function parseJobsArg(argv: string[]): number {
+  const index = argv.indexOf('--jobs');
+  if (index === -1) return availableParallelism();
+  return Math.max(1, Number(argv[index + 1]) || 1);
+}
+
+// Shards run in parallel (one per CPU unless --jobs N). The first failing shard
+// stops scheduling new shards and its exit status becomes the lane result.
+export async function runCoverageLane(
+  options: { repoRootDir?: string; argv?: string[]; quiet?: boolean } = {},
+): Promise<number> {
   const repoRootDir = options.repoRootDir ?? repoRoot;
   const argv = options.argv ?? process.argv.slice(2);
   const laneName = argv[0];
@@ -225,40 +257,44 @@ export function runCoverageLane(
     process.stderr.write(`${error instanceof Error ? error.message : error}\n`);
     return 1;
   }
-  const reports: string[] = [];
+
+  const reports: Array<string | null> = new Array(files.length).fill(null);
+  const failures: Array<{ file: string; result: ShardResult }> = [];
+  let nextIndex = 0;
+
+  const worker = async (): Promise<void> => {
+    while (failures.length === 0 && nextIndex < files.length) {
+      const index = nextIndex++;
+      const file = files[index]!;
+      const shardDir = join(shardRoot, String(index + 1).padStart(3, '0'));
+      const result = await runShard(repoRootDir, file, shardDir);
+      if (result.status !== 0) {
+        failures.push({ file, result });
+        return;
+      }
+      if (result.lcov === null && !options.quiet) {
+        process.stdout.write(`Skipping empty coverage shard for ${file}\n`);
+      }
+      reports[index] = result.lcov;
+    }
+  };
 
   try {
-    for (const [index, file] of files.entries()) {
-      const shardDir = join(shardRoot, `${String(index + 1).padStart(3, '0')}`);
-      const result = spawnSync(
-        'bun',
-        ['test', '--coverage', '--coverage-reporter=lcov', '--coverage-dir', shardDir, `./${file}`],
-        {
-          cwd: repoRootDir,
-          stdio: options.stdio ?? 'inherit',
-        },
-      );
+    const jobs = Math.min(parseJobsArg(argv), files.length);
+    await Promise.all(Array.from({ length: jobs }, worker));
 
-      if (result.error) {
-        throw result.error;
+    const [failure] = failures;
+    if (failure !== undefined) {
+      const { file, result } = failure;
+      if (!options.quiet) {
+        process.stderr.write(`${result.output}\nCoverage shard failed: ${file}\n`);
       }
-      if ((result.status ?? 1) !== 0) {
-        return result.status ?? 1;
-      }
-
-      const lcovPath = join(shardDir, 'lcov.info');
-      if (!existsSync(lcovPath)) {
-        process.stdout.write(`Skipping empty coverage shard for ${file}\n`);
-        continue;
-      }
-
-      reports.push(readFileSync(lcovPath, 'utf8'));
+      return result.status;
     }
 
-    writeFileSync(join(coverageDir, 'lcov.info'), mergeLcovReports(reports), 'utf8');
-    process.stdout.write(
-      `Merged LCOV written to ${relative(repoRootDir, join(coverageDir, 'lcov.info'))}\n`,
-    );
+    const lcovPath = join(coverageDir, 'lcov.info');
+    writeFileSync(lcovPath, mergeLcovReports(reports.filter((r) => r !== null)), 'utf8');
+    process.stdout.write(`Merged LCOV written to ${relative(repoRootDir, lcovPath)}\n`);
     return 0;
   } finally {
     rmSync(shardRoot, { recursive: true, force: true });
@@ -267,5 +303,5 @@ export function runCoverageLane(
 
 // @ts-ignore Bun entrypoint detection; TS config for scripts still targets CommonJS.
 if (import.meta.main) {
-  process.exit(runCoverageLane());
+  runCoverageLane().then((status) => process.exit(status));
 }

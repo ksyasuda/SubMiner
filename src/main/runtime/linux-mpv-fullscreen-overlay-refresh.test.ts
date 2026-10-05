@@ -4,6 +4,7 @@ import {
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
   updateLinuxMpvFullscreenOverlayRefreshBurst,
   scheduleLinuxVisibleOverlayFullscreenRefreshBurst,
+  type LinuxMpvFullscreenOverlayRefreshDeps,
 } from './linux-mpv-fullscreen-overlay-refresh';
 
 const compositorEnvKeys = [
@@ -23,309 +24,142 @@ afterEach(() => {
   }
 });
 
-for (const { compositorKey, expectedRefreshCalls } of [
+// The subject schedules with the global setTimeout (0/50/150/300/600 ms), so these tests run
+// on real timers and poll for the expected calls instead of sleeping a fixed time.
+async function waitFor(predicate: () => boolean, timeoutMs = 1_500): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.ok(predicate(), 'timed out waiting for overlay refresh calls');
+}
+
+/** The subject only refreshes on linux; clears pending burst timers afterwards. */
+async function withLinuxPlatform(run: () => Promise<void>): Promise<void> {
+  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' });
+  try {
+    await run();
+  } finally {
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts();
+    if (originalPlatformDescriptor) {
+      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+    }
+  }
+}
+
+function makeDeps(
+  calls: string[],
+  overrides: Partial<LinuxMpvFullscreenOverlayRefreshDeps> = {},
+  options: { windowVisible?: boolean } = {},
+): LinuxMpvFullscreenOverlayRefreshDeps {
+  const window = {
+    hide: () => calls.push('hide'),
+    showInactive: () => calls.push('showInactive'),
+    isDestroyed: () => false,
+    isVisible: () => options.windowVisible ?? true,
+    setIgnoreMouseEvents: (ignore: boolean, mouseOptions?: { forward?: boolean }) =>
+      calls.push(`mouse:${ignore}:${mouseOptions?.forward === true ? 'forward' : 'plain'}`),
+  };
+  return {
+    overlayManager: {
+      getMainWindow: () => window,
+      getVisibleOverlayVisible: () => true,
+    },
+    overlayVisibilityRuntime: {
+      updateVisibleOverlayVisibility: () => calls.push('visibility'),
+    },
+    syncVisibleOverlayMpvFullscreenMode: (fullscreen) => calls.push(`mode:${fullscreen}`),
+    ensureOverlayWindowLevel: () => calls.push('restack'),
+    ...overrides,
+  };
+}
+
+const count = (calls: string[], entry: string): number =>
+  calls.filter((call) => call === entry).length;
+
+const REFRESH_TICKS = 5;
+
+for (const { compositorKey, expectedTickCalls } of [
   {
+    // Hyprland restacks in place; hide/show would let it cancel the fullscreen transition.
     compositorKey: 'HYPRLAND_INSTANCE_SIGNATURE',
-    expectedRefreshCalls: ['mode', 'visibility', 'mouse', 'restack'],
+    expectedTickCalls: ['mode:true', 'visibility', 'mouse:true:forward', 'restack'],
   },
   {
     compositorKey: 'SWAYSOCK',
-    expectedRefreshCalls: ['mode', 'visibility', 'hide', 'showInactive', 'mouse', 'restack'],
+    expectedTickCalls: [
+      'mode:true',
+      'visibility',
+      'hide',
+      'showInactive',
+      'mouse:true:forward',
+      'restack',
+    ],
   },
 ]) {
   test(`${compositorKey} fullscreen refresh uses compositor-specific restacking`, async () => {
-    const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
-    Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' });
-    process.env[compositorKey] = 'fullscreen-refresh-test';
-    const calls: string[] = [];
-    try {
-      scheduleLinuxVisibleOverlayFullscreenRefreshBurst(true, {
-        overlayManager: {
-          getMainWindow: () => ({
-            hide: () => calls.push('hide'),
-            showInactive: () => calls.push('showInactive'),
-            isDestroyed: () => false,
-            isVisible: () => true,
-            setIgnoreMouseEvents: () => calls.push('mouse'),
-          }),
-          getVisibleOverlayVisible: () => true,
-        },
-        overlayVisibilityRuntime: {
-          updateVisibleOverlayVisibility: () => calls.push('visibility'),
-        },
-        syncVisibleOverlayMpvFullscreenMode: () => calls.push('mode'),
-        ensureOverlayWindowLevel: () => calls.push('restack'),
-      });
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      assert.deepEqual(calls, Array.from({ length: 5 }, () => expectedRefreshCalls).flat());
-    } finally {
-      clearLinuxMpvFullscreenOverlayRefreshTimeouts();
-      if (originalPlatformDescriptor) {
-        Object.defineProperty(process, 'platform', originalPlatformDescriptor);
-      }
-    }
+    await withLinuxPlatform(async () => {
+      process.env[compositorKey] = 'fullscreen-refresh-test';
+      const calls: string[] = [];
+      scheduleLinuxVisibleOverlayFullscreenRefreshBurst(true, makeDeps(calls));
+
+      await waitFor(() => count(calls, 'restack') === REFRESH_TICKS);
+
+      // Click-through is restored after the remap and before the window level is reasserted.
+      assert.deepEqual(
+        calls,
+        Array.from({ length: REFRESH_TICKS }, () => expectedTickCalls).flat(),
+      );
+    });
   });
 }
 
-test('linux mpv fullscreen overlay refresh burst schedules overlay refresh work on linux', async () => {
-  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
-  Object.defineProperty(process, 'platform', {
-    configurable: true,
-    value: 'linux',
-  });
-
-  const calls: string[] = [];
-
-  try {
-    scheduleLinuxVisibleOverlayFullscreenRefreshBurst(true, {
-      overlayManager: {
-        getMainWindow: () =>
-          ({
-            hide: () => calls.push('hide'),
-            isFullScreen: () => false,
-            isDestroyed: () => false,
-            isVisible: () => true,
-            setFullScreen: (fullscreen: boolean) => calls.push(`fullscreen:${fullscreen}`),
-            setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) =>
-              calls.push(
-                `mouse-ignore:${ignore}:${options?.forward === true ? 'forward' : 'plain'}`,
-              ),
-            showInactive: () => calls.push('showInactive'),
-          }) as never,
-        getVisibleOverlayVisible: () => true,
-      },
-      overlayVisibilityRuntime: {
-        updateVisibleOverlayVisibility: () => calls.push('updateVisibleOverlayVisibility'),
-      },
-      syncVisibleOverlayMpvFullscreenMode: (fullscreen: boolean) =>
-        calls.push(`sync-overlay-mode:${fullscreen}`),
-      ensureOverlayWindowLevel: () => calls.push('ensureOverlayWindowLevel'),
-    });
-
-    const deadline = Date.now() + 200;
-    while (!calls.includes('updateVisibleOverlayVisibility') && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-
-    assert.ok(calls.includes('updateVisibleOverlayVisibility'));
-    assert.ok(calls.includes('sync-overlay-mode:true'));
-    assert.ok(!calls.includes('fullscreen:true'));
-    assert.ok(calls.includes('hide'));
-    assert.ok(calls.includes('showInactive'));
-    assert.ok(calls.includes('mouse-ignore:true:forward'));
-    assert.ok(calls.includes('ensureOverlayWindowLevel'));
-  } finally {
-    clearLinuxMpvFullscreenOverlayRefreshTimeouts();
-    if (originalPlatformDescriptor) {
-      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
-    }
-  }
-});
-
 test('linux mpv fullscreen overlay refresh remembers mode even when overlay is hidden', async () => {
-  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
-  Object.defineProperty(process, 'platform', {
-    configurable: true,
-    value: 'linux',
+  await withLinuxPlatform(async () => {
+    const calls: string[] = [];
+    scheduleLinuxVisibleOverlayFullscreenRefreshBurst(
+      true,
+      makeDeps(calls, {
+        overlayManager: {
+          getMainWindow: () => null,
+          getVisibleOverlayVisible: () => false,
+        },
+      }),
+    );
+
+    await waitFor(() => count(calls, 'mode:true') >= 2);
+
+    assert.ok(calls.every((call) => call === 'mode:true'));
   });
-
-  const calls: string[] = [];
-
-  try {
-    scheduleLinuxVisibleOverlayFullscreenRefreshBurst(true, {
-      overlayManager: {
-        getMainWindow: () => null,
-        getVisibleOverlayVisible: () => false,
-      },
-      overlayVisibilityRuntime: {
-        updateVisibleOverlayVisibility: () => calls.push('updateVisibleOverlayVisibility'),
-      },
-      syncVisibleOverlayMpvFullscreenMode: (fullscreen: boolean) =>
-        calls.push(`sync-overlay-mode:${fullscreen}`),
-      ensureOverlayWindowLevel: () => calls.push('ensureOverlayWindowLevel'),
-    });
-
-    const deadline = Date.now() + 200;
-    while (!calls.includes('sync-overlay-mode:true') && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-
-    assert.ok(calls.includes('sync-overlay-mode:true'));
-    assert.ok(!calls.includes('updateVisibleOverlayVisibility'));
-    assert.ok(!calls.includes('ensureOverlayWindowLevel'));
-  } finally {
-    clearLinuxMpvFullscreenOverlayRefreshTimeouts();
-    if (originalPlatformDescriptor) {
-      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
-    }
-  }
 });
 
 test('linux mpv fullscreen overlay refresh updates mode without hide/show when fullscreen exits', async () => {
-  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
-  Object.defineProperty(process, 'platform', {
-    configurable: true,
-    value: 'linux',
-  });
+  await withLinuxPlatform(async () => {
+    const calls: string[] = [];
+    const deps = makeDeps(calls);
 
-  const calls: string[] = [];
-
-  try {
-    const deps = {
-      overlayManager: {
-        getMainWindow: () =>
-          ({
-            hide: () => calls.push('hide'),
-            isFullScreen: () => true,
-            isDestroyed: () => false,
-            isVisible: () => true,
-            setFullScreen: (fullscreen: boolean) => calls.push(`fullscreen:${fullscreen}`),
-            setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) =>
-              calls.push(
-                `mouse-ignore:${ignore}:${options?.forward === true ? 'forward' : 'plain'}`,
-              ),
-            showInactive: () => calls.push('showInactive'),
-          }) as never,
-        getVisibleOverlayVisible: () => true,
-      },
-      overlayVisibilityRuntime: {
-        updateVisibleOverlayVisibility: () => calls.push('updateVisibleOverlayVisibility'),
-      },
-      syncVisibleOverlayMpvFullscreenMode: (fullscreen: boolean) =>
-        calls.push(`sync-overlay-mode:${fullscreen}`),
-      ensureOverlayWindowLevel: () => calls.push('ensureOverlayWindowLevel'),
-    };
-
+    // Leaving fullscreen cancels the pending fullscreen-enter burst.
     const cancel = updateLinuxMpvFullscreenOverlayRefreshBurst(true, deps, null);
-    const nextCancel = updateLinuxMpvFullscreenOverlayRefreshBurst(false, deps, cancel);
+    updateLinuxMpvFullscreenOverlayRefreshBurst(false, deps, cancel);
 
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await waitFor(() => count(calls, 'mode:false') >= 2);
 
-    assert.equal(typeof nextCancel, 'function');
-    assert.ok(calls.includes('updateVisibleOverlayVisibility'));
-    assert.ok(calls.includes('sync-overlay-mode:false'));
-    assert.ok(!calls.includes('fullscreen:false'));
-    assert.equal(calls.includes('hide'), false);
-    assert.equal(calls.includes('showInactive'), false);
-    assert.equal(calls.includes('mouse-ignore:true:forward'), false);
-    assert.equal(calls.includes('ensureOverlayWindowLevel'), false);
-  } finally {
-    clearLinuxMpvFullscreenOverlayRefreshTimeouts();
-    if (originalPlatformDescriptor) {
-      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
-    }
-  }
-});
-
-test('linux mpv fullscreen overlay refresh restores click-through after restacking', async () => {
-  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
-  Object.defineProperty(process, 'platform', {
-    configurable: true,
-    value: 'linux',
+    assert.ok(calls.every((call) => call === 'mode:false' || call === 'visibility'));
   });
-
-  const calls: string[] = [];
-
-  try {
-    scheduleLinuxVisibleOverlayFullscreenRefreshBurst(true, {
-      overlayManager: {
-        getMainWindow: () =>
-          ({
-            hide: () => calls.push('hide'),
-            isFullScreen: () => false,
-            isDestroyed: () => false,
-            isVisible: () => true,
-            setFullScreen: (fullscreen: boolean) => calls.push(`fullscreen:${fullscreen}`),
-            setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) =>
-              calls.push(
-                `mouse-ignore:${ignore}:${options?.forward === true ? 'forward' : 'plain'}`,
-              ),
-            showInactive: () => calls.push('showInactive'),
-          }) as never,
-        getVisibleOverlayVisible: () => true,
-      },
-      overlayVisibilityRuntime: {
-        updateVisibleOverlayVisibility: () => calls.push('updateVisibleOverlayVisibility'),
-      },
-      syncVisibleOverlayMpvFullscreenMode: (fullscreen: boolean) =>
-        calls.push(`sync-overlay-mode:${fullscreen}`),
-      ensureOverlayWindowLevel: () => calls.push('ensureOverlayWindowLevel'),
-    });
-
-    const deadline = Date.now() + 200;
-    while (!calls.includes('mouse-ignore:true:forward') && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-
-    const showIndex = calls.indexOf('showInactive');
-    const passthroughIndex = calls.indexOf('mouse-ignore:true:forward');
-    const levelIndex = calls.indexOf('ensureOverlayWindowLevel');
-    const syncIndex = calls.indexOf('sync-overlay-mode:true');
-
-    assert.ok(syncIndex >= 0);
-    assert.ok(showIndex >= 0);
-    assert.ok(syncIndex < showIndex);
-    assert.ok(passthroughIndex > showIndex);
-    assert.ok(levelIndex > passthroughIndex);
-  } finally {
-    clearLinuxMpvFullscreenOverlayRefreshTimeouts();
-    if (originalPlatformDescriptor) {
-      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
-    }
-  }
 });
 
 test('linux mpv fullscreen overlay refresh preserves active subtitle interaction after restacking', async () => {
-  const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
-  Object.defineProperty(process, 'platform', {
-    configurable: true,
-    value: 'linux',
+  await withLinuxPlatform(async () => {
+    const calls: string[] = [];
+    scheduleLinuxVisibleOverlayFullscreenRefreshBurst(
+      true,
+      makeDeps(calls, { getOverlayInteractionActive: () => true }),
+    );
+
+    await waitFor(() => count(calls, 'restack') >= 1);
+
+    assert.ok(calls.indexOf('mouse:false:plain') > calls.indexOf('showInactive'));
+    assert.equal(calls.includes('mouse:true:forward'), false);
   });
-
-  const calls: string[] = [];
-
-  try {
-    scheduleLinuxVisibleOverlayFullscreenRefreshBurst(true, {
-      overlayManager: {
-        getMainWindow: () =>
-          ({
-            hide: () => calls.push('hide'),
-            isFullScreen: () => false,
-            isDestroyed: () => false,
-            isVisible: () => true,
-            setFullScreen: (fullscreen: boolean) => calls.push(`fullscreen:${fullscreen}`),
-            setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) =>
-              calls.push(
-                `mouse-ignore:${ignore}:${options?.forward === true ? 'forward' : 'plain'}`,
-              ),
-            showInactive: () => calls.push('showInactive'),
-          }) as never,
-        getVisibleOverlayVisible: () => true,
-      },
-      overlayVisibilityRuntime: {
-        updateVisibleOverlayVisibility: () => calls.push('updateVisibleOverlayVisibility'),
-      },
-      syncVisibleOverlayMpvFullscreenMode: (fullscreen: boolean) =>
-        calls.push(`sync-overlay-mode:${fullscreen}`),
-      getOverlayInteractionActive: () => true,
-      ensureOverlayWindowLevel: () => calls.push('ensureOverlayWindowLevel'),
-    });
-
-    const deadline = Date.now() + 200;
-    while (!calls.includes('mouse-ignore:false:plain') && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-
-    const showIndex = calls.indexOf('showInactive');
-    const interactiveIndex = calls.indexOf('mouse-ignore:false:plain');
-
-    assert.ok(showIndex >= 0);
-    assert.ok(interactiveIndex > showIndex);
-    assert.equal(calls.includes('mouse-ignore:true:forward'), false);
-  } finally {
-    clearLinuxMpvFullscreenOverlayRefreshTimeouts();
-    if (originalPlatformDescriptor) {
-      Object.defineProperty(process, 'platform', originalPlatformDescriptor);
-    }
-  }
 });

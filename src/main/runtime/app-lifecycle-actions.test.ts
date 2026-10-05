@@ -3,9 +3,61 @@ import assert from 'node:assert/strict';
 import {
   createForceQuitHandler,
   createOnWillQuitCleanupHandler,
-  createRestoreWindowsOnActivateHandler,
   createShouldRestoreWindowsOnActivateHandler,
 } from './app-lifecycle-actions';
+
+type CleanupDeps = Parameters<typeof createOnWillQuitCleanupHandler>[0];
+
+// Every cleanup step records its own dep name into `calls` unless overridden.
+function makeCleanupDeps(calls: string[], overrides: Partial<CleanupDeps> = {}): CleanupDeps {
+  const record = (name: string) => () => {
+    calls.push(name);
+  };
+  return {
+    destroyTray: record('destroyTray'),
+    stopConfigHotReload: record('stopConfigHotReload'),
+    restorePreviousSecondarySubVisibility: record('restorePreviousSecondarySubVisibility'),
+    restoreMpvSubVisibility: record('restoreMpvSubVisibility'),
+    unregisterAllGlobalShortcuts: record('unregisterAllGlobalShortcuts'),
+    stopSubtitleWebsocket: record('stopSubtitleWebsocket'),
+    stopTexthookerService: record('stopTexthookerService'),
+    stopSyncAutoScheduler: record('stopSyncAutoScheduler'),
+    clearWindowsVisibleOverlayForegroundPollLoop: record(
+      'clearWindowsVisibleOverlayForegroundPollLoop',
+    ),
+    clearLinuxMpvFullscreenOverlayRefreshTimeouts: record(
+      'clearLinuxMpvFullscreenOverlayRefreshTimeouts',
+    ),
+    destroyMainOverlayWindow: record('destroyMainOverlayWindow'),
+    destroyModalOverlayWindow: record('destroyModalOverlayWindow'),
+    destroyYomitanParserWindow: record('destroyYomitanParserWindow'),
+    clearYomitanParserState: record('clearYomitanParserState'),
+    stopWindowTracker: record('stopWindowTracker'),
+    flushMpvLog: record('flushMpvLog'),
+    destroyMpvSocket: record('destroyMpvSocket'),
+    clearReconnectTimer: record('clearReconnectTimer'),
+    destroySubtitleTimingTracker: record('destroySubtitleTimingTracker'),
+    stopStatsServer: record('stopStatsServer'),
+    destroyImmersionTracker: record('destroyImmersionTracker'),
+    destroyAnkiIntegration: record('destroyAnkiIntegration'),
+    destroyAnilistSetupWindow: record('destroyAnilistSetupWindow'),
+    clearAnilistSetupWindow: record('clearAnilistSetupWindow'),
+    destroyJellyfinSetupWindow: record('destroyJellyfinSetupWindow'),
+    clearJellyfinSetupWindow: record('clearJellyfinSetupWindow'),
+    destroyFirstRunSetupWindow: record('destroyFirstRunSetupWindow'),
+    clearFirstRunSetupWindow: record('clearFirstRunSetupWindow'),
+    destroyYomitanSettingsWindow: record('destroyYomitanSettingsWindow'),
+    clearYomitanSettingsWindow: record('clearYomitanSettingsWindow'),
+    stopJellyfinRemoteSession: record('stopJellyfinRemoteSession'),
+    cleanupInternalSubtitleTrackCache: record('cleanupInternalSubtitleTrackCache'),
+    cleanupYoutubeSubtitleTempDirs: record('cleanupYoutubeSubtitleTempDirs'),
+    cleanupYoutubeMediaCache: record('cleanupYoutubeMediaCache'),
+    cleanupRemoteMediaWindows: record('cleanupRemoteMediaWindows'),
+    cleanupJellyfinSubtitleCache: record('cleanupJellyfinSubtitleCache'),
+    stopDiscordPresenceService: record('stopDiscordPresenceService'),
+    ...overrides,
+  };
+}
 
 test('forced quit finalizes stats before exiting, even when finalization throws', async () => {
   for (const fails of [false, true]) {
@@ -26,86 +78,44 @@ test('forced quit finalizes stats before exiting, even when finalization throws'
   }
 });
 
-test('on will quit cleanup handler runs all cleanup steps', async () => {
+test('on will quit cleanup handler flushes before teardown and awaits stats before dependents', async () => {
   const calls: string[] = [];
-  const cleanup = createOnWillQuitCleanupHandler({
-    destroyTray: () => calls.push('destroy-tray'),
-    stopConfigHotReload: () => calls.push('stop-config'),
-    restorePreviousSecondarySubVisibility: () => calls.push('restore-sub'),
-    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
-    unregisterAllGlobalShortcuts: () => calls.push('unregister-shortcuts'),
-    stopSubtitleWebsocket: () => calls.push('stop-ws'),
-    stopTexthookerService: () => calls.push('stop-texthooker'),
-    stopSyncAutoScheduler: () => {
-      calls.push('stop-sync-auto-scheduler');
-    },
-    clearWindowsVisibleOverlayForegroundPollLoop: () =>
-      calls.push('clear-windows-visible-overlay-poll'),
-    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () =>
-      calls.push('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'),
-    destroyMainOverlayWindow: () => calls.push('destroy-main-overlay-window'),
-    destroyModalOverlayWindow: () => calls.push('destroy-modal-overlay-window'),
-    destroyYomitanParserWindow: () => calls.push('destroy-yomitan-window'),
-    clearYomitanParserState: () => calls.push('clear-yomitan-state'),
-    stopWindowTracker: () => calls.push('stop-tracker'),
-    flushMpvLog: () => calls.push('flush-mpv-log'),
-    destroyMpvSocket: () => calls.push('destroy-socket'),
-    clearReconnectTimer: () => calls.push('clear-reconnect'),
-    destroySubtitleTimingTracker: () => calls.push('destroy-subtitle-tracker'),
-    stopStatsServer: async () => {
-      calls.push('stop-stats-server-start');
-      await Promise.resolve();
-      calls.push('stop-stats-server-complete');
-    },
-    destroyImmersionTracker: async () => {
-      await Promise.resolve();
-      calls.push('destroy-immersion');
-    },
-    destroyAnkiIntegration: () => calls.push('destroy-anki'),
-    destroyAnilistSetupWindow: () => calls.push('destroy-anilist-window'),
-    clearAnilistSetupWindow: () => calls.push('clear-anilist-window'),
-    destroyJellyfinSetupWindow: () => calls.push('destroy-jellyfin-window'),
-    clearJellyfinSetupWindow: () => calls.push('clear-jellyfin-window'),
-    destroyFirstRunSetupWindow: () => calls.push('destroy-first-run-window'),
-    clearFirstRunSetupWindow: () => calls.push('clear-first-run-window'),
-    destroyYomitanSettingsWindow: () => calls.push('destroy-yomitan-settings-window'),
-    clearYomitanSettingsWindow: () => calls.push('clear-yomitan-settings-window'),
-    stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
-    cleanupInternalSubtitleTrackCache: () => calls.push('cleanup-internal-subtitles'),
-    cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
-    cleanupYoutubeMediaCache: () => calls.push('cleanup-youtube-media'),
-    cleanupRemoteMediaWindows: () => calls.push('cleanup-remote-media-windows'),
-    cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
-    stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
-  });
+  const cleanup = createOnWillQuitCleanupHandler(
+    makeCleanupDeps(calls, {
+      stopStatsServer: async () => {
+        await Promise.resolve();
+        calls.push('stopStatsServer:complete');
+      },
+      destroyImmersionTracker: async () => {
+        await Promise.resolve();
+        calls.push('destroyImmersionTracker');
+      },
+    }),
+  );
 
   await cleanup();
-  assert.equal(calls.length, 38);
-  assert.equal(calls[0], 'destroy-tray');
-  assert.equal(calls[calls.length - 1], 'stop-discord-presence');
-  assert.ok(calls.includes('cleanup-jellyfin-subtitles'));
-  assert.ok(calls.includes('cleanup-internal-subtitles'));
-  assert.ok(calls.includes('clear-windows-visible-overlay-poll'));
-  assert.ok(calls.includes('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'));
-  assert.ok(calls.includes('cleanup-youtube-subtitles'));
-  assert.ok(calls.includes('cleanup-youtube-media'));
-  assert.ok(calls.includes('cleanup-remote-media-windows'));
-  assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
-  assert.ok(calls.indexOf('stop-stats-server-complete') < calls.indexOf('destroy-immersion'));
-  assert.ok(calls.indexOf('destroy-immersion') < calls.indexOf('destroy-anki'));
+  assert.ok(calls.indexOf('flushMpvLog') < calls.indexOf('destroyMpvSocket'));
+  assert.ok(calls.indexOf('stopStatsServer:complete') < calls.indexOf('destroyImmersionTracker'));
+  assert.ok(calls.indexOf('destroyImmersionTracker') < calls.indexOf('destroyAnkiIntegration'));
 });
 
-test('forced quit waits for asynchronous stats finalization', async () => {
+test('on will quit cleanup handler cleans subtitle caches when stopping remote session fails', async () => {
   const calls: string[] = [];
-  await createForceQuitHandler({
-    destroyImmersionTracker: async () => {
-      await Promise.resolve();
-      calls.push('finalized');
-    },
-    logError: () => calls.push('error'),
-    exit: () => calls.push('exit'),
-  })();
-  assert.deepEqual(calls, ['finalized', 'exit']);
+  const cleanup = createOnWillQuitCleanupHandler(
+    makeCleanupDeps(calls, {
+      stopJellyfinRemoteSession: () => {
+        calls.push('stopJellyfinRemoteSession');
+        throw new Error('stop failed');
+      },
+    }),
+  );
+
+  await assert.rejects(cleanup(), /stop failed/);
+  assert.deepEqual(calls.slice(calls.indexOf('stopJellyfinRemoteSession')), [
+    'stopJellyfinRemoteSession',
+    'cleanupJellyfinSubtitleCache',
+    'cleanupInternalSubtitleTrackCache',
+  ]);
 });
 
 test('forced quit exits when asynchronous stats finalization never settles', async () => {
@@ -121,59 +131,6 @@ test('forced quit exits when asynchronous stats finalization never settles', asy
   assert.deepEqual(calls, ['timeout', 'exit']);
 });
 
-test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping remote session fails', async () => {
-  const calls: string[] = [];
-  const cleanup = createOnWillQuitCleanupHandler({
-    destroyTray: () => {},
-    stopConfigHotReload: () => {},
-    restorePreviousSecondarySubVisibility: () => {},
-    restoreMpvSubVisibility: () => {},
-    unregisterAllGlobalShortcuts: () => {},
-    stopSubtitleWebsocket: () => {},
-    stopTexthookerService: () => {},
-    stopSyncAutoScheduler: () => {},
-    clearWindowsVisibleOverlayForegroundPollLoop: () => {},
-    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {},
-    destroyMainOverlayWindow: () => {},
-    destroyModalOverlayWindow: () => {},
-    destroyYomitanParserWindow: () => {},
-    clearYomitanParserState: () => {},
-    stopWindowTracker: () => {},
-    flushMpvLog: () => {},
-    destroyMpvSocket: () => {},
-    clearReconnectTimer: () => {},
-    destroySubtitleTimingTracker: () => {},
-    stopStatsServer: () => {},
-    destroyImmersionTracker: () => {},
-    destroyAnkiIntegration: () => {},
-    destroyAnilistSetupWindow: () => {},
-    clearAnilistSetupWindow: () => {},
-    destroyJellyfinSetupWindow: () => {},
-    clearJellyfinSetupWindow: () => {},
-    destroyFirstRunSetupWindow: () => {},
-    clearFirstRunSetupWindow: () => {},
-    destroyYomitanSettingsWindow: () => {},
-    clearYomitanSettingsWindow: () => {},
-    stopJellyfinRemoteSession: () => {
-      calls.push('stop-jellyfin-remote');
-      throw new Error('stop failed');
-    },
-    cleanupInternalSubtitleTrackCache: () => calls.push('cleanup-internal-subtitles'),
-    cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
-    cleanupYoutubeMediaCache: () => calls.push('cleanup-youtube-media'),
-    cleanupRemoteMediaWindows: () => calls.push('cleanup-remote-media-windows'),
-    cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
-    stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
-  });
-
-  await assert.rejects(cleanup(), /stop failed/);
-  assert.deepEqual(calls, [
-    'stop-jellyfin-remote',
-    'cleanup-jellyfin-subtitles',
-    'cleanup-internal-subtitles',
-  ]);
-});
-
 test('should restore windows on activate requires initialized runtime and no windows', () => {
   let initialized = false;
   let windowCount = 1;
@@ -187,16 +144,4 @@ test('should restore windows on activate requires initialized runtime and no win
   assert.equal(shouldRestore(), false);
   windowCount = 0;
   assert.equal(shouldRestore(), true);
-});
-
-test('restore windows on activate recreates windows then syncs visibility', () => {
-  const calls: string[] = [];
-  const restore = createRestoreWindowsOnActivateHandler({
-    createMainWindow: () => calls.push('main'),
-    updateVisibleOverlayVisibility: () => calls.push('visible-sync'),
-    syncOverlayMpvSubtitleSuppression: () => calls.push('mpv-sync'),
-  });
-
-  restore();
-  assert.deepEqual(calls, ['main', 'visible-sync', 'mpv-sync']);
 });

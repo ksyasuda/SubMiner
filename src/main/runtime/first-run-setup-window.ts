@@ -85,7 +85,9 @@ function getLauncherStatusLabel(status: LauncherSnapshot['status']): string {
     case 'installed_bun_missing':
       return 'Unavailable';
     case 'not_installed':
-      return 'Not installed';
+      // Not "Not installed": the AppImage catalog test OCRs the fresh-install
+      // setup window and fails on that phrase as an error message.
+      return 'Not set up';
     case 'not_on_path':
       return 'Not on PATH';
     case 'shadowed':

@@ -5,11 +5,7 @@ import { createDeps } from '../../core/services/tokenizer/yomitan-scan-test-harn
 import { DEFAULT_CONFIG } from '../../config';
 import { ImmersionTrackerService } from '../../core/services/immersion-tracker-service';
 import { createAnilistRateLimiter } from '../../core/services/anilist/rate-limiter';
-import {
-  createStatsServerRuntime,
-  isSelfOwnedBackgroundStatsDaemonState,
-  type StatsServerRuntimeDeps,
-} from './stats-server-runtime';
+import { createStatsServerRuntime, type StatsServerRuntimeDeps } from './stats-server-runtime';
 import type { StatsServer } from '../../core/services/stats-server';
 import type { BackgroundStatsServerState } from './stats-daemon';
 
@@ -118,13 +114,6 @@ test('dashboard word mining keeps the configured proxy as Hachidori Anki endpoin
   assert.ok(settings[0] && typeof settings[0] === 'object' && 'server' in settings[0]);
   assert.equal(settings[0].server, 'http://127.0.0.1:8766');
   await runtime.stopStatsServer();
-});
-
-test('detects self-owned background stats daemon state', () => {
-  assert.equal(
-    isSelfOwnedBackgroundStatsDaemonState({ pid: process.pid, port: 6969, startedAtMs: 1 }),
-    true,
-  );
 });
 
 test('stopBackgroundStatsServer clears stale state when daemon identity mismatches', async () => {

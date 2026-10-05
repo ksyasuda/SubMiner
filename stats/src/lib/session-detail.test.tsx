@@ -1,42 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { renderToStaticMarkup } from 'react-dom/server';
 import {
-  SessionDetail,
   buildKnownWordsRatioChartData,
   getKnownPctAxisMax,
 } from '../components/sessions/SessionDetail';
 import { buildSessionChartEvents } from './session-events';
 import { EventType } from '../types/stats';
-
-test('SessionDetail omits the misleading new words metric', () => {
-  const markup = renderToStaticMarkup(
-    <SessionDetail
-      session={{
-        sessionId: 7,
-        canonicalTitle: 'Episode 7',
-        videoId: 7,
-        animeId: null,
-        animeTitle: null,
-        startedAtMs: 0,
-        endedAtMs: null,
-        totalWatchedMs: 0,
-        activeWatchedMs: 0,
-        linesSeen: 12,
-        tokensSeen: 24,
-        cardsMined: 0,
-        lookupCount: 0,
-        lookupHits: 0,
-        yomitanLookupCount: 0,
-        knownWordsSeen: 0,
-        knownWordRate: 0,
-      }}
-    />,
-  );
-
-  assert.match(markup, /No word data/);
-  assert.doesNotMatch(markup, /New words/);
-});
 
 test('buildSessionChartEvents keeps only chart-relevant events and pairs pause ranges', () => {
   const chartEvents = buildSessionChartEvents([

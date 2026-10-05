@@ -21,6 +21,7 @@ const requiredDocs = [
   'docs/workflow/README.md',
   'docs/workflow/agent-skills.md',
   'docs/workflow/planning.md',
+  'docs/workflow/testing.md',
   'docs/workflow/verification.md',
 ] as const;
 
