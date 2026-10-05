@@ -171,7 +171,9 @@ test(
           // A frame can go away between listing and connecting; skip it.
           const frame = await connectCdpPage(target).catch(() => undefined);
           if (!frame) continue;
-          const text = await frame.evaluate<string>('document.body?.innerText ?? ""');
+          // textContent, not innerText: the entry counts once it is in the DOM,
+          // even where a GPU-less runner never lays the frame out.
+          const text = await frame.evaluate<string>('document.body?.textContent ?? ""');
           frame.close();
           seen.push(text);
         }
@@ -179,7 +181,8 @@ test(
       },
       { description: 'a popup frame to show the fixture dictionary entry' },
     ).catch((error: unknown) => {
-      throw new Error(`Popup frames held: ${JSON.stringify(seen)}`, { cause: error });
+      const summary = seen.map((text) => text.replace(/\s+/g, ' ').trim().slice(0, 200));
+      throw new Error(`Popup frames held: ${JSON.stringify(summary)}`, { cause: error });
     });
     await overlay.send('Input.dispatchKeyEvent', { type: 'keyUp', ...shift });
     assert.match(entry, /天気/);
