@@ -28,24 +28,3 @@ test('unknown dictionary backend values warn and preserve the default', () => {
     assert.equal(warnings[0]?.path, 'dictionaryBackend');
   }
 });
-
-test('Hachidori external import URL accepts HTTP origins and rejects invalid targets', () => {
-  assert.equal(resolveConfig({}).resolved.hachidori.externalHostManagementUrl, '');
-  const result = resolveConfig({
-    hachidori: { externalHostManagementUrl: 'http://127.0.0.1:8780/' },
-  });
-  assert.equal(result.resolved.hachidori.externalHostManagementUrl, 'http://127.0.0.1:8780');
-  assert.deepEqual(result.warnings, []);
-  for (const value of [
-    'file:///tmp/dict',
-    'http://host/import',
-    'http://user:password@host',
-    true,
-  ]) {
-    const { context, warnings } = createResolveContext({});
-    context.src.hachidori = { externalHostManagementUrl: value };
-    applyCoreDomainConfig(context);
-    assert.equal(context.resolved.hachidori.externalHostManagementUrl, '');
-    assert.equal(warnings[0]?.path, 'hachidori.externalHostManagementUrl');
-  }
-});

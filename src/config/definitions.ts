@@ -23,7 +23,6 @@ export type {
 
 const {
   dictionaryBackend,
-  hachidori,
   subtitlePosition,
   keybindings,
   websocket,
@@ -60,7 +59,6 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   subtitleSelection: { enabled: false },
   subtitleGeneration: { ...DEFAULT_SUBTITLE_GENERATION_CONFIG },
   dictionaryBackend,
-  hachidori,
   subtitlePosition,
   keybindings,
   websocket,

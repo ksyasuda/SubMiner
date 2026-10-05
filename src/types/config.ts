@@ -145,7 +145,6 @@ export type DictionaryBackend = 'yomitan' | 'hachidori';
 
 export interface Config {
   dictionaryBackend?: DictionaryBackend;
-  hachidori?: { externalHostManagementUrl?: string };
   subtitlePosition?: SubtitlePosition;
   keybindings?: Keybinding[];
   websocket?: WebSocketConfig;
@@ -189,7 +188,6 @@ export type RawConfig = Config;
 
 export interface ResolvedConfig {
   dictionaryBackend: DictionaryBackend;
-  hachidori: { externalHostManagementUrl: string };
   subtitlePosition: SubtitlePosition;
   keybindings: Keybinding[];
   websocket: Required<WebSocketConfig>;

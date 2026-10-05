@@ -14,15 +14,6 @@
   "dictionaryBackend": "yomitan", // Dictionary lookup backend. Restart SubMiner after changing this setting. Values: yomitan | hachidori
 
   // ==========================================
-  // Hachidori External Dictionary Imports
-  // Override the linked Docker host management URL only for a non-default port or a reverse proxy.
-  // Used only while Hachidori is linked to an external host.
-  // ==========================================
-  "hachidori": {
-    "externalHostManagementUrl": "" // Management URL override for character dictionary uploads to a linked Hachidori Docker host. Empty uses the linked host on the Docker default management port.
-  }, // Override the linked Docker host management URL only for a non-default port or a reverse proxy.
-
-  // ==========================================
   // Subtitle Selection
   // Select primary and secondary mpv subtitle tracks from the overlay.
   // Hot-reload: enabling or disabling updates the session shortcut immediately.

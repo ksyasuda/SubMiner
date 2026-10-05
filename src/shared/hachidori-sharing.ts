@@ -19,23 +19,6 @@ export type HachidoriSharingRequest =
   | { type: 'hd_sharing_client_link'; address: string }
   | { type: 'hd_sharing_client_unlink' };
 
-export function parseHachidoriManagementUrl(value: unknown): string {
-  if (typeof value !== 'string') throw new Error('Expected an HTTP(S) origin or an empty string.');
-  if (!value.trim()) return '';
-  const url = new URL(value.trim());
-  if (
-    !['http:', 'https:'].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.pathname !== '/' ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error('Expected an HTTP(S) origin without credentials, a path, query, or fragment.');
-  }
-  return url.origin;
-}
-
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

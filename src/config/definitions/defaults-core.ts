@@ -3,7 +3,6 @@ import { ResolvedConfig } from '../../types/config';
 export const CORE_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
   | 'dictionaryBackend'
-  | 'hachidori'
   | 'subtitlePosition'
   | 'keybindings'
   | 'websocket'
@@ -21,7 +20,6 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'auto_start_overlay'
 > = {
   dictionaryBackend: 'yomitan',
-  hachidori: { externalHostManagementUrl: '' },
   subtitlePosition: { yPercent: 10 },
   keybindings: [],
   websocket: {

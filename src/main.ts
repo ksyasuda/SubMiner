@@ -2732,16 +2732,11 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
       return false;
     }
     await ensureYomitanExtensionLoaded();
-    return await importYomitanDictionaryFromZip(
-      zipPath,
-      getYomitanParserRuntimeDeps(),
-      {
-        error: (message, ...args) => logger.error(message, ...args),
-        info: (message, ...args) => logger.info(message, ...args),
-        warn: (message, ...args) => logger.warn(message, ...args),
-      },
-      configService.getConfig().hachidori.externalHostManagementUrl,
-    );
+    return await importYomitanDictionaryFromZip(zipPath, getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => logger.error(message, ...args),
+      info: (message, ...args) => logger.info(message, ...args),
+      warn: (message, ...args) => logger.warn(message, ...args),
+    });
   },
   dictionaryImportReplacesExisting: () =>
     getYomitanParserRuntimeDeps().getYomitanExt()?.name === 'Hachidori',

@@ -82,13 +82,6 @@ export function buildCoreConfigOptionRegistry(
 
   return [
     {
-      path: 'hachidori.externalHostManagementUrl',
-      kind: 'string',
-      defaultValue: defaultConfig.hachidori.externalHostManagementUrl,
-      description:
-        'Management URL override for character dictionary uploads to a linked Hachidori Docker host. Empty uses the linked host on the Docker default management port.',
-    },
-    {
       path: 'dictionaryBackend',
       kind: 'enum',
       enumValues: ['yomitan', 'hachidori'],

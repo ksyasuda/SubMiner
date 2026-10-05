@@ -2,10 +2,6 @@ import type { BrowserWindow, Extension, Session } from 'electron';
 import type { AnkiConnectConfig } from '../../../types';
 import { buildHachidoriAnkiHints } from './hachidori-anki-settings';
 import {
-  resolveHachidoriManagementUrl,
-  uploadHachidoriDictionary,
-} from './hachidori-dictionary-import';
-import {
   buildHachidoriSharingScript,
   HACHIDORI_LINKED_IMPORT_CAPABILITY,
   parseHachidoriHostStatus,
@@ -1804,7 +1800,6 @@ export async function importYomitanDictionaryFromZip(
   zipPath: string,
   deps: YomitanParserRuntimeDeps,
   logger: LoggerLike,
-  hachidoriManagementUrl = '',
 ): Promise<boolean> {
   const normalizedZipPath = zipPath.trim();
   if (!normalizedZipPath || !fs.existsSync(normalizedZipPath)) {
@@ -1818,25 +1813,15 @@ export async function importYomitanDictionaryFromZip(
       const host = await requestHachidoriSharing({ type: 'hd_sharing_status' }, deps, logger);
       if (host.kind === 'disconnected' || host.kind === 'unavailable')
         throw new Error(host.message);
-      // Hosts with linked imports take the ZIP over the link like a local import,
-      // below. Older hosts and hachidori-docker need their management API.
+      // A linked host takes the ZIP over the link like a local import, below,
+      // but only once it advertises linked imports (Hachidori 0.2.3+).
       if (
         host.kind === 'connected' &&
         !host.capabilities.includes(HACHIDORI_LINKED_IMPORT_CAPABILITY)
       ) {
-        const origin = resolveHachidoriManagementUrl(
-          host,
-          hachidoriManagementUrl,
-          normalizedZipPath,
-          logger.warn,
+        throw new Error(
+          `The linked ${host.name} cannot receive dictionary uploads. Update its Hachidori to 0.2.3 or later, or import ${normalizedZipPath} from its Hachidori settings.`,
         );
-        await uploadHachidoriDictionary(normalizedZipPath, origin);
-        const window = deps.getYomitanParserWindow();
-        if (window) clearYomitanParserCachesForWindow(window);
-        logger.info?.(
-          `Uploaded character dictionary to Hachidori host: ${path.basename(normalizedZipPath)}`,
-        );
-        return true;
       }
     } catch (error) {
       logger.error(

@@ -10,14 +10,6 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'dictionaryBackend',
   },
   {
-    title: 'Hachidori External Dictionary Imports',
-    description: [
-      'Override the linked Docker host management URL only for a non-default port or a reverse proxy.',
-    ],
-    notes: ['Used only while Hachidori is linked to an external host.'],
-    key: 'hachidori',
-  },
-  {
     title: 'Subtitle Selection',
     description: ['Select primary and secondary mpv subtitle tracks from the overlay.'],
     notes: ['Hot-reload: enabling or disabling updates the session shortcut immediately.'],
