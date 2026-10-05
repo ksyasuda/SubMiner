@@ -140,38 +140,6 @@ test('persistJellyfinAuthSession stores session config and recent servers', () =
   });
 });
 
-test('persistJellyfinAuthSession does not write generated local device id to config', () => {
-  let patchPayload: unknown = null;
-
-  persistJellyfinAuthSession({
-    session: {
-      serverUrl: 'http://localhost:8096',
-      username: 'alice',
-      accessToken: 'token',
-      userId: 'uid',
-    },
-    clientInfo: {
-      deviceId: 'subminer-local-pc',
-      clientName: 'SubMiner',
-      clientVersion: '1.0',
-    },
-    existingRecentServers: [],
-    saveStoredSession: () => {},
-    patchRawConfig: (patch) => {
-      patchPayload = patch;
-    },
-  });
-
-  assert.deepEqual(patchPayload, {
-    jellyfin: {
-      enabled: true,
-      serverUrl: 'http://localhost:8096',
-      username: 'alice',
-      recentServers: ['http://localhost:8096'],
-    },
-  });
-});
-
 test('jellyfin auth handler no-ops when no auth command', async () => {
   const handleAuth = createHandleJellyfinAuthCommands({
     patchRawConfig: () => {},

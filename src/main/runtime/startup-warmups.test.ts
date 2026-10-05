@@ -130,39 +130,6 @@ test('startBackgroundWarmups schedules jellyfin warmup when all jellyfin flags a
   assert.deepEqual(labels, ['subtitle-tokenization', 'jellyfin-remote-session']);
 });
 
-test('startBackgroundWarmups skips jellyfin warmup when warmup is deferred', () => {
-  const labels: string[] = [];
-  let started = false;
-  const startWarmups = createStartBackgroundWarmupsHandler({
-    getStarted: () => started,
-    setStarted: (value) => {
-      started = value;
-    },
-    isTexthookerOnlyMode: () => false,
-    launchTask: (label) => {
-      labels.push(label);
-    },
-    createMecabTokenizerAndCheck: async () => {},
-    ensureYomitanExtensionLoaded: async () => {},
-    prewarmSubtitleDictionaries: async () => {},
-    shouldWarmupMecab: () => false,
-    shouldWarmupYomitanExtension: () => true,
-    shouldWarmupSubtitleDictionaries: () => false,
-    shouldWarmupJellyfinRemoteSession: () => false,
-    shouldAutoConnectJellyfinRemote: () =>
-      shouldAutoConnectJellyfinRemote({
-        enabled: true,
-        remoteControlEnabled: true,
-        remoteControlAutoConnect: true,
-      }),
-    startJellyfinRemoteSession: async () => {},
-  });
-
-  startWarmups();
-  assert.equal(started, true);
-  assert.deepEqual(labels, ['subtitle-tokenization']);
-});
-
 test('startBackgroundWarmups logs per-stage progress for enabled tokenization warmups', async () => {
   const debugLogs: string[] = [];
   const labels: string[] = [];

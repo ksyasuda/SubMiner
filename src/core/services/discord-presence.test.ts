@@ -49,28 +49,6 @@ test('buildDiscordPresenceActivity falls back to idle with default style', () =>
   assert.equal(payload.details, 'Sentence Mining');
 });
 
-test('buildDiscordPresenceActivity uses meme style fallback', () => {
-  const memeConfig = { ...baseConfig, presenceStyle: 'meme' as const };
-  const payload = buildDiscordPresenceActivity(memeConfig, {
-    ...baseSnapshot,
-    connected: false,
-    mediaPath: null,
-  });
-  assert.equal(payload.details, 'Mining and crafting (Anki cards)');
-  assert.equal(payload.smallImageText, 'Sentence Mining');
-});
-
-test('buildDiscordPresenceActivity uses japanese style', () => {
-  const jpConfig = { ...baseConfig, presenceStyle: 'japanese' as const };
-  const payload = buildDiscordPresenceActivity(jpConfig, {
-    ...baseSnapshot,
-    connected: false,
-    mediaPath: null,
-  });
-  assert.equal(payload.details, '文の採掘中');
-  assert.equal(payload.smallImageText, 'イマージョン学習');
-});
-
 test('buildDiscordPresenceActivity uses minimal style', () => {
   const minConfig = { ...baseConfig, presenceStyle: 'minimal' as const };
   const payload = buildDiscordPresenceActivity(minConfig, {

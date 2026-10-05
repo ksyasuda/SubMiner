@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildConfigParseErrorDetails,
-  buildConfigWarningDialogDetails,
   buildConfigWarningNotificationBody,
   buildConfigWarningSummary,
   failStartupFromConfig,
@@ -54,29 +52,27 @@ test('buildConfigWarningNotificationBody includes concise warning details', () =
   );
 });
 
-test('buildConfigWarningDialogDetails includes full warning details', () => {
-  const details = buildConfigWarningDialogDetails('/tmp/config.jsonc', [
-    {
-      path: 'ankiConnect.pollingRate',
-      message: 'must be >= 50',
-      value: 10,
-      fallback: 250,
-    },
+test('buildConfigWarningNotificationBody caps listed warnings and clips long config paths', () => {
+  const longPath = `/home/user/${'nested/'.repeat(10)}config.jsonc`;
+  const warnings = [1, 2, 3, 4, 5].map((n) => ({
+    path: `key${n}`,
+    message: 'invalid',
+    value: n,
+    fallback: 0,
+  }));
+
+  const lines = buildConfigWarningNotificationBody(longPath, warnings).split('\n');
+
+  assert.equal(lines[0], '5 config validation issue(s) detected.');
+  const fileLine = lines.find((line) => line.startsWith('File: '));
+  assert.equal(fileLine, `File: ...${longPath.slice(-45)}`);
+  assert.equal(fileLine?.length, 'File: '.length + 48);
+  assert.deepEqual(lines.slice(-4), [
+    '1. key1: invalid',
+    '2. key2: invalid',
+    '3. key3: invalid',
+    '+2 more issue(s)',
   ]);
-
-  assert.match(details, /SubMiner detected config validation issues\./);
-  assert.match(details, /File: \/tmp\/config\.jsonc/);
-  assert.match(details, /1\. ankiConnect\.pollingRate: must be >= 50/);
-  assert.match(details, /actual=10 fallback=250/);
-});
-
-test('buildConfigParseErrorDetails includes path error and restart guidance', () => {
-  const details = buildConfigParseErrorDetails('/tmp/config.jsonc', 'unexpected token at line 1');
-
-  assert.match(details, /Failed to parse config file at:/);
-  assert.match(details, /\/tmp\/config\.jsonc/);
-  assert.match(details, /Error: unexpected token at line 1/);
-  assert.match(details, /Fix the config file and restart SubMiner\./);
 });
 
 test('failStartupFromConfig invokes handlers and throws', () => {

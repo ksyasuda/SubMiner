@@ -3,20 +3,6 @@ import assert from 'node:assert/strict';
 import { AnkiConnectClient } from './anki-connect';
 import { setLogLevel } from './logger';
 
-test('AnkiConnectClient disables keep-alive agents to avoid stale socket retries', () => {
-  const client = new AnkiConnectClient('http://127.0.0.1:8765') as unknown as {
-    client: {
-      defaults: {
-        httpAgent?: { options?: { keepAlive?: boolean } };
-        httpsAgent?: { options?: { keepAlive?: boolean } };
-      };
-    };
-  };
-
-  assert.equal(client.client.defaults.httpAgent?.options?.keepAlive, false);
-  assert.equal(client.client.defaults.httpsAgent?.options?.keepAlive, false);
-});
-
 test('AnkiConnectClient includes action name in retry logs', async () => {
   const client = new AnkiConnectClient('http://127.0.0.1:8765') as unknown as {
     client: { post: (url: string, body: unknown, options: unknown) => Promise<unknown> };

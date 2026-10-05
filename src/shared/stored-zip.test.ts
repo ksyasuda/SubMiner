@@ -72,3 +72,24 @@ test('writeStoredZipAsync writes a correct archive when one entry exceeds the yi
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('writeStoredZip rejects names outside ZIP32 limits', () => {
+  const dir = makeTempDir();
+  const outputPath = path.join(dir, 'logs.zip');
+
+  try {
+    assert.throws(
+      () =>
+        writeStoredZip(outputPath, [
+          {
+            name: `${'a'.repeat(0x10000)}.log`,
+            data: Buffer.from('log\n', 'utf8'),
+          },
+        ]),
+      /ZIP entry name too long/,
+    );
+    assert.equal(fs.existsSync(outputPath), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

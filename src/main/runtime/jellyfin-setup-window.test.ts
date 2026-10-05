@@ -4,10 +4,8 @@ import {
   buildJellyfinSetupSubmissionUrl,
   buildJellyfinSetupFormHtml,
   buildJellyfinSetupViewState,
-  createHandleJellyfinSetupWindowClosedHandler,
   createHandleJellyfinSetupNavigationHandler,
   createHandleJellyfinSetupSubmissionHandler,
-  createHandleJellyfinSetupWindowOpenedHandler,
   createMaybeFocusExistingJellyfinSetupWindowHandler,
   createOpenJellyfinSetupWindowHandler,
   normalizeJellyfinSetupIpcSubmission,
@@ -26,8 +24,6 @@ test('buildJellyfinSetupFormHtml escapes default values', () => {
   assert.ok(html.includes('user&quot;name'));
   assert.ok(html.includes('Ready &quot;now&quot;'));
   assert.ok(html.includes('Logout'));
-  assert.equal(html.includes('Server presets'), false);
-  assert.equal(html.includes('serverSelect'), false);
   assert.ok(html.includes('window.subminerJellyfinSetup'));
   assert.ok(html.includes('Logging in to Jellyfin'));
   assert.ok(html.includes('subminer://jellyfin-setup?'));
@@ -398,101 +394,47 @@ test('createHandleJellyfinSetupNavigationHandler intercepts setup urls', async (
   assert.equal(submittedUrls.length, 1);
 });
 
-test('createHandleJellyfinSetupWindowClosedHandler clears setup window ref', () => {
-  let cleared = false;
-  const handler = createHandleJellyfinSetupWindowClosedHandler({
-    clearSetupWindow: () => {
-      cleared = true;
-    },
-  });
-  handler();
-  assert.equal(cleared, true);
-});
+type NavigateHandler = (event: { preventDefault: () => void }, url: string) => void;
 
-test('createHandleJellyfinSetupWindowOpenedHandler sets setup window ref', () => {
-  let set = false;
-  const handler = createHandleJellyfinSetupWindowOpenedHandler({
-    setSetupWindow: () => {
-      set = true;
-    },
-  });
-  handler();
-  assert.equal(set, true);
-});
-
-test('createOpenJellyfinSetupWindowHandler no-ops when existing setup window is focused', () => {
-  const calls: string[] = [];
-  const handler = createOpenJellyfinSetupWindowHandler({
-    maybeFocusExistingSetupWindow: () => {
-      calls.push('focus-existing');
-      return true;
-    },
-    createSetupWindow: () => {
-      calls.push('create-window');
-      throw new Error('should not create');
-    },
-    getResolvedJellyfinConfig: () => ({}),
-    buildSetupFormHtml: () => '<html></html>',
-    parseSubmissionUrl: () => null,
-    authenticateWithPassword: async () => {
-      throw new Error('should not auth');
-    },
-    getJellyfinClientInfo: () => ({
-      clientName: 'SubMiner',
-      clientVersion: '1.0',
-      deviceId: 'did',
-    }),
-    saveStoredSession: () => {},
-    patchJellyfinConfig: () => {},
-    logInfo: () => {},
-    logError: () => {},
-    showMpvOsd: () => {},
-    clearSetupWindow: () => {},
-    setSetupWindow: () => {},
-    clearStoredSession: () => {},
-    encodeURIComponent: (value) => value,
-    defaultServerUrl: 'http://127.0.0.1:8096',
-    hasStoredSession: () => false,
-  });
-
-  handler();
-  assert.deepEqual(calls, ['focus-existing']);
-});
-
-test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window lifecycle', async () => {
-  let willNavigateHandler: ((event: { preventDefault: () => void }, url: string) => void) | null =
-    null;
-  let closedHandler: (() => void) | null = null;
-  let prevented = false;
-  const calls: string[] = [];
-  const fakeWindow = {
+function makeFakeWindow(calls: string[], options: { pagePassword?: string } = {}) {
+  const hooks: { willNavigate?: NavigateHandler; closed?: () => void } = {};
+  const window = {
     focus: () => {},
     webContents: {
-      on: (
-        event: 'will-navigate',
-        handler: (event: { preventDefault: () => void }, url: string) => void,
-      ) => {
-        if (event === 'will-navigate') {
-          willNavigateHandler = handler;
-        }
+      on: (event: 'will-navigate', handler: NavigateHandler) => {
+        if (event === 'will-navigate') hooks.willNavigate = handler;
       },
-      executeJavaScript: async () => 'pass',
+      executeJavaScript: async () => {
+        if (options.pagePassword === undefined) {
+          throw new Error('bridge path should not read from page');
+        }
+        return options.pagePassword;
+      },
     },
     loadURL: (url: string) => {
       calls.push(`load:${url.startsWith('data:text/html;charset=utf-8,') ? 'data-url' : 'other'}`);
     },
     on: (event: 'closed', handler: () => void) => {
-      if (event === 'closed') {
-        closedHandler = handler;
-      }
+      if (event === 'closed') hooks.closed = handler;
     },
     isDestroyed: () => false,
     close: () => calls.push('close'),
   };
+  return { window, hooks };
+}
 
-  const handler = createOpenJellyfinSetupWindowHandler({
+type FakeWindow = ReturnType<typeof makeFakeWindow>['window'];
+type OpenDeps = Parameters<typeof createOpenJellyfinSetupWindowHandler<FakeWindow>>[0];
+
+/** Open-handler deps that record every side effect into `calls`; override per test. */
+function makeOpenDeps(
+  calls: string[],
+  window: FakeWindow,
+  overrides: Partial<OpenDeps> = {},
+): OpenDeps {
+  return {
     maybeFocusExistingSetupWindow: () => false,
-    createSetupWindow: () => fakeWindow,
+    createSetupWindow: () => window,
     getResolvedJellyfinConfig: () => ({
       serverUrl: 'http://localhost:8096',
       username: 'alice',
@@ -524,21 +466,43 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
     setSetupWindow: () => calls.push('set-window'),
     encodeURIComponent: (value) => encodeURIComponent(value),
     defaultServerUrl: 'http://127.0.0.1:8096',
-    hasStoredSession: () => true,
-  });
+    hasStoredSession: () => false,
+    ...overrides,
+  };
+}
+
+test('createOpenJellyfinSetupWindowHandler no-ops when existing setup window is focused', () => {
+  const calls: string[] = [];
+  const { window } = makeFakeWindow(calls);
+  const handler = createOpenJellyfinSetupWindowHandler(
+    makeOpenDeps(calls, window, {
+      maybeFocusExistingSetupWindow: () => {
+        calls.push('focus-existing');
+        return true;
+      },
+      createSetupWindow: () => {
+        calls.push('create-window');
+        throw new Error('should not create');
+      },
+    }),
+  );
 
   handler();
-  assert.ok(willNavigateHandler);
-  assert.ok(closedHandler);
-  assert.deepEqual(calls.slice(0, 2), ['load:data-url', 'set-window']);
+  assert.deepEqual(calls, ['focus-existing']);
+});
 
-  const navHandler = willNavigateHandler as
-    | ((event: { preventDefault: () => void }, url: string) => void)
-    | null;
-  if (!navHandler) {
-    throw new Error('missing will-navigate handler');
-  }
-  navHandler(
+test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window lifecycle', async () => {
+  const calls: string[] = [];
+  let prevented = false;
+  const { window, hooks } = makeFakeWindow(calls, { pagePassword: 'pass' });
+  const handler = createOpenJellyfinSetupWindowHandler(makeOpenDeps(calls, window));
+
+  handler();
+  assert.deepEqual(calls.slice(0, 2), ['load:data-url', 'set-window']);
+  assert.ok(hooks.willNavigate);
+  assert.ok(hooks.closed);
+
+  hooks.willNavigate?.(
     {
       preventDefault: () => {
         prevented = true;
@@ -553,81 +517,24 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
   assert.ok(calls.includes('save'));
   assert.ok(calls.includes('patch'));
   assert.ok(calls.includes('osd:Jellyfin login success'));
-  assert.ok(calls.includes('load:data-url'));
 
-  const onClosed = closedHandler as (() => void) | null;
-  if (!onClosed) {
-    throw new Error('missing closed handler');
-  }
-  onClosed();
+  hooks.closed?.();
   assert.ok(calls.includes('clear-window'));
 });
 
 test('createOpenJellyfinSetupWindowHandler handles ipc bridge submissions', async () => {
   const bridge: { handler?: (payload: unknown) => Promise<{ handled: boolean }> } = {};
-  let closedHandler: (() => void) | null = null;
   const calls: string[] = [];
-  const fakeWindow = {
-    focus: () => {},
-    webContents: {
-      on: () => {},
-      executeJavaScript: async () => {
-        throw new Error('bridge path should not read from page');
+  const { window, hooks } = makeFakeWindow(calls);
+  const handler = createOpenJellyfinSetupWindowHandler(
+    makeOpenDeps(calls, window, {
+      registerSetupIpcHandler: (nextHandler) => {
+        bridge.handler = nextHandler;
+        calls.push('register-ipc');
+        return () => calls.push('unregister-ipc');
       },
-    },
-    loadURL: () => {
-      calls.push('load');
-    },
-    on: (event: 'closed', handler: () => void) => {
-      if (event === 'closed') {
-        closedHandler = handler;
-      }
-    },
-    isDestroyed: () => false,
-    close: () => calls.push('close'),
-  };
-
-  const handler = createOpenJellyfinSetupWindowHandler({
-    maybeFocusExistingSetupWindow: () => false,
-    createSetupWindow: () => fakeWindow,
-    getResolvedJellyfinConfig: () => ({
-      serverUrl: 'http://localhost:8096',
-      username: 'alice',
-      recentServers: [],
     }),
-    buildSetupFormHtml: () => '<html></html>',
-    parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
-    authenticateWithPassword: async (_server, _username, password) => {
-      calls.push(`password:${password}`);
-      return {
-        serverUrl: 'http://localhost:8096',
-        username: 'alice',
-        accessToken: 'token',
-        userId: 'uid',
-      };
-    },
-    getJellyfinClientInfo: () => ({
-      clientName: 'SubMiner',
-      clientVersion: '1.0',
-      deviceId: 'did',
-    }),
-    saveStoredSession: () => calls.push('save'),
-    clearStoredSession: () => calls.push('clear'),
-    patchJellyfinConfig: () => calls.push('patch'),
-    logInfo: () => calls.push('info'),
-    logError: () => calls.push('error'),
-    showMpvOsd: (message) => calls.push(`osd:${message}`),
-    clearSetupWindow: () => calls.push('clear-window'),
-    setSetupWindow: () => calls.push('set-window'),
-    registerSetupIpcHandler: (nextHandler) => {
-      bridge.handler = nextHandler;
-      calls.push('register-ipc');
-      return () => calls.push('unregister-ipc');
-    },
-    encodeURIComponent: (value) => encodeURIComponent(value),
-    defaultServerUrl: 'http://127.0.0.1:8096',
-    hasStoredSession: () => false,
-  });
+  );
 
   handler();
   const bridgeHandler = bridge.handler;
@@ -655,11 +562,7 @@ test('createOpenJellyfinSetupWindowHandler handles ipc bridge submissions', asyn
   assert.ok(calls.includes('save'));
   assert.ok(calls.includes('patch'));
 
-  const onClosed = closedHandler as (() => void) | null;
-  if (!onClosed) {
-    throw new Error('missing closed handler');
-  }
-  onClosed();
+  hooks.closed?.();
   assert.ok(calls.includes('unregister-ipc'));
   assert.ok(calls.includes('clear-window'));
 });

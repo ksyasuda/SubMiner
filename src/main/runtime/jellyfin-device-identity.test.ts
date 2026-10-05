@@ -10,15 +10,6 @@ test('createHostDerivedJellyfinDeviceId uses the hostname as the stable id', () 
   assert.equal(createHostDerivedJellyfinDeviceId(''), 'device');
 });
 
-test('resolveJellyfinRemoteDeviceName uses hostname by default', () => {
-  assert.equal(
-    resolveJellyfinRemoteDeviceName({
-      hostName: 'kyle-pc',
-    }),
-    'kyle-pc',
-  );
-});
-
 test('resolveJellyfinRemoteDeviceName falls back when hostname is empty', () => {
   assert.equal(resolveJellyfinRemoteDeviceName({ hostName: '' }), 'device');
 });

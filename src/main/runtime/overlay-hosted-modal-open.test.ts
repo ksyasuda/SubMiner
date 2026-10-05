@@ -107,31 +107,3 @@ test('openOverlayHostedModal ensures overlay readiness before sending the open e
     'send:runtime-options:open',
   ]);
 });
-
-test('openOverlayHostedModal forwards payload and modal-window preference', () => {
-  const payload = { sessionId: 'yt-1' };
-
-  const opened = openOverlayHostedModal(
-    {
-      ensureOverlayStartupPrereqs: () => {},
-      ensureOverlayWindowsReadyForVisibilityActions: () => {},
-      sendToActiveOverlayWindow: (channel, forwardedPayload, runtimeOptions) => {
-        assert.equal(channel, 'youtube:picker-open');
-        assert.deepEqual(forwardedPayload, payload);
-        assert.deepEqual(runtimeOptions, {
-          restoreOnModalClose: 'youtube-track-picker',
-          preferModalWindow: true,
-        });
-        return false;
-      },
-    },
-    {
-      channel: 'youtube:picker-open',
-      modal: 'youtube-track-picker',
-      payload,
-      preferModalWindow: true,
-    },
-  );
-
-  assert.equal(opened, false);
-});

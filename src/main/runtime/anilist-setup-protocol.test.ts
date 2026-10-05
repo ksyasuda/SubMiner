@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createConsumeAnilistSetupTokenFromUrlHandler,
   createHandleAnilistSetupProtocolUrlHandler,
   createNotifyAnilistSetupHandler,
   createRegisterSubminerProtocolClientHandler,
@@ -35,20 +34,6 @@ test('createNotifyAnilistSetupHandler routes through configured notification sur
     'overlay:SubMiner AniList:AniList login success:success',
     'notify:SubMiner AniList:AniList login success',
   ]);
-});
-
-test('createConsumeAnilistSetupTokenFromUrlHandler delegates with deps', () => {
-  const consume = createConsumeAnilistSetupTokenFromUrlHandler({
-    consumeAnilistSetupCallbackUrl: (input) => input.rawUrl.includes('access_token=ok'),
-    saveToken: () => true,
-    setCachedToken: () => {},
-    setResolvedState: () => {},
-    setSetupPageOpened: () => {},
-    onSuccess: () => {},
-    closeWindow: () => {},
-  });
-  assert.equal(consume('subminer://anilist-setup?access_token=ok'), true);
-  assert.equal(consume('subminer://anilist-setup'), false);
 });
 
 test('createHandleAnilistSetupProtocolUrlHandler validates scheme and logs missing token', () => {

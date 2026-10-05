@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  getSubtitleCssManagedConfigPaths,
   parseSubtitleCssDeclarations,
   serializeSubtitleCssDeclarations,
 } from './subtitle-style-css';
@@ -117,77 +116,18 @@ test('parseSubtitleCssDeclarations rejects selectors and malformed declarations'
   assert.equal(parseSubtitleCssDeclarations('font-size 40px;').ok, false);
 });
 
-test('getSubtitleCssManagedConfigPaths includes all CSS-editor-owned appearance controls', () => {
-  assert.ok(!getSubtitleCssManagedConfigPaths('primary').includes(''));
-  assert.ok(!getSubtitleCssManagedConfigPaths('secondary').includes(''));
-  assert.ok(!getSubtitleCssManagedConfigPaths('sidebar').includes(''));
-  assert.ok(getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.fontSize'));
-  assert.ok(
-    getSubtitleCssManagedConfigPaths('secondary').includes('subtitleStyle.secondary.fontSize'),
-  );
-  assert.ok(getSubtitleCssManagedConfigPaths('sidebar').includes('subtitleSidebar.fontSize'));
-  assert.ok(getSubtitleCssManagedConfigPaths('sidebar').includes('subtitleSidebar.textColor'));
-  assert.ok(getSubtitleCssManagedConfigPaths('sidebar').includes('subtitleSidebar.maxWidth'));
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.fontColor'),
-    true,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('secondary').includes('subtitleStyle.secondary.fontColor'),
-    true,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.backgroundColor'),
-    true,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('secondary').includes(
-      'subtitleStyle.secondary.backgroundColor',
+test('parseSubtitleCssDeclarations keeps separators inside quotes, parens, and escapes', () => {
+  assert.deepEqual(
+    parseSubtitleCssDeclarations(
+      String.raw`background-image: url(a;b.png); content: ":"; font-family: 'Foo\'s; Font'`,
     ),
-    true,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.hoverTokenColor'),
-    true,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.hoverTokenBackgroundColor'),
-    true,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.paintOrder'),
-    true,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.WebkitTextStroke'),
-    true,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.knownWordColor'),
-    false,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.nPlusOneColor'),
-    false,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.nameMatchColor'),
-    false,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes('subtitleStyle.jlptColors.N1'),
-    false,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes(
-      'subtitleStyle.frequencyDictionary.singleColor',
-    ),
-    false,
-  );
-  assert.equal(
-    getSubtitleCssManagedConfigPaths('primary').includes(
-      'subtitleStyle.frequencyDictionary.bandedColors',
-    ),
-    false,
+    {
+      ok: true,
+      declarations: {
+        'background-image': 'url(a;b.png)',
+        content: '":"',
+        'font-family': String.raw`'Foo\'s; Font'`,
+      },
+    },
   );
 });

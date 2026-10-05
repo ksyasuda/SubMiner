@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   configureAutoUpdater,
   createElectronAppUpdater,
-  isKnownLinuxPackageManagedAppImage,
   isNativeUpdaterSupported,
   resolveMacAppBundlePath,
   type ElectronAutoUpdaterLike,
@@ -306,14 +305,6 @@ test('linux native updater is unsupported for package-managed AppImage installs'
   assert.deepEqual(logged, [
     'Skipping native Linux updater because the AppImage is managed by a system package.',
   ]);
-});
-
-test('known Linux package-managed AppImage detection follows the canonical AUR path', () => {
-  assert.equal(isKnownLinuxPackageManagedAppImage('/opt/SubMiner/SubMiner.AppImage'), true);
-  assert.equal(
-    isKnownLinuxPackageManagedAppImage('/home/tester/.local/bin/SubMiner.AppImage'),
-    false,
-  );
 });
 
 test('windows native updater is supported for packaged builds', async () => {

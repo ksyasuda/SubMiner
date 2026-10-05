@@ -5,30 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from '../immersion-tracker/sqlite';
 
-type ImmersionTrackerService = import('../immersion-tracker-service').ImmersionTrackerService;
-type ImmersionTrackerServiceCtor =
-  typeof import('../immersion-tracker-service').ImmersionTrackerService;
-
-let trackerCtor: ImmersionTrackerServiceCtor | null = null;
-
-async function loadTrackerCtor(): Promise<ImmersionTrackerServiceCtor> {
-  if (trackerCtor) return trackerCtor;
-  const mod = await import('../immersion-tracker-service');
-  trackerCtor = mod.ImmersionTrackerService;
-  return trackerCtor;
-}
-
-function makeDbPath(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-write-queue-test-'));
-  return path.join(dir, 'immersion.sqlite');
-}
-
-function cleanupDbPath(dbPath: string): void {
-  const dir = path.dirname(dbPath);
-  if (!fs.existsSync(dir)) return;
-  fs.rmSync(dir, { recursive: true, force: true });
-}
-
 interface TrackerInternals {
   db: DatabaseSync;
   queue: unknown[];
@@ -42,155 +18,38 @@ interface TrackerInternals {
   writeLock: { locked: boolean };
 }
 
-test('delete maintenance fails closed when queued writes cannot drain', async () => {
-  const dbPath = makeDbPath();
-  let tracker: ImmersionTrackerService | null = null;
+interface TrackerHarness {
+  tracker: TrackerInternals;
+  deleteRunnerCalls: () => number;
+}
+
+/** Runs `fn` against a fresh tracker (batchSize 2) seeded with two library entries. */
+async function withTracker(fn: (harness: TrackerHarness) => Promise<void>): Promise<void> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-write-queue-test-'));
+  const { ImmersionTrackerService } = await import('../immersion-tracker-service');
   let deleteRunnerCalls = 0;
-
-  try {
-    const Ctor = await loadTrackerCtor();
-    tracker = new Ctor(
-      { dbPath, policy: { batchSize: 2 } },
-      {
-        runDeleteMaintenanceTask: async () => {
-          deleteRunnerCalls += 1;
-        },
+  const service = new ImmersionTrackerService(
+    { dbPath: path.join(dir, 'immersion.sqlite'), policy: { batchSize: 2 } },
+    {
+      runDeleteMaintenanceTask: async () => {
+        deleteRunnerCalls += 1;
       },
-    );
-    const internals = tracker as unknown as TrackerInternals;
-    seedTwoEntries(internals.db);
-    queueSubtitleLines(internals, 1);
-    let flushCalls = 0;
-    internals.flushNow = () => {
-      flushCalls += 1;
-      if (flushCalls > 1) throw new Error('bounded no-progress sentinel');
-    };
-
-    await assert.rejects(internals.deleteSession(1), /queue did not drain/i);
-
-    assert.equal(flushCalls, 1);
-    assert.equal(deleteRunnerCalls, 0);
-    assert.equal(internals.writeLock.locked, false);
-  } finally {
-    tracker?.destroy();
-    cleanupDbPath(dbPath);
-  }
-});
-
-test('reassignAnimeAnilist fails closed before resolving a conflict when writes cannot drain', async () => {
-  const dbPath = makeDbPath();
-  let tracker: ImmersionTrackerService | null = null;
-
+    },
+  );
   try {
-    const Ctor = await loadTrackerCtor();
-    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
-    const internals = tracker as unknown as TrackerInternals;
-    seedTwoEntries(internals.db);
-    internals.db.prepare('UPDATE imm_anime SET anilist_id = 123 WHERE anime_id = 2').run();
-    queueSubtitleLines(internals, 1);
-    internals.flushNow = () => {};
-
-    await assert.rejects(
-      internals.reassignAnimeAnilist(1, { anilistId: 123 }),
-      /queue did not drain/i,
-    );
-
-    assert.deepEqual(
-      internals.db
-        .prepare(
-          'SELECT anime_id AS animeId, anilist_id AS anilistId FROM imm_anime ORDER BY anime_id',
-        )
-        .all(),
-      [
-        { animeId: 1, anilistId: null },
-        { animeId: 2, anilistId: 123 },
-      ],
-    );
+    const tracker = service as unknown as TrackerInternals;
+    seedTwoEntries(tracker.db);
+    await fn({ tracker, deleteRunnerCalls: () => deleteRunnerCalls });
   } finally {
-    tracker?.destroy();
-    cleanupDbPath(dbPath);
+    service.destroy();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
-});
-
-test('mergeAnime fails closed when queued writes cannot drain', async () => {
-  const dbPath = makeDbPath();
-  let tracker: ImmersionTrackerService | null = null;
-
-  try {
-    const Ctor = await loadTrackerCtor();
-    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
-    const internals = tracker as unknown as TrackerInternals;
-    seedTwoEntries(internals.db);
-    queueSubtitleLines(internals, 1);
-    internals.flushNow = () => {};
-
-    await assert.rejects(internals.mergeAnime(1, [2]), /queue did not drain/i);
-
-    assert.deepEqual(
-      internals.db
-        .prepare('SELECT anime_id AS animeId FROM imm_anime ORDER BY anime_id')
-        .all()
-        .map((row) => (row as { animeId: number }).animeId),
-      [1, 2],
-    );
-  } finally {
-    tracker?.destroy();
-    cleanupDbPath(dbPath);
-  }
-});
-
-test('moveVideoToAnime fails closed when queued writes cannot drain', async () => {
-  const dbPath = makeDbPath();
-  let tracker: ImmersionTrackerService | null = null;
-
-  try {
-    const Ctor = await loadTrackerCtor();
-    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
-    const internals = tracker as unknown as TrackerInternals;
-    seedTwoEntries(internals.db);
-    queueSubtitleLines(internals, 1);
-    internals.flushNow = () => {};
-
-    await assert.rejects(internals.moveVideoToAnime(2, 1), /queue did not drain/i);
-    assert.equal(
-      (
-        internals.db
-          .prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = 2')
-          .get() as {
-          animeId: number;
-        }
-      ).animeId,
-      2,
-    );
-  } finally {
-    tracker?.destroy();
-    cleanupDbPath(dbPath);
-  }
-});
-
-test('rebuildLifetimeSummaries fails closed when queued writes cannot drain', async () => {
-  const dbPath = makeDbPath();
-  let tracker: ImmersionTrackerService | null = null;
-
-  try {
-    const Ctor = await loadTrackerCtor();
-    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
-    const internals = tracker as unknown as TrackerInternals;
-    seedTwoEntries(internals.db);
-    queueSubtitleLines(internals, 1);
-    internals.flushNow = () => {};
-
-    await assert.rejects(internals.rebuildLifetimeSummaries(), /queue did not drain/i);
-  } finally {
-    tracker?.destroy();
-    cleanupDbPath(dbPath);
-  }
-});
+}
 
 function seedTwoEntries(db: DatabaseSync): void {
   db.exec(`
-    INSERT INTO imm_anime (anime_id, normalized_title_key, canonical_title, CREATED_DATE, LAST_UPDATE_DATE)
-      VALUES (1, 'show', 'Show', 1000, 1000), (2, 'show season 1', 'Show Season 1', 1000, 1000);
+    INSERT INTO imm_anime (anime_id, normalized_title_key, canonical_title, anilist_id, CREATED_DATE, LAST_UPDATE_DATE)
+      VALUES (1, 'show', 'Show', NULL, 1000, 1000), (2, 'show season 1', 'Show Season 1', 123, 1000, 1000);
     INSERT INTO imm_videos (video_id, video_key, canonical_title, anime_id, source_type, watched, duration_ms, CREATED_DATE, LAST_UPDATE_DATE)
       VALUES (1, 'local:/tmp/a.mkv', 'A', 1, 1, 0, 1440000, 1000, 1000),
              (2, 'local:/tmp/b.mkv', 'B', 2, 1, 0, 1440000, 1000, 1000);
@@ -244,25 +103,53 @@ function queueTelemetry(tracker: TrackerInternals, linesSeen: number): void {
   });
 }
 
-/** The queued telemetry sample only exists in the database once the queue drained fully. */
-function latestTelemetryLinesSeen(db: DatabaseSync, sessionId: number): number | null {
-  const row = db
-    .prepare(
-      `SELECT lines_seen AS linesSeen
-       FROM imm_session_telemetry
-       WHERE session_id = ?
-       ORDER BY sample_ms DESC, telemetry_id DESC
-       LIMIT 1`,
-    )
-    .get(sessionId) as { linesSeen: number } | undefined;
-  return row ? Number(row.linesSeen) : null;
+const SNAPSHOT_TABLES = [
+  'imm_anime',
+  'imm_videos',
+  'imm_sessions',
+  'imm_subtitle_lines',
+  'imm_session_telemetry',
+  'imm_lifetime_global',
+  'imm_lifetime_anime',
+  'imm_lifetime_media',
+  'imm_lifetime_applied_sessions',
+];
+
+function snapshotDb(db: DatabaseSync): Record<string, unknown[]> {
+  return Object.fromEntries(
+    SNAPSHOT_TABLES.map((table) => [table, db.prepare(`SELECT * FROM ${table} ORDER BY 1`).all()]),
+  );
 }
 
-function countLinesForAnime(db: DatabaseSync, animeId: number): number {
-  const row = db
-    .prepare('SELECT COUNT(*) AS total FROM imm_subtitle_lines WHERE anime_id = ?')
-    .get(animeId) as { total: number };
-  return Number(row.total);
+const guardedOperations: Array<{
+  name: string;
+  run: (tracker: TrackerInternals) => Promise<unknown>;
+}> = [
+  { name: 'deleteSession', run: (tracker) => tracker.deleteSession(1) },
+  { name: 'mergeAnime', run: (tracker) => tracker.mergeAnime(1, [2]) },
+  { name: 'moveVideoToAnime', run: (tracker) => tracker.moveVideoToAnime(2, 1) },
+  { name: 'rebuildLifetimeSummaries', run: (tracker) => tracker.rebuildLifetimeSummaries() },
+  {
+    // Anime 2 already owns AniList id 123, so this would otherwise resolve a conflict.
+    name: 'reassignAnimeAnilist',
+    run: (tracker) => tracker.reassignAnimeAnilist(1, { anilistId: 123 }),
+  },
+];
+
+for (const operation of guardedOperations) {
+  test(`${operation.name} fails closed without touching the database when queued writes cannot drain`, async () => {
+    await withTracker(async ({ tracker, deleteRunnerCalls }) => {
+      queueSubtitleLines(tracker, 1);
+      tracker.flushNow = () => {};
+      const before = snapshotDb(tracker.db);
+
+      await assert.rejects(operation.run(tracker), /queue did not drain/i);
+
+      assert.deepEqual(snapshotDb(tracker.db), before);
+      assert.equal(deleteRunnerCalls(), 0);
+      assert.equal(tracker.writeLock.locked, false);
+    });
+  });
 }
 
 /**
@@ -271,52 +158,36 @@ function countLinesForAnime(db: DatabaseSync, animeId: number): number {
  * queue, so anything past `batchSize` would still be unwritten when the merge
  * repoints rows.
  */
-test('mergeAnime drains a queue larger than one batch before repointing rows', async () => {
-  const dbPath = makeDbPath();
-  let tracker: ImmersionTrackerService | null = null;
+const repointingOperations: Array<{
+  name: string;
+  run: (tracker: TrackerInternals) => Promise<unknown>;
+}> = [
+  { name: 'mergeAnime', run: (tracker) => tracker.mergeAnime(1, [2]) },
+  { name: 'moveVideoToAnime', run: (tracker) => tracker.moveVideoToAnime(2, 1) },
+];
 
-  try {
-    const Ctor = await loadTrackerCtor();
-    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
-    const internals = tracker as unknown as TrackerInternals;
+for (const operation of repointingOperations) {
+  test(`${operation.name} drains a queue larger than one batch before repointing rows`, async () => {
+    await withTracker(async ({ tracker }) => {
+      queueSubtitleLines(tracker, 8);
+      queueTelemetry(tracker, 8);
+      assert.ok(tracker.queue.length > 2, 'expected more queued writes than one batch');
 
-    seedTwoEntries(internals.db);
-    queueSubtitleLines(internals, 8);
-    queueTelemetry(internals, 8);
-    assert.ok(internals.queue.length > 2, 'expected more queued writes than one batch');
+      await operation.run(tracker);
 
-    await internals.mergeAnime(1, [2]);
-
-    assert.equal(internals.queue.length, 0);
-    // Every queued line landed, attributed to the surviving entry.
-    assert.equal(countLinesForAnime(internals.db, 1), 8);
-    assert.equal(latestTelemetryLinesSeen(internals.db, 1), 8);
-  } finally {
-    tracker?.destroy();
-    cleanupDbPath(dbPath);
-  }
-});
-
-test('moveVideoToAnime drains a queue larger than one batch before repointing rows', async () => {
-  const dbPath = makeDbPath();
-  let tracker: ImmersionTrackerService | null = null;
-
-  try {
-    const Ctor = await loadTrackerCtor();
-    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
-    const internals = tracker as unknown as TrackerInternals;
-
-    seedTwoEntries(internals.db);
-    queueSubtitleLines(internals, 8);
-    queueTelemetry(internals, 8);
-
-    await internals.moveVideoToAnime(2, 1);
-
-    assert.equal(internals.queue.length, 0);
-    assert.equal(countLinesForAnime(internals.db, 1), 8);
-    assert.equal(latestTelemetryLinesSeen(internals.db, 1), 8);
-  } finally {
-    tracker?.destroy();
-    cleanupDbPath(dbPath);
-  }
-});
+      assert.equal(tracker.queue.length, 0);
+      // Every queued line and the trailing telemetry sample landed on the surviving entry.
+      const lines = tracker.db
+        .prepare('SELECT COUNT(*) AS total FROM imm_subtitle_lines WHERE anime_id = 1')
+        .get() as { total: number };
+      assert.equal(Number(lines.total), 8);
+      const telemetry = tracker.db
+        .prepare(
+          `SELECT lines_seen AS linesSeen FROM imm_session_telemetry
+           WHERE session_id = 1 ORDER BY sample_ms DESC, telemetry_id DESC LIMIT 1`,
+        )
+        .get() as { linesSeen: number } | undefined;
+      assert.equal(Number(telemetry?.linesSeen), 8);
+    });
+  });
+}

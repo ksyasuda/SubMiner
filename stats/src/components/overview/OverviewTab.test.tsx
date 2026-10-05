@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Window } from 'happy-dom';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { apiClient } from '../../lib/api-client';
@@ -8,30 +7,7 @@ import { setDeleteConfirmPresenter } from '../../lib/delete-confirm';
 import { localDayFromMs } from '../../lib/formatters';
 import type { OverviewData, SessionSummary } from '../../types/stats';
 import { OverviewTab } from './OverviewTab';
-
-function installDom() {
-  const window = new Window();
-  const properties = {
-    window,
-    document: window.document,
-    HTMLElement: window.HTMLElement,
-    ResizeObserver: window.ResizeObserver,
-    IS_REACT_ACT_ENVIRONMENT: true,
-  };
-  const previous = Object.keys(properties).map(
-    (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
-  );
-  for (const [key, value] of Object.entries(properties)) {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  }
-  return () => {
-    for (const [key, descriptor] of previous) {
-      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-      else Reflect.deleteProperty(globalThis, key);
-    }
-    window.happyDOM.abort();
-  };
-}
+import { installDom } from '../../test-utils/dom';
 
 function session(sessionId: number): SessionSummary {
   return {

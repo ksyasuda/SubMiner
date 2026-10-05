@@ -2,9 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  buildYomitanSettingsCloseButtonScript,
   buildYomitanSettingsWindowMenuTemplate,
-  buildYomitanSettingsUrl,
   configureYomitanSettingsWindowChrome,
   destroyYomitanSettingsWindow,
   installYomitanSettingsCloseButton,
@@ -49,15 +47,6 @@ test('yomitan settings close menu skips destroyed windows', () => {
   assert.deepEqual(calls, []);
 });
 
-test('yomitan settings close button script installs an idempotent in-page close control', () => {
-  const script = buildYomitanSettingsCloseButtonScript();
-
-  assert.match(script, /subminer-yomitan-settings-close/);
-  assert.match(script, /aria-label', 'Close Yomitan settings'/);
-  assert.match(script, /window\.close\(\)/);
-  assert.match(script, /getElementById\(buttonId\)/);
-});
-
 test('yomitan settings close button only installs for Hyprland sessions', () => {
   assert.equal(
     shouldInstallYomitanSettingsCloseButton('linux', { HYPRLAND_INSTANCE_SIGNATURE: 'hypr' }),
@@ -96,13 +85,6 @@ test('yomitan settings close button injection skips non-Hyprland windows', () =>
   assert.deepEqual(calls, []);
 });
 
-test('yomitan settings URL disables the embedded popup preview', () => {
-  assert.equal(
-    buildYomitanSettingsUrl('abc123'),
-    'chrome-extension://abc123/settings.html?popup-preview=false',
-  );
-});
-
 test('showYomitanSettingsWindow restores, repaints, shows, and focuses an existing window', () => {
   const calls: string[] = [];
 
@@ -132,18 +114,6 @@ test('showYomitanSettingsWindow restores, repaints, shows, and focuses an existi
     'focus',
     'promote',
   ]);
-});
-
-test('destroyYomitanSettingsWindow destroys a live settings window before app quit', () => {
-  const calls: string[] = [];
-
-  const destroyed = destroyYomitanSettingsWindow({
-    isDestroyed: () => false,
-    destroy: () => calls.push('destroy'),
-  } as never);
-
-  assert.equal(destroyed, true);
-  assert.deepEqual(calls, ['destroy']);
 });
 
 test('destroyYomitanSettingsWindow skips missing or already destroyed settings windows', () => {

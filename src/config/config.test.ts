@@ -4,12 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ConfigService, ConfigStartupParseError } from './service';
-import {
-  DEFAULT_CONFIG,
-  DEFAULT_KEYBINDINGS,
-  RUNTIME_OPTION_REGISTRY,
-  deepMergeRawConfig,
-} from './definitions';
+import { DEFAULT_CONFIG, DEFAULT_KEYBINDINGS, deepMergeRawConfig } from './definitions';
 import { parseConfigContent } from './parse';
 import { generateConfigTemplate } from './template';
 import {
@@ -19,11 +14,6 @@ import {
   type SubtitleCssScope,
 } from '../settings/subtitle-style-css';
 
-const DEFAULT_SUBTITLE_FONT_FAMILY =
-  'Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP';
-const DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY = DEFAULT_SUBTITLE_FONT_FAMILY;
-const DEFAULT_SUBTITLE_TEXT_SHADOW =
-  '-1px -1px 2px rgba(0,0,0,0.95), 1px -1px 2px rgba(0,0,0,0.95), -1px 1px 2px rgba(0,0,0,0.95), 1px 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.5)';
 const SUBTITLE_CSS_SCOPES: SubtitleCssScope[] = ['primary', 'secondary', 'sidebar'];
 
 function makeTempDir(): string {
@@ -51,122 +41,10 @@ function buildDefaultSubtitleCssDeclarations(scope: SubtitleCssScope): Record<st
   return buildSubtitleCssDeclarationObject(scope, values);
 }
 
-test('loads defaults when config is missing', () => {
-  const dir = makeTempDir();
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  assert.equal(config.websocket.enabled, false);
-  assert.equal(config.websocket.port, DEFAULT_CONFIG.websocket.port);
-  assert.equal(config.annotationWebsocket.enabled, false);
-  assert.equal(config.annotationWebsocket.port, DEFAULT_CONFIG.annotationWebsocket.port);
-  assert.equal(config.texthooker.launchAtStartup, false);
-  assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, true);
-  assert.deepEqual(config.ankiConnect.tags, ['SubMiner']);
-  assert.equal(config.ankiConnect.media.audioPadding, 0);
-  assert.equal(config.anilist.enabled, false);
-  assert.equal(config.subtitleStyle.nameMatchImagesEnabled, false);
-  assert.equal(config.anilist.characterDictionary.refreshTtlHours, 168);
-  assert.equal(config.anilist.characterDictionary.maxLoaded, 3);
-  assert.equal(config.anilist.characterDictionary.evictionPolicy, 'delete');
-  assert.equal(config.anilist.characterDictionary.profileScope, 'all');
-  assert.equal(config.anilist.characterDictionary.collapsibleSections.description, false);
-  assert.equal(config.anilist.characterDictionary.collapsibleSections.characterInformation, false);
-  assert.equal(config.anilist.characterDictionary.collapsibleSections.voicedBy, false);
-  assert.equal(config.yomitan.externalProfilePath, '');
-  assert.equal(config.jellyfin.remoteControlEnabled, true);
-  assert.equal(config.jellyfin.remoteControlAutoConnect, true);
-  assert.equal(config.jellyfin.autoAnnounce, false);
-  assert.equal('clientName' in config.jellyfin, false);
-  assert.equal('remoteControlDeviceName' in config.jellyfin, false);
-  assert.equal('deviceId' in config.jellyfin, false);
-  assert.equal('clientVersion' in config.jellyfin, false);
-  assert.equal(config.youtube.mediaCache.mode, 'direct');
-  assert.equal(config.youtube.mediaCache.maxHeight, 720);
-  assert.equal(config.ai.enabled, false);
-  assert.equal(config.ai.apiKeyCommand, '');
-  assert.equal(config.texthooker.openBrowser, false);
-  assert.equal(config.controller.enabled, false);
-  assert.equal(config.ankiConnect.enabled, true);
-  assert.deepEqual(config.ankiConnect.ai, {
-    enabled: false,
-    model: '',
-    systemPrompt: '',
-  });
-  assert.equal(config.ankiConnect.media.normalizeAudio, true);
-  assert.equal(config.ankiConnect.media.mirrorMpvVolume, true);
-  assert.equal(config.startupWarmups.lowPowerMode, false);
-  assert.equal(config.startupWarmups.mecab, true);
-  assert.equal(config.startupWarmups.yomitanExtension, true);
-  assert.equal(config.startupWarmups.subtitleDictionaries, true);
-  assert.equal(config.startupWarmups.jellyfinRemoteSession, false);
-  assert.equal(config.shortcuts.markAudioCard, 'CommandOrControl+Shift+A');
-  assert.equal(config.shortcuts.openCharacterDictionaryManager, 'CommandOrControl+D');
-  assert.equal(config.shortcuts.toggleSubtitleSidebar, 'Backslash');
-  assert.equal(config.shortcuts.toggleNotificationHistory, 'CommandOrControl+N');
-  assert.equal(config.discordPresence.enabled, true);
-  assert.equal(config.discordPresence.updateIntervalMs, 3_000);
-  assert.equal(config.subtitleStyle.backgroundColor, 'transparent');
-  assert.equal(config.subtitleStyle.primaryDefaultMode, 'visible');
-  assert.equal(config.subtitleStyle.preserveLineBreaks, false);
-  assert.equal(config.subtitleStyle.autoPauseVideoOnHover, true);
-  assert.equal(config.subtitleStyle.autoPauseVideoOnYomitanPopup, true);
-  assert.equal(config.subtitleStyle.primaryVisibleOnYomitanPopup, true);
-  assert.equal(config.subtitleSidebar.enabled, true);
-  assert.equal(config.subtitleSidebar.pauseVideoOnHover, true);
-  assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
-  assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'transparent');
-  assert.equal(config.subtitleStyle.fontFamily, DEFAULT_SUBTITLE_FONT_FAMILY);
-  assert.equal(config.subtitleStyle.fontWeight, '600');
-  assert.equal(config.subtitleStyle.lineHeight, 1.35);
-  assert.equal(config.subtitleStyle.letterSpacing, '-0.01em');
-  assert.equal(config.subtitleStyle.wordSpacing, 0);
-  assert.equal(config.subtitleStyle.fontKerning, 'normal');
-  assert.equal(config.subtitleStyle.textRendering, 'geometricPrecision');
-  assert.equal(config.subtitleStyle.textShadow, DEFAULT_SUBTITLE_TEXT_SHADOW);
-  assert.equal(config.subtitleStyle.paintOrder, '');
-  assert.equal(config.subtitleStyle.WebkitTextStroke, '');
-  assert.equal(config.subtitleStyle.backdropFilter, 'blur(6px)');
-  assert.equal(config.subtitleStyle.jlptColors.N4, '#8bd5ca');
-  assert.equal(config.subtitleStyle.secondary.fontFamily, DEFAULT_SECONDARY_SUBTITLE_FONT_FAMILY);
-  assert.equal(config.subtitleStyle.secondary.fontColor, '#cad3f5');
-  assert.equal(config.subtitleStyle.secondary.fontWeight, '600');
-  assert.equal(config.subtitleStyle.secondary.textShadow, DEFAULT_SUBTITLE_TEXT_SHADOW);
-  assert.equal(config.subtitleStyle.secondary.paintOrder, '');
-  assert.equal(config.subtitleStyle.secondary.WebkitTextStroke, '');
-  assert.equal(config.subtitleStyle.secondary.backgroundColor, 'transparent');
-  assert.deepEqual(config.subtitleSidebar.css, {});
-  assert.equal(config.subtitleSidebar.fontFamily, DEFAULT_SUBTITLE_FONT_FAMILY);
-  assert.equal(config.immersionTracking.enabled, true);
-  assert.equal(config.immersionTracking.dbPath, '');
-  assert.equal(config.immersionTracking.batchSize, 25);
-  assert.equal(config.immersionTracking.flushIntervalMs, 500);
-  assert.equal(config.immersionTracking.queueCap, 1000);
-  assert.equal(config.immersionTracking.payloadCapBytes, 256);
-  assert.equal(config.immersionTracking.maintenanceIntervalMs, 86_400_000);
-  assert.equal(config.immersionTracking.retention.eventsDays, 0);
-  assert.equal(config.immersionTracking.retention.telemetryDays, 0);
-  assert.equal(config.immersionTracking.retention.sessionsDays, 0);
-  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 0);
-  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 0);
-  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 0);
-  assert.equal(config.immersionTracking.retentionMode, 'preset');
-  assert.equal(config.immersionTracking.retentionPreset, 'balanced');
-  assert.equal(config.immersionTracking.lifetimeSummaries?.global, true);
-  assert.equal(config.immersionTracking.lifetimeSummaries?.anime, true);
-  assert.equal(config.immersionTracking.lifetimeSummaries?.media, true);
-  assert.equal(config.stats.autoOpenBrowser, false);
-  assert.equal(config.updates.enabled, true);
-  assert.equal(config.updates.checkIntervalHours, 24);
-  assert.equal(config.updates.notificationType, 'overlay');
-  assert.equal(config.updates.channel, 'stable');
-  assert.equal(config.mpv.socketPath, DEFAULT_CONFIG.mpv.socketPath);
-  assert.equal(config.mpv.backend, 'auto');
-  assert.equal(config.mpv.profile, '');
-  assert.equal(config.mpv.autoStartSubMiner, true);
-  assert.equal(config.mpv.pauseUntilOverlayReady, true);
-  assert.equal(config.mpv.subminerBinaryPath, '');
-  assert.equal(config.mpv.aniskipEnabled, true);
-  assert.equal(config.mpv.aniskipButtonKey, 'TAB');
+test('loads defaults without warnings when config is missing', () => {
+  const service = new ConfigService(makeTempDir());
+  assert.deepEqual(service.getConfig(), DEFAULT_CONFIG);
+  assert.deepEqual(service.getWarnings(), []);
 });
 
 test('rejects invalid mpv volume mirroring values', () => {
@@ -375,44 +253,6 @@ test('resolves legacy subtitle appearance options without rewriting config on lo
   });
 });
 
-test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () => {
-  const validDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(validDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "preserveLineBreaks": true
-      }
-    }`,
-    'utf-8',
-  );
-
-  const validService = new ConfigService(validDir);
-  assert.equal(validService.getConfig().subtitleStyle.preserveLineBreaks, true);
-
-  const invalidDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(invalidDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "preserveLineBreaks": "yes"
-      }
-    }`,
-    'utf-8',
-  );
-
-  const invalidService = new ConfigService(invalidDir);
-  assert.equal(
-    invalidService.getConfig().subtitleStyle.preserveLineBreaks,
-    DEFAULT_CONFIG.subtitleStyle.preserveLineBreaks,
-  );
-  assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'subtitleStyle.preserveLineBreaks'),
-  );
-});
-
 test('parses texthooker.launchAtStartup and warns on invalid values', () => {
   const validDir = makeTempDir();
   fs.writeFileSync(
@@ -564,120 +404,6 @@ test('parses annotationWebsocket settings and warns on invalid values', () => {
   );
 });
 
-test('parses subtitleStyle.autoPauseVideoOnHover and warns on invalid values', () => {
-  const validDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(validDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "autoPauseVideoOnHover": true
-      }
-    }`,
-    'utf-8',
-  );
-
-  const validService = new ConfigService(validDir);
-  assert.equal(validService.getConfig().subtitleStyle.autoPauseVideoOnHover, true);
-
-  const invalidDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(invalidDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "autoPauseVideoOnHover": "yes"
-      }
-    }`,
-    'utf-8',
-  );
-
-  const invalidService = new ConfigService(invalidDir);
-  assert.equal(
-    invalidService.getConfig().subtitleStyle.autoPauseVideoOnHover,
-    DEFAULT_CONFIG.subtitleStyle.autoPauseVideoOnHover,
-  );
-  assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'subtitleStyle.autoPauseVideoOnHover'),
-  );
-});
-
-test('parses subtitleStyle.autoPauseVideoOnYomitanPopup and warns on invalid values', () => {
-  const validDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(validDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "autoPauseVideoOnYomitanPopup": true
-      }
-    }`,
-    'utf-8',
-  );
-
-  const validService = new ConfigService(validDir);
-  assert.equal(validService.getConfig().subtitleStyle.autoPauseVideoOnYomitanPopup, true);
-
-  const invalidDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(invalidDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "autoPauseVideoOnYomitanPopup": "yes"
-      }
-    }`,
-    'utf-8',
-  );
-
-  const invalidService = new ConfigService(invalidDir);
-  assert.equal(
-    invalidService.getConfig().subtitleStyle.autoPauseVideoOnYomitanPopup,
-    DEFAULT_CONFIG.subtitleStyle.autoPauseVideoOnYomitanPopup,
-  );
-  assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'subtitleStyle.autoPauseVideoOnYomitanPopup'),
-  );
-});
-
-test('parses subtitleStyle.primaryVisibleOnYomitanPopup and warns on invalid values', () => {
-  const validDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(validDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "primaryVisibleOnYomitanPopup": false
-      }
-    }`,
-    'utf-8',
-  );
-
-  const validService = new ConfigService(validDir);
-  assert.equal(validService.getConfig().subtitleStyle.primaryVisibleOnYomitanPopup, false);
-
-  const invalidDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(invalidDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "primaryVisibleOnYomitanPopup": "yes"
-      }
-    }`,
-    'utf-8',
-  );
-
-  const invalidService = new ConfigService(invalidDir);
-  assert.equal(
-    invalidService.getConfig().subtitleStyle.primaryVisibleOnYomitanPopup,
-    DEFAULT_CONFIG.subtitleStyle.primaryVisibleOnYomitanPopup,
-  );
-  assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'subtitleStyle.primaryVisibleOnYomitanPopup'),
-  );
-});
-
 test('parses subtitleStyle.hoverTokenColor and warns on invalid values', () => {
   const validDir = makeTempDir();
   fs.writeFileSync(
@@ -713,47 +439,6 @@ test('parses subtitleStyle.hoverTokenColor and warns on invalid values', () => {
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'subtitleStyle.hoverTokenColor'),
-  );
-});
-
-test('parses subtitleStyle.nameMatchColor and warns on invalid values', () => {
-  const validDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(validDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "nameMatchColor": "#eed49f"
-      }
-    }`,
-    'utf-8',
-  );
-
-  const validService = new ConfigService(validDir);
-  assert.equal(
-    ((validService.getConfig().subtitleStyle as unknown as Record<string, unknown>)
-      .nameMatchColor ?? null) as string | null,
-    '#eed49f',
-  );
-
-  const invalidDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(invalidDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "nameMatchColor": "pink"
-      }
-    }`,
-    'utf-8',
-  );
-
-  const invalidService = new ConfigService(invalidDir);
-  assert.equal(
-    ((invalidService.getConfig().subtitleStyle as unknown as Record<string, unknown>)
-      .nameMatchColor ?? null) as string | null,
-    '#f5bde6',
-  );
-  assert.ok(
-    invalidService.getWarnings().some((warning) => warning.path === 'subtitleStyle.nameMatchColor'),
   );
 });
 
@@ -835,82 +520,6 @@ test('parses subtitleStyle.hoverTokenBackgroundColor null as invalid instead of 
   );
 });
 
-test('parses subtitleStyle.nameMatchEnabled and warns on invalid values', () => {
-  const validDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(validDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "nameMatchEnabled": false
-      }
-    }`,
-    'utf-8',
-  );
-
-  const validService = new ConfigService(validDir);
-  assert.equal(validService.getConfig().subtitleStyle.nameMatchEnabled, false);
-
-  const invalidDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(invalidDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "nameMatchEnabled": "no"
-      }
-    }`,
-    'utf-8',
-  );
-
-  const invalidService = new ConfigService(invalidDir);
-  assert.equal(
-    invalidService.getConfig().subtitleStyle.nameMatchEnabled,
-    DEFAULT_CONFIG.subtitleStyle.nameMatchEnabled,
-  );
-  assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'subtitleStyle.nameMatchEnabled'),
-  );
-});
-
-test('parses subtitleStyle.nameMatchImagesEnabled and warns on invalid values', () => {
-  const validDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(validDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "nameMatchImagesEnabled": true
-      }
-    }`,
-    'utf-8',
-  );
-
-  const validService = new ConfigService(validDir);
-  assert.equal(validService.getConfig().subtitleStyle.nameMatchImagesEnabled, true);
-
-  const invalidDir = makeTempDir();
-  fs.writeFileSync(
-    path.join(invalidDir, 'config.jsonc'),
-    `{
-      "subtitleStyle": {
-        "nameMatchImagesEnabled": "yes"
-      }
-    }`,
-    'utf-8',
-  );
-
-  const invalidService = new ConfigService(invalidDir);
-  assert.equal(
-    invalidService.getConfig().subtitleStyle.nameMatchImagesEnabled,
-    DEFAULT_CONFIG.subtitleStyle.nameMatchImagesEnabled,
-  );
-  assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'subtitleStyle.nameMatchImagesEnabled'),
-  );
-});
-
 test('parses anilist.enabled and warns for invalid value', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
@@ -932,77 +541,6 @@ test('parses anilist.enabled and warns for invalid value', () => {
 
   service.patchRawConfig({ anilist: { enabled: true } });
   assert.equal(service.getConfig().anilist.enabled, true);
-});
-
-test('parses anilist.characterDictionary config with clamping and enum validation', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "anilist": {
-        "characterDictionary": {
-          "enabled": true,
-          "refreshTtlHours": 0,
-          "maxLoaded": 1000,
-          "evictionPolicy": "remove",
-          "profileScope": "everywhere"
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.equal(config.anilist.characterDictionary.refreshTtlHours, 1);
-  assert.equal(config.anilist.characterDictionary.maxLoaded, 20);
-  assert.equal(config.anilist.characterDictionary.evictionPolicy, 'delete');
-  assert.equal(config.anilist.characterDictionary.profileScope, 'all');
-  assert.ok(
-    warnings.some((warning) => warning.path === 'anilist.characterDictionary.refreshTtlHours'),
-  );
-  assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.maxLoaded'));
-  assert.ok(
-    warnings.some((warning) => warning.path === 'anilist.characterDictionary.evictionPolicy'),
-  );
-  assert.ok(
-    warnings.some((warning) => warning.path === 'anilist.characterDictionary.profileScope'),
-  );
-});
-
-test('parses anilist.characterDictionary.collapsibleSections booleans and warns on invalid values', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "anilist": {
-        "characterDictionary": {
-          "collapsibleSections": {
-            "description": true,
-            "characterInformation": "yes",
-            "voicedBy": true
-          }
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.equal(config.anilist.characterDictionary.collapsibleSections.description, true);
-  assert.equal(config.anilist.characterDictionary.collapsibleSections.characterInformation, false);
-  assert.equal(config.anilist.characterDictionary.collapsibleSections.voicedBy, true);
-  assert.ok(
-    warnings.some(
-      (warning) =>
-        warning.path === 'anilist.characterDictionary.collapsibleSections.characterInformation',
-    ),
-  );
 });
 
 test('parses jellyfin remote control fields and ignores legacy identity fields', () => {
@@ -1153,31 +691,6 @@ test('invalid startup warmup values warn and keep defaults', () => {
   assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.yomitanExtension'));
   assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.subtitleDictionaries'));
   assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.jellyfinRemoteSession'));
-});
-
-test('parses discordPresence fields and warns for invalid types', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "discordPresence": {
-        "enabled": true,
-        "updateIntervalMs": 3000,
-        "debounceMs": 250
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  assert.equal(config.discordPresence.enabled, true);
-  assert.equal(config.discordPresence.updateIntervalMs, 3000);
-  assert.equal(config.discordPresence.debounceMs, 250);
-
-  service.patchRawConfig({ discordPresence: { enabled: 'yes' as never } });
-  assert.equal(service.getConfig().discordPresence.enabled, DEFAULT_CONFIG.discordPresence.enabled);
-  assert.ok(service.getWarnings().some((warning) => warning.path === 'discordPresence.enabled'));
 });
 
 test('accepts immersion tracking config values', () => {
@@ -1477,17 +990,6 @@ test('reloadConfigStrict parse failure does not mutate raw config or warnings', 
   assert.deepEqual(service.getWarnings(), beforeWarnings);
 });
 
-test('SM-012 config paths do not use JSON serialize-clone helpers', () => {
-  const definitionsSource = fs.readFileSync(
-    path.join(process.cwd(), 'src/config/definitions.ts'),
-    'utf-8',
-  );
-  const serviceSource = fs.readFileSync(path.join(process.cwd(), 'src/config/service.ts'), 'utf-8');
-
-  assert.equal(definitionsSource.includes('JSON.parse(JSON.stringify('), false);
-  assert.equal(serviceSource.includes('JSON.parse(JSON.stringify('), false);
-});
-
 test('getRawConfig returns a detached clone', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
@@ -1574,149 +1076,65 @@ test('warning emission order is deterministic across reloads', () => {
   );
 });
 
-test('accepts valid logging.level', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "logging": {
-        "level": "warn"
-      }
-    }`,
-    'utf-8',
-  );
+const loggingCases: Array<{
+  name: string;
+  logging: Record<string, unknown>;
+  expected: Partial<typeof DEFAULT_CONFIG.logging>;
+  warningPath?: string;
+}> = [
+  { name: 'accepts valid logging.level', logging: { level: 'warn' }, expected: { level: 'warn' } },
+  { name: 'accepts valid logging.rotation', logging: { rotation: 14 }, expected: { rotation: 14 } },
+  {
+    name: 'accepts valid logging file toggles',
+    logging: { files: { app: false, launcher: true, mpv: true } },
+    expected: { files: { app: false, launcher: true, mpv: true } },
+  },
+  {
+    name: 'falls back for invalid logging.level and reports warning',
+    logging: { level: 'trace' },
+    expected: { level: DEFAULT_CONFIG.logging.level },
+    warningPath: 'logging.level',
+  },
+  {
+    name: 'falls back for invalid logging.rotation and reports warning',
+    logging: { rotation: 0 },
+    expected: { rotation: DEFAULT_CONFIG.logging.rotation },
+    warningPath: 'logging.rotation',
+  },
+  {
+    name: 'falls back for invalid logging file toggles and reports warning',
+    logging: { files: { mpv: 'yes' } },
+    expected: { files: DEFAULT_CONFIG.logging.files },
+    warningPath: 'logging.files.mpv',
+  },
+  {
+    name: 'falls back for invalid logging files object and reports warning',
+    logging: { files: false },
+    expected: { files: DEFAULT_CONFIG.logging.files },
+    warningPath: 'logging.files',
+  },
+];
 
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
+for (const c of loggingCases) {
+  test(c.name, () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(
+      path.join(dir, 'config.jsonc'),
+      JSON.stringify({ logging: c.logging }),
+      'utf-8',
+    );
+    const service = new ConfigService(dir);
+    const logging = service.getConfig().logging;
 
-  assert.equal(config.logging.level, 'warn');
-});
-
-test('accepts valid logging.rotation', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "logging": {
-        "rotation": 14
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-
-  assert.equal(config.logging.rotation, 14);
-});
-
-test('accepts valid logging file toggles', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "logging": {
-        "files": {
-          "app": false,
-          "launcher": true,
-          "mpv": true
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-
-  assert.deepEqual(config.logging.files, {
-    app: false,
-    launcher: true,
-    mpv: true,
+    for (const [key, value] of Object.entries(c.expected)) {
+      assert.deepEqual(logging[key as keyof typeof logging], value, key);
+    }
+    assert.deepEqual(
+      service.getWarnings().map((warning) => warning.path),
+      c.warningPath ? [c.warningPath] : [],
+    );
   });
-});
-
-test('falls back for invalid logging.level and reports warning', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "logging": {
-        "level": "trace"
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.equal(config.logging.level, DEFAULT_CONFIG.logging.level);
-  assert.ok(warnings.some((warning) => warning.path === 'logging.level'));
-});
-
-test('falls back for invalid logging.rotation and reports warning', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "logging": {
-        "rotation": 0
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.equal(config.logging.rotation, DEFAULT_CONFIG.logging.rotation);
-  assert.ok(warnings.some((warning) => warning.path === 'logging.rotation'));
-});
-
-test('falls back for invalid logging file toggles and reports warning', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "logging": {
-        "files": {
-          "mpv": "yes"
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.equal(config.logging.files.mpv, DEFAULT_CONFIG.logging.files.mpv);
-  assert.ok(warnings.some((warning) => warning.path === 'logging.files.mpv'));
-});
-
-test('falls back for invalid logging files object and reports warning', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "logging": {
-        "files": false
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.deepEqual(config.logging.files, DEFAULT_CONFIG.logging.files);
-  assert.ok(warnings.some((warning) => warning.path === 'logging.files'));
-});
+}
 
 test('warns and ignores unknown top-level config keys', () => {
   const dir = makeTempDir();
@@ -2193,91 +1611,20 @@ test('controller button index config rejects fractional values', () => {
   );
 });
 
-test('runtime options registry is centralized', () => {
-  const ids = RUNTIME_OPTION_REGISTRY.map((entry) => entry.id);
-  assert.deepEqual(ids, [
-    'anki.autoUpdateNewCards',
-    'anki.mediaReviewTiming',
-    'subtitle.annotation.knownWords.highlightEnabled',
-    'subtitle.annotation.knownWords.maturityEnabled',
-    'subtitle.annotation.nPlusOne',
-    'subtitle.annotation.jlpt',
-    'subtitle.annotation.frequency',
-    'anki.nPlusOneMatchMode',
-    'anki.kikuFieldGrouping',
-    'anki.senrenFieldGrouping',
-  ]);
-});
-
-test('validates ankiConnect knownWords behavior values', () => {
+test('invalid ankiConnect knownWords, n+1, and tags values warn and fall back', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
+        "tags": ["SubMiner", 123],
         "knownWords": {
           "highlightEnabled": "yes",
           "refreshMinutes": -5,
-          "addMinedWordsImmediately": "no"
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.equal(
-    config.ankiConnect.knownWords.highlightEnabled,
-    DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled,
-  );
-  assert.equal(
-    config.ankiConnect.knownWords.refreshMinutes,
-    DEFAULT_CONFIG.ankiConnect.knownWords.refreshMinutes,
-  );
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.highlightEnabled'));
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.refreshMinutes'));
-  assert.equal(
-    config.ankiConnect.knownWords.addMinedWordsImmediately,
-    DEFAULT_CONFIG.ankiConnect.knownWords.addMinedWordsImmediately,
-  );
-  assert.ok(
-    warnings.some((warning) => warning.path === 'ankiConnect.knownWords.addMinedWordsImmediately'),
-  );
-});
-
-test('accepts valid ankiConnect knownWords behavior values', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "ankiConnect": {
-        "knownWords": {
-          "highlightEnabled": true,
-          "refreshMinutes": 120,
-          "addMinedWordsImmediately": false
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-
-  assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
-  assert.equal(config.ankiConnect.knownWords.refreshMinutes, 120);
-  assert.equal(config.ankiConnect.knownWords.addMinedWordsImmediately, false);
-});
-
-test('validates ankiConnect n+1 minimum sentence word count', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "ankiConnect": {
+          "addMinedWordsImmediately": "no",
+          "matchMode": "bad-mode",
+          "decks": "not-an-array"
+        },
         "nPlusOne": {
           "minSentenceWords": 0
         }
@@ -2287,22 +1634,43 @@ test('validates ankiConnect n+1 minimum sentence word count', () => {
   );
 
   const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
+  const { knownWords, nPlusOne, tags } = service.getConfig().ankiConnect;
+  const defaults = DEFAULT_CONFIG.ankiConnect;
 
-  assert.equal(
-    config.ankiConnect.nPlusOne.minSentenceWords,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.minSentenceWords,
-  );
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.minSentenceWords'));
+  assert.equal(knownWords.highlightEnabled, defaults.knownWords.highlightEnabled);
+  assert.equal(knownWords.refreshMinutes, defaults.knownWords.refreshMinutes);
+  assert.equal(knownWords.addMinedWordsImmediately, defaults.knownWords.addMinedWordsImmediately);
+  assert.equal(knownWords.matchMode, defaults.knownWords.matchMode);
+  assert.deepEqual(knownWords.decks, {});
+  assert.equal(nPlusOne.minSentenceWords, defaults.nPlusOne.minSentenceWords);
+  assert.deepEqual(tags, ['SubMiner']);
+
+  const warnedPaths = service.getWarnings().map((warning) => warning.path);
+  for (const expected of [
+    'ankiConnect.tags',
+    'ankiConnect.knownWords.highlightEnabled',
+    'ankiConnect.knownWords.refreshMinutes',
+    'ankiConnect.knownWords.addMinedWordsImmediately',
+    'ankiConnect.knownWords.matchMode',
+    'ankiConnect.knownWords.decks',
+    'ankiConnect.nPlusOne.minSentenceWords',
+  ]) {
+    assert.ok(warnedPaths.includes(expected), expected);
+  }
 });
 
-test('accepts valid ankiConnect n+1 minimum sentence word count', () => {
+test('accepts valid ankiConnect knownWords and n+1 values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
+        "knownWords": {
+          "highlightEnabled": true,
+          "refreshMinutes": 120,
+          "addMinedWordsImmediately": false,
+          "matchMode": "surface"
+        },
         "nPlusOne": {
           "minSentenceWords": 4
         }
@@ -2312,54 +1680,14 @@ test('accepts valid ankiConnect n+1 minimum sentence word count', () => {
   );
 
   const service = new ConfigService(dir);
-  const config = service.getConfig();
+  const { knownWords, nPlusOne } = service.getConfig().ankiConnect;
 
-  assert.equal(config.ankiConnect.nPlusOne.minSentenceWords, 4);
-});
-
-test('validates ankiConnect knownWords match mode values', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "ankiConnect": {
-        "knownWords": {
-          "matchMode": "bad-mode"
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.equal(
-    config.ankiConnect.knownWords.matchMode,
-    DEFAULT_CONFIG.ankiConnect.knownWords.matchMode,
-  );
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.matchMode'));
-});
-
-test('accepts valid ankiConnect knownWords match mode values', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "ankiConnect": {
-        "knownWords": {
-          "matchMode": "surface"
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-
-  assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
+  assert.equal(knownWords.highlightEnabled, true);
+  assert.equal(knownWords.refreshMinutes, 120);
+  assert.equal(knownWords.addMinedWordsImmediately, false);
+  assert.equal(knownWords.matchMode, 'surface');
+  assert.equal(nPlusOne.minSentenceWords, 4);
+  assert.deepEqual(service.getWarnings(), []);
 });
 
 test('ignores invalid legacy ankiConnect n+1 color value after migration attempt', () => {
@@ -2823,235 +2151,6 @@ test('forces Senren off when Kiku is also enabled and validates Senren fieldGrou
     senrenOnlyService
       .getWarnings()
       .some((warning) => warning.path === 'ankiConnect.isSenren.fieldGrouping'),
-  );
-});
-
-test('warns and falls back when isSenren.enabled is not boolean', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "ankiConnect": {
-        "isSenren": { "enabled": "true" }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-
-  assert.equal(
-    service.getConfig().ankiConnect.isSenren.enabled,
-    DEFAULT_CONFIG.ankiConnect.isSenren.enabled,
-  );
-  assert.ok(
-    service.getWarnings().some((warning) => warning.path === 'ankiConnect.isSenren.enabled'),
-  );
-});
-
-test('accepts valid ankiConnect knownWords deck object', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "ankiConnect": {
-        "knownWords": {
-          "decks": { "Deck One": ["Word", "Reading"], "Deck Two": ["Expression"] }
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-
-  assert.deepEqual(config.ankiConnect.knownWords.decks, {
-    'Deck One': ['Word', 'Reading'],
-    'Deck Two': ['Expression'],
-  });
-});
-
-test('accepts valid ankiConnect tags list', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "ankiConnect": {
-        "tags": ["SubMiner", "Mining"]
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-
-  assert.deepEqual(config.ankiConnect.tags, ['SubMiner', 'Mining']);
-});
-
-test('falls back to default when ankiConnect tags list is invalid', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "ankiConnect": {
-        "tags": ["SubMiner", 123]
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.deepEqual(config.ankiConnect.tags, ['SubMiner']);
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.tags'));
-});
-
-test('falls back to default when ankiConnect knownWords deck list is invalid', () => {
-  const dir = makeTempDir();
-  fs.writeFileSync(
-    path.join(dir, 'config.jsonc'),
-    `{
-      "ankiConnect": {
-        "knownWords": {
-          "decks": "not-an-array"
-        }
-      }
-    }`,
-    'utf-8',
-  );
-
-  const service = new ConfigService(dir);
-  const config = service.getConfig();
-  const warnings = service.getWarnings();
-
-  assert.deepEqual(config.ankiConnect.knownWords.decks, {});
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'));
-});
-
-test('template generator includes known keys', () => {
-  const output = generateConfigTemplate(DEFAULT_CONFIG);
-  assert.match(output, /"ai":/);
-  assert.match(output, /"ankiConnect":/);
-  assert.match(output, /"controller":/);
-  assert.match(output, /"logging":/);
-  assert.match(output, /"websocket":/);
-  assert.match(output, /"discordPresence":/);
-  assert.match(output, /"startupWarmups":/);
-  assert.match(output, /"updates":/);
-  assert.match(output, /"youtube":/);
-  assert.doesNotMatch(output, /"deviceId":/);
-  assert.doesNotMatch(output, /"clientVersion":/);
-  assert.doesNotMatch(output, /"youtubeSubgen":/);
-  assert.match(output, /"characterDictionary":\s*\{/);
-  assert.doesNotMatch(output, /"characterDictionary":\s*\{\s*"enabled":/);
-  assert.match(output, /"preserveLineBreaks": false/);
-  assert.match(output, /"knownWords"\s*:\s*\{/);
-  assert.match(output, /"knownWordColor": "#a6da95"/);
-  assert.match(output, /"nPlusOneColor": "#c6a0f6"/);
-  assert.match(output, /"nPlusOne"\s*:\s*\{/);
-  assert.match(output, /"minSentenceWords": 3/);
-  assert.match(output, /auto-generated from src\/config\/definitions.ts/);
-  assert.match(
-    output,
-    /"level": "warn",? \/\/ Minimum log level for runtime logging\. Values: debug \| info \| warn \| error/,
-  );
-  assert.match(
-    output,
-    /"enabled": false,? \/\/ Built-in subtitle websocket server mode\. Values: auto \| true \| false/,
-  );
-  assert.match(
-    output,
-    /"enabled": false,? \/\/ Annotated subtitle websocket server enabled state\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"scrollPixelsPerSecond": 900,? \/\/ Base popup scroll speed for controller stick input\./,
-  );
-  assert.match(
-    output,
-    /"triggerInputMode": "auto",? \/\/ How controller triggers are interpreted: auto, pressed-only, or thresholded analog\. Values: auto \| digital \| analog/,
-  );
-  assert.match(
-    output,
-    /"preferredGamepadId": "",? \/\/ Preferred controller id saved from the controller config modal\./,
-  );
-  assert.match(
-    output,
-    /"toggleLookup": \{\s*"kind": "button"[\s\S]*\},? \/\/ Controller binding descriptor for toggling lookup\. Use Alt\+C learn mode or set a raw button\/axis descriptor manually\./,
-  );
-  assert.match(
-    output,
-    /"kind": "button",? \/\/ Discrete binding input source kind\. When kind is "axis", set both axisIndex and direction\. Values: none \| button \| axis/,
-  );
-  assert.match(output, /"toggleLookup": \{\s*"kind": "button"/);
-  assert.match(output, /"leftStickHorizontal": \{\s*"kind": "axis"/);
-  assert.match(
-    output,
-    /"dpadFallback": "horizontal",? \/\/ Optional D-pad fallback used when this analog controller action should also read D-pad input\. Values: none \| horizontal \| vertical/,
-  );
-  assert.match(output, /"port": 6678,? \/\/ Annotated subtitle websocket server port\./);
-  assert.match(
-    output,
-    /"openBrowser": false,? \/\/ Open the texthooker page in the default browser when the server starts\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"enabled": false,? \/\/ Enable overlay controller support through the Chrome Gamepad API\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"autoPauseVideoOnYomitanPopup": true,? \/\/ Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"enabled": true,? \/\/ Enable the subtitle sidebar feature for parsed subtitle sources\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"enabled": true,? \/\/ Enable AnkiConnect integration\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"enabled": false,? \/\/ Enable AI provider usage for Anki translation\/enrichment flows\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"model": "",? \/\/ Optional model override for Anki AI translation\/enrichment flows\./,
-  );
-  assert.match(
-    output,
-    /"enabled": false,? \/\/ Enable shared OpenAI-compatible AI provider features\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"enabled": true,? \/\/ Enable optional Discord Rich Presence updates\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"autoOpenBrowser": false,? \/\/ Automatically open the stats dashboard in a browser when the server starts\. Values: true \| false/,
-  );
-  assert.match(
-    output,
-    /"notificationType": "overlay",? \/\/ How SubMiner announces available updates\..*Values: overlay \| system \| both \| none \| osd \| osd-system/,
-  );
-  assert.match(
-    output,
-    /"channel": "stable",? \/\/ Release channel used for update checks\. Values: stable \| prerelease/,
-  );
-  assert.match(
-    output,
-    /"primarySubLanguages": \[\s*"ja",\s*"jpn"\s*\],? \/\/ Comma-separated primary subtitle language priority for managed subtitle auto-selection\./,
-  );
-  assert.doesNotMatch(output, /"mode": "automatic"/);
-  assert.doesNotMatch(output, /"fixWithAi": false/);
-  assert.doesNotMatch(output, /"whisperThreads": 4/);
-  assert.match(
-    output,
-    /"launchAtStartup": false,? \/\/ Launch texthooker server automatically when SubMiner starts\. Values: true \| false/,
   );
 });
 

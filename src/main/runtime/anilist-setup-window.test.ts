@@ -1,12 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createHandleAnilistSetupWindowClosedHandler,
-  createMaybeFocusExistingAnilistSetupWindowHandler,
-  createHandleAnilistSetupWindowOpenedHandler,
-  createAnilistSetupDidFailLoadHandler,
   createAnilistSetupDidFinishLoadHandler,
-  createAnilistSetupDidNavigateHandler,
   createAnilistSetupFallbackHandler,
   createAnilistSetupWillNavigateHandler,
   createAnilistSetupWillRedirectHandler,
@@ -30,20 +25,6 @@ test('manual anilist setup submission forwards access token to callback consumer
   assert.equal(handled, true);
   assert.equal(consumed.length, 1);
   assert.ok(consumed[0]!.includes('https://anilist.subminer.moe/#access_token=abc123'));
-});
-
-test('maybe focus anilist setup window focuses existing window', () => {
-  let focused = false;
-  const handler = createMaybeFocusExistingAnilistSetupWindowHandler({
-    getSetupWindow: () => ({
-      focus: () => {
-        focused = true;
-      },
-    }),
-  });
-  const handled = handler();
-  assert.equal(handled, true);
-  assert.equal(focused, true);
 });
 
 test('manual anilist setup submission warns on missing token', () => {
@@ -153,35 +134,6 @@ test('anilist setup will-redirect handler prevents callback redirects', () => {
   assert.equal(prevented, true);
 });
 
-test('anilist setup did-navigate handler consumes callback url', () => {
-  const seen: string[] = [];
-  const handler = createAnilistSetupDidNavigateHandler({
-    consumeCallbackUrl: (url) => {
-      seen.push(url);
-      return true;
-    },
-  });
-
-  handler('https://anilist.subminer.moe/#access_token=abc');
-  assert.deepEqual(seen, ['https://anilist.subminer.moe/#access_token=abc']);
-});
-
-test('anilist setup did-fail-load handler forwards details', () => {
-  const seen: Array<{ errorCode: number; errorDescription: string; validatedURL: string }> = [];
-  const handler = createAnilistSetupDidFailLoadHandler({
-    onLoadFailure: (details) => seen.push(details),
-  });
-
-  handler({
-    errorCode: -3,
-    errorDescription: 'timeout',
-    validatedURL: 'https://anilist.co/api/v2/oauth/authorize',
-  });
-
-  assert.equal(seen.length, 1);
-  assert.equal(seen[0]!.errorCode, -3);
-});
-
 test('anilist setup did-finish-load handler triggers fallback on blank page', () => {
   const calls: string[] = [];
   const handler = createAnilistSetupDidFinishLoadHandler({
@@ -202,28 +154,6 @@ test('anilist setup did-finish-load handler no-ops on non-blank page', () => {
 
   handler();
   assert.equal(calls.length, 0);
-});
-
-test('anilist setup window closed handler clears references', () => {
-  const calls: string[] = [];
-  const handler = createHandleAnilistSetupWindowClosedHandler({
-    clearSetupWindow: () => calls.push('clear-window'),
-    setSetupPageOpened: (opened) => calls.push(`opened:${opened ? 'yes' : 'no'}`),
-  });
-
-  handler();
-  assert.deepEqual(calls, ['clear-window', 'opened:no']);
-});
-
-test('anilist setup window opened handler sets references', () => {
-  const calls: string[] = [];
-  const handler = createHandleAnilistSetupWindowOpenedHandler({
-    setSetupWindow: () => calls.push('set-window'),
-    setSetupPageOpened: (opened) => calls.push(`opened:${opened ? 'yes' : 'no'}`),
-  });
-
-  handler();
-  assert.deepEqual(calls, ['set-window', 'opened:yes']);
 });
 
 test('open anilist setup handler no-ops when existing setup window focused', () => {

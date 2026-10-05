@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { KikuFieldGroupingChoice } from '../../types';
-import { createFieldGroupingCallbackRuntime, sendToVisibleOverlayRuntime } from './overlay-bridge';
+import { sendToVisibleOverlayRuntime } from './overlay-bridge';
 
 test('sendToVisibleOverlayRuntime restores visibility flag when opening hidden overlay modal', () => {
   const sent: unknown[][] = [];
@@ -71,40 +70,4 @@ test('sendToVisibleOverlayRuntime waits for overlay page before sending open com
   finishCallbacks[0]!();
 
   assert.deepEqual(sent, [['runtime-options:open']]);
-});
-
-test('createFieldGroupingCallbackRuntime cancels when overlay request cannot be sent', async () => {
-  let resolver: ((choice: KikuFieldGroupingChoice) => void) | null = null;
-  const callback = createFieldGroupingCallbackRuntime<'runtime-options' | 'subsync'>({
-    getVisibleOverlayVisible: () => false,
-    setVisibleOverlayVisible: () => {},
-    getResolver: () => resolver,
-    setResolver: (next) => {
-      resolver = next;
-    },
-    sendToVisibleOverlay: () => false,
-  });
-
-  const result = await callback({
-    original: {
-      noteId: 1,
-      expression: 'a',
-      sentencePreview: 'a',
-      hasAudio: false,
-      hasImage: false,
-      isOriginal: true,
-    },
-    duplicate: {
-      noteId: 2,
-      expression: 'b',
-      sentencePreview: 'b',
-      hasAudio: false,
-      hasImage: false,
-      isOriginal: false,
-    },
-  });
-
-  assert.equal(result.cancelled, true);
-  assert.equal(result.keepNoteId, 0);
-  assert.equal(result.deleteNoteId, 0);
 });

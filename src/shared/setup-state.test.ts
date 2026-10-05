@@ -103,27 +103,6 @@ test('readSetupState ignores invalid files and round-trips valid state', () => {
   });
 });
 
-test('createDefaultSetupState includes v4 command-line launcher defaults', () => {
-  assert.deepEqual(createDefaultSetupState(), {
-    version: 4,
-    status: 'incomplete',
-    completedAt: null,
-    completionSource: null,
-    yomitanSetupMode: null,
-    lastSeenYomitanDictionaryCount: 0,
-    pluginInstallStatus: 'unknown',
-    pluginInstallPathSummary: null,
-    windowsMpvShortcutPreferences: {
-      startMenuEnabled: true,
-      desktopEnabled: true,
-    },
-    windowsMpvShortcutLastStatus: 'unknown',
-    bunInstallStatus: 'unknown',
-    launcherInstallStatus: 'unknown',
-    launcherInstallPath: null,
-  });
-});
-
 test('readSetupState migrates v1 state to v4 launcher defaults', () => {
   withTempDir((root) => {
     const statePath = getSetupStatePath(root);

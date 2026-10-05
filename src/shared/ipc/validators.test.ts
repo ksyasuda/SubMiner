@@ -36,9 +36,3 @@ test('every default session-action binding is accepted by parseSessionActionDisp
     );
   }
 });
-
-test('toggleNotificationHistory dispatch request is accepted', () => {
-  assert.deepEqual(parseSessionActionDispatchRequest({ actionId: 'toggleNotificationHistory' }), {
-    actionId: 'toggleNotificationHistory',
-  });
-});

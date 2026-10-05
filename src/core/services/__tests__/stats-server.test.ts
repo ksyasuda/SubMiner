@@ -12,10 +12,7 @@ import {
 } from '../stats-server.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import { INCOMPATIBLE_PROVIDER_MERGE_MESSAGE } from '../immersion-tracker/anime-merge.js';
-import {
-  clearRetimedSecondarySubtitleCache,
-  resolveRetimedSecondarySubtitleTextFromSidecar,
-} from '../secondary-subtitle-sidecar.js';
+import type { StatsServerMediaGenerator } from '../stats-server/mining-support.js';
 
 const SESSION_SUMMARIES = [
   {
@@ -262,6 +259,22 @@ const EPISODE_CARD_EVENTS = [
   { eventId: 1, sessionId: 1, tsMs: Date.now(), cardsDelta: 1, noteIds: [12345] },
 ];
 
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+function animeCoverArt(coverBlob: Buffer) {
+  return {
+    videoId: 1,
+    anilistId: 21858,
+    coverUrl: 'https://example.com/cover.jpg',
+    coverBlob,
+    titleRomaji: 'Little Witch Academia',
+    titleEnglish: 'Little Witch Academia',
+    episodesTotal: 25,
+    fetchedAtMs: Date.now(),
+  };
+}
+
 function createMockTracker(
   overrides: Partial<ImmersionTrackerService> = {},
 ): ImmersionTrackerService {
@@ -326,19 +339,7 @@ function createMockTracker(
       { epochDay: Math.floor(Date.now() / 86_400_000), totalActiveMin: 45 },
     ],
     ensureAnimeCoverArt: async () => false,
-    getAnimeCoverArt: async (animeId: number) =>
-      animeId === 1
-        ? {
-            videoId: 1,
-            anilistId: 21858,
-            coverUrl: 'https://example.com/cover.jpg',
-            coverBlob: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
-            titleRomaji: 'Little Witch Academia',
-            titleEnglish: 'Little Witch Academia',
-            episodesTotal: 25,
-            fetchedAtMs: Date.now(),
-          }
-        : null,
+    getAnimeCoverArt: async (animeId: number) => (animeId === 1 ? animeCoverArt(JPEG_BYTES) : null),
     getWordDetail: async (wordId: number) => (wordId === 1 ? WORD_DETAIL : null),
     getWordAnimeAppearances: async () => WORD_ANIME_APPEARANCES,
     getSimilarWords: async () => SIMILAR_WORDS,
@@ -383,7 +384,10 @@ type CapturedAnkiRequest = {
 
 async function withFakeAnkiConnect<T>(
   fn: (requests: CapturedAnkiRequest[], url: string) => Promise<T>,
-  options?: { notesInfoFields?: Record<string, { value: string }> | null },
+  options?: {
+    notesInfoFields?: Record<string, { value: string }> | null;
+    onRequest?: (request: CapturedAnkiRequest) => void;
+  },
 ): Promise<T> {
   const requests: CapturedAnkiRequest[] = [];
   const server = http.createServer((req, res) => {
@@ -392,6 +396,7 @@ async function withFakeAnkiConnect<T>(
     req.on('end', () => {
       const payload = JSON.parse(Buffer.concat(chunks).toString('utf8')) as CapturedAnkiRequest;
       requests.push(payload);
+      options?.onRequest?.(payload);
 
       let body: unknown = { result: null, error: null };
       if (payload.action === 'addNote') {
@@ -444,6 +449,281 @@ async function withFakeAnkiConnect<T>(
     });
   }
 }
+
+type StatsApp = ReturnType<typeof createStatsApp>;
+type StatsAppOptions = NonNullable<Parameters<typeof createStatsApp>[1]>;
+type AnkiConfig = NonNullable<StatsAppOptions['ankiConnectConfig']>;
+type MiningMode = 'word' | 'sentence' | 'audio';
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+function deferred<T = void>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+/** Swaps globalThis.fetch for the duration of `fn`. */
+async function withFetch<T>(stub: typeof fetch, fn: () => Promise<T>): Promise<T> {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = stub;
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+/** Mock tracker that records the name of every tracker method a route calls. */
+function createRecordingTracker(calls: string[]): ImmersionTrackerService {
+  return new Proxy(createMockTracker(), {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== 'function') return value;
+      return (...args: unknown[]) => {
+        calls.push(String(prop));
+        return value.apply(target, args);
+      };
+    },
+  });
+}
+
+type MiningEnv = {
+  dir: string;
+  sourcePath: string;
+  requests: CapturedAnkiRequest[];
+  ankiUrl: string;
+};
+
+/**
+ * Runs `fn` with a fake episode file (plus optional sidecar `files`) in a temp dir and a fake
+ * AnkiConnect server recording every request.
+ */
+async function withMiningEnv(
+  cfg: {
+    files?: Record<string, string>;
+    notesInfoFields?: Record<string, { value: string }> | null;
+    onAnkiRequest?: (request: CapturedAnkiRequest) => void;
+  },
+  fn: (env: MiningEnv) => Promise<void>,
+): Promise<void> {
+  await withTempDir(async (dir) => {
+    const sourcePath = path.join(dir, 'episode.mkv');
+    fs.writeFileSync(sourcePath, 'fake media');
+    for (const [name, content] of Object.entries(cfg.files ?? {})) {
+      fs.writeFileSync(path.join(dir, name), content);
+    }
+    await withFakeAnkiConnect((requests, ankiUrl) => fn({ dir, sourcePath, requests, ankiUrl }), {
+      notesInfoFields: cfg.notesInfoFields,
+      onRequest: cfg.onAnkiRequest,
+    });
+  });
+}
+
+const MINE_CARD_DEFAULTS = {
+  startMs: 1_000,
+  endMs: 2_000,
+  sentence: '猫を見た',
+  word: '猫',
+  videoTitle: 'Episode 1',
+};
+
+type MineCardRequest = typeof MINE_CARD_DEFAULTS & { sourcePath: string; secondaryText?: string };
+type MineCardResponse = { noteId?: number; errors?: string[]; error?: string };
+
+async function mineCard(
+  app: StatsApp,
+  mode: MiningMode,
+  overrides: Partial<MineCardRequest> & { sourcePath: string },
+): Promise<{ status: number; body: MineCardResponse }> {
+  const res = await app.request(`/api/stats/mine-card?mode=${mode}`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ ...MINE_CARD_DEFAULTS, ...overrides }),
+  });
+  return { status: res.status, body: (await res.json()) as MineCardResponse };
+}
+
+const NO_MEDIA = { generateAudio: false, generateImage: false };
+const LAPIS = { isLapis: { enabled: true, sentenceCardModel: 'Lapis Morph' } };
+const SENTENCE_FIELDS = { word: 'Expression', sentence: 'Sentence', translation: 'SelectionText' };
+const AUDIO = Buffer.from('audio');
+const IMAGE = Buffer.from('image');
+
+function ankiConfig(env: MiningEnv, overrides: Partial<AnkiConfig> = {}): AnkiConfig {
+  return { url: env.ankiUrl, deck: 'Mining', media: NO_MEDIA, ...overrides };
+}
+
+/** The note sent with the first AnkiConnect request of `action`, with fields defaulted. */
+function sentNote(requests: CapturedAnkiRequest[], action: 'addNote' | 'updateNoteFields') {
+  const note = requests.find((request) => request.action === action)?.params?.note;
+  return { ...note, fields: note?.fields ?? {} };
+}
+
+/** Media generator stub returning fixed outputs and recording audio ranges. */
+function fakeMedia(
+  outputs: { audio?: Buffer | null; image?: Buffer | null; animated?: Buffer | null } = {},
+) {
+  const audioCalls: Parameters<StatsServerMediaGenerator['generateAudio']>[] = [];
+  let imageCalls = 0;
+  const create = (): StatsServerMediaGenerator => ({
+    generateAudio: async (...args) => {
+      audioCalls.push(args);
+      return outputs.audio ?? null;
+    },
+    generateScreenshot: async () => {
+      imageCalls += 1;
+      return outputs.image ?? null;
+    },
+    generateAnimatedImage: async () => {
+      imageCalls += 1;
+      return outputs.animated ?? null;
+    },
+  });
+  return { create, audioCalls, callCount: () => audioCalls.length + imageCalls };
+}
+
+const KNOWN_WORD_CACHES = [
+  {
+    name: 'filtered persisted totals',
+    cache: { version: 1, refreshedAtMs: 1, scope: 'deck:test', words: ['する'] },
+    knownWordsSeen: 2,
+  },
+  {
+    name: 'a v3 reading-aware cache',
+    cache: {
+      version: 3,
+      refreshedAtMs: 1,
+      scope: 'deck:test',
+      notes: {
+        '101': [{ word: 'する', reading: 'する' }],
+        '102': [{ word: '猫', reading: null }],
+      },
+    },
+    knownWordsSeen: 2,
+  },
+  {
+    name: 'a v4 maturity cache',
+    cache: {
+      version: 4,
+      refreshedAtMs: 1,
+      scope: 'deck:test',
+      notes: {
+        '101': [{ word: 'する', reading: 'する' }],
+        '102': [{ word: '猫', reading: null }],
+      },
+      tiers: { '101': 'mature', '102': 'young' },
+    },
+    knownWordsSeen: 2,
+  },
+  {
+    name: 'an unrecognized cache format (no known words)',
+    cache: { version: 99, refreshedAtMs: 1, scope: 'deck:test', notes: {} },
+    knownWordsSeen: 0,
+  },
+];
+
+/** Query limits each route caps (or floors) before asking the tracker. */
+const CLAMPED_QUERIES: Array<{
+  path: string;
+  method: keyof ImmersionTrackerService;
+  expectedArgs: unknown[];
+}> = [
+  {
+    path: '/api/stats/streak-calendar?days=999999',
+    method: 'getStreakCalendar',
+    expectedArgs: [365],
+  },
+  {
+    path: '/api/stats/trends/episodes-per-day?limit=999999',
+    method: 'getEpisodesPerDay',
+    expectedArgs: [365],
+  },
+  {
+    path: '/api/stats/trends/new-anime-per-day?limit=999999',
+    method: 'getNewAnimePerDay',
+    expectedArgs: [365],
+  },
+  {
+    path: '/api/stats/trends/watch-time-per-anime?limit=999999',
+    method: 'getWatchTimePerAnime',
+    expectedArgs: [365],
+  },
+  {
+    path: '/api/stats/anime/1/words?limit=999999',
+    method: 'getAnimeWords',
+    expectedArgs: [1, 200],
+  },
+  {
+    path: '/api/stats/anime/1/rollups?limit=999999',
+    method: 'getAnimeDailyRollups',
+    expectedArgs: [1, 365],
+  },
+  {
+    path: '/api/stats/vocabulary?limit=999999',
+    method: 'getVocabularyStats',
+    expectedArgs: [500, undefined],
+  },
+  {
+    path: '/api/stats/vocabulary?limit=12.9',
+    method: 'getVocabularyStats',
+    expectedArgs: [12, undefined],
+  },
+];
+
+const TRENDS_DASHBOARD_QUERIES = [
+  { query: 'range=90d&groupBy=month', expectedArgs: ['90d', 'month', true] },
+  { query: 'range=weird&groupBy=year', expectedArgs: ['30d', 'day', true] },
+  { query: 'range=30d&groupBy=day&fillEmpty=false', expectedArgs: ['30d', 'day', false] },
+];
+
+const MALFORMED_IDS = [
+  '0',
+  '-1',
+  '1.9',
+  '1.0',
+  '1e2',
+  '9007199254740992',
+  '01',
+  '+1',
+  '0x1',
+  '1%0A',
+  '%201',
+];
+
+/** Every route that takes a positive resource id; `:id` is replaced per request. */
+const ID_ROUTES: Array<{
+  method: 'GET' | 'DELETE' | 'PATCH' | 'POST';
+  path: string;
+  body?: unknown;
+}> = [
+  { method: 'GET', path: '/api/stats/sessions/:id/timeline' },
+  { method: 'GET', path: '/api/stats/sessions/:id/events' },
+  { method: 'GET', path: '/api/stats/sessions/:id/known-words-timeline' },
+  { method: 'GET', path: '/api/stats/vocabulary/:id/detail' },
+  { method: 'GET', path: '/api/stats/kanji/:id/detail' },
+  { method: 'GET', path: '/api/stats/episode/:id/detail' },
+  { method: 'GET', path: '/api/stats/media/:id' },
+  { method: 'GET', path: '/api/stats/media/:id/cover' },
+  { method: 'GET', path: '/api/stats/media/:id/known-words-summary' },
+  { method: 'GET', path: '/api/stats/anime/:id' },
+  { method: 'GET', path: '/api/stats/anime/:id/words' },
+  { method: 'GET', path: '/api/stats/anime/:id/rollups' },
+  { method: 'GET', path: '/api/stats/anime/:id/cover' },
+  { method: 'GET', path: '/api/stats/anime/:id/known-words-summary' },
+  { method: 'DELETE', path: '/api/stats/sessions/:id' },
+  { method: 'DELETE', path: '/api/stats/media/:id' },
+  { method: 'DELETE', path: '/api/stats/anime/:id' },
+  { method: 'DELETE', path: '/api/stats/anime/merge-recommendations/:id' },
+  { method: 'PATCH', path: '/api/stats/media/:id/watched', body: { watched: true } },
+  { method: 'PATCH', path: '/api/stats/media/:id/anime', body: { animeId: 7 } },
+  { method: 'PATCH', path: '/api/stats/anime/:id/anilist', body: { anilistId: 21858 } },
+  { method: 'PATCH', path: '/api/stats/anime/:id/tmdb', body: { tmdbId: 12, tmdbType: 'tv' } },
+  { method: 'POST', path: '/api/stats/anime/:id/merge', body: { sourceAnimeIds: [8] } },
+  { method: 'POST', path: '/api/stats/anki/browse?noteId=:id' },
+];
 
 describe('stats server API routes', () => {
   it('rejects untrusted mutation requests before merging anime', async () => {
@@ -534,14 +814,6 @@ describe('stats server API routes', () => {
     assert.equal(body.hints.totalYomitanLookupCount, 5);
   });
 
-  it('GET /api/stats/sessions returns session list', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/sessions?limit=5');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-  });
-
   it('GET /api/stats/sentences/search resolves headword candidates by default', async () => {
     const seen: Array<{
       query: string;
@@ -579,141 +851,32 @@ describe('stats server API routes', () => {
     ]);
   });
 
-  it('GET /api/stats/sessions enriches known-word metrics using filtered persisted totals', async () => {
-    await withTempDir(async (dir) => {
-      const cachePath = path.join(dir, 'known-words.json');
-      fs.writeFileSync(
-        cachePath,
-        JSON.stringify({
-          version: 1,
-          refreshedAtMs: 1,
-          scope: 'deck:test',
-          words: ['する'],
-        }),
-      );
+  for (const { name, cache, knownWordsSeen } of KNOWN_WORD_CACHES) {
+    it(`GET /api/stats/sessions enriches known-word metrics from ${name}`, async () => {
+      await withTempDir(async (dir) => {
+        const cachePath = path.join(dir, 'known-words.json');
+        fs.writeFileSync(cachePath, JSON.stringify(cache));
+        const app = createStatsApp(
+          createMockTracker({
+            getSessionWordsByLine: async (sessionId: number) =>
+              sessionId === 1
+                ? [
+                    { lineIndex: 1, headword: 'する', occurrenceCount: 2 },
+                    { lineIndex: 2, headword: '未知', occurrenceCount: 1 },
+                  ]
+                : [],
+          }),
+          { knownWordCachePath: cachePath },
+        );
 
-      const app = createStatsApp(
-        createMockTracker({
-          getSessionWordsByLine: async (sessionId: number) =>
-            sessionId === 1
-              ? [
-                  { lineIndex: 1, headword: 'する', occurrenceCount: 2 },
-                  { lineIndex: 2, headword: '未知', occurrenceCount: 1 },
-                ]
-              : [],
-        }),
-        { knownWordCachePath: cachePath },
-      );
-
-      const res = await app.request('/api/stats/sessions?limit=5');
-      assert.equal(res.status, 200);
-      const body = await res.json();
-      const first = body[0];
-      assert.equal(first.knownWordsSeen, 2);
-      assert.equal(first.knownWordRate, 66.7);
+        const res = await app.request('/api/stats/sessions?limit=5');
+        assert.equal(res.status, 200);
+        const [first] = await res.json();
+        assert.equal(first.knownWordsSeen, knownWordsSeen);
+        if (knownWordsSeen > 0) assert.equal(first.knownWordRate, 66.7);
+      });
     });
-  });
-
-  it('GET /api/stats/sessions enriches known-word metrics from a v3 reading-aware cache', async () => {
-    await withTempDir(async (dir) => {
-      const cachePath = path.join(dir, 'known-words.json');
-      fs.writeFileSync(
-        cachePath,
-        JSON.stringify({
-          version: 3,
-          refreshedAtMs: 1,
-          scope: 'deck:test',
-          notes: {
-            '101': [{ word: 'する', reading: 'する' }],
-            '102': [{ word: '猫', reading: null }],
-          },
-        }),
-      );
-
-      const app = createStatsApp(
-        createMockTracker({
-          getSessionWordsByLine: async (sessionId: number) =>
-            sessionId === 1
-              ? [
-                  { lineIndex: 1, headword: 'する', occurrenceCount: 2 },
-                  { lineIndex: 2, headword: '未知', occurrenceCount: 1 },
-                ]
-              : [],
-        }),
-        { knownWordCachePath: cachePath },
-      );
-
-      const res = await app.request('/api/stats/sessions?limit=5');
-      assert.equal(res.status, 200);
-      const body = await res.json();
-      const first = body[0];
-      assert.equal(first.knownWordsSeen, 2);
-      assert.equal(first.knownWordRate, 66.7);
-    });
-  });
-
-  it('GET /api/stats/sessions enriches known-word metrics from a v4 maturity cache', async () => {
-    await withTempDir(async (dir) => {
-      const cachePath = path.join(dir, 'known-words.json');
-      fs.writeFileSync(
-        cachePath,
-        JSON.stringify({
-          version: 4,
-          refreshedAtMs: 1,
-          scope: 'deck:test',
-          notes: {
-            '101': [{ word: 'する', reading: 'する' }],
-            '102': [{ word: '猫', reading: null }],
-          },
-          tiers: { '101': 'mature', '102': 'young' },
-        }),
-      );
-
-      const app = createStatsApp(
-        createMockTracker({
-          getSessionWordsByLine: async (sessionId: number) =>
-            sessionId === 1
-              ? [
-                  { lineIndex: 1, headword: 'する', occurrenceCount: 2 },
-                  { lineIndex: 2, headword: '未知', occurrenceCount: 1 },
-                ]
-              : [],
-        }),
-        { knownWordCachePath: cachePath },
-      );
-
-      const res = await app.request('/api/stats/sessions?limit=5');
-      assert.equal(res.status, 200);
-      const body = await res.json();
-      const first = body[0];
-      assert.equal(first.knownWordsSeen, 2);
-      assert.equal(first.knownWordRate, 66.7);
-    });
-  });
-
-  it('GET /api/stats/sessions reports no known words when the cache format is unrecognized', async () => {
-    await withTempDir(async (dir) => {
-      const cachePath = path.join(dir, 'known-words.json');
-      fs.writeFileSync(
-        cachePath,
-        JSON.stringify({ version: 99, refreshedAtMs: 1, scope: 'deck:test', notes: {} }),
-      );
-
-      const app = createStatsApp(
-        createMockTracker({
-          getSessionWordsByLine: async () => [
-            { lineIndex: 1, headword: 'する', occurrenceCount: 2 },
-          ],
-        }),
-        { knownWordCachePath: cachePath },
-      );
-
-      const res = await app.request('/api/stats/sessions?limit=5');
-      assert.equal(res.status, 200);
-      const body = await res.json();
-      assert.equal(body[0].knownWordsSeen, 0);
-    });
-  });
+  }
 
   it('GET /api/stats/sessions/:id/events forwards event type filters to the tracker', async () => {
     let seenSessionId = 0;
@@ -791,227 +954,59 @@ describe('stats server API routes', () => {
     });
   });
 
-  it('GET /api/stats/vocabulary returns word frequency data', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/vocabulary');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-    assert.equal(body[0].headword, 'する');
-  });
+  for (const { path: requestPath, method, expectedArgs } of CLAMPED_QUERIES) {
+    it(`GET ${requestPath} passes a bounded integer limit to ${method}`, async () => {
+      let seenArgs: unknown[] = [];
+      const app = createStatsApp(
+        createMockTracker({
+          [method]: async (...args: unknown[]) => {
+            seenArgs = args;
+            return [];
+          },
+        }),
+      );
 
-  it('GET /api/stats/vocabulary/summary returns database-wide card totals', async () => {
-    const app = createStatsApp(createMockTracker());
-
-    const res = await app.request('/api/stats/vocabulary/summary');
-
-    assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), {
-      uniqueWords: 501,
-      uniqueWordsWithoutNames: 500,
-      uniqueKanji: 201,
-      newThisWeek: 7,
-      newThisWeekWithoutNames: 6,
-      knownWordCount: 250,
-      knownWordCountWithoutNames: 249,
+      const res = await app.request(requestPath);
+      assert.equal(res.status, 200);
+      assert.deepEqual(seenArgs, expectedArgs);
     });
-  });
+  }
 
-  it('GET /api/stats/vocabulary/charts returns complete chart datasets', async () => {
-    const app = createStatsApp(createMockTracker());
-
-    const res = await app.request('/api/stats/vocabulary/charts');
-
-    assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), {
-      ready: true,
-      topWords: [{ wordId: 1, headword: 'する', frequency: 50 }],
-      topWordsWithoutNames: [{ wordId: 1, headword: 'する', frequency: 50 }],
-      newWordsTimeline: [{ epochDay: 20_000, wordCount: 3 }],
-      newWordsTimelineWithoutNames: [{ epochDay: 20_000, wordCount: 3 }],
-    });
-  });
-
-  it('GET /api/stats/kanji returns kanji frequency data', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/kanji');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-    assert.equal(body[0].kanji, '日');
-  });
-
-  it('GET /api/stats/streak-calendar returns streak calendar rows', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/streak-calendar');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-    assert.equal(body.length, 2);
-    assert.equal(body[0].totalActiveMin, 30);
-    assert.equal(body[1].totalActiveMin, 45);
-  });
-
-  it('GET /api/stats/streak-calendar clamps oversized days', async () => {
-    let seenDays = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        getStreakCalendar: async (days?: number) => {
-          seenDays = days ?? 0;
-          return [];
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/streak-calendar?days=999999');
-    assert.equal(res.status, 200);
-    assert.equal(seenDays, 365);
-  });
-
-  it('GET /api/stats/trends/episodes-per-day returns episode count rows', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/trends/episodes-per-day');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-    assert.equal(body.length, 2);
-    assert.equal(body[0].episodeCount, 3);
-  });
-
-  it('GET /api/stats/trends/episodes-per-day clamps oversized limits', async () => {
-    let seenLimit = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        getEpisodesPerDay: async (limit?: number) => {
-          seenLimit = limit ?? 0;
-          return EPISODES_PER_DAY;
-        },
-      }),
-    );
-    const res = await app.request('/api/stats/trends/episodes-per-day?limit=999999');
-    assert.equal(res.status, 200);
-    assert.equal(seenLimit, 365);
-  });
-
-  it('GET /api/stats/trends/new-anime-per-day returns new anime rows', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/trends/new-anime-per-day');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-    assert.equal(body.length, 1);
-    assert.equal(body[0].newAnimeCount, 2);
-  });
-
-  it('GET /api/stats/trends/new-anime-per-day clamps oversized limits', async () => {
-    let seenLimit = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        getNewAnimePerDay: async (limit?: number) => {
-          seenLimit = limit ?? 0;
-          return NEW_ANIME_PER_DAY;
-        },
-      }),
-    );
-    const res = await app.request('/api/stats/trends/new-anime-per-day?limit=999999');
-    assert.equal(res.status, 200);
-    assert.equal(seenLimit, 365);
-  });
-
-  it('GET /api/stats/trends/watch-time-per-anime returns watch time rows', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/trends/watch-time-per-anime');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-    assert.equal(body.length, 1);
-    assert.equal(body[0].animeTitle, 'Little Witch Academia');
-    assert.equal(body[0].totalActiveMin, 25);
-  });
-
-  it('GET /api/stats/trends/watch-time-per-anime clamps oversized limits', async () => {
-    let seenLimit = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        getWatchTimePerAnime: async (limit?: number) => {
-          seenLimit = limit ?? 0;
-          return WATCH_TIME_PER_ANIME;
-        },
-      }),
-    );
-    const res = await app.request('/api/stats/trends/watch-time-per-anime?limit=999999');
-    assert.equal(res.status, 200);
-    assert.equal(seenLimit, 365);
-  });
-
-  it('GET /api/stats/trends/dashboard returns chart-ready trends data', async () => {
+  it('GET /api/stats/vocabulary passes excludePos to tracker', async () => {
     let seenArgs: unknown[] = [];
     const app = createStatsApp(
       createMockTracker({
-        getTrendsDashboard: async (...args: unknown[]) => {
+        getVocabularyStats: async (...args: unknown[]) => {
           seenArgs = args;
-          return TRENDS_DASHBOARD;
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/trends/dashboard?range=90d&groupBy=month');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.deepEqual(seenArgs, ['90d', 'month', true]);
-    assert.deepEqual(body.activity.watchTime, TRENDS_DASHBOARD.activity.watchTime);
-    assert.deepEqual(body.librarySummary, TRENDS_DASHBOARD.librarySummary);
-  });
-
-  it('GET /api/stats/trends/dashboard accepts 365d range', async () => {
-    let seenArgs: unknown[] = [];
-    const app = createStatsApp(
-      createMockTracker({
-        getTrendsDashboard: async (...args: unknown[]) => {
-          seenArgs = args;
-          return TRENDS_DASHBOARD;
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/trends/dashboard?range=365d&groupBy=month');
-    assert.equal(res.status, 200);
-    assert.deepEqual(seenArgs, ['365d', 'month', true]);
-  });
-
-  it('GET /api/stats/trends/dashboard falls back to safe defaults for invalid params', async () => {
-    let seenArgs: unknown[] = [];
-    const app = createStatsApp(
-      createMockTracker({
-        getTrendsDashboard: async (...args: unknown[]) => {
-          seenArgs = args;
-          return TRENDS_DASHBOARD;
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/trends/dashboard?range=weird&groupBy=year');
-    assert.equal(res.status, 200);
-    assert.deepEqual(seenArgs, ['30d', 'day', true]);
-  });
-
-  it('GET /api/stats/trends/dashboard forwards fillEmpty=false to disable zero-fill', async () => {
-    let seenArgs: unknown[] = [];
-    const app = createStatsApp(
-      createMockTracker({
-        getTrendsDashboard: async (...args: unknown[]) => {
-          seenArgs = args;
-          return TRENDS_DASHBOARD;
+          return VOCABULARY_STATS;
         },
       }),
     );
 
     const res = await app.request(
-      '/api/stats/trends/dashboard?range=30d&groupBy=day&fillEmpty=false',
+      '/api/stats/vocabulary?excludePos=particle,%20auxiliary,%20,%20noun%20',
     );
     assert.equal(res.status, 200);
-    assert.deepEqual(seenArgs, ['30d', 'day', false]);
+    assert.deepEqual(seenArgs, [100, ['particle', 'auxiliary', 'noun']]);
   });
+
+  for (const { query, expectedArgs } of TRENDS_DASHBOARD_QUERIES) {
+    it(`GET /api/stats/trends/dashboard?${query} requests ${expectedArgs.join('/')}`, async () => {
+      let seenArgs: unknown[] = [];
+      const app = createStatsApp(
+        createMockTracker({
+          getTrendsDashboard: async (...args: unknown[]) => {
+            seenArgs = args;
+            return TRENDS_DASHBOARD;
+          },
+        }),
+      );
+
+      const res = await app.request(`/api/stats/trends/dashboard?${query}`);
+      assert.equal(res.status, 200);
+      assert.deepEqual(seenArgs, expectedArgs);
+    });
+  }
 
   it('GET /api/stats/vocabulary/occurrences returns recent occurrence rows for a word', async () => {
     let seenArgs: unknown[] = [];
@@ -1061,86 +1056,6 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 400);
   });
 
-  it('GET /api/stats/vocabulary clamps oversized limits', async () => {
-    let seenLimit = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        getVocabularyStats: async (limit?: number, _excludePos?: string[]) => {
-          seenLimit = limit ?? 0;
-          return VOCABULARY_STATS;
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/vocabulary?limit=999999');
-    assert.equal(res.status, 200);
-    assert.equal(seenLimit, 500);
-  });
-
-  it('GET /api/stats/vocabulary floors fractional pagination limits', async () => {
-    let seenLimit = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        getVocabularyStats: async (limit?: number) => {
-          seenLimit = limit ?? 0;
-          return VOCABULARY_STATS;
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/vocabulary?limit=12.9');
-
-    assert.equal(res.status, 200);
-    assert.equal(seenLimit, 12);
-  });
-
-  it('GET /api/stats/vocabulary passes excludePos to tracker', async () => {
-    let seenArgs: unknown[] = [];
-    const app = createStatsApp(
-      createMockTracker({
-        getVocabularyStats: async (...args: unknown[]) => {
-          seenArgs = args;
-          return VOCABULARY_STATS;
-        },
-      }),
-    );
-
-    const res = await app.request(
-      '/api/stats/vocabulary?excludePos=particle,%20auxiliary,%20,%20noun%20',
-    );
-    assert.equal(res.status, 200);
-    assert.deepEqual(seenArgs, [100, ['particle', 'auxiliary', 'noun']]);
-  });
-
-  it('GET /api/stats/vocabulary returns POS fields', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/vocabulary');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.equal(body[0].partOfSpeech, 'verb');
-    assert.equal(body[0].pos1, '動詞');
-    assert.equal(body[0].pos2, '自立');
-    assert.equal(body[0].pos3, null);
-  });
-
-  it('GET /api/stats/excluded-words returns tracker exclusion rows', async () => {
-    const app = createStatsApp(
-      createMockTracker({
-        getStatsExcludedWords: async () => [
-          { headword: '猫', word: '猫', reading: 'ねこ' },
-          { headword: 'する', word: 'する', reading: 'する' },
-        ],
-      }),
-    );
-
-    const res = await app.request('/api/stats/excluded-words');
-    assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), [
-      { headword: '猫', word: '猫', reading: 'ねこ' },
-      { headword: 'する', word: 'する', reading: 'する' },
-    ]);
-  });
-
   it('PUT /api/stats/excluded-words replaces tracker exclusion rows', async () => {
     let seenWords: unknown = null;
     const app = createStatsApp(
@@ -1153,7 +1068,7 @@ describe('stats server API routes', () => {
 
     const res = await app.request('/api/stats/excluded-words', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({
         words: [
           { headword: '猫', word: '猫', reading: 'ねこ' },
@@ -1168,6 +1083,18 @@ describe('stats server API routes', () => {
       { headword: '猫', word: '猫', reading: 'ねこ' },
       { headword: 'する', word: 'する', reading: 'する' },
     ]);
+  });
+
+  it('PUT /api/stats/excluded-words rejects malformed rows', async () => {
+    const app = createStatsApp(createMockTracker());
+
+    const res = await app.request('/api/stats/excluded-words', {
+      method: 'PUT',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ words: [{ headword: '猫', word: 7, reading: 'ねこ' }] }),
+    });
+
+    assert.equal(res.status, 400);
   });
 
   it('POST /api/stats/maintenance/duplicate-lines forwards the window and dry-run flag', async () => {
@@ -1193,7 +1120,7 @@ describe('stats server API routes', () => {
 
     const res = await app.request('/api/stats/maintenance/duplicate-lines', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ dryRun: true, lookbackDays: 30 }),
     });
 
@@ -1226,159 +1153,60 @@ describe('stats server API routes', () => {
     assert.equal(cleanupCalls, 0);
   });
 
-  it('POST /api/stats/maintenance/duplicate-lines rejects a window shorter than a day', async () => {
-    let cleanupCalls = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        cleanupDuplicateSubtitleLines: async () => {
-          cleanupCalls += 1;
-          return {
-            dryRun: true,
-            lookbackDays: null,
-            scannedLines: 0,
-            burstGroups: 0,
-            removedLines: 0,
-            removedWordOccurrences: 0,
-            removedKanjiOccurrences: 0,
-            samples: [],
-          };
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dryRun: true, lookbackDays: 0.5 }),
-    });
-
-    assert.equal(res.status, 400);
-    assert.equal(cleanupCalls, 0);
-  });
-
-  it('POST /api/stats/maintenance/duplicate-lines floors a fractional multi-day window', async () => {
-    let seenOptions: unknown = null;
-    const app = createStatsApp(
-      createMockTracker({
-        cleanupDuplicateSubtitleLines: async (options: unknown) => {
-          seenOptions = options;
-          return {
-            dryRun: true,
-            lookbackDays: 1,
-            scannedLines: 0,
-            burstGroups: 0,
-            removedLines: 0,
-            removedWordOccurrences: 0,
-            removedKanjiOccurrences: 0,
-            samples: [],
-          };
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dryRun: true, lookbackDays: 1.5 }),
-    });
-
-    assert.equal(res.status, 200);
-    assert.deepEqual(seenOptions, { dryRun: true, lookbackDays: 1 });
-  });
-
-  it('POST /api/stats/maintenance/duplicate-lines accepts an explicit empty object for all history', async () => {
-    let seenOptions: unknown = null;
-    const app = createStatsApp(
-      createMockTracker({
-        cleanupDuplicateSubtitleLines: async (options: unknown) => {
-          seenOptions = options;
-          return {
-            dryRun: false,
-            lookbackDays: null,
-            scannedLines: 0,
-            burstGroups: 0,
-            removedLines: 0,
-            removedWordOccurrences: 0,
-            removedKanjiOccurrences: 0,
-            samples: [],
-          };
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+  // `expected: null` means the body is rejected with 400 before cleanup runs.
+  for (const { name, body, expected } of [
+    {
+      name: 'floors a fractional multi-day window',
+      body: '{"dryRun":true,"lookbackDays":1.5}',
+      expected: { dryRun: true, lookbackDays: 1 },
+    },
+    {
+      name: 'accepts an explicit empty object for all history',
       body: '{}',
-    });
-
-    assert.equal(res.status, 200);
-    assert.deepEqual(seenOptions, { dryRun: false, lookbackDays: null });
-  });
-
-  for (const malformed of [
-    { name: 'a missing body', body: undefined },
-    { name: 'malformed JSON', body: '{' },
-    { name: 'JSON null', body: 'null' },
-    { name: 'a JSON array', body: '[]' },
+      expected: { dryRun: false, lookbackDays: null },
+    },
+    {
+      name: 'rejects a window shorter than a day',
+      body: '{"dryRun":true,"lookbackDays":0.5}',
+      expected: null,
+    },
+    { name: 'rejects a missing body', body: undefined, expected: null },
+    { name: 'rejects malformed JSON', body: '{', expected: null },
+    { name: 'rejects JSON null', body: 'null', expected: null },
+    { name: 'rejects a JSON array', body: '[]', expected: null },
   ]) {
-    it(`POST /api/stats/maintenance/duplicate-lines rejects ${malformed.name}`, async () => {
-      let cleanupCalls = 0;
+    it(`POST /api/stats/maintenance/duplicate-lines ${name}`, async () => {
+      const seenOptions: unknown[] = [];
       const app = createStatsApp(
         createMockTracker({
-          cleanupDuplicateSubtitleLines: async () => {
-            cleanupCalls += 1;
-            throw new Error('cleanup must not run');
+          cleanupDuplicateSubtitleLines: async (options: {
+            dryRun: boolean;
+            lookbackDays: number | null;
+          }) => {
+            seenOptions.push(options);
+            return {
+              ...options,
+              scannedLines: 0,
+              burstGroups: 0,
+              removedLines: 0,
+              removedWordOccurrences: 0,
+              removedKanjiOccurrences: 0,
+              samples: [],
+            };
           },
         }),
       );
 
       const res = await app.request('/api/stats/maintenance/duplicate-lines', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: malformed.body,
+        headers: JSON_HEADERS,
+        body,
       });
 
-      assert.equal(res.status, 400);
-      assert.equal(cleanupCalls, 0);
+      assert.equal(res.status, expected ? 200 : 400);
+      assert.deepEqual(seenOptions, expected ? [expected] : []);
     });
   }
-
-  it('PUT /api/stats/excluded-words rejects malformed rows', async () => {
-    const app = createStatsApp(createMockTracker());
-
-    const res = await app.request('/api/stats/excluded-words', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ words: [{ headword: '猫', word: 7, reading: 'ねこ' }] }),
-    });
-
-    assert.equal(res.status, 400);
-  });
-
-  it('GET /api/stats/anime returns anime library', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/anime');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-    assert.equal(body[0].canonicalTitle, 'Little Witch Academia');
-  });
-
-  it('GET /api/stats/anime/merge-recommendations returns pending duplicate pairs', async () => {
-    const app = createStatsApp(
-      createMockTracker({
-        getAnimeMergeRecommendations: async () => [{ recommendationId: 4, animeIds: [1, 2] }],
-      } as Partial<ImmersionTrackerService>),
-    );
-
-    const res = await app.request('/api/stats/anime/merge-recommendations');
-
-    assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), {
-      recommendations: [{ recommendationId: 4, animeIds: [1, 2] }],
-    });
-  });
 
   it('DELETE /api/stats/anime/merge-recommendations/:id dismisses a pending pair', async () => {
     let dismissedId: number | null = null;
@@ -1388,7 +1216,7 @@ describe('stats server API routes', () => {
           dismissedId = recommendationId;
           return true;
         },
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     const res = await app.request('/api/stats/anime/merge-recommendations/4', {
@@ -1404,7 +1232,7 @@ describe('stats server API routes', () => {
     const app = createStatsApp(
       createMockTracker({
         dismissAnimeMergeRecommendation: async () => false,
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     const res = await app.request('/api/stats/anime/merge-recommendations/99', {
@@ -1444,7 +1272,7 @@ describe('stats server API routes', () => {
     for (const anilistId of [-1, 0, 1.5, 9_007_199_254_740_992, '12', true, undefined]) {
       const res = await app.request('/api/stats/anime/1/anilist', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
         body: JSON.stringify({ anilistId }),
       });
       assert.equal(res.status, 400, `accepted invalid AniList id: ${String(anilistId)}`);
@@ -1454,7 +1282,7 @@ describe('stats server API routes', () => {
     const body = { anilistId: 21_802, titleRomaji: 'Little Witch Academia' };
     const res = await app.request('/api/stats/anime/1/anilist', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify(body),
     });
     assert.equal(res.status, 200);
@@ -1485,26 +1313,15 @@ describe('stats server API routes', () => {
 
   it('GET /api/stats/anime/:animeId/cover resends art when the ETag no longer matches', async () => {
     // A relinked AniList entry swaps the bytes behind the same cover URL.
-    let coverBlob = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    let coverBlob = JPEG_BYTES;
     const app = createStatsApp(
-      createMockTracker({
-        getAnimeCoverArt: async () => ({
-          videoId: 1,
-          anilistId: 21858,
-          coverUrl: 'https://example.com/cover.jpg',
-          coverBlob,
-          titleRomaji: 'Little Witch Academia',
-          titleEnglish: 'Little Witch Academia',
-          episodesTotal: 25,
-          fetchedAtMs: Date.now(),
-        }),
-      }),
+      createMockTracker({ getAnimeCoverArt: async () => animeCoverArt(coverBlob) }),
     );
     const first = await app.request('/api/stats/anime/1/cover');
     const staleEtag = first.headers.get('etag');
     assert.ok(staleEtag);
 
-    coverBlob = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    coverBlob = PNG_BYTES;
     const res = await app.request('/api/stats/anime/1/cover', {
       headers: { 'If-None-Match': staleEtag },
     });
@@ -1515,18 +1332,7 @@ describe('stats server API routes', () => {
 
   it('GET /api/stats/anime/:animeId/cover serves detected cover MIME type', async () => {
     const app = createStatsApp(
-      createMockTracker({
-        getAnimeCoverArt: async () => ({
-          videoId: 1,
-          anilistId: 21858,
-          coverUrl: 'https://example.com/cover.png',
-          coverBlob: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-          titleRomaji: 'Little Witch Academia',
-          titleEnglish: 'Little Witch Academia',
-          episodesTotal: 25,
-          fetchedAtMs: Date.now(),
-        }),
-      }),
+      createMockTracker({ getAnimeCoverArt: async () => animeCoverArt(PNG_BYTES) }),
     );
     const res = await app.request('/api/stats/anime/1/cover');
     assert.equal(res.status, 200);
@@ -1539,72 +1345,21 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 404);
   });
 
-  it('resource routes reject fractional ids before calling dependencies', async () => {
-    const dependencyCalls: string[] = [];
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async () => {
-      dependencyCalls.push('fetch');
-      return new Response('{}', { status: 200 });
-    };
+  it('GET /api/stats/anime/:animeId/cover fetches missing art before serving', async () => {
+    let fetched = false;
+    const app = createStatsApp(
+      createMockTracker({
+        getAnimeCoverArt: async () => (fetched ? animeCoverArt(JPEG_BYTES) : null),
+        ensureAnimeCoverArt: async () => {
+          fetched = true;
+          return true;
+        },
+      }),
+    );
 
-    try {
-      const app = createStatsApp(
-        createMockTracker({
-          getWordDetail: async () => {
-            dependencyCalls.push('getWordDetail');
-            return null;
-          },
-          getSessionEvents: async () => {
-            dependencyCalls.push('getSessionEvents');
-            return [];
-          },
-          getEpisodeSessions: async () => {
-            dependencyCalls.push('getEpisodeSessions');
-            return [];
-          },
-          getAnimeCoverArt: async () => {
-            dependencyCalls.push('getAnimeCoverArt');
-            return null;
-          },
-          ensureAnimeCoverArt: async () => {
-            dependencyCalls.push('ensureAnimeCoverArt');
-            return false;
-          },
-          setVideoWatched: async () => {
-            dependencyCalls.push('setVideoWatched');
-          },
-          reassignAnimeAnilist: async () => {
-            dependencyCalls.push('reassignAnimeAnilist');
-          },
-        }),
-      );
-
-      const responses = await Promise.all([
-        app.request('/api/stats/vocabulary/1.9/detail'),
-        app.request('/api/stats/sessions/1.9/events'),
-        app.request('/api/stats/episode/1.9/detail'),
-        app.request('/api/stats/anime/1.9/cover'),
-        app.request('/api/stats/media/1.9/watched', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{"watched":true}',
-        }),
-        app.request('/api/stats/anime/1.9/anilist', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{"anilistId":21858}',
-        }),
-        app.request('/api/stats/anki/browse?noteId=1.9', { method: 'POST' }),
-      ]);
-
-      assert.deepEqual(
-        responses.map((response) => response.status),
-        [400, 400, 400, 400, 400, 400, 400],
-      );
-      assert.deepEqual(dependencyCalls, []);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    const res = await app.request('/api/stats/anime/1/cover');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/jpeg');
   });
 
   it('POST /api/stats/covers batches stored cover art and backfills missing anime art in the background', async () => {
@@ -1618,7 +1373,7 @@ describe('stats server API routes', () => {
                 videoId,
                 anilistId: null,
                 coverUrl: null,
-                coverBlob: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+                coverBlob: PNG_BYTES,
                 titleRomaji: null,
                 titleEnglish: null,
                 episodesTotal: null,
@@ -1638,7 +1393,7 @@ describe('stats server API routes', () => {
 
     const res = await app.request('/api/stats/covers', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ animeIds: [1, 99999], videoIds: [7, 99999] }),
     });
 
@@ -1663,58 +1418,6 @@ describe('stats server API routes', () => {
     assert.deepEqual(ensureAnimeCoverArtCalls, [99999]);
   });
 
-  it('JSON id lists reject malformed members before side effects', async () => {
-    const dependencyCalls: string[] = [];
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async () => {
-      dependencyCalls.push('fetch');
-      return new Response('{}', { status: 200 });
-    };
-
-    try {
-      const app = createStatsApp(
-        createMockTracker({
-          deleteSessions: async () => {
-            dependencyCalls.push('deleteSessions');
-          },
-          mergeAnime: async () => {
-            dependencyCalls.push('mergeAnime');
-            return { survivingAnimeId: 7, mergedAnimeIds: [], movedVideos: 0 };
-          },
-          getAnimeCoverArt: async () => {
-            dependencyCalls.push('getAnimeCoverArt');
-            return null;
-          },
-          ensureAnimeCoverArt: async () => {
-            dependencyCalls.push('ensureAnimeCoverArt');
-            return false;
-          },
-        }),
-      );
-      const request = async (path: string, body: string, method = 'POST'): Promise<Response> =>
-        await app.request(path, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body,
-        });
-
-      const responses = await Promise.all([
-        request('/api/stats/sessions', '{"sessionIds":[4,1.9,7]}', 'DELETE'),
-        request('/api/stats/anime/7/merge', '{"sourceAnimeIds":[8,"9"]}'),
-        request('/api/stats/covers', '{"animeIds":[1,1.9]}'),
-        request('/api/stats/anki/notesInfo', '{"noteIds":[1,1.9]}'),
-      ]);
-
-      assert.deepEqual(
-        responses.map((response) => response.status),
-        [400, 400, 400, 400],
-      );
-      assert.deepEqual(dependencyCalls, []);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
   it('POST /api/stats/covers limits concurrent missing anime cover backfills', async () => {
     let activeBackfills = 0;
     let maxActiveBackfills = 0;
@@ -1736,7 +1439,7 @@ describe('stats server API routes', () => {
 
     const res = await app.request('/api/stats/covers', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ animeIds: [101, 102, 103, 104, 105] }),
     });
 
@@ -1747,33 +1450,56 @@ describe('stats server API routes', () => {
     }
   });
 
-  it('GET /api/stats/anime/:animeId/cover fetches missing art before serving', async () => {
-    let fetched = false;
-    const app = createStatsApp(
-      createMockTracker({
-        getAnimeCoverArt: async () =>
-          fetched
-            ? {
-                videoId: 1,
-                anilistId: 21858,
-                coverUrl: 'https://example.com/cover.jpg',
-                coverBlob: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
-                titleRomaji: 'Little Witch Academia',
-                titleEnglish: 'Little Witch Academia',
-                episodesTotal: 25,
-                fetchedAtMs: Date.now(),
-              }
-            : null,
-        ensureAnimeCoverArt: async () => {
-          fetched = true;
-          return true;
+  for (const route of ID_ROUTES) {
+    it(`${route.method} ${route.path} rejects malformed ids before calling dependencies`, async () => {
+      const dependencyCalls: string[] = [];
+      const app = createStatsApp(createRecordingTracker(dependencyCalls));
+      await withFetch(
+        async () => {
+          dependencyCalls.push('fetch');
+          return new Response('{}', { status: 200 });
         },
-      }),
+        async () => {
+          for (const id of MALFORMED_IDS) {
+            const res = await app.request(route.path.replace(':id', id), {
+              method: route.method,
+              ...(route.body === undefined
+                ? {}
+                : { headers: JSON_HEADERS, body: JSON.stringify(route.body) }),
+            });
+            assert.equal(res.status, 400, `accepted malformed id: ${id}`);
+          }
+        },
+      );
+      assert.deepEqual(dependencyCalls, []);
+    });
+  }
+
+  it('JSON id lists reject malformed members before side effects', async () => {
+    const dependencyCalls: string[] = [];
+    const app = createStatsApp(createRecordingTracker(dependencyCalls));
+    const request = async (path: string, body: string, method = 'POST'): Promise<Response> =>
+      await app.request(path, { method, headers: JSON_HEADERS, body });
+
+    const statuses = await withFetch(
+      async () => {
+        dependencyCalls.push('fetch');
+        return new Response('{}', { status: 200 });
+      },
+      async () =>
+        (
+          await Promise.all([
+            request('/api/stats/sessions', '{"sessionIds":[4,1.9,7]}', 'DELETE'),
+            request('/api/stats/sessions', '{"sessionIds":[1.5,1e309,9007199254740992]}', 'DELETE'),
+            request('/api/stats/anime/7/merge', '{"sourceAnimeIds":[8,"9"]}'),
+            request('/api/stats/covers', '{"animeIds":[1,1.9]}'),
+            request('/api/stats/anki/notesInfo', '{"noteIds":[1,1.9]}'),
+          ])
+        ).map((response) => response.status),
     );
 
-    const res = await app.request('/api/stats/anime/1/cover');
-    assert.equal(res.status, 200);
-    assert.equal(res.headers.get('content-type'), 'image/jpeg');
+    assert.deepEqual(statuses, [400, 400, 400, 400, 400]);
+    assert.deepEqual(dependencyCalls, []);
   });
 
   it('GET /api/stats/anime/:animeId/words returns top words for an anime', async () => {
@@ -1795,28 +1521,6 @@ describe('stats server API routes', () => {
     assert.deepEqual(seenArgs, [1, 25]);
   });
 
-  it('GET /api/stats/anime/:animeId/words rejects invalid animeId', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/anime/0/words');
-    assert.equal(res.status, 400);
-  });
-
-  it('GET /api/stats/anime/:animeId/words clamps oversized limits', async () => {
-    let seenArgs: unknown[] = [];
-    const app = createStatsApp(
-      createMockTracker({
-        getAnimeWords: async (...args: unknown[]) => {
-          seenArgs = args;
-          return ANIME_WORDS;
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/anime/1/words?limit=999999');
-    assert.equal(res.status, 200);
-    assert.deepEqual(seenArgs, [1, 200]);
-  });
-
   it('GET /api/stats/anime/:animeId/rollups returns daily rollups for an anime', async () => {
     let seenArgs: unknown[] = [];
     const app = createStatsApp(
@@ -1834,28 +1538,6 @@ describe('stats server API routes', () => {
     assert.ok(Array.isArray(body));
     assert.equal(body[0].totalSessions, 1);
     assert.deepEqual(seenArgs, [1, 30]);
-  });
-
-  it('GET /api/stats/anime/:animeId/rollups rejects invalid animeId', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/anime/-1/rollups');
-    assert.equal(res.status, 400);
-  });
-
-  it('GET /api/stats/anime/:animeId/rollups clamps oversized limits', async () => {
-    let seenArgs: unknown[] = [];
-    const app = createStatsApp(
-      createMockTracker({
-        getAnimeDailyRollups: async (...args: unknown[]) => {
-          seenArgs = args;
-          return DAILY_ROLLUPS;
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/anime/1/rollups?limit=999999');
-    assert.equal(res.status, 200);
-    assert.deepEqual(seenArgs, [1, 365]);
   });
 
   it('GET /api/stats/vocabulary/:wordId/detail returns word detail', async () => {
@@ -1878,12 +1560,6 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 404);
   });
 
-  it('GET /api/stats/vocabulary/:wordId/detail returns 400 for invalid wordId', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/vocabulary/0/detail');
-    assert.equal(res.status, 400);
-  });
-
   it('GET /api/stats/kanji/:kanjiId/detail returns kanji detail', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/kanji/1/detail');
@@ -1904,1589 +1580,612 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 404);
   });
 
-  it('GET /api/stats/kanji/:kanjiId/detail returns 400 for invalid kanjiId', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/kanji/0/detail');
-    assert.equal(res.status, 400);
-  });
-
-  it('GET /api/stats/vocabulary/occurrences still works with detail routes present', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request(
-      '/api/stats/vocabulary/occurrences?headword=%E7%8C%AB&word=%E7%8C%AB&reading=%E3%81%AD%E3%81%93',
-    );
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-  });
-
-  it('GET /api/stats/kanji/occurrences still works with detail routes present', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/kanji/occurrences?kanji=%E6%97%A5');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body));
-  });
-
   it('POST /api/stats/mine-card rejects non-positive source timing before media generation', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-      let generatedAudio = false;
-
+    await withMiningEnv({}, async ({ sourcePath }) => {
+      const media = fakeMedia({ audio: AUDIO, image: IMAGE });
       const app = createStatsApp(createMockTracker(), {
-        createMediaGenerator: () => ({
-          generateAudio: async () => {
-            generatedAudio = true;
-            return Buffer.from('audio');
-          },
-          generateScreenshot: async () => Buffer.from('image'),
-          generateAnimatedImage: async () => null,
-        }),
-        ankiConnectConfig: {
-          deck: 'Mining',
-          media: {
-            generateAudio: true,
-            generateImage: true,
-          },
-        },
+        createMediaGenerator: media.create,
+        ankiConnectConfig: { deck: 'Mining', media: { generateAudio: true, generateImage: true } },
       });
 
-      const res = await app.request('/api/stats/mine-card?mode=sentence', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourcePath,
-          startMs: 953_991,
-          endMs: 953_891,
-          sentence: '猫を見た',
-          word: '猫',
-          videoTitle: 'Episode 1',
-        }),
+      const { status, body } = await mineCard(app, 'sentence', {
+        sourcePath,
+        startMs: 953_991,
+        endMs: 953_891,
       });
 
-      const body = await res.json();
-      assert.equal(res.status, 400, JSON.stringify(body));
+      assert.equal(status, 400, JSON.stringify(body));
       assert.deepEqual(body, { error: 'endMs must be greater than startMs' });
-      assert.equal(generatedAudio, false);
+      assert.equal(media.callCount(), 0);
     });
   });
 
   it('POST /api/stats/mine-card treats a zero media duration cap as unlimited', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-      const audioRanges: Array<{ start: number; end: number; padding: number | undefined }> = [];
-      const scenarios = [
+    await withMiningEnv({}, async ({ sourcePath }) => {
+      for (const { maxMediaDuration, expectedEnd } of [
         { maxMediaDuration: 0, expectedEnd: 12 },
         { maxMediaDuration: 1, expectedEnd: 11 },
-      ];
-
-      for (const scenario of scenarios) {
+      ]) {
+        const media = fakeMedia({ audio: AUDIO });
         const app = createStatsApp(createMockTracker(), {
           addYomitanNote: async () => null,
-          createMediaGenerator: () => ({
-            generateAudio: async (_path, start, end, padding) => {
-              audioRanges.push({ start, end, padding });
-              return Buffer.from('audio');
-            },
-            generateScreenshot: async () => null,
-            generateAnimatedImage: async () => null,
-          }),
+          createMediaGenerator: media.create,
           ankiConnectConfig: {
             deck: 'Mining',
             media: {
               generateAudio: true,
               generateImage: false,
               audioPadding: 0.25,
-              maxMediaDuration: scenario.maxMediaDuration,
+              maxMediaDuration,
             },
           },
         });
 
-        const res = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 10_000,
-            endMs: 12_000,
-            sentence: '猫を見た',
-            word: '猫',
-          }),
+        const { status } = await mineCard(app, 'word', {
+          sourcePath,
+          startMs: 10_000,
+          endMs: 12_000,
         });
 
-        assert.equal(res.status, 502);
-        assert.deepEqual(audioRanges.at(-1), {
-          start: 10,
-          end: scenario.expectedEnd,
-          padding: 0.25,
-        });
+        assert.equal(status, 502);
+        const [, start, end, padding] = media.audioCalls.at(-1) ?? [];
+        assert.deepEqual({ start, end, padding }, { start: 10, end: expectedEnd, padding: 0.25 });
       }
     });
   });
 
   it('POST /api/stats/mine-card requires a non-empty word in word mode', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
+    await withMiningEnv({}, async ({ sourcePath }) => {
       let yomitanCalls = 0;
-      let mediaCalls = 0;
+      const media = fakeMedia({ audio: AUDIO, image: IMAGE });
       const app = createStatsApp(createMockTracker(), {
         addYomitanNote: async () => {
           yomitanCalls += 1;
           return 777;
         },
-        createMediaGenerator: () => ({
-          generateAudio: async () => {
-            mediaCalls += 1;
-            return Buffer.from('audio');
-          },
-          generateScreenshot: async () => {
-            mediaCalls += 1;
-            return Buffer.from('image');
-          },
-          generateAnimatedImage: async () => null,
-        }),
+        createMediaGenerator: media.create,
         ankiConnectConfig: { media: { generateAudio: true, generateImage: true } },
       });
 
-      const res = await app.request('/api/stats/mine-card?mode=word', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourcePath,
-          startMs: 1_000,
-          endMs: 2_000,
-          sentence: '猫を見た',
-          word: '   ',
-        }),
-      });
+      const { status } = await mineCard(app, 'word', { sourcePath, word: '   ' });
 
-      assert.equal(res.status, 400);
+      assert.equal(status, 400);
       assert.equal(yomitanCalls, 0);
-      assert.equal(mediaCalls, 0);
+      assert.equal(media.callCount(), 0);
     });
   });
 
   it('POST /api/stats/mine-card does not start word media without a Yomitan bridge', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-      let mediaCalls = 0;
+    await withMiningEnv({}, async ({ sourcePath }) => {
+      const media = fakeMedia({ audio: AUDIO, image: IMAGE });
       const app = createStatsApp(createMockTracker(), {
-        createMediaGenerator: () => ({
-          generateAudio: async () => {
-            mediaCalls += 1;
-            return Buffer.from('audio');
-          },
-          generateScreenshot: async () => {
-            mediaCalls += 1;
-            return Buffer.from('image');
-          },
-          generateAnimatedImage: async () => null,
-        }),
+        createMediaGenerator: media.create,
         ankiConnectConfig: { media: { generateAudio: true, generateImage: true } },
       });
 
-      const res = await app.request('/api/stats/mine-card?mode=word', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourcePath,
-          startMs: 1_000,
-          endMs: 2_000,
-          sentence: '猫を見た',
-          word: '猫',
-        }),
-      });
+      const { status } = await mineCard(app, 'word', { sourcePath });
 
-      assert.equal(res.status, 500);
-      assert.equal(mediaCalls, 0);
+      assert.equal(status, 500);
+      assert.equal(media.callCount(), 0);
     });
   });
 
-  it('POST /api/stats/mine-card falls back to Default deck for empty deck config', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
+  // Direct sentence cards resolve their deck: configured deck, then Yomitan's deck, then Default.
+  for (const { name, options, expectedDeck } of [
+    {
+      name: 'falls back to Default deck for empty deck config',
+      options: (env: MiningEnv): StatsAppOptions => ({
+        ankiConnectConfig: ankiConfig(env, { deck: '', fields: SENTENCE_FIELDS, ...LAPIS }),
+      }),
+      expectedDeck: 'Default',
+    },
+    {
+      name: 'uses Yomitan deck for direct sentence cards when config deck is empty',
+      options: (env: MiningEnv): StatsAppOptions => ({
+        getYomitanAnkiDeckName: async () => 'Minecraft',
+        ankiConnectConfig: ankiConfig(env, { deck: '', fields: SENTENCE_FIELDS, ...LAPIS }),
+      }),
+      expectedDeck: 'Minecraft',
+    },
+    {
+      name: 'resolves Anki config at request time',
+      options: (env: MiningEnv): StatsAppOptions => ({
+        getAnkiConnectConfig: () => ankiConfig(env, { fields: SENTENCE_FIELDS, ...LAPIS }),
+      }),
+      expectedDeck: 'Mining',
+    },
+  ]) {
+    it(`POST /api/stats/mine-card ${name}`, async () => {
+      await withMiningEnv({}, async (env) => {
+        const app = createStatsApp(createMockTracker(), options(env));
 
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          ankiConnectConfig: {
-            url,
-            deck: '',
-            tags: ['SubMiner'],
-            fields: {
-              word: 'Expression',
-              audio: 'ExpressionAudio',
-              image: 'Picture',
-              sentence: 'Sentence',
-              miscInfo: 'MiscInfo',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-            isKiku: {
-              enabled: true,
-              fieldGrouping: 'manual',
-              deleteDuplicateInAuto: true,
-            },
-          },
+        const { status, body } = await mineCard(app, 'sentence', {
+          sourcePath: env.sourcePath,
+          secondaryText: 'I saw a cat',
         });
 
-        const res = await app.request('/api/stats/mine-card?mode=sentence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            secondaryText: 'I saw a cat',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
+        assert.equal(status, 200, JSON.stringify(body));
         assert.equal(body.noteId, 12345);
-
-        const addNoteRequest = requests.find((request) => request.action === 'addNote');
-        assert.equal(addNoteRequest?.params?.note?.deckName, 'Default');
-        assert.equal(addNoteRequest?.params?.note?.modelName, 'Lapis Morph');
-        assert.equal(addNoteRequest?.params?.note?.fields?.Sentence, '猫を見た');
-        assert.equal(addNoteRequest?.params?.note?.fields?.IsSentenceCard, 'x');
+        const note = sentNote(env.requests, 'addNote');
+        assert.equal(note.deckName, expectedDeck);
+        assert.equal(note.modelName, 'Lapis Morph');
+        assert.equal(note.fields.SelectionText, 'I saw a cat');
       });
     });
-  });
+  }
 
-  it('POST /api/stats/mine-card uses Yomitan deck for direct sentence cards when config deck is empty', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          getYomitanAnkiDeckName: async () => 'Minecraft',
-          ankiConnectConfig: {
-            url,
-            deck: '',
-            tags: ['SubMiner'],
-            fields: {
-              word: 'Expression',
-              sentence: 'Sentence',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=sentence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            secondaryText: 'I saw a cat',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-        const addNoteRequest = requests.find((request) => request.action === 'addNote');
-        assert.equal(addNoteRequest?.params?.note?.deckName, 'Minecraft');
+  it('POST /api/stats/mine-card uses the full sentence as sentence-card expression', async () => {
+    await withMiningEnv({}, async (env) => {
+      const app = createStatsApp(createMockTracker(), {
+        ankiConnectConfig: ankiConfig(env, { fields: SENTENCE_FIELDS, ...LAPIS }),
       });
-    });
-  });
 
-  it('POST /api/stats/mine-card resolves Anki config at request time', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
+      const { status, body } = await mineCard(app, 'sentence', {
+        sourcePath: env.sourcePath,
+        secondaryText: 'I saw a cat',
+      });
 
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          getAnkiConnectConfig: () => ({
-            url,
-            deck: 'Mining',
-            tags: ['SubMiner'],
-            fields: {
-              word: 'Expression',
-              sentence: 'Sentence',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-          }),
-        } as Parameters<typeof createStatsApp>[1]);
-
-        const res = await app.request('/api/stats/mine-card?mode=sentence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            secondaryText: 'I saw a cat',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-        const addNoteRequest = requests.find((request) => request.action === 'addNote');
-        assert.equal(addNoteRequest?.params?.note?.deckName, 'Mining');
-        assert.equal(addNoteRequest?.params?.note?.modelName, 'Lapis Morph');
-        assert.equal(addNoteRequest?.params?.note?.fields?.SelectionText, 'I saw a cat');
+      assert.equal(status, 200, JSON.stringify(body));
+      assert.deepEqual(sentNote(env.requests, 'addNote').fields, {
+        Expression: '猫を見た',
+        Sentence: '猫を見た',
+        SelectionText: 'I saw a cat',
+        IsSentenceCard: 'x',
       });
     });
   });
 
   it('POST /api/stats/mine-card prefers request secondary text over retimed fallback', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        let retimedCalls = 0;
-        const options = {
-          resolveRetimedSecondarySubtitleText: async () => {
-            retimedCalls += 1;
-            return 'Aligned English subtitle';
-          },
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            fields: {
-              sentence: 'Sentence',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-          },
-        } as Parameters<typeof createStatsApp>[1] & {
-          resolveRetimedSecondarySubtitleText: () => Promise<string>;
-        };
-        const app = createStatsApp(createMockTracker(), options);
-
-        const res = await app.request('/api/stats/mine-card?mode=sentence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            secondaryText: 'Stale stored English subtitle',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-
-        const addNoteRequest = requests.find((request) => request.action === 'addNote');
-        assert.equal(
-          addNoteRequest?.params?.note?.fields?.SelectionText,
-          'Stale stored English subtitle',
-        );
-        assert.equal(retimedCalls, 0);
-      });
-    });
-  });
-
-  it('retimes secondary sidecar subtitles against the Japanese sidecar and caches the output', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      const japanesePath = path.join(dir, 'episode.ja.srt');
-      const englishPath = path.join(dir, 'episode.en.srt');
-      const alassPath = path.join(dir, 'alass-cli');
-      const originalEnglish = `1
-00:00:09,000 --> 00:00:10,000
-Stale English subtitle
-`;
-      fs.writeFileSync(sourcePath, 'fake media');
-      fs.writeFileSync(alassPath, 'fake alass');
-      fs.writeFileSync(
-        japanesePath,
-        `1
-00:00:01,000 --> 00:00:02,000
-猫を見た
-`,
-      );
-      fs.writeFileSync(englishPath, originalEnglish);
-
-      let alassRuns = 0;
-      try {
-        const first = await resolveRetimedSecondarySubtitleTextFromSidecar({
-          sourcePath,
-          startMs: 1_000,
-          endMs: 2_000,
-          alassPath,
-          runAlass: async (_alassPath, referencePath, inputPath, outputPath) => {
-            alassRuns += 1;
-            assert.equal(referencePath, japanesePath);
-            assert.equal(inputPath, englishPath);
-            fs.writeFileSync(
-              outputPath,
-              `1
-00:00:01,000 --> 00:00:02,000
-Aligned English subtitle
-`,
-            );
-            return { ok: true, code: 0, stdout: '', stderr: '' };
-          },
-        });
-
-        const second = await resolveRetimedSecondarySubtitleTextFromSidecar({
-          sourcePath,
-          startMs: 1_000,
-          endMs: 2_000,
-          alassPath,
-          runAlass: async () => {
-            alassRuns += 1;
-            return { ok: false, code: 1, stdout: '', stderr: 'should use cache' };
-          },
-        });
-
-        assert.equal(first, 'Aligned English subtitle');
-        assert.equal(second, 'Aligned English subtitle');
-        assert.equal(alassRuns, 1);
-        assert.equal(fs.readFileSync(englishPath, 'utf8'), originalEnglish);
-      } finally {
-        clearRetimedSecondarySubtitleCache();
-      }
-    });
-  });
-
-  it('shares in-flight retimed secondary subtitle work for concurrent requests', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      const japanesePath = path.join(dir, 'episode.ja.srt');
-      const englishPath = path.join(dir, 'episode.en.srt');
-      const alassPath = path.join(dir, 'alass-cli');
-      fs.writeFileSync(sourcePath, 'fake media');
-      fs.writeFileSync(alassPath, 'fake alass');
-      fs.writeFileSync(
-        japanesePath,
-        `1
-00:00:01,000 --> 00:00:02,000
-猫を見た
-`,
-      );
-      fs.writeFileSync(
-        englishPath,
-        `1
-00:00:09,000 --> 00:00:10,000
-Stale English subtitle
-`,
-      );
-
-      let alassRuns = 0;
-      let releaseAlass!: () => void;
-      const alassGate = new Promise<void>((resolve) => {
-        releaseAlass = resolve;
-      });
-      const input = {
-        sourcePath,
-        startMs: 1_000,
-        endMs: 2_000,
-        alassPath,
-        runAlass: async (
-          _alassPath: string,
-          _referencePath: string,
-          _inputPath: string,
-          outputPath: string,
-        ) => {
-          alassRuns += 1;
-          await alassGate;
-          fs.writeFileSync(
-            outputPath,
-            `1
-00:00:01,000 --> 00:00:02,000
-Aligned English subtitle
-`,
-          );
-          return { ok: true, code: 0, stdout: '', stderr: '' };
+    await withMiningEnv({}, async (env) => {
+      let retimedCalls = 0;
+      const app = createStatsApp(createMockTracker(), {
+        resolveRetimedSecondarySubtitleText: async () => {
+          retimedCalls += 1;
+          return 'Aligned English subtitle';
         },
-      };
+        ankiConnectConfig: ankiConfig(env, { fields: SENTENCE_FIELDS, ...LAPIS }),
+      });
 
-      try {
-        const first = resolveRetimedSecondarySubtitleTextFromSidecar(input);
-        const second = resolveRetimedSecondarySubtitleTextFromSidecar(input);
-        releaseAlass();
+      const { status, body } = await mineCard(app, 'sentence', {
+        sourcePath: env.sourcePath,
+        secondaryText: 'Stale stored English subtitle',
+      });
 
-        assert.deepEqual(await Promise.all([first, second]), [
-          'Aligned English subtitle',
-          'Aligned English subtitle',
-        ]);
-        assert.equal(alassRuns, 1);
-      } finally {
-        clearRetimedSecondarySubtitleCache();
-      }
+      assert.equal(status, 200, JSON.stringify(body));
+      assert.equal(
+        sentNote(env.requests, 'addNote').fields.SelectionText,
+        'Stale stored English subtitle',
+      );
+      assert.equal(retimedCalls, 0);
     });
   });
+
+  for (const { name, cues, sentence, expected } of [
+    {
+      name: 'fills selection text from a matching secondary sidecar subtitle',
+      cues: [
+        ['00:00:00,800 --> 00:00:02,500', 'I saw a cat.'],
+        ['00:00:03,000 --> 00:00:04,000', 'Not this line.'],
+      ],
+      sentence: '猫を見た',
+      expected: 'I saw a cat.',
+    },
+    {
+      name: 'does not append the next sidecar cue near a timing boundary',
+      cues: [
+        ['00:00:00,800 --> 00:00:01,500', "I don't give a damn what family she's from."],
+        ['00:00:01,700 --> 00:00:03,000', 'That snobby attitude just pisses me off!'],
+      ],
+      sentence: '名門か何だか知らねえが',
+      expected: "I don't give a damn what family she's from.",
+    },
+  ]) {
+    it(`POST /api/stats/mine-card ${name}`, async () => {
+      const srt = cues
+        .map(([timing, text], index) => `${index + 1}\n${timing}\n${text}\n`)
+        .join('\n');
+      await withMiningEnv({ files: { 'episode.en.srt': srt } }, async (env) => {
+        const app = createStatsApp(createMockTracker(), {
+          ankiConnectConfig: ankiConfig(env, { fields: SENTENCE_FIELDS, ...LAPIS }),
+          secondarySubtitleLanguages: ['en'],
+        });
+
+        const { status, body } = await mineCard(app, 'sentence', {
+          sourcePath: env.sourcePath,
+          sentence,
+        });
+
+        assert.equal(status, 200, JSON.stringify(body));
+        assert.equal(sentNote(env.requests, 'addNote').fields.SelectionText, expected);
+      });
+    });
+  }
 
   it('POST /api/stats/mine-card adds direct sentence cards before slow media finishes', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const mediaRelease: {
-          audio?: () => void;
-          image?: () => void;
-        } = {};
+    const addNoteSent = deferred();
+    await withMiningEnv(
+      { onAnkiRequest: (request) => request.action === 'addNote' && addNoteSent.resolve() },
+      async (env) => {
+        // Media only finishes once the note exists, so the request deadlocks (and the
+        // test times out) if mining ever waits for media before adding the note.
         const app = createStatsApp(createMockTracker(), {
           createMediaGenerator: () => ({
-            generateAudio: async () =>
-              await new Promise<Buffer>((resolve) => {
-                mediaRelease.audio = () => resolve(Buffer.from('audio'));
-              }),
-            generateScreenshot: async () =>
-              await new Promise<Buffer>((resolve) => {
-                mediaRelease.image = () => resolve(Buffer.from('image'));
-              }),
+            generateAudio: async () => addNoteSent.promise.then(() => AUDIO),
+            generateScreenshot: async () => addNoteSent.promise.then(() => IMAGE),
             generateAnimatedImage: async () => null,
           }),
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            tags: ['SubMiner'],
+          ankiConnectConfig: ankiConfig(env, {
             fields: {
-              word: 'Expression',
+              ...SENTENCE_FIELDS,
               audio: 'ExpressionAudio',
               image: 'Picture',
-              sentence: 'Sentence',
-              translation: 'SelectionText',
             },
-            media: {
-              generateAudio: true,
-              generateImage: true,
-              imageType: 'static',
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-          },
-        });
-
-        const pendingResponse = app.request('/api/stats/mine-card?mode=sentence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            secondaryText: 'I saw a cat',
-            videoTitle: 'Episode 1',
+            media: { generateAudio: true, generateImage: true, imageType: 'static' },
+            ...LAPIS,
           }),
         });
 
-        for (let attempt = 0; attempt < 20; attempt += 1) {
-          if (requests.some((request) => request.action === 'addNote')) break;
-          await new Promise((resolve) => setTimeout(resolve, 1));
-        }
-        const addedBeforeMediaFinished = requests.some((request) => request.action === 'addNote');
-        mediaRelease.audio?.();
-        mediaRelease.image?.();
-
-        const res = await pendingResponse;
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-        assert.equal(addedBeforeMediaFinished, true);
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card leaves word card selection text to Yomitan glossary', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          addYomitanNote: async () => 777,
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            fields: {
-              audio: 'ExpressionAudio',
-              image: 'Picture',
-              sentence: 'Sentence',
-              miscInfo: 'MiscInfo',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-          },
+        const { status, body } = await mineCard(app, 'sentence', {
+          sourcePath: env.sourcePath,
+          secondaryText: 'I saw a cat',
         });
 
-        const res = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            secondaryText: 'I saw a cat',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-        assert.equal(body.noteId, 777);
-
-        const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
-        assert.equal(updateRequest?.params?.note?.id, 777);
-        assert.equal(updateRequest?.params?.note?.fields?.Sentence, '<b>猫</b>を見た');
-        assert.equal(updateRequest?.params?.note?.fields?.SelectionText, undefined);
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card moves Yomitan-created word notes to the configured deck', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          addYomitanNote: async () => 777,
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            fields: {
-              sentence: 'Sentence',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-
-        const findCardsRequest = requests.find((request) => request.action === 'findCards');
-        assert.equal(findCardsRequest?.params?.query, 'nid:777');
-        const changeDeckRequest = requests.find((request) => request.action === 'changeDeck');
-        assert.deepEqual(changeDeckRequest?.params?.cards, [9001]);
-        assert.equal(changeDeckRequest?.params?.deck, 'Mining');
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card moves Yomitan-created word notes to Yomitan deck when config deck is empty', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          getYomitanAnkiDeckName: async () => 'Minecraft',
-          addYomitanNote: async () => 777,
-          ankiConnectConfig: {
-            url,
-            deck: '',
-            fields: {
-              sentence: 'Sentence',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-
-        const findCardsRequest = requests.find((request) => request.action === 'findCards');
-        assert.equal(findCardsRequest?.params?.query, 'nid:777');
-        const changeDeckRequest = requests.find((request) => request.action === 'changeDeck');
-        assert.deepEqual(changeDeckRequest?.params?.cards, [9001]);
-        assert.equal(changeDeckRequest?.params?.deck, 'Minecraft');
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card uses the full sentence as sentence-card expression', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          ankiConnectConfig: {
-            url,
-            deck: 'Minecraft',
-            tags: ['SubMiner'],
-            fields: {
-              word: 'Expression',
-              sentence: 'Sentence',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=sentence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            secondaryText: 'I saw a cat',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-
-        const addNoteRequest = requests.find((request) => request.action === 'addNote');
-        assert.equal(addNoteRequest?.params?.note?.deckName, 'Minecraft');
-        assert.equal(addNoteRequest?.params?.note?.fields?.Expression, '猫を見た');
-        assert.equal(addNoteRequest?.params?.note?.fields?.Sentence, '猫を見た');
-        assert.equal(addNoteRequest?.params?.note?.fields?.SelectionText, 'I saw a cat');
-        assert.equal(addNoteRequest?.params?.note?.fields?.IsSentenceCard, 'x');
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card fills selection text from a matching secondary sidecar subtitle', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-      fs.writeFileSync(
-        path.join(dir, 'episode.en.srt'),
-        [
-          '1',
-          '00:00:00,800 --> 00:00:02,500',
-          'I saw a cat.',
-          '',
-          '2',
-          '00:00:03,000 --> 00:00:04,000',
-          'Not this line.',
-          '',
-        ].join('\n'),
-      );
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          ankiConnectConfig: {
-            url,
-            deck: 'Minecraft',
-            tags: ['SubMiner'],
-            fields: {
-              word: 'Expression',
-              sentence: 'Sentence',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-          },
-          secondarySubtitleLanguages: ['en'],
-        } as Parameters<typeof createStatsApp>[1]);
-
-        const res = await app.request('/api/stats/mine-card?mode=sentence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-
-        const addNoteRequest = requests.find((request) => request.action === 'addNote');
-        assert.equal(addNoteRequest?.params?.note?.deckName, 'Minecraft');
-        assert.equal(addNoteRequest?.params?.note?.fields?.SelectionText, 'I saw a cat.');
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card does not append the next sidecar cue near a timing boundary', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-      fs.writeFileSync(
-        path.join(dir, 'episode.en.srt'),
-        [
-          '1',
-          '00:00:00,800 --> 00:00:01,500',
-          "I don't give a damn what family she's from.",
-          '',
-          '2',
-          '00:00:01,700 --> 00:00:03,000',
-          'That snobby attitude just pisses me off!',
-          '',
-        ].join('\n'),
-      );
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          ankiConnectConfig: {
-            url,
-            deck: 'Minecraft',
-            tags: ['SubMiner'],
-            fields: {
-              word: 'Expression',
-              sentence: 'Sentence',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-          },
-          secondarySubtitleLanguages: ['en'],
-        } as Parameters<typeof createStatsApp>[1]);
-
-        const res = await app.request('/api/stats/mine-card?mode=sentence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '名門か何だか知らねえが',
-            word: '名門',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-
-        const addNoteRequest = requests.find((request) => request.action === 'addNote');
-        assert.equal(
-          addNoteRequest?.params?.note?.fields?.SelectionText,
-          "I don't give a damn what family she's from.",
+        assert.equal(status, 200, JSON.stringify(body));
+        assert.match(
+          sentNote(env.requests, 'updateNoteFields').fields.Picture ?? '',
+          /^<img src="subminer_image_\d+_12345\.jpg">$/,
         );
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card writes word mining audio to SentenceAudio when present', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          addYomitanNote: async () => 777,
-          createMediaGenerator: () => ({
-            generateAudio: async () => Buffer.from('audio'),
-            generateScreenshot: async () => null,
-            generateAnimatedImage: async () => null,
-          }),
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            fields: {
-              audio: 'ExpressionAudio',
-              image: 'Picture',
-              sentence: 'Sentence',
-              miscInfo: 'MiscInfo',
-            },
-            media: {
-              generateAudio: true,
-              generateImage: false,
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-
-        const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
-        const audioValue = updateRequest?.params?.note?.fields?.SentenceAudio;
-        assert.match(audioValue ?? '', /^\[sound:subminer_audio_\d+_777\.mp3\]$/);
-        assert.equal(updateRequest?.params?.note?.fields?.ExpressionAudio, undefined);
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card marks Kiku word mining notes as word-and-sentence cards when enabled', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(
-        async (requests, url) => {
-          const app = createStatsApp(createMockTracker(), {
-            addYomitanNote: async () => 777,
-            createMediaGenerator: () => ({
-              generateAudio: async () => null,
-              generateScreenshot: async () => null,
-              generateAnimatedImage: async () => null,
-            }),
-            ankiConnectConfig: {
-              url,
-              deck: 'Mining',
-              fields: {
-                image: 'Picture',
-                sentence: 'Sentence',
-              },
-              media: {
-                generateAudio: false,
-                generateImage: false,
-              },
-              isKiku: {
-                enabled: true,
-                fieldGrouping: 'disabled',
-                deleteDuplicateInAuto: true,
-              },
-            },
-          });
-
-          const res = await app.request('/api/stats/mine-card?mode=word', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sourcePath,
-              startMs: 1_000,
-              endMs: 2_000,
-              sentence: '猫を見た',
-              word: '猫',
-              videoTitle: 'Episode 1',
-            }),
-          });
-
-          const body = await res.json();
-          assert.equal(res.status, 200, JSON.stringify(body));
-
-          const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
-          const fields = updateRequest?.params?.note?.fields ?? {};
-          assert.equal(fields.Sentence, '<b>猫</b>を見た');
-          assert.equal(fields.IsWordAndSentenceCard, 'x');
-          assert.equal(fields.IsSentenceCard, '');
-          assert.equal(fields.IsAudioCard, '');
-        },
-        {
-          notesInfoFields: {
-            Expression: { value: '猫' },
-            Sentence: { value: '' },
-            Picture: { value: '' },
-            IsWordAndSentenceCard: { value: '' },
-            IsSentenceCard: { value: '' },
-            IsAudioCard: { value: '' },
-          },
-        },
-      );
-    });
-  });
-
-  it('POST /api/stats/mine-card marks the configured Kiku word card kind', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(
-        async (requests, url) => {
-          const app = createStatsApp(createMockTracker(), {
-            addYomitanNote: async () => 777,
-            createMediaGenerator: () => ({
-              generateAudio: async () => null,
-              generateScreenshot: async () => null,
-              generateAnimatedImage: async () => null,
-            }),
-            ankiConnectConfig: {
-              url,
-              deck: 'Mining',
-              fields: {
-                image: 'Picture',
-                sentence: 'Sentence',
-              },
-              media: {
-                generateAudio: false,
-                generateImage: false,
-              },
-              isKiku: {
-                enabled: true,
-                fieldGrouping: 'disabled',
-                deleteDuplicateInAuto: true,
-              },
-              lapisKiku: {
-                wordCardKind: 'click',
-              },
-            },
-          });
-
-          const res = await app.request('/api/stats/mine-card?mode=word', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sourcePath,
-              startMs: 1_000,
-              endMs: 2_000,
-              sentence: '猫を見た',
-              word: '猫',
-              videoTitle: 'Episode 1',
-            }),
-          });
-
-          const body = await res.json();
-          assert.equal(res.status, 200, JSON.stringify(body));
-
-          const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
-          const fields = updateRequest?.params?.note?.fields ?? {};
-          assert.equal(fields.IsClickCard, 'x');
-          assert.equal(fields.IsWordAndSentenceCard, '');
-          assert.equal(fields.IsSentenceCard, '');
-          assert.equal(fields.IsAudioCard, '');
-        },
-        {
-          notesInfoFields: {
-            Expression: { value: '猫' },
-            Sentence: { value: '' },
-            Picture: { value: '' },
-            IsWordAndSentenceCard: { value: '' },
-            IsClickCard: { value: '' },
-            IsSentenceCard: { value: '' },
-            IsAudioCard: { value: '' },
-          },
-        },
-      );
-    });
-  });
-
-  it('POST /api/stats/mine-card writes word mining sentence audio and image together', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          addYomitanNote: async () => 777,
-          createMediaGenerator: () => ({
-            generateAudio: async () => Buffer.from('audio'),
-            generateScreenshot: async () => Buffer.from('image'),
-            generateAnimatedImage: async () => null,
-          }),
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            fields: {
-              audio: 'ExpressionAudio',
-              image: 'Picture',
-              sentence: 'Sentence',
-            },
-            media: {
-              generateAudio: true,
-              generateImage: true,
-              imageType: 'static',
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-        assert.equal(body.errors, undefined);
-
-        const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
-        const fields = updateRequest?.params?.note?.fields ?? {};
-        assert.match(fields.SentenceAudio ?? '', /^\[sound:subminer_audio_\d+_777\.mp3\]$/);
-        assert.match(fields.Picture ?? '', /^<img src="subminer_image_\d+_777\.jpg">$/);
-        assert.equal(fields.ExpressionAudio, undefined);
-        assert.equal(fields.SelectionText, undefined);
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card writes word mining sentence audio and animated image together', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          addYomitanNote: async () => 777,
-          createMediaGenerator: () => ({
-            generateAudio: async () => Buffer.from('audio'),
-            generateScreenshot: async () => null,
-            generateAnimatedImage: async () => Buffer.from('animated'),
-          }),
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            fields: {
-              audio: 'ExpressionAudio',
-              image: 'Picture',
-              sentence: 'Sentence',
-            },
-            media: {
-              generateAudio: true,
-              generateImage: true,
-              imageType: 'avif',
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-        assert.equal(body.errors, undefined);
-
-        const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
-        const fields = updateRequest?.params?.note?.fields ?? {};
-        assert.match(fields.SentenceAudio ?? '', /^\[sound:subminer_audio_\d+_777\.mp3\]$/);
-        assert.match(fields.Picture ?? '', /^<img src="subminer_image_\d+_777\.avif">$/);
-        assert.equal(fields.ExpressionAudio, undefined);
-        assert.equal(fields.SelectionText, undefined);
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card reports an error when requested word image generation returns no image', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (_requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          addYomitanNote: async () => 777,
-          createMediaGenerator: () => ({
-            generateAudio: async () => Buffer.from('audio'),
-            generateScreenshot: async () => null,
-            generateAnimatedImage: async () => null,
-          }),
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            fields: {
-              audio: 'ExpressionAudio',
-              image: 'Picture',
-              sentence: 'Sentence',
-            },
-            media: {
-              generateAudio: true,
-              generateImage: true,
-              imageType: 'static',
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-        assert.deepEqual(body.errors, ['image: no image generated']);
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card reports an error when requested word audio generation returns no audio', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (_requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          addYomitanNote: async () => 777,
-          createMediaGenerator: () => ({
-            generateAudio: async () => null,
-            generateScreenshot: async () => Buffer.from('image'),
-            generateAnimatedImage: async () => null,
-          }),
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            fields: {
-              audio: 'ExpressionAudio',
-              image: 'Picture',
-              sentence: 'Sentence',
-            },
-            media: {
-              generateAudio: true,
-              generateImage: true,
-              imageType: 'static',
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-        assert.deepEqual(body.errors, ['audio: no audio generated']);
-      });
-    });
-  });
-
-  it('POST /api/stats/mine-card writes audio cards to configured audio field when note info is missing', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(
-        async (requests, url) => {
-          const app = createStatsApp(createMockTracker(), {
-            createMediaGenerator: () => ({
-              generateAudio: async () => Buffer.from('audio'),
-              generateScreenshot: async () => null,
-              generateAnimatedImage: async () => null,
-            }),
-            ankiConnectConfig: {
-              url,
-              deck: 'Mining',
-              fields: {
-                audio: 'Voice',
-                image: 'Picture',
-                sentence: 'Sentence',
-              },
-              media: {
-                generateAudio: true,
-                generateImage: false,
-              },
-              isLapis: {
-                enabled: true,
-                sentenceCardModel: 'Lapis Morph',
-              },
-            },
-          });
-
-          const res = await app.request('/api/stats/mine-card?mode=audio', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sourcePath,
-              startMs: 1_000,
-              endMs: 2_000,
-              sentence: '猫を見た',
-              word: '猫',
-              videoTitle: 'Episode 1',
-            }),
-          });
-
-          const body = await res.json();
-          assert.equal(res.status, 200, JSON.stringify(body));
-
-          const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
-          assert.match(
-            updateRequest?.params?.note?.fields?.Voice ?? '',
-            /^\[sound:subminer_audio_\d+_12345\.mp3\]$/,
-          );
-        },
-        { notesInfoFields: null },
-      );
-    });
+      },
+    );
   });
 
   it('POST /api/stats/mine-card records timing for slow sentence mining phases', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        let now = 0;
-        const timings: Array<{ mode: string; phase: string; elapsedMs: number; noteId?: number }> =
-          [];
-        const app = createStatsApp(createMockTracker(), {
-          nowMs: () => {
-            now += 10;
-            return now;
+    await withMiningEnv({}, async (env) => {
+      let now = 0;
+      const timings: Array<{ mode: string; phase: string; elapsedMs: number; noteId?: number }> =
+        [];
+      const app = createStatsApp(createMockTracker(), {
+        nowMs: () => {
+          now += 10;
+          return now;
+        },
+        onMiningTiming: (event) => {
+          timings.push(event);
+        },
+        createMediaGenerator: fakeMedia({ audio: AUDIO, image: IMAGE, animated: IMAGE }).create,
+        ankiConnectConfig: ankiConfig(env, {
+          tags: ['SubMiner'],
+          fields: {
+            ...SENTENCE_FIELDS,
+            audio: 'ExpressionAudio',
+            image: 'Picture',
+            miscInfo: 'MiscInfo',
           },
-          onMiningTiming: (event) => {
-            timings.push(event);
-          },
-          createMediaGenerator: () => ({
-            generateAudio: async () => Buffer.from('audio'),
-            generateScreenshot: async () => Buffer.from('image'),
-            generateAnimatedImage: async () => Buffer.from('animated'),
-          }),
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            tags: ['SubMiner'],
-            fields: {
-              word: 'Expression',
-              audio: 'ExpressionAudio',
-              image: 'Picture',
-              sentence: 'Sentence',
-              miscInfo: 'MiscInfo',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: true,
-              generateImage: true,
-              imageType: 'static',
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=sentence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            secondaryText: 'I saw a cat',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-        assert.deepEqual(
-          timings.map((entry) => entry.phase),
-          [
-            'generateAudio',
-            'generateScreenshot',
-            'addNote',
-            'findCards',
-            'changeDeck',
-            'uploadAudio',
-            'uploadImage',
-            'updateNoteFields',
-          ],
-        );
-        assert.ok(timings.every((entry) => entry.mode === 'sentence' && entry.elapsedMs >= 0));
-        assert.equal(timings.find((entry) => entry.phase === 'addNote')?.noteId, 12345);
-
-        const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
-        const audioValue = updateRequest?.params?.note?.fields?.SentenceAudio;
-        assert.match(audioValue ?? '', /^\[sound:subminer_audio_\d+_12345\.mp3\]$/);
-        assert.match(
-          updateRequest?.params?.note?.fields?.Picture ?? '',
-          /^<img src="subminer_image_\d+_12345\.jpg">$/,
-        );
-        assert.equal(updateRequest?.params?.note?.fields?.ExpressionAudio, undefined);
+          media: { generateAudio: true, generateImage: true, imageType: 'static' },
+          ...LAPIS,
+        }),
       });
+
+      const { status, body } = await mineCard(app, 'sentence', {
+        sourcePath: env.sourcePath,
+        secondaryText: 'I saw a cat',
+      });
+
+      assert.equal(status, 200, JSON.stringify(body));
+      assert.deepEqual(
+        timings.map((entry) => entry.phase),
+        [
+          'generateAudio',
+          'generateScreenshot',
+          'addNote',
+          'findCards',
+          'changeDeck',
+          'uploadAudio',
+          'uploadImage',
+          'updateNoteFields',
+        ],
+      );
+      assert.ok(timings.every((entry) => entry.mode === 'sentence' && entry.elapsedMs >= 0));
+      assert.equal(timings.find((entry) => entry.phase === 'addNote')?.noteId, 12345);
+
+      const { fields } = sentNote(env.requests, 'updateNoteFields');
+      assert.match(fields.SentenceAudio ?? '', /^\[sound:subminer_audio_\d+_12345\.mp3\]$/);
+      assert.match(fields.Picture ?? '', /^<img src="subminer_image_\d+_12345\.jpg">$/);
+      assert.equal(fields.ExpressionAudio, undefined);
     });
   });
 
   it('POST /api/stats/mine-card only writes selection text for sentence cards', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-
-      await withFakeAnkiConnect(async (requests, url) => {
-        const app = createStatsApp(createMockTracker(), {
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            fields: {
-              word: 'Expression',
-              sentence: 'Sentence',
-              translation: 'SelectionText',
-            },
-            media: {
-              generateAudio: false,
-              generateImage: false,
-            },
-            isLapis: {
-              enabled: true,
-              sentenceCardModel: 'Lapis Morph',
-            },
-          },
-        });
-
-        const res = await app.request('/api/stats/mine-card?mode=audio', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1_000,
-            endMs: 2_000,
-            sentence: '猫を見た',
-            word: '猫',
-            secondaryText: 'I saw a cat',
-            videoTitle: 'Episode 1',
-          }),
-        });
-
-        const body = await res.json();
-        assert.equal(res.status, 200, JSON.stringify(body));
-
-        const addNoteRequest = requests.find((request) => request.action === 'addNote');
-        assert.equal(addNoteRequest?.params?.note?.fields?.SelectionText, undefined);
-        assert.equal(addNoteRequest?.params?.note?.fields?.IsAudioCard, 'x');
+    await withMiningEnv({}, async (env) => {
+      const app = createStatsApp(createMockTracker(), {
+        ankiConnectConfig: ankiConfig(env, { fields: SENTENCE_FIELDS, ...LAPIS }),
       });
+
+      const { status, body } = await mineCard(app, 'audio', {
+        sourcePath: env.sourcePath,
+        secondaryText: 'I saw a cat',
+      });
+
+      assert.equal(status, 200, JSON.stringify(body));
+      const { fields } = sentNote(env.requests, 'addNote');
+      assert.equal(fields.SelectionText, undefined);
+      assert.equal(fields.IsAudioCard, 'x');
     });
   });
 
-  it('GET /api/stats/episode/:videoId/detail returns episode detail', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/episode/1/detail');
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(Array.isArray(body.sessions));
-    assert.ok(Array.isArray(body.words));
-    assert.ok(Array.isArray(body.cardEvents));
-    assert.equal(body.cardEvents[0].noteIds[0], 12345);
+  it('POST /api/stats/mine-card writes audio cards to configured audio field when note info is missing', async () => {
+    await withMiningEnv({ notesInfoFields: null }, async (env) => {
+      const app = createStatsApp(createMockTracker(), {
+        createMediaGenerator: fakeMedia({ audio: AUDIO }).create,
+        ankiConnectConfig: ankiConfig(env, {
+          fields: { audio: 'Voice', image: 'Picture', sentence: 'Sentence' },
+          media: { generateAudio: true, generateImage: false },
+          ...LAPIS,
+        }),
+      });
+
+      const { status, body } = await mineCard(app, 'audio', { sourcePath: env.sourcePath });
+
+      assert.equal(status, 200, JSON.stringify(body));
+      assert.match(
+        sentNote(env.requests, 'updateNoteFields').fields.Voice ?? '',
+        /^\[sound:subminer_audio_\d+_12345\.mp3\]$/,
+      );
+    });
   });
 
-  it('GET /api/stats/episode/:videoId/detail returns 400 for invalid videoId', async () => {
-    const app = createStatsApp(createMockTracker());
-    const res = await app.request('/api/stats/episode/0/detail');
-    assert.equal(res.status, 400);
+  it('POST /api/stats/mine-card leaves word card selection text to Yomitan glossary', async () => {
+    await withMiningEnv({}, async (env) => {
+      const app = createStatsApp(createMockTracker(), {
+        addYomitanNote: async () => 777,
+        ankiConnectConfig: ankiConfig(env, {
+          fields: {
+            audio: 'ExpressionAudio',
+            image: 'Picture',
+            sentence: 'Sentence',
+            miscInfo: 'MiscInfo',
+            translation: 'SelectionText',
+          },
+        }),
+      });
+
+      const { status, body } = await mineCard(app, 'word', {
+        sourcePath: env.sourcePath,
+        secondaryText: 'I saw a cat',
+      });
+
+      assert.equal(status, 200, JSON.stringify(body));
+      assert.equal(body.noteId, 777);
+      const note = sentNote(env.requests, 'updateNoteFields');
+      assert.equal(note.id, 777);
+      assert.equal(note.fields.Sentence, '<b>猫</b>を見た');
+      assert.equal(note.fields.SelectionText, undefined);
+    });
+  });
+
+  for (const { name, deck, yomitanDeck, expectedDeck } of [
+    { name: 'the configured deck', deck: 'Mining', yomitanDeck: undefined, expectedDeck: 'Mining' },
+    {
+      name: 'Yomitan deck when config deck is empty',
+      deck: '',
+      yomitanDeck: 'Minecraft',
+      expectedDeck: 'Minecraft',
+    },
+  ]) {
+    it(`POST /api/stats/mine-card moves Yomitan-created word notes to ${name}`, async () => {
+      await withMiningEnv({}, async (env) => {
+        const app = createStatsApp(createMockTracker(), {
+          getYomitanAnkiDeckName: yomitanDeck ? async () => yomitanDeck : undefined,
+          addYomitanNote: async () => 777,
+          ankiConnectConfig: ankiConfig(env, {
+            deck,
+            fields: { sentence: 'Sentence', translation: 'SelectionText' },
+          }),
+        });
+
+        const { status, body } = await mineCard(app, 'word', { sourcePath: env.sourcePath });
+
+        assert.equal(status, 200, JSON.stringify(body));
+        const findCards = env.requests.find((request) => request.action === 'findCards');
+        assert.equal(findCards?.params?.query, 'nid:777');
+        const changeDeck = env.requests.find((request) => request.action === 'changeDeck');
+        assert.deepEqual(changeDeck?.params?.cards, [9001]);
+        assert.equal(changeDeck?.params?.deck, expectedDeck);
+      });
+    });
+  }
+
+  it('POST /api/stats/mine-card writes word mining audio to SentenceAudio when present', async () => {
+    await withMiningEnv({}, async (env) => {
+      const app = createStatsApp(createMockTracker(), {
+        addYomitanNote: async () => 777,
+        createMediaGenerator: fakeMedia({ audio: AUDIO }).create,
+        ankiConnectConfig: ankiConfig(env, {
+          fields: {
+            audio: 'ExpressionAudio',
+            image: 'Picture',
+            sentence: 'Sentence',
+            miscInfo: 'MiscInfo',
+          },
+          media: { generateAudio: true, generateImage: false },
+        }),
+      });
+
+      const { status, body } = await mineCard(app, 'word', { sourcePath: env.sourcePath });
+
+      assert.equal(status, 200, JSON.stringify(body));
+      const { fields } = sentNote(env.requests, 'updateNoteFields');
+      assert.match(fields.SentenceAudio ?? '', /^\[sound:subminer_audio_\d+_777\.mp3\]$/);
+      assert.equal(fields.ExpressionAudio, undefined);
+    });
+  });
+
+  for (const { name, lapisKiku, expectedFlags } of [
+    {
+      name: 'marks Kiku word mining notes as word-and-sentence cards when enabled',
+      lapisKiku: undefined,
+      expectedFlags: { IsWordAndSentenceCard: 'x', IsSentenceCard: '', IsAudioCard: '' },
+    },
+    {
+      name: 'marks the configured Kiku word card kind',
+      lapisKiku: { wordCardKind: 'click' as const },
+      expectedFlags: {
+        IsClickCard: 'x',
+        IsWordAndSentenceCard: '',
+        IsSentenceCard: '',
+        IsAudioCard: '',
+      },
+    },
+  ]) {
+    it(`POST /api/stats/mine-card ${name}`, async () => {
+      const notesInfoFields = {
+        Expression: { value: '猫' },
+        Sentence: { value: '' },
+        Picture: { value: '' },
+        IsWordAndSentenceCard: { value: '' },
+        IsClickCard: { value: '' },
+        IsSentenceCard: { value: '' },
+        IsAudioCard: { value: '' },
+      };
+      await withMiningEnv({ notesInfoFields }, async (env) => {
+        const app = createStatsApp(createMockTracker(), {
+          addYomitanNote: async () => 777,
+          createMediaGenerator: fakeMedia().create,
+          ankiConnectConfig: ankiConfig(env, {
+            fields: { image: 'Picture', sentence: 'Sentence' },
+            isKiku: { enabled: true, fieldGrouping: 'disabled', deleteDuplicateInAuto: true },
+            ...(lapisKiku ? { lapisKiku } : {}),
+          }),
+        });
+
+        const { status, body } = await mineCard(app, 'word', { sourcePath: env.sourcePath });
+
+        assert.equal(status, 200, JSON.stringify(body));
+        const { fields } = sentNote(env.requests, 'updateNoteFields');
+        assert.equal(fields.Sentence, '<b>猫</b>を見た');
+        for (const [field, value] of Object.entries(expectedFlags)) {
+          assert.equal(fields[field], value, field);
+        }
+      });
+    });
+  }
+
+  for (const { imageType, media, extension } of [
+    { imageType: 'static' as const, media: { audio: AUDIO, image: IMAGE }, extension: 'jpg' },
+    { imageType: 'avif' as const, media: { audio: AUDIO, animated: IMAGE }, extension: 'avif' },
+  ]) {
+    it(`POST /api/stats/mine-card writes word mining sentence audio and ${imageType} image together`, async () => {
+      await withMiningEnv({}, async (env) => {
+        const app = createStatsApp(createMockTracker(), {
+          addYomitanNote: async () => 777,
+          createMediaGenerator: fakeMedia(media).create,
+          ankiConnectConfig: ankiConfig(env, {
+            fields: { audio: 'ExpressionAudio', image: 'Picture', sentence: 'Sentence' },
+            media: { generateAudio: true, generateImage: true, imageType },
+          }),
+        });
+
+        const { status, body } = await mineCard(app, 'word', { sourcePath: env.sourcePath });
+
+        assert.equal(status, 200, JSON.stringify(body));
+        assert.equal(body.errors, undefined);
+        const { fields } = sentNote(env.requests, 'updateNoteFields');
+        assert.match(fields.SentenceAudio ?? '', /^\[sound:subminer_audio_\d+_777\.mp3\]$/);
+        assert.match(
+          fields.Picture ?? '',
+          new RegExp(`^<img src="subminer_image_\\d+_777\\.${extension}">$`),
+        );
+        assert.equal(fields.ExpressionAudio, undefined);
+        assert.equal(fields.SelectionText, undefined);
+      });
+    });
+  }
+
+  for (const { missing, media, expectedError } of [
+    { missing: 'image', media: { audio: AUDIO }, expectedError: 'image: no image generated' },
+    { missing: 'audio', media: { image: IMAGE }, expectedError: 'audio: no audio generated' },
+  ]) {
+    it(`POST /api/stats/mine-card reports an error when requested word ${missing} generation returns nothing`, async () => {
+      await withMiningEnv({}, async (env) => {
+        const app = createStatsApp(createMockTracker(), {
+          addYomitanNote: async () => 777,
+          createMediaGenerator: fakeMedia(media).create,
+          ankiConnectConfig: ankiConfig(env, {
+            fields: { audio: 'ExpressionAudio', image: 'Picture', sentence: 'Sentence' },
+            media: { generateAudio: true, generateImage: true, imageType: 'static' },
+          }),
+        });
+
+        const { status, body } = await mineCard(app, 'word', { sourcePath: env.sourcePath });
+
+        assert.equal(status, 200, JSON.stringify(body));
+        assert.deepEqual(body.errors, [expectedError]);
+      });
+    });
+  }
+
+  for (const outcome of ['success', 'unavailable', 'throws', 'no-field'] as const) {
+    it(`POST /api/stats/mine-card updates full sentence furigana for word cards without media (${outcome})`, async () => {
+      const notesInfoFields = {
+        Sentence: { value: '猫' },
+        ...(outcome === 'no-field' ? {} : { sentencefurigana: { value: ' 猫[ねこ]' } }),
+      };
+      await withMiningEnv({ notesInfoFields }, async (env) => {
+        let calls = 0;
+        const app = createStatsApp(createMockTracker(), {
+          ankiConnectConfig: ankiConfig(env),
+          addYomitanNote: async () => 12345,
+          generateSentenceFurigana: async (text, word) => {
+            calls++;
+            assert.equal(text, '猫を見た。');
+            assert.equal(word, '猫');
+            if (outcome === 'throws') throw new Error('parser unavailable');
+            return outcome === 'success' ? '<b> 猫[ねこ]</b>を 見[み]た。' : null;
+          },
+        });
+
+        const { status } = await mineCard(app, 'word', {
+          sourcePath: env.sourcePath,
+          sentence: '猫を見た。',
+        });
+
+        assert.equal(status, 200);
+        const { fields } = sentNote(env.requests, 'updateNoteFields');
+        assert.equal(fields.Sentence, '<b>猫</b>を見た。');
+        assert.equal(
+          fields.sentencefurigana,
+          outcome === 'no-field'
+            ? undefined
+            : outcome === 'success'
+              ? '<b> 猫[ねこ]</b>を 見[み]た。'
+              : '',
+        );
+        assert.equal(calls, outcome === 'no-field' ? 0 : 1);
+      });
+    });
+  }
+
+  it('POST /api/stats/mine-card skips furigana highlighting when highlightWord is disabled', async () => {
+    const notesInfoFields = { Sentence: { value: '猫' }, SentenceFurigana: { value: ' 猫[ねこ]' } };
+    await withMiningEnv({ notesInfoFields }, async (env) => {
+      const highlights: Array<string | undefined> = [];
+      const app = createStatsApp(createMockTracker(), {
+        ankiConnectConfig: ankiConfig(env, { behavior: { highlightWord: false } }),
+        addYomitanNote: async () => 12345,
+        generateSentenceFurigana: async (_text, highlightedText) => {
+          highlights.push(highlightedText);
+          return ' 猫[ねこ]を 見[み]た。';
+        },
+      });
+
+      const { status } = await mineCard(app, 'word', {
+        sourcePath: env.sourcePath,
+        sentence: '猫を見た。',
+      });
+
+      assert.equal(status, 200);
+      assert.deepEqual(highlights, [undefined]);
+    });
   });
 
   it('DELETE /api/stats/sessions/:sessionId deletes a session', async () => {
@@ -3506,46 +2205,6 @@ Aligned English subtitle
     assert.deepEqual(await res.json(), { ok: true });
   });
 
-  it('DELETE /api/stats/sessions rejects non-safe or fractional session ids', async () => {
-    let deleteCalls = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        deleteSessions: async () => {
-          deleteCalls += 1;
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/sessions', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{"sessionIds":[1.5,1e309,9007199254740992]}',
-    });
-
-    assert.equal(res.status, 400);
-    assert.equal(deleteCalls, 0);
-  });
-
-  it('DELETE /api/stats/sessions rejects a partly invalid id list without deleting', async () => {
-    let deleteCalls = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        deleteSessions: async () => {
-          deleteCalls += 1;
-        },
-      }),
-    );
-
-    const res = await app.request('/api/stats/sessions', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{"sessionIds":[4,1.9,7]}',
-    });
-
-    assert.equal(res.status, 400);
-    assert.equal(deleteCalls, 0);
-  });
-
   it('DELETE /api/stats/sessions deduplicates valid ids', async () => {
     let deletedSessionIds: number[] = [];
     const app = createStatsApp(
@@ -3558,7 +2217,7 @@ Aligned English subtitle
 
     const res = await app.request('/api/stats/sessions', {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: '{"sessionIds":[4,4,7]}',
     });
 
@@ -3573,7 +2232,7 @@ Aligned English subtitle
         deleteAnime: async (animeId: number) => {
           deletedAnimeId = animeId;
         },
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     const res = await app.request('/api/stats/anime/7', { method: 'DELETE' });
@@ -3581,49 +2240,6 @@ Aligned English subtitle
     assert.equal(res.status, 200);
     assert.equal(deletedAnimeId, 7);
     assert.deepEqual(await res.json(), { ok: true });
-  });
-
-  it('DELETE /api/stats/anime/:animeId rejects non-positive anime ids', async () => {
-    let deleteCalls = 0;
-    const app = createStatsApp(
-      createMockTracker({
-        deleteAnime: async () => {
-          deleteCalls += 1;
-        },
-      } as Partial<ImmersionTrackerService>),
-    );
-
-    const res = await app.request('/api/stats/anime/0', { method: 'DELETE' });
-
-    assert.equal(res.status, 400);
-    assert.equal(deleteCalls, 0);
-  });
-
-  it('DELETE /api/stats/anime/:animeId rejects malformed anime ids before deleting', async () => {
-    let deletedAnimeId: number | null = null;
-    const app = createStatsApp(
-      createMockTracker({
-        deleteAnime: async (animeId: number) => {
-          deletedAnimeId = animeId;
-        },
-      }),
-    );
-
-    for (const animeId of [
-      '1.9',
-      '1.0',
-      '1e2',
-      '9007199254740992',
-      '1%0A',
-      '%201',
-      '01',
-      '+1',
-      '0x1',
-    ]) {
-      const res = await app.request(`/api/stats/anime/${animeId}`, { method: 'DELETE' });
-      assert.equal(res.status, 400, `accepted malformed anime id: ${animeId}`);
-    }
-    assert.equal(deletedAnimeId, null);
   });
 
   it('POST /api/stats/anime/:animeId/merge folds the given entries into the target', async () => {
@@ -3638,12 +2254,12 @@ Aligned English subtitle
             movedVideos: 3,
           };
         },
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     const res = await app.request('/api/stats/anime/7/merge', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       // The target repeated in the sources must not delete the entry we keep.
       body: '{"sourceAnimeIds":[8,9,8,7]}',
     });
@@ -3666,7 +2282,7 @@ Aligned English subtitle
           mergeCalls += 1;
           return { survivingAnimeId: 7, mergedAnimeIds: [], movedVideos: 0 };
         },
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     for (const body of [
@@ -3676,7 +2292,7 @@ Aligned English subtitle
     ]) {
       const res = await app.request('/api/stats/anime/7/merge', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
         body,
       });
       assert.equal(res.status, 400);
@@ -3692,12 +2308,12 @@ Aligned English subtitle
           moved = { videoId, animeId };
           return { targetAnimeId: animeId, previousAnimeId: 4, removedPreviousAnime: true };
         },
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     const res = await app.request('/api/stats/media/12/anime', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: '{"animeId":7}',
     });
 
@@ -3719,12 +2335,12 @@ Aligned English subtitle
           mergedAnimeIds: [],
           movedVideos: 0,
         }),
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     const res = await app.request('/api/stats/anime/7/merge', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: '{"sourceAnimeIds":[8]}',
     });
 
@@ -3737,12 +2353,12 @@ Aligned English subtitle
         mergeAnime: async () => {
           throw new Error(INCOMPATIBLE_PROVIDER_MERGE_MESSAGE);
         },
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     const res = await app.request('/api/stats/anime/7/merge', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: '{"sourceAnimeIds":[8]}',
     });
 
@@ -3756,12 +2372,12 @@ Aligned English subtitle
         moveVideoToAnime: async () => {
           throw new Error('Unknown episode or target library entry');
         },
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     const res = await app.request('/api/stats/media/12/anime', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: '{"animeId":99}',
     });
 
@@ -3774,12 +2390,12 @@ Aligned English subtitle
         moveVideoToAnime: async () => {
           throw new Error('database is locked');
         },
-      } as Partial<ImmersionTrackerService>),
+      }),
     );
 
     const res = await app.request('/api/stats/media/12/anime', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: '{"animeId":7}',
     });
 
@@ -3872,7 +2488,7 @@ Aligned English subtitle
         }),
         {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: JSON_HEADERS,
         },
       );
     }) as typeof fetch;
@@ -3884,7 +2500,7 @@ Aligned English subtitle
       });
       const res = await app.request('/api/stats/anki/notesInfo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
         body: JSON.stringify({ noteIds: [111] }),
       });
 
@@ -3935,7 +2551,7 @@ Aligned English subtitle
         }),
         {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: JSON_HEADERS,
         },
       )) as typeof fetch;
 
@@ -3951,7 +2567,7 @@ Aligned English subtitle
       });
       const res = await app.request('/api/stats/anki/notesInfo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
         body: JSON.stringify({ noteIds: [333] }),
       });
 
@@ -3993,7 +2609,7 @@ Aligned English subtitle
         }),
         {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: JSON_HEADERS,
         },
       )) as typeof fetch;
 
@@ -4010,7 +2626,7 @@ Aligned English subtitle
       });
       const res = await app.request('/api/stats/anki/notesInfo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: JSON_HEADERS,
         body: JSON.stringify({ noteIds: [444] }),
       });
 
@@ -4309,7 +2925,7 @@ it('TMDB reassignment returns 404 for a missing library entry before fetching de
   const request = (animeId: number) =>
     app.request(`/api/stats/anime/${animeId}/tmdb`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ tmdbId: 12, tmdbType: 'tv' }),
     });
   assert.equal((await request(99999)).status, 404);
@@ -4320,102 +2936,4 @@ it('TMDB reassignment returns 404 for a missing library entry before fetching de
   assert.deepEqual(await response.json(), { ok: true });
   assert.equal(fetches, 1);
   assert.deepEqual(assignments, [1]);
-});
-
-for (const outcome of ['success', 'unavailable', 'throws', 'no-field'] as const) {
-  it(`stats word mining updates full sentence furigana without media (${outcome})`, async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'episode.mkv');
-      fs.writeFileSync(sourcePath, 'fake media');
-      await withFakeAnkiConnect(
-        async (requests, url) => {
-          let calls = 0;
-          const app = createStatsApp(createMockTracker(), {
-            ankiConnectConfig: {
-              url,
-              deck: 'Mining',
-              media: { generateAudio: false, generateImage: false },
-            },
-            addYomitanNote: async () => 12345,
-            generateSentenceFurigana: async (text, word) => {
-              calls++;
-              assert.equal(text, '猫を見た。');
-              assert.equal(word, '猫');
-              if (outcome === 'throws') throw new Error('parser unavailable');
-              return outcome === 'success' ? '<b> 猫[ねこ]</b>を 見[み]た。' : null;
-            },
-          });
-          const response = await app.request('/api/stats/mine-card?mode=word', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sourcePath,
-              startMs: 1000,
-              endMs: 2000,
-              sentence: '猫を見た。',
-              word: '猫',
-            }),
-          });
-          assert.equal(response.status, 200);
-          const fields = requests.find((request) => request.action === 'updateNoteFields')?.params
-            ?.note?.fields;
-          assert.equal(fields?.Sentence, '<b>猫</b>を見た。');
-          assert.equal(
-            fields?.sentencefurigana,
-            outcome === 'no-field'
-              ? undefined
-              : outcome === 'success'
-                ? '<b> 猫[ねこ]</b>を 見[み]た。'
-                : '',
-          );
-          assert.equal(calls, outcome === 'no-field' ? 0 : 1);
-        },
-        {
-          notesInfoFields: {
-            Sentence: { value: '猫' },
-            ...(outcome === 'no-field' ? {} : { sentencefurigana: { value: ' 猫[ねこ]' } }),
-          },
-        },
-      );
-    });
-  });
-}
-
-it('stats word mining skips furigana highlighting when highlightWord is disabled', async () => {
-  await withTempDir(async (dir) => {
-    const sourcePath = path.join(dir, 'episode.mkv');
-    fs.writeFileSync(sourcePath, 'fake media');
-    await withFakeAnkiConnect(
-      async (_requests, url) => {
-        const highlights: Array<string | undefined> = [];
-        const app = createStatsApp(createMockTracker(), {
-          ankiConnectConfig: {
-            url,
-            deck: 'Mining',
-            media: { generateAudio: false, generateImage: false },
-            behavior: { highlightWord: false },
-          },
-          addYomitanNote: async () => 12345,
-          generateSentenceFurigana: async (_text, highlightedText) => {
-            highlights.push(highlightedText);
-            return ' 猫[ねこ]を 見[み]た。';
-          },
-        });
-        const response = await app.request('/api/stats/mine-card?mode=word', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourcePath,
-            startMs: 1000,
-            endMs: 2000,
-            sentence: '猫を見た。',
-            word: '猫',
-          }),
-        });
-        assert.equal(response.status, 200);
-        assert.deepEqual(highlights, [undefined]);
-      },
-      { notesInfoFields: { Sentence: { value: '猫' }, SentenceFurigana: { value: ' 猫[ねこ]' } } },
-    );
-  });
 });

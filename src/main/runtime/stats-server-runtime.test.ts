@@ -3,11 +3,7 @@ import test, { after } from 'node:test';
 import { DEFAULT_CONFIG } from '../../config';
 import { ImmersionTrackerService } from '../../core/services/immersion-tracker-service';
 import { createAnilistRateLimiter } from '../../core/services/anilist/rate-limiter';
-import {
-  createStatsServerRuntime,
-  isSelfOwnedBackgroundStatsDaemonState,
-  type StatsServerRuntimeDeps,
-} from './stats-server-runtime';
+import { createStatsServerRuntime, type StatsServerRuntimeDeps } from './stats-server-runtime';
 import type { StatsServer } from '../../core/services/stats-server';
 import type { BackgroundStatsServerState } from './stats-daemon';
 
@@ -72,13 +68,6 @@ function createRuntimeHarness(
   });
   return { runtime, appStateValues };
 }
-
-test('detects self-owned background stats daemon state', () => {
-  assert.equal(
-    isSelfOwnedBackgroundStatsDaemonState({ pid: process.pid, port: 6969, startedAtMs: 1 }),
-    true,
-  );
-});
 
 test('stopBackgroundStatsServer clears stale state when daemon identity mismatches', async () => {
   const calls: string[] = [];

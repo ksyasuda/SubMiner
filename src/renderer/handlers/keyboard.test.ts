@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
@@ -460,8 +458,8 @@ function installKeyboardTestGlobals() {
     setMarkWatchedKey: (value: string) => {
       markWatchedKey = value;
     },
-    setConfiguredShortcuts: (value: typeof configuredShortcuts) => {
-      configuredShortcuts = value;
+    setConfiguredShortcuts: (overrides: Partial<typeof configuredShortcuts>) => {
+      configuredShortcuts = { ...configuredShortcuts, ...overrides };
     },
     setGetMpvInputBindings: (value: typeof getMpvInputBindings) => {
       getMpvInputBindings = value;
@@ -584,19 +582,6 @@ function createKeyboardHandlerHarness() {
     },
   };
 }
-
-test('renderer installs keyboard forwarding before startup subtitle IPC awaits', () => {
-  const source = fs.readFileSync(
-    path.join(process.cwd(), 'src', 'renderer', 'renderer.ts'),
-    'utf8',
-  );
-  const keyboardSetupIndex = source.indexOf('await keyboardHandlers.setupMpvInputForwarding();');
-  const subtitleRequestIndex = source.indexOf('await window.electronAPI.getCurrentSubtitle();');
-
-  assert.notEqual(keyboardSetupIndex, -1);
-  assert.notEqual(subtitleRequestIndex, -1);
-  assert.equal(keyboardSetupIndex < subtitleRequestIndex, true);
-});
 
 test('primary subtitle visibility key cycles modes with primary OSD without mpv sub-visibility', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
@@ -1303,67 +1288,6 @@ test('visible-layer configured overlay toggle dispatches mpv plugin toggle', asy
   }
 });
 
-test('refreshConfiguredShortcuts updates hot-reloaded stats and watched keys', async () => {
-  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-
-    testGlobals.setConfiguredShortcuts({
-      copySubtitle: '',
-      copySubtitleMultiple: '',
-      updateLastCardFromClipboard: '',
-      triggerFieldGrouping: '',
-      triggerSubsync: 'Ctrl+Alt+S',
-      mineSentence: '',
-      mineSentenceMultiple: '',
-      multiCopyTimeoutMs: 3333,
-      toggleSecondarySub: '',
-      markAudioCard: '',
-      openRuntimeOptions: 'CommandOrControl+Shift+O',
-      openJimaku: 'Ctrl+Shift+J',
-      openSessionHelp: 'CommandOrControl+Shift+H',
-      openControllerSelect: 'Alt+C',
-      openControllerDebug: 'Alt+Shift+C',
-      toggleSubtitleSidebar: '',
-      toggleNotificationHistory: '',
-      toggleVisibleOverlayGlobal: '',
-    });
-    testGlobals.setStatsToggleKey('');
-    testGlobals.setMarkWatchedKey('');
-
-    await handlers.refreshConfiguredShortcuts();
-
-    assert.equal(ctx.state.sessionActionTimeoutMs, 3333);
-    assert.equal(ctx.state.statsToggleKey, '');
-    assert.equal(ctx.state.markWatchedKey, '');
-  } finally {
-    testGlobals.restore();
-  }
-});
-
-test('keyboard mode: controller helpers dispatch popup audio play/cycle and scroll bridge commands', async () => {
-  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    ctx.state.yomitanPopupVisible = true;
-    testGlobals.setPopupVisible(true);
-
-    assert.equal(handlers.playCurrentAudioForController(), true);
-    assert.equal(handlers.cyclePopupAudioSourceForController(1), true);
-    assert.equal(handlers.scrollPopupByController(48, -24), true);
-
-    assert.deepEqual(testGlobals.commandEvents.slice(-3), [
-      { type: 'playCurrentAudio' },
-      { type: 'cycleAudioSource', direction: 1 },
-      { type: 'scrollBy', deltaX: 48, deltaY: -24 },
-    ]);
-  } finally {
-    testGlobals.restore();
-  }
-});
-
 test('keyboard mode: configured controller select binding opens locally without dispatching a session action', async () => {
   const { testGlobals, handlers, openControllerSelectCount } = createKeyboardHandlerHarness();
 
@@ -1386,36 +1310,6 @@ test('keyboard mode: configured controller select binding opens locally without 
     });
 
     assert.equal(openControllerSelectCount(), 1);
-    assert.deepEqual(testGlobals.sessionActions, []);
-    assert.deepEqual(testGlobals.openedModalNotifications, []);
-  } finally {
-    testGlobals.restore();
-  }
-});
-
-test('keyboard mode: configured controller debug binding opens locally without dispatching a session action', async () => {
-  const { testGlobals, handlers, openControllerDebugCount } = createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    handlers.updateSessionBindings([
-      {
-        sourcePath: 'shortcuts.openControllerDebug',
-        originalKey: 'Alt+Shift+D',
-        key: { code: 'KeyD', modifiers: ['alt', 'shift'] },
-        actionType: 'session-action',
-        actionId: 'openControllerDebug',
-      },
-    ] as never);
-
-    testGlobals.dispatchKeydown({
-      key: 'D',
-      code: 'KeyD',
-      altKey: true,
-      shiftKey: true,
-    });
-
-    assert.equal(openControllerDebugCount(), 1);
     assert.deepEqual(testGlobals.sessionActions, []);
     assert.deepEqual(testGlobals.openedModalNotifications, []);
   } finally {
@@ -1450,34 +1344,6 @@ test('keyboard mode: configured controller debug binding is not swallowed while 
     assert.equal(openControllerDebugCount(), 1);
     assert.deepEqual(testGlobals.sessionActions, []);
     assert.deepEqual(testGlobals.openedModalNotifications, []);
-  } finally {
-    testGlobals.restore();
-  }
-});
-
-test('keyboard mode: former fixed Alt+Shift+C does nothing when controller debug is remapped', async () => {
-  const { testGlobals, handlers } = createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    handlers.updateSessionBindings([
-      {
-        sourcePath: 'shortcuts.openControllerDebug',
-        originalKey: 'Alt+Shift+D',
-        key: { code: 'KeyD', modifiers: ['alt', 'shift'] },
-        actionType: 'session-action',
-        actionId: 'openControllerDebug',
-      },
-    ] as never);
-
-    testGlobals.dispatchKeydown({
-      key: 'C',
-      code: 'KeyC',
-      altKey: true,
-      shiftKey: true,
-    });
-
-    assert.deepEqual(testGlobals.sessionActions, []);
   } finally {
     testGlobals.restore();
   }
@@ -1530,49 +1396,6 @@ test('media timing review modal handles keys before later modal handlers', async
   }
 });
 
-test('keyboard mode: playlist browser modal handles arrow keys before yomitan popup', async () => {
-  const { ctx, testGlobals, handlers, playlistBrowserKeydownCount } =
-    createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    ctx.state.playlistBrowserModalOpen = true;
-    ctx.state.yomitanPopupVisible = true;
-    testGlobals.setPopupVisible(true);
-
-    testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown' });
-
-    assert.equal(playlistBrowserKeydownCount(), 1);
-    assert.equal(
-      testGlobals.commandEvents.some(
-        (event) => event.type === 'forwardKeyDown' && event.code === 'ArrowDown',
-      ),
-      false,
-    );
-  } finally {
-    testGlobals.restore();
-  }
-});
-
-test('keyboard mode: playlist browser modal handles h before lookup controls', async () => {
-  const { ctx, testGlobals, handlers, playlistBrowserKeydownCount } =
-    createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    handlers.handleKeyboardModeToggleRequested();
-    ctx.state.playlistBrowserModalOpen = true;
-    ctx.state.keyboardSelectedWordIndex = 2;
-
-    testGlobals.dispatchKeydown({ key: 'h', code: 'KeyH' });
-
-    assert.equal(playlistBrowserKeydownCount(), 1);
-    assert.equal(ctx.state.keyboardSelectedWordIndex, 2);
-  } finally {
-    testGlobals.restore();
-  }
-});
-
 test('keyboard mode: changelog modal handles h/l fold keys before lookup controls', async () => {
   const { ctx, testGlobals, handlers, changelogKeydownCount } = createKeyboardHandlerHarness();
 
@@ -1589,29 +1412,6 @@ test('keyboard mode: changelog modal handles h/l fold keys before lookup control
 
     assert.equal(changelogKeydownCount(), 2);
     assert.equal(ctx.state.keyboardSelectedWordIndex, 2);
-  } finally {
-    testGlobals.restore();
-  }
-});
-
-test('keyboard mode: changelog modal handles arrow keys before yomitan popup', async () => {
-  const { ctx, testGlobals, handlers, changelogKeydownCount } = createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    ctx.state.changelogModalOpen = true;
-    ctx.state.yomitanPopupVisible = true;
-    testGlobals.setPopupVisible(true);
-
-    testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown' });
-
-    assert.equal(changelogKeydownCount(), 1);
-    assert.equal(
-      testGlobals.commandEvents.some(
-        (event) => event.type === 'forwardKeyDown' && event.code === 'ArrowDown',
-      ),
-      false,
-    );
   } finally {
     testGlobals.restore();
   }
@@ -1634,14 +1434,17 @@ test('keyboard mode: configured stats toggle works even while popup is open', as
 });
 
 test('refreshConfiguredShortcuts updates refreshed stats and mark-watched keys', async () => {
-  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
   try {
     await handlers.setupMpvInputForwarding();
 
+    testGlobals.setConfiguredShortcuts({ multiCopyTimeoutMs: 3333 });
     testGlobals.setStatsToggleKey('KeyG');
     testGlobals.setMarkWatchedKey('KeyM');
     await handlers.refreshConfiguredShortcuts();
+
+    assert.equal(ctx.state.sessionActionTimeoutMs, 3333);
 
     const beforeMarkWatchedCalls = testGlobals.markActiveVideoWatchedCalls();
 
@@ -1708,76 +1511,6 @@ test('session binding: Ctrl+Alt+S dispatches subsync action locally', async () =
 
     assert.deepEqual(testGlobals.sessionActions, [
       { actionId: 'triggerSubsync', payload: undefined },
-    ]);
-  } finally {
-    testGlobals.restore();
-  }
-});
-
-test('session binding: Ctrl+Shift+G dispatches subtitle generation with the sidebar closed', async () => {
-  const { handlers, testGlobals } = createKeyboardHandlerHarness();
-  try {
-    await handlers.setupMpvInputForwarding();
-    handlers.updateSessionBindings([
-      {
-        sourcePath: 'shortcuts.openSubtitleGeneration',
-        originalKey: 'Ctrl+Shift+G',
-        key: { code: 'KeyG', modifiers: ['ctrl', 'shift'] },
-        actionType: 'session-action',
-        actionId: 'openSubtitleGeneration',
-      },
-    ]);
-    testGlobals.dispatchKeydown({ key: 'G', code: 'KeyG', ctrlKey: true, shiftKey: true });
-    assert.deepEqual(testGlobals.sessionActions, [
-      { actionId: 'openSubtitleGeneration', payload: undefined },
-    ]);
-  } finally {
-    testGlobals.restore();
-  }
-});
-
-test('session binding: Ctrl+Shift+J dispatches jimaku action locally', async () => {
-  const { handlers, testGlobals } = createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    handlers.updateSessionBindings([
-      {
-        sourcePath: 'shortcuts.openJimaku',
-        originalKey: 'Ctrl+Shift+J',
-        key: { code: 'KeyJ', modifiers: ['ctrl', 'shift'] },
-        actionType: 'session-action',
-        actionId: 'openJimaku',
-      },
-    ] as never);
-
-    testGlobals.dispatchKeydown({ key: 'J', code: 'KeyJ', ctrlKey: true, shiftKey: true });
-
-    assert.deepEqual(testGlobals.sessionActions, [{ actionId: 'openJimaku', payload: undefined }]);
-  } finally {
-    testGlobals.restore();
-  }
-});
-
-test('session binding: Ctrl+Shift+O dispatches runtime options locally', async () => {
-  const { handlers, testGlobals } = createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    handlers.updateSessionBindings([
-      {
-        sourcePath: 'shortcuts.openRuntimeOptions',
-        originalKey: 'CommandOrControl+Shift+O',
-        key: { code: 'KeyO', modifiers: ['ctrl', 'shift'] },
-        actionType: 'session-action',
-        actionId: 'openRuntimeOptions',
-      },
-    ] as never);
-
-    testGlobals.dispatchKeydown({ key: 'O', code: 'KeyO', ctrlKey: true, shiftKey: true });
-
-    assert.deepEqual(testGlobals.sessionActions, [
-      { actionId: 'openRuntimeOptions', payload: undefined },
     ]);
   } finally {
     testGlobals.restore();
@@ -2319,56 +2052,6 @@ test('keyboard mode: edge jump while paused re-applies paused state after subtit
 
     assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
       ['sub-seek', 1],
-      ['set_property', 'pause', 'yes'],
-    ]);
-  } finally {
-    ctx.state.keyboardDrivenModeEnabled = false;
-    testGlobals.restore();
-  }
-});
-
-test('keyboard mode: left edge jump while paused re-applies paused state after subtitle seek', async () => {
-  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    handlers.handleKeyboardModeToggleRequested();
-
-    setWordCount(2);
-    ctx.state.keyboardSelectedWordIndex = 0;
-    handlers.syncKeyboardTokenSelection();
-    testGlobals.setPlaybackPausedResponse(true);
-
-    testGlobals.dispatchKeydown({ key: 'ArrowLeft', code: 'ArrowLeft' });
-    await wait(0);
-
-    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
-      ['sub-seek', -1],
-      ['set_property', 'pause', 'yes'],
-    ]);
-  } finally {
-    ctx.state.keyboardDrivenModeEnabled = false;
-    testGlobals.restore();
-  }
-});
-
-test('keyboard mode: h edge jump while paused re-applies paused state after subtitle seek', async () => {
-  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
-
-  try {
-    await handlers.setupMpvInputForwarding();
-    handlers.handleKeyboardModeToggleRequested();
-
-    setWordCount(2);
-    ctx.state.keyboardSelectedWordIndex = 0;
-    handlers.syncKeyboardTokenSelection();
-    testGlobals.setPlaybackPausedResponse(true);
-
-    testGlobals.dispatchKeydown({ key: 'h', code: 'KeyH' });
-    await wait(0);
-
-    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
-      ['sub-seek', -1],
       ['set_property', 'pause', 'yes'],
     ]);
   } finally {

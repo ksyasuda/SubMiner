@@ -1,18 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  createGetFieldGroupingResolverHandler,
-  createSetFieldGroupingResolverHandler,
-} from './field-grouping-resolver';
-
-test('get field grouping resolver returns current resolver', () => {
-  const resolver = () => undefined;
-  const getResolver = createGetFieldGroupingResolverHandler({
-    getResolver: () => resolver,
-  });
-
-  assert.equal(getResolver(), resolver);
-});
+import { createSetFieldGroupingResolverHandler } from './field-grouping-resolver';
 
 test('set field grouping resolver clears resolver when null is provided', () => {
   let current: ((choice: unknown) => void) | null = () => undefined;

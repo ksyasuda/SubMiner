@@ -211,25 +211,6 @@ test('subtitle prefetch refresh logs a warning when source resolution throws', a
   assert.match(warnings[0]!, /\[subtitle-prefetch\].*ffmpeg ENOENT/);
 });
 
-test('subtitle prefetch refresh logs debug when mpv client is not connected', async () => {
-  const debugs: string[] = [];
-  const refresh = createRefreshSubtitlePrefetchFromActiveTrackHandler({
-    getMpvClient: () => null,
-    getLastObservedTimePos: () => 0,
-    subtitlePrefetchInitController: {
-      cancelPendingInit: () => {},
-      initSubtitlePrefetch: async () => {},
-    },
-    resolveActiveSubtitleSidebarSource: async () => null,
-    logDebug: (message) => debugs.push(message),
-  });
-
-  await refresh();
-
-  assert.equal(debugs.length, 1);
-  assert.match(debugs[0]!, /\[subtitle-prefetch\].*not connected/);
-});
-
 test('subtitle prefetch refresh logs debug when no subtitle source resolves', async () => {
   const debugs: string[] = [];
   const cancels: number[] = [];

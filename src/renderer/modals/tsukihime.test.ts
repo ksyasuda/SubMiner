@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
 
 import type { TsukihimeSubtitleFile, ElectronAPI } from '../../types';
@@ -249,26 +247,18 @@ function createModalHarness(
   };
 }
 
-test('TsukiHime language tabs expose tab semantics in the renderer markup', () => {
-  const html = fs.readFileSync(path.join(process.cwd(), 'src', 'renderer', 'index.html'), 'utf8');
-  const tabs = html.match(/<div class="tsukihime-tabs"[\s\S]*?<\/div>/)?.[0];
-
-  assert.ok(tabs);
-  assert.match(tabs, /<div class="tsukihime-tabs" role="tablist">/);
-  assert.match(tabs, /id="tsukihimeTabSecondary"[\s\S]*?role="tab"[\s\S]*?aria-selected="true"/);
-  assert.match(tabs, /id="tsukihimeTabPrimary"[\s\S]*?role="tab"[\s\S]*?aria-selected="false"/);
-});
-
 test('switching TsukiHime language tabs synchronizes aria-selected', () => {
   const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK]);
   try {
     pressKey(harness, 'ArrowRight');
 
+    assert.equal(harness.state.tsukihimeActiveTab, 'primary');
     assert.equal(harness.secondaryTab.attributes.get('aria-selected'), 'false');
     assert.equal(harness.primaryTab.attributes.get('aria-selected'), 'true');
 
     pressKey(harness, 'ArrowLeft');
 
+    assert.equal(harness.state.tsukihimeActiveTab, 'secondary');
     assert.equal(harness.secondaryTab.attributes.get('aria-selected'), 'true');
     assert.equal(harness.primaryTab.attributes.get('aria-selected'), 'false');
   } finally {
@@ -527,18 +517,6 @@ test('a slow release response does not overwrite the newly selected release', as
       harness.state.tsukihimeFiles.map((file) => file.attachmentId),
       [ENGLISH_TRACK.attachmentId, SECOND_ENGLISH_TRACK.attachmentId],
     );
-  } finally {
-    harness.restoreGlobals();
-  }
-});
-
-test('ArrowLeft switches back to the secondary-language tab', () => {
-  const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK]);
-  try {
-    pressKey(harness, 'ArrowRight');
-    assert.equal(harness.state.tsukihimeActiveTab, 'primary');
-    pressKey(harness, 'ArrowLeft');
-    assert.equal(harness.state.tsukihimeActiveTab, 'secondary');
   } finally {
     harness.restoreGlobals();
   }

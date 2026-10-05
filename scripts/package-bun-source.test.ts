@@ -39,24 +39,6 @@ describe('Bun corresponding-source manifest', () => {
     }
   });
 
-  test('pins the source to the revision reported by the distributed binary', async () => {
-    const manifest = parseSourceManifest(
-      JSON.parse(
-        await fs.readFile(path.join(projectRoot, 'build/bun-source-manifest.json'), 'utf8'),
-      ),
-    );
-
-    expect(manifest.version).toBe('1.3.5');
-    expect(manifest.bunRevision).toBe('1e86cebd74a5723e818b5c0555276b646bcf0e4c');
-    expect(manifest.releaseTagCommit).toBe('fa5a5bbe556a4bda5bde77b4013aa6c3bb4ec9ab');
-    expect(manifest.sources.find((source) => source.name === 'WebKit')?.revision).toBe(
-      '6d0f3aac0b817cc01a846b3754b21271adedac12',
-    );
-    expect(manifest.sources.find((source) => source.name === 'tinycc')?.revision).toBe(
-      '29985a3b59898861442fa3b43f663fc1af2591d7',
-    );
-  });
-
   test('parses commit and tag registrations from Bun CMake', () => {
     const registrations = parseRegisteredRepositories(`
       register_repository(

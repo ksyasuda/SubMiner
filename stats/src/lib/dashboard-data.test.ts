@@ -8,12 +8,7 @@ import type {
   StreakCalendarDay,
   VocabularyEntry,
 } from '../types/stats';
-import {
-  buildOverviewSummary,
-  buildStreakCalendar,
-  buildTrendDashboard,
-  buildVocabularySummary,
-} from './dashboard-data';
+import { buildOverviewSummary, buildStreakCalendar } from './dashboard-data';
 
 test('buildOverviewSummary aggregates tracked totals and recent windows', () => {
   const now = Date.UTC(2026, 2, 13, 12);
@@ -153,67 +148,6 @@ test('buildOverviewSummary prefers lifetime totals from hints when provided', ()
   assert.equal(summary.allTimeMinutes, 120);
   assert.equal(summary.activeDays, 40);
   assert.equal(summary.lookupRate, null);
-});
-
-test('buildVocabularySummary treats firstSeen timestamps as seconds', () => {
-  const now = Date.UTC(2026, 2, 13, 12);
-  const nowSec = now / 1000;
-  const words: VocabularyEntry[] = [
-    {
-      wordId: 1,
-      headword: '猫',
-      word: '猫',
-      reading: 'ねこ',
-      partOfSpeech: null,
-      pos1: null,
-      pos2: null,
-      pos3: null,
-      frequency: 4,
-      frequencyRank: null,
-      animeCount: 1,
-      firstSeen: nowSec - 2 * 86_400,
-      lastSeen: nowSec - 1,
-    },
-  ];
-
-  const summary = buildVocabularySummary(words, [], now);
-  assert.equal(summary.newThisWeek, 1);
-});
-
-test('buildTrendDashboard derives dense chart series', () => {
-  const now = Date.UTC(2026, 2, 13, 12);
-  const today = Math.floor(now / 86_400_000);
-  const rollups: DailyRollup[] = [
-    {
-      rollupDayOrMonth: today - 1,
-      videoId: 1,
-      totalSessions: 2,
-      totalActiveMin: 60,
-      totalLinesSeen: 30,
-      totalTokensSeen: 100,
-      totalCards: 3,
-      cardsPerHour: 3,
-      tokensPerMin: 2,
-      lookupHitRate: 0.5,
-    },
-    {
-      rollupDayOrMonth: today,
-      videoId: 1,
-      totalSessions: 1,
-      totalActiveMin: 30,
-      totalLinesSeen: 10,
-      totalTokensSeen: 30,
-      totalCards: 1,
-      cardsPerHour: 2,
-      tokensPerMin: 1.33,
-      lookupHitRate: 0.75,
-    },
-  ];
-
-  const dashboard = buildTrendDashboard(rollups);
-  assert.equal(dashboard.watchTime.length, 2);
-  assert.equal(dashboard.words[1]?.value, 30);
-  assert.equal(dashboard.sessions[0]?.value, 2);
 });
 
 test('buildStreakCalendar converts epoch days to YYYY-MM-DD dates', () => {

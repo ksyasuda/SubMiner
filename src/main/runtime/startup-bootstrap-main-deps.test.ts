@@ -2,15 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createBuildStartupBootstrapMainDepsHandler } from './startup-bootstrap-main-deps';
 
-test('startup bootstrap main deps builder maps deps and handles generate-config callbacks', () => {
-  const calls: string[] = [];
-  let exitCode = 0;
+function buildDeps() {
+  const state = { exitCodes: [] as number[], quitCount: 0, errors: [] as string[] };
   const deps = createBuildStartupBootstrapMainDepsHandler({
     argv: ['node', 'main.js'],
     parseArgs: () => ({}) as never,
-    setLogLevel: (level) => calls.push(`log:${level}`),
-    forceX11Backend: () => calls.push('force-x11'),
-    enforceUnsupportedWaylandMode: () => calls.push('guard-wayland'),
+    setLogLevel: () => {},
+    forceX11Backend: () => {},
+    enforceUnsupportedWaylandMode: () => {},
     shouldStartApp: () => true,
     getDefaultSocketPath: () => '/tmp/mpv.sock',
     defaultTexthookerPort: 5174,
@@ -18,35 +17,28 @@ test('startup bootstrap main deps builder maps deps and handles generate-config 
     defaultConfig: {} as never,
     generateConfigTemplate: () => 'template',
     generateDefaultConfigFile: async () => 0,
-    setExitCode: (code) => {
-      exitCode = code;
-      calls.push(`exit:${code}`);
+    setExitCode: (code) => state.exitCodes.push(code),
+    quitApp: () => {
+      state.quitCount += 1;
     },
-    quitApp: () => calls.push('quit'),
-    logGenerateConfigError: (message) => calls.push(`error:${message}`),
-    startAppLifecycle: () => calls.push('start-lifecycle'),
+    logGenerateConfigError: (message) => state.errors.push(message),
+    startAppLifecycle: () => {},
   })();
+  return { deps, state };
+}
 
-  assert.deepEqual(deps.argv, ['node', 'main.js']);
-  assert.equal(deps.getDefaultSocketPath(), '/tmp/mpv.sock');
-  deps.setLogLevel('debug', 'config');
-  deps.forceX11Backend({} as never);
-  deps.enforceUnsupportedWaylandMode({} as never);
-  deps.startAppLifecycle({} as never);
+test('onConfigGenerated exits with the generator exit code', () => {
+  const { deps, state } = buildDeps();
   deps.onConfigGenerated(7);
-  assert.equal(exitCode, 7);
-  deps.onGenerateConfigError(new Error('boom'));
-  assert.equal(exitCode, 1);
+  assert.deepEqual(state.exitCodes, [7]);
+  assert.equal(state.quitCount, 1);
+  assert.deepEqual(state.errors, []);
+});
 
-  assert.deepEqual(calls, [
-    'log:debug',
-    'force-x11',
-    'guard-wayland',
-    'start-lifecycle',
-    'exit:7',
-    'quit',
-    'error:Failed to generate config: boom',
-    'exit:1',
-    'quit',
-  ]);
+test('onGenerateConfigError logs the failure and exits with code 1', () => {
+  const { deps, state } = buildDeps();
+  deps.onGenerateConfigError(new Error('boom'));
+  assert.deepEqual(state.errors, ['Failed to generate config: boom']);
+  assert.deepEqual(state.exitCodes, [1]);
+  assert.equal(state.quitCount, 1);
 });

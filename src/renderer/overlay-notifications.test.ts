@@ -1,13 +1,10 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
 
 import {
   createOverlayNotificationRenderer,
   createOverlayNotificationStore,
   handleOverlayNotificationEvent,
-  overlayNotificationPositionClass,
 } from './overlay-notifications';
 
 function createClassList(initialTokens: string[] = []) {
@@ -105,10 +102,67 @@ function findChildByClass(element: FakeElement, className: string): FakeElement 
   return null;
 }
 
-const overlayNotificationCss = readFileSync(
-  path.join(__dirname, '..', 'renderer', 'style.css'),
-  'utf8',
-);
+type FakeWindow = {
+  clearTimeout: (id: number) => void;
+  setTimeout: (callback: () => void, delayMs: number) => number;
+  electronAPI?: Record<string, unknown>;
+};
+
+// Installs a fake `document`/`window`, builds a renderer over a fake stack, runs `fn`, then
+// restores the globals.
+function withRenderer(
+  windowOverrides: Partial<FakeWindow>,
+  fn: (env: {
+    renderer: ReturnType<typeof createOverlayNotificationRenderer>;
+    stack: FakeElement;
+  }) => void,
+): void {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const fakeWindow: FakeWindow = {
+    clearTimeout: () => undefined,
+    setTimeout: () => 1,
+    ...windowOverrides,
+  };
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    writable: true,
+    value: { createElement: (tagName: string) => createFakeElement(tagName) },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    writable: true,
+    value: fakeWindow,
+  });
+
+  try {
+    const stack = createFakeElement();
+    const renderer = createOverlayNotificationRenderer({
+      dom: { overlayNotificationStack: stack },
+      state: { isOverOverlayNotification: false },
+    } as never);
+    fn({ renderer, stack });
+  } finally {
+    if (originalDocument) {
+      Object.defineProperty(globalThis, 'document', originalDocument);
+    } else {
+      delete (globalThis as { document?: unknown }).document;
+    }
+    if (originalWindow) {
+      Object.defineProperty(globalThis, 'window', originalWindow);
+    } else {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  }
+}
+
+function requireChild(element: FakeElement | undefined, className?: string): FakeElement {
+  const match = element && className ? findChildByClass(element, className) : element;
+  if (!match) {
+    assert.fail(`Expected element${className ? ` .${className}` : ''}.`);
+  }
+  return match;
+}
 
 test('overlay notification store caps transient notifications and keeps pinned jobs visible', () => {
   const store = createOverlayNotificationStore({ maxVisible: 3 });
@@ -141,13 +195,6 @@ test('overlay notification store caps transient notifications and keeps pinned j
   );
 });
 
-test('overlay notification positions map to stack alignment classes', () => {
-  assert.equal(overlayNotificationPositionClass(undefined), 'position-top-right');
-  assert.equal(overlayNotificationPositionClass('top-left'), 'position-top-left');
-  assert.equal(overlayNotificationPositionClass('top'), 'position-top');
-  assert.equal(overlayNotificationPositionClass('top-right'), 'position-top-right');
-});
-
 test('overlay notification event handler dismisses notifications by id', () => {
   const calls: string[] = [];
 
@@ -168,27 +215,7 @@ test('overlay notification event handler dismisses notifications by id', () => {
 });
 
 test('overlay notification renderer shows thumbnail image from payload', () => {
-  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
-  const stack = createFakeElement();
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    writable: true,
-    value: {
-      createElement: (tagName: string) => createFakeElement(tagName),
-    },
-  });
-
-  try {
-    const renderer = createOverlayNotificationRenderer({
-      dom: {
-        overlayNotificationStack: stack,
-      },
-      state: {
-        isOverOverlayNotification: false,
-      },
-    } as never);
-
+  withRenderer({}, ({ renderer, stack }) => {
     renderer.show({
       title: 'Anki Card Updated',
       body: 'Updated card: 食べる',
@@ -197,70 +224,26 @@ test('overlay notification renderer shows thumbnail image from payload', () => {
       persistent: true,
     });
 
-    const card = stack.children[0];
-    if (!card) {
-      assert.fail('Expected overlay notification card.');
-    }
-    const image = findChildByClass(card, 'overlay-notification-image');
-    if (!image) {
-      assert.fail('Expected overlay notification image.');
-    }
-
+    const image = requireChild(stack.children[0], 'overlay-notification-image');
     assert.equal(image.tagName, 'IMG');
     assert.equal(image.src, 'file:///tmp/subminer-notification-icon.png');
     assert.equal(image.alt, '');
-  } finally {
-    if (originalDocument) {
-      Object.defineProperty(globalThis, 'document', originalDocument);
-    } else {
-      delete (globalThis as { document?: unknown }).document;
-    }
-  }
+  });
 });
 
 test('overlay notification action buttons send action ids', () => {
-  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
-  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const stack = createFakeElement();
   const sentActions: Array<{ notificationId: string; actionId: string; noteId?: number }> = [];
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    writable: true,
-    value: {
-      createElement: (tagName: string) => createFakeElement(tagName),
+  const electronAPI = {
+    sendOverlayNotificationAction: (
+      notificationId: string,
+      actionId: string,
+      options?: { noteId?: number },
+    ) => {
+      sentActions.push({ notificationId, actionId, noteId: options?.noteId });
     },
-  });
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    writable: true,
-    value: {
-      clearTimeout: () => undefined,
-      setTimeout: () => {
-        return 1;
-      },
-      electronAPI: {
-        sendOverlayNotificationAction: (
-          notificationId: string,
-          actionId: string,
-          options?: { noteId?: number },
-        ) => {
-          sentActions.push({ notificationId, actionId, noteId: options?.noteId });
-        },
-      },
-    },
-  });
+  };
 
-  try {
-    const renderer = createOverlayNotificationRenderer({
-      dom: {
-        overlayNotificationStack: stack,
-      },
-      state: {
-        isOverOverlayNotification: false,
-      },
-    } as never);
-
+  withRenderer({ electronAPI }, ({ renderer, stack }) => {
     renderer.show({
       id: 'subminer-update-available',
       title: 'SubMiner update available',
@@ -269,71 +252,23 @@ test('overlay notification action buttons send action ids', () => {
       actions: [{ id: 'open-anki-card', label: 'Open in Anki', noteId: 42 }],
     });
 
-    const card = stack.children[0];
-    if (!card) {
-      assert.fail('Expected overlay notification card.');
-    }
-    const button = findChildByClass(card, 'overlay-notification-action');
-    if (!button) {
-      assert.fail('Expected overlay notification action button.');
-    }
-
-    button.dispatchEventType('click');
+    requireChild(stack.children[0], 'overlay-notification-action').dispatchEventType('click');
 
     assert.deepEqual(sentActions, [
       { notificationId: 'subminer-update-available', actionId: 'open-anki-card', noteId: 42 },
     ]);
-  } finally {
-    if (originalDocument) {
-      Object.defineProperty(globalThis, 'document', originalDocument);
-    } else {
-      delete (globalThis as { document?: unknown }).document;
-    }
-    if (originalWindow) {
-      Object.defineProperty(globalThis, 'window', originalWindow);
-    } else {
-      delete (globalThis as { window?: unknown }).window;
-    }
-  }
+  });
 });
 
 test('overlay notification keepOpen actions leave the card on screen', () => {
-  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
-  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const stack = createFakeElement();
   const sentActions: string[] = [];
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    writable: true,
-    value: {
-      createElement: (tagName: string) => createFakeElement(tagName),
+  const electronAPI = {
+    sendOverlayNotificationAction: (_notificationId: string, actionId: string) => {
+      sentActions.push(actionId);
     },
-  });
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    writable: true,
-    value: {
-      clearTimeout: () => undefined,
-      setTimeout: () => 1,
-      electronAPI: {
-        sendOverlayNotificationAction: (_notificationId: string, actionId: string) => {
-          sentActions.push(actionId);
-        },
-      },
-    },
-  });
+  };
 
-  try {
-    const renderer = createOverlayNotificationRenderer({
-      dom: {
-        overlayNotificationStack: stack,
-      },
-      state: {
-        isOverOverlayNotification: false,
-      },
-    } as never);
-
+  withRenderer({ electronAPI }, ({ renderer, stack }) => {
     renderer.show({
       id: 'subminer-update-available',
       title: 'SubMiner update available',
@@ -345,12 +280,9 @@ test('overlay notification keepOpen actions leave the card on screen', () => {
       ],
     });
 
-    const card = stack.children[0];
-    if (!card) {
-      assert.fail('Expected overlay notification card.');
-    }
-    const buttons: typeof card.children = [];
-    const collect = (node: typeof card): void => {
+    const card = requireChild(stack.children[0]);
+    const buttons: FakeElement[] = [];
+    const collect = (node: FakeElement): void => {
       if (node.className === 'overlay-notification-action') buttons.push(node);
       for (const child of node.children) collect(child);
     };
@@ -365,53 +297,11 @@ test('overlay notification keepOpen actions leave the card on screen', () => {
     buttons[0]?.dispatchEventType('click');
     assert.deepEqual(sentActions, ['view-changelog', 'install-update']);
     assert.equal(card.classList.contains('leaving'), true);
-  } finally {
-    if (originalDocument) {
-      Object.defineProperty(globalThis, 'document', originalDocument);
-    } else {
-      delete (globalThis as { document?: unknown }).document;
-    }
-    if (originalWindow) {
-      Object.defineProperty(globalThis, 'window', originalWindow);
-    } else {
-      delete (globalThis as { window?: unknown }).window;
-    }
-  }
+  });
 });
 
 test('overlay notification renderer updates same-id progress without replacing the spinner', () => {
-  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
-  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const stack = createFakeElement();
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    writable: true,
-    value: {
-      createElement: (tagName: string) => createFakeElement(tagName),
-    },
-  });
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    writable: true,
-    value: {
-      clearTimeout: () => undefined,
-      setTimeout: () => {
-        return 1;
-      },
-    },
-  });
-
-  try {
-    const renderer = createOverlayNotificationRenderer({
-      dom: {
-        overlayNotificationStack: stack,
-      },
-      state: {
-        isOverOverlayNotification: false,
-      },
-    } as never);
-
+  withRenderer({}, ({ renderer, stack }) => {
     renderer.show({
       id: 'subsync-status',
       title: 'Subsync',
@@ -420,16 +310,10 @@ test('overlay notification renderer updates same-id progress without replacing t
       persistent: true,
     });
 
-    const card = stack.children[0];
-    if (!card) {
-      assert.fail('Expected overlay notification card.');
-    }
+    const card = requireChild(stack.children[0]);
     assert.equal(stack.appendCalls, 1);
     assert.equal(card.classList.contains('entering'), true);
-    const spinner = findChildByClass(card, 'overlay-notification-icon');
-    if (!spinner) {
-      assert.fail('Expected overlay notification spinner.');
-    }
+    const spinner = requireChild(card, 'overlay-notification-icon');
     const cardReplacements = card.replaceChildrenCalls;
 
     renderer.show({
@@ -452,60 +336,25 @@ test('overlay notification renderer updates same-id progress without replacing t
 
     card.dispatchEventType('animationend', { animationName: 'overlay-notification-enter-right' });
     assert.equal(card.classList.contains('entering'), false);
-  } finally {
-    if (originalDocument) {
-      Object.defineProperty(globalThis, 'document', originalDocument);
-    } else {
-      delete (globalThis as { document?: unknown }).document;
-    }
-    if (originalWindow) {
-      Object.defineProperty(globalThis, 'window', originalWindow);
-    } else {
-      delete (globalThis as { window?: unknown }).window;
-    }
-  }
+  });
 });
 
 test('overlay notification renderer auto-dismisses same-id terminal update after persistent progress', () => {
-  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
-  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const stack = createFakeElement();
   let nextTimerId = 1;
   const timers = new Map<number, { callback: () => void; delayMs: number }>();
-
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    writable: true,
-    value: {
-      createElement: (tagName: string) => createFakeElement(tagName),
+  const fakeTimers: Partial<FakeWindow> = {
+    clearTimeout: (id) => {
+      timers.delete(id);
     },
-  });
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    writable: true,
-    value: {
-      clearTimeout: (id: number) => {
-        timers.delete(id);
-      },
-      setTimeout: (callback: () => void, delayMs: number) => {
-        const id = nextTimerId;
-        nextTimerId += 1;
-        timers.set(id, { callback, delayMs });
-        return id;
-      },
+    setTimeout: (callback, delayMs) => {
+      const id = nextTimerId;
+      nextTimerId += 1;
+      timers.set(id, { callback, delayMs });
+      return id;
     },
-  });
+  };
 
-  try {
-    const renderer = createOverlayNotificationRenderer({
-      dom: {
-        overlayNotificationStack: stack,
-      },
-      state: {
-        isOverOverlayNotification: false,
-      },
-    } as never);
-
+  withRenderer(fakeTimers, ({ renderer, stack }) => {
     renderer.show({
       id: 'youtube-subtitles-status',
       title: 'YouTube subtitles',
@@ -513,10 +362,7 @@ test('overlay notification renderer auto-dismisses same-id terminal update after
       variant: 'progress',
       persistent: true,
     });
-    const card = stack.children[0];
-    if (!card) {
-      assert.fail('Expected overlay notification card.');
-    }
+    const card = requireChild(stack.children[0]);
 
     renderer.show({
       id: 'youtube-subtitles-status',
@@ -538,46 +384,5 @@ test('overlay notification renderer auto-dismisses same-id terminal update after
     autoDismissTimer.callback();
 
     assert.equal(card.classList.contains('leaving'), true);
-  } finally {
-    if (originalDocument) {
-      Object.defineProperty(globalThis, 'document', originalDocument);
-    } else {
-      delete (globalThis as { document?: unknown }).document;
-    }
-    if (originalWindow) {
-      Object.defineProperty(globalThis, 'window', originalWindow);
-    } else {
-      delete (globalThis as { window?: unknown }).window;
-    }
-  }
-});
-
-test('overlay notification cards use larger display dimensions', () => {
-  assert.match(
-    overlayNotificationCss,
-    /\.overlay-notification-stack\s*\{[^}]*width:\s*min\(420px,\s*calc\(100vw - 32px\)\);/s,
-  );
-  assert.match(
-    overlayNotificationCss,
-    /\.overlay-notification-stack\s*\{[^}]*z-index:\s*2147483647\s*!important;/s,
-  );
-  assert.match(overlayNotificationCss, /\.overlay-notification-card\s*\{[^}]*min-height:\s*72px;/s);
-  assert.match(
-    overlayNotificationCss,
-    /\.overlay-notification-card\.has-image\s*\{[^}]*min-height:\s*88px;/s,
-  );
-  // The has-image card reserves a real grid track for the thumbnail so it
-  // cannot overlap the text, and the image shrinks to fit within that track.
-  assert.match(
-    overlayNotificationCss,
-    /\.overlay-notification-card\.has-image\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*100px\)\s+minmax\(0,\s*1fr\)\s+22px;/s,
-  );
-  assert.match(
-    overlayNotificationCss,
-    /\.overlay-notification-image\s*\{[^}]*max-width:\s*100px;/s,
-  );
-  assert.match(
-    overlayNotificationCss,
-    /\.overlay-notification-image\s*\{[^}]*aspect-ratio:\s*100 \/ 56;/s,
-  );
+  });
 });

@@ -5,6 +5,17 @@ import { createYoutubeFlowRuntime } from './youtube-flow';
 import type { YoutubeTrackProbeResult } from '../../core/services/youtube/track-probe';
 import type { YoutubePickerOpenPayload, YoutubeTrackOption } from '../../types';
 
+type YoutubeFlowDeps = Parameters<typeof createYoutubeFlowRuntime>[0];
+type MpvTrack = {
+  type: 'sub';
+  id: number;
+  lang: string;
+  title: string;
+  external: true;
+  'external-filename': string | null;
+};
+type MpvCommand = Array<string | number>;
+
 const primaryTrack: YoutubeTrackOption = {
   id: 'auto:ja-orig',
   language: 'ja',
@@ -21,1954 +32,635 @@ const secondaryTrack: YoutubeTrackOption = {
   label: 'English (manual)',
 };
 
-test('youtube flow announces manual picker opening before probing tracks', async () => {
-  const osdMessages: string[] = [];
-  let resolveProbe: (probe: YoutubeTrackProbeResult) => void = () => {};
-  const probePromise = new Promise<YoutubeTrackProbeResult>((resolve) => {
-    resolveProbe = resolve;
-  });
+const manualJa: YoutubeTrackOption = {
+  id: 'manual:ja',
+  language: 'ja',
+  sourceLanguage: 'ja',
+  kind: 'manual',
+  title: 'Japanese',
+  label: 'Japanese',
+};
 
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => await probePromise,
-    acquireYoutubeSubtitleTracks: async () => new Map(),
-    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/unused.vtt' }),
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'continue-without-subtitles',
-          primaryTrackId: null,
-          secondaryTrackId: null,
-        });
-      });
-      return true;
+const manualEn: YoutubeTrackOption = {
+  id: 'manual:en',
+  language: 'en',
+  sourceLanguage: 'en',
+  kind: 'manual',
+  title: 'English',
+  label: 'English',
+};
+
+function mpvTrack(
+  id: number,
+  lang: string,
+  title: string,
+  externalFilename: string | null = null,
+): MpvTrack {
+  return { type: 'sub', id, lang, title, external: true, 'external-filename': externalFilename };
+}
+
+// Tracks mpv's ytdl hook adds for a YouTube URL; the translated ones must never be reused.
+const streamedYoutubeTracks = (): MpvTrack[] => [
+  mpvTrack(1, 'en', 'English'),
+  mpvTrack(2, 'ja', 'Japanese'),
+  mpvTrack(3, 'ja-en', 'Japanese from English'),
+  mpvTrack(4, 'ja-ja', 'Japanese from Japanese'),
+];
+
+/** Where the default fake downloader writes a track. */
+function downloadPath(trackId: string, outputDir = '/tmp'): string {
+  return path.join(outputDir, `${trackId.replace(/[^a-z0-9_-]+/gi, '-')}.vtt`);
+}
+
+type FakeMpvOptions = {
+  tracks?: MpvTrack[];
+  subText?: string;
+  /** When false, tracks added with sub-add only expose their file name through the title. */
+  reportAddedFilenames?: boolean;
+  /** Intercepts property reads; `read` returns what the fake mpv would report. */
+  readProperty?: (name: string, read: () => unknown) => unknown;
+};
+
+/**
+ * A small stateful mpv: sub-add appends a track, set_property updates sid/secondary-sid, and
+ * reads report the current state.
+ */
+function createFakeMpv(options: FakeMpvOptions, timeline: string[]) {
+  const tracks = [...(options.tracks ?? [])];
+  const state = { sid: null as number | null, secondarySid: null as number | null };
+  const commands: MpvCommand[] = [];
+  let nextId = Math.max(8, ...tracks.map((track) => track.id)) + 1;
+
+  const read = (name: string): unknown => {
+    switch (name) {
+      case 'track-list':
+        return tracks.map((track) => ({ ...track }));
+      case 'sid':
+        return state.sid;
+      case 'secondary-sid':
+        return state.secondarySid;
+      case 'sub-text':
+        return options.subText ?? '字幕です';
+      default:
+        return null;
+    }
+  };
+
+  return {
+    commands,
+    state,
+    tracks,
+    selectedTrack: (property: 'sid' | 'secondary-sid'): MpvTrack | null => {
+      const id = property === 'sid' ? state.sid : state.secondarySid;
+      return tracks.find((track) => track.id === id) ?? null;
     },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: () => {},
-    requestMpvProperty: async () => null,
-    refreshCurrentSubtitle: () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: (text) => {
-      osdMessages.push(text);
+    sendMpvCommand: (command: MpvCommand): void => {
+      commands.push(command);
+      const [name, arg1, arg2] = command;
+      if (name === 'script-message') timeline.push(String(arg1));
+      if (name === 'sub-add') {
+        timeline.push('sub-add');
+        const filePath = String(arg1);
+        tracks.push(
+          mpvTrack(
+            nextId++,
+            String(command[4] ?? ''),
+            path.basename(filePath),
+            options.reportAddedFilenames === false ? null : filePath,
+          ),
+        );
+      }
+      if (name === 'set_property' && (arg1 === 'sid' || arg1 === 'secondary-sid')) {
+        const id = typeof arg2 === 'number' ? arg2 : null;
+        if (arg1 === 'sid') state.sid = id;
+        else state.secondarySid = id;
+      }
     },
-    reportSubtitleFailure: (message) => {
-      throw new Error(message);
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
-  });
+    requestMpvProperty: async (name: string): Promise<unknown> =>
+      options.readProperty ? options.readProperty(name, () => read(name)) : read(name),
+  };
+}
 
-  const pending = runtime.openManualPicker({ url: 'https://example.com' });
-  await Promise.resolve();
+type FlowHarnessOptions = {
+  probeTracks?: YoutubeTrackOption[];
+  /** Picker answer; omitted means the user continues without subtitles. */
+  pick?: { primaryTrackId: string | null; secondaryTrackId: string | null };
+  mpv?: FakeMpvOptions;
+  deps?: Partial<YoutubeFlowDeps>;
+};
 
-  assert.deepEqual(osdMessages, ['Opening YouTube subtitle picker...']);
+function createFlowHarness(options: FlowHarnessOptions = {}) {
+  const timeline: string[] = [];
+  const mpv = createFakeMpv(options.mpv ?? {}, timeline);
+  const recorded = {
+    osd: [] as string[],
+    warnings: [] as string[],
+    failures: [] as string[],
+    waits: [] as number[],
+    sidebarSources: [] as string[],
+    refreshedSubtitles: [] as string[],
+    openedPayloads: [] as YoutubePickerOpenPayload[],
+    singleDownloads: [] as string[],
+    batchDownloads: [] as string[][],
+    counts: { loadedSignals: 0, focus: 0 },
+  };
 
-  resolveProbe({
-    videoId: 'video123',
-    title: 'Video 123',
-    tracks: [],
-  });
-  await pending;
-});
-
-test('youtube flow can open a manual picker session and load the selected subtitles', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const focusOverlayCalls: string[] = [];
-  const osdMessages: string[] = [];
-  const openedPayloads: YoutubePickerOpenPayload[] = [];
-  const waits: number[] = [];
-  const refreshedSidebarSources: string[] = [];
-
-  const runtime = createYoutubeFlowRuntime({
+  const runtime: ReturnType<typeof createYoutubeFlowRuntime> = createYoutubeFlowRuntime({
     probeYoutubeTracks: async () => ({
       videoId: 'video123',
       title: 'Video 123',
-      tracks: [primaryTrack, secondaryTrack],
+      tracks: options.probeTracks ?? [primaryTrack],
     }),
-    acquireYoutubeSubtitleTracks: async ({ tracks }) => {
-      assert.deepEqual(
-        tracks.map((track) => track.id),
-        [primaryTrack.id, secondaryTrack.id],
-      );
-      return new Map<string, string>([
-        [primaryTrack.id, '/tmp/auto-ja-orig.vtt'],
-        [secondaryTrack.id, '/tmp/manual-en.vtt'],
-      ]);
+    acquireYoutubeSubtitleTrack: async ({ track, outputDir }) => {
+      recorded.singleDownloads.push(track.id);
+      return { path: downloadPath(track.id, outputDir) };
     },
-    acquireYoutubeSubtitleTrack: async ({ track }) => ({
-      path: `/tmp/${track.id.replace(/[^a-z0-9_-]+/gi, '-')}.vtt`,
-    }),
+    acquireYoutubeSubtitleTracks: async ({ tracks, outputDir }) => {
+      recorded.batchDownloads.push(tracks.map((track) => track.id));
+      return new Map(tracks.map((track) => [track.id, downloadPath(track.id, outputDir)]));
+    },
     openPicker: async (payload) => {
-      openedPayloads.push(payload);
+      recorded.openedPayloads.push(payload);
       queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: secondaryTrack.id,
-        });
+        const { sessionId } = payload;
+        void runtime.resolveActivePicker(
+          options.pick
+            ? { sessionId, action: 'use-selected', ...options.pick }
+            : {
+                sessionId,
+                action: 'continue-without-subtitles',
+                primaryTrackId: null,
+                secondaryTrackId: null,
+              },
+        );
       });
       return true;
     },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      return [
-        {
-          type: 'sub',
-          id: 5,
-          lang: 'ja-orig',
-          title: 'primary',
-          external: true,
-          'external-filename': '/tmp/auto-ja-orig.vtt',
-        },
-        {
-          type: 'sub',
-          id: 6,
-          lang: 'en',
-          title: 'secondary',
-          external: true,
-          'external-filename': '/tmp/manual-en.vtt',
-        },
-      ];
-    },
-    refreshCurrentSubtitle: () => {},
-    refreshSubtitleSidebarSource: async (sourcePath: string) => {
-      refreshedSidebarSources.push(sourcePath);
+    pauseMpv: () => timeline.push('pause'),
+    resumeMpv: () => timeline.push('resume'),
+    sendMpvCommand: mpv.sendMpvCommand,
+    requestMpvProperty: mpv.requestMpvProperty,
+    refreshCurrentSubtitle: (text) => recorded.refreshedSubtitles.push(text),
+    refreshSubtitleSidebarSource: async (sourcePath) => {
+      recorded.sidebarSources.push(sourcePath);
     },
     startTokenizationWarmups: async () => {},
     waitForTokenizationReady: async () => {},
     waitForAnkiReady: async () => {},
     wait: async (ms) => {
-      waits.push(ms);
+      recorded.waits.push(ms);
     },
-    waitForPlaybackWindowReady: async () => {
-      waits.push(1);
-    },
-    waitForOverlayGeometryReady: async () => {
-      waits.push(2);
-    },
+    waitForPlaybackWindowReady: async () => {},
+    waitForOverlayGeometryReady: async () => {},
     focusOverlayWindow: () => {
-      focusOverlayCalls.push('focus-overlay');
+      recorded.counts.focus += 1;
     },
-    showMpvOsd: (text) => {
-      osdMessages.push(text);
+    showMpvOsd: (text) => recorded.osd.push(text),
+    reportSubtitleFailure: (message) => recorded.failures.push(message),
+    notifyPrimarySubtitleLoaded: () => {
+      recorded.counts.loadedSignals += 1;
     },
-    reportSubtitleFailure: () => {
-      throw new Error('manual picker success should not report failure');
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
+    warn: (message) => recorded.warnings.push(message),
     log: () => {},
     getYoutubeOutputDir: () => '/tmp',
+    ...options.deps,
   });
 
-  await runtime.openManualPicker({ url: 'https://example.com' });
+  return { runtime, mpv, timeline, ...recorded };
+}
 
-  assert.equal(openedPayloads.length, 1);
-  assert.equal(openedPayloads[0]?.defaultPrimaryTrackId, primaryTrack.id);
-  assert.equal(openedPayloads[0]?.defaultSecondaryTrackId, secondaryTrack.id);
-  assert.ok(waits.includes(150));
-  assert.deepEqual(osdMessages, [
+type FlowHarness = ReturnType<typeof createFlowHarness>;
+
+function assertNoProblems(harness: FlowHarness): void {
+  assert.deepEqual(harness.warnings, []);
+  assert.deepEqual(harness.failures, []);
+}
+
+const PRIMARY_FAILURE =
+  'Primary subtitles failed to load. Use the YouTube subtitle picker to try manually.';
+
+test('youtube flow announces manual picker opening before probing tracks', async () => {
+  let resolveProbe: (probe: YoutubeTrackProbeResult) => void = () => {};
+  const probePromise = new Promise<YoutubeTrackProbeResult>((resolve) => {
+    resolveProbe = resolve;
+  });
+  const harness = createFlowHarness({ deps: { probeYoutubeTracks: () => probePromise } });
+
+  const pending = harness.runtime.openManualPicker({ url: 'https://example.com' });
+  await Promise.resolve();
+
+  assert.deepEqual(harness.osd, ['Opening YouTube subtitle picker...']);
+
+  resolveProbe({ videoId: 'video123', title: 'Video 123', tracks: [] });
+  await pending;
+  assertNoProblems(harness);
+});
+
+test('youtube flow can open a manual picker session and load the selected subtitles', async () => {
+  const harness = createFlowHarness({
+    probeTracks: [primaryTrack, secondaryTrack],
+    pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: secondaryTrack.id },
+  });
+
+  await harness.runtime.openManualPicker({ url: 'https://example.com' });
+
+  assert.equal(harness.openedPayloads.length, 1);
+  assert.equal(harness.openedPayloads[0]?.defaultPrimaryTrackId, primaryTrack.id);
+  assert.equal(harness.openedPayloads[0]?.defaultSecondaryTrackId, secondaryTrack.id);
+  assert.ok(harness.waits.includes(150));
+  assert.deepEqual(harness.batchDownloads, [[primaryTrack.id, secondaryTrack.id]]);
+  assert.deepEqual(harness.osd, [
     'Opening YouTube subtitle picker...',
     'Getting subtitles...',
     'Downloading subtitles...',
     'Loading subtitles...',
     'Primary and secondary subtitles loaded.',
   ]);
-  assert.ok(
-    commands.some(
-      (command) =>
-        command[0] === 'sub-add' &&
-        command[1] === '/tmp/auto-ja-orig.vtt' &&
-        command[2] === 'select',
-    ),
+
+  const primaryPath = downloadPath(primaryTrack.id);
+  assert.equal(harness.mpv.selectedTrack('sid')?.['external-filename'], primaryPath);
+  assert.equal(
+    harness.mpv.selectedTrack('secondary-sid')?.['external-filename'],
+    downloadPath(secondaryTrack.id),
   );
-  assert.ok(
-    commands.some(
-      (command) =>
-        command[0] === 'set_property' && command[1] === 'sub-visibility' && command[2] === 'yes',
-    ),
-  );
-  assert.ok(
-    commands.every(
-      (command) =>
-        !(
-          command[0] === 'set_property' &&
-          command[1] === 'secondary-sub-visibility' &&
-          command[2] === 'yes'
-        ),
-    ),
-  );
-  assert.deepEqual(refreshedSidebarSources, ['/tmp/auto-ja-orig.vtt']);
-  assert.deepEqual(focusOverlayCalls, ['focus-overlay']);
+  const visibility = (property: string) =>
+    harness.mpv.commands.filter(
+      (command) => command[0] === 'set_property' && command[1] === property && command[2] === 'yes',
+    ).length;
+  assert.equal(visibility('sub-visibility'), 1);
+  assert.equal(visibility('secondary-sub-visibility'), 0);
+  assert.deepEqual(harness.refreshedSubtitles, ['字幕です']);
+  assert.deepEqual(harness.sidebarSources, [primaryPath]);
+  assert.equal(harness.counts.focus, 1);
+  assertNoProblems(harness);
 });
 
 test('youtube flow retries secondary after partial batch subtitle failure', async () => {
-  const acquireSingleCalls: string[] = [];
-  const commands: Array<Array<string | number>> = [];
-  const waits: number[] = [];
-  let secondaryTrackAdded = false;
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [primaryTrack, secondaryTrack],
-    }),
-    acquireYoutubeSubtitleTracks: async () =>
-      new Map<string, string>([[primaryTrack.id, '/tmp/auto-ja-orig.vtt']]),
-    acquireYoutubeSubtitleTrack: async ({ track }) => {
-      acquireSingleCalls.push(track.id);
-      return { path: `/tmp/${track.id}.vtt` };
+  const harness = createFlowHarness({
+    probeTracks: [primaryTrack, secondaryTrack],
+    pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: secondaryTrack.id },
+    deps: {
+      acquireYoutubeSubtitleTracks: async () =>
+        new Map([[primaryTrack.id, downloadPath(primaryTrack.id)]]),
     },
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: secondaryTrack.id,
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-      if (
-        command[0] === 'sub-add' &&
-        command[1] === '/tmp/manual:en.vtt' &&
-        command[2] === 'cached'
-      ) {
-        secondaryTrackAdded = true;
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      return secondaryTrackAdded
-        ? [
-            {
-              type: 'sub',
-              id: 5,
-              lang: 'ja-orig',
-              title: 'primary',
-              external: true,
-              'external-filename': '/tmp/auto-ja-orig.vtt',
-            },
-            {
-              type: 'sub',
-              id: 6,
-              lang: 'en',
-              title: 'secondary',
-              external: true,
-              'external-filename': '/tmp/manual:en.vtt',
-            },
-          ]
-        : [
-            {
-              type: 'sub',
-              id: 5,
-              lang: 'ja-orig',
-              title: 'primary',
-              external: true,
-              'external-filename': '/tmp/auto-ja-orig.vtt',
-            },
-          ];
-    },
-    refreshCurrentSubtitle: () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async (ms) => {
-      waits.push(ms);
-    },
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: () => {
-      throw new Error('secondary retry should not report primary failure');
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
   });
 
-  await runtime.openManualPicker({ url: 'https://example.com' });
+  await harness.runtime.openManualPicker({ url: 'https://example.com' });
 
-  assert.deepEqual(acquireSingleCalls, [secondaryTrack.id]);
-  assert.ok(waits.includes(350));
-  assert.ok(
-    commands.some(
-      (command) =>
-        command[0] === 'sub-add' && command[1] === '/tmp/manual:en.vtt' && command[2] === 'cached',
-    ),
+  assert.deepEqual(harness.singleDownloads, [secondaryTrack.id]);
+  assert.ok(harness.waits.includes(350));
+  assert.equal(
+    harness.mpv.selectedTrack('secondary-sid')?.['external-filename'],
+    downloadPath(secondaryTrack.id),
   );
+  assertNoProblems(harness);
 });
 
 test('youtube flow reports probe failure through the configured reporter in manual mode', async () => {
-  const failures: string[] = [];
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => {
-      throw new Error('probe failed');
+  const harness = createFlowHarness({
+    deps: {
+      probeYoutubeTracks: async () => {
+        throw new Error('probe failed');
+      },
     },
-    acquireYoutubeSubtitleTracks: async () => new Map(),
-    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/unused.vtt' }),
-    openPicker: async () => true,
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: () => {},
-    requestMpvProperty: async () => null,
-    refreshCurrentSubtitle: () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => {
-      failures.push(message);
-    },
-    warn: () => {},
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
   });
 
-  await runtime.openManualPicker({ url: 'https://example.com' });
+  await harness.runtime.openManualPicker({ url: 'https://example.com' });
 
-  assert.deepEqual(failures, [
-    'Primary subtitles failed to load. Use the YouTube subtitle picker to try manually.',
-  ]);
+  assert.deepEqual(harness.failures, [PRIMARY_FAILURE]);
+  assert.equal(harness.counts.focus, 1);
 });
 
-test('youtube flow does not report failure when subtitle track binds before cue text appears', async () => {
-  const failures: string[] = [];
-  const loadedSignals: string[] = [];
+const missingSubTextCases: Array<{ name: string; mpv: FakeMpvOptions }> = [
+  { name: 'before cue text appears', mpv: { subText: '' } },
+  {
+    name: 'when mpv reports sub-text as unavailable',
+    mpv: {
+      readProperty: (name, read) => {
+        if (name === 'sub-text') {
+          throw new Error("Failed to read MPV property 'sub-text': property unavailable");
+        }
+        return read();
+      },
+    },
+  },
+];
 
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [primaryTrack],
-    }),
-    acquireYoutubeSubtitleTracks: async () => new Map(),
-    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: null,
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: () => {},
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '';
-      }
-      return [
-        {
-          type: 'sub',
-          id: 5,
-          lang: 'ja-orig',
-          title: 'primary',
-          external: true,
-          'external-filename': '/tmp/auto-ja-orig.vtt',
-        },
-      ];
-    },
-    refreshCurrentSubtitle: () => {
-      throw new Error('should not refresh empty subtitle text');
-    },
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => {
-      failures.push(message);
-    },
-    notifyPrimarySubtitleLoaded: () => {
-      loadedSignals.push('loaded');
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
+for (const missingSubText of missingSubTextCases) {
+  test(`youtube flow treats a bound track as loaded ${missingSubText.name}`, async () => {
+    const harness = createFlowHarness({
+      pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: null },
+      mpv: missingSubText.mpv,
+    });
+
+    await harness.runtime.openManualPicker({ url: 'https://example.com' });
+
+    assert.equal(harness.counts.loadedSignals, 1);
+    assert.deepEqual(harness.refreshedSubtitles, []);
+    assertNoProblems(harness);
   });
+}
 
-  await runtime.openManualPicker({ url: 'https://example.com' });
-
-  assert.deepEqual(failures, []);
-  assert.deepEqual(loadedSignals, ['loaded']);
-});
-
-test('youtube flow does not fail when mpv reports sub-text as unavailable after track bind', async () => {
-  const failures: string[] = [];
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [primaryTrack],
-    }),
-    acquireYoutubeSubtitleTracks: async () => new Map(),
-    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/auto-ja-orig.vtt' }),
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: null,
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: () => {},
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        throw new Error("Failed to read MPV property 'sub-text': property unavailable");
-      }
-      return [
-        {
-          type: 'sub',
-          id: 5,
-          lang: 'ja-orig',
-          title: 'primary',
-          external: true,
-          'external-filename': '/tmp/auto-ja-orig.vtt',
-        },
-      ];
-    },
-    refreshCurrentSubtitle: () => {
-      throw new Error('should not refresh when sub-text is unavailable');
-    },
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => {
-      failures.push(message);
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
-  });
-
-  await runtime.openManualPicker({ url: 'https://example.com' });
-
-  assert.deepEqual(failures, []);
-});
-
-test('youtube flow retries secondary subtitle selection until mpv reports the expected secondary sid', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const waits: number[] = [];
+test('youtube flow binds tracks by title and retries secondary selection until mpv reports it', async () => {
   let secondarySidReads = 0;
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [primaryTrack, secondaryTrack],
-    }),
-    acquireYoutubeSubtitleTracks: async () =>
-      new Map<string, string>([
-        [primaryTrack.id, '/tmp/auto-ja-orig.vtt'],
-        [secondaryTrack.id, '/tmp/manual-en.vtt'],
-      ]),
-    acquireYoutubeSubtitleTrack: async ({ track }) => ({
-      path: `/tmp/${track.id.replace(/[^a-z0-9_-]+/gi, '-')}.vtt`,
-    }),
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: secondaryTrack.id,
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      if (name === 'secondary-sid') {
+  const harness = createFlowHarness({
+    probeTracks: [primaryTrack, secondaryTrack],
+    pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: secondaryTrack.id },
+    mpv: {
+      reportAddedFilenames: false,
+      // mpv ignores the first secondary-sid selection.
+      readProperty: (name, read) => {
+        if (name !== 'secondary-sid') return read();
         secondarySidReads += 1;
-        return secondarySidReads >= 2 ? 6 : null;
-      }
-      return [
-        {
-          type: 'sub',
-          id: 5,
-          lang: 'ja-orig',
-          title: 'primary',
-          external: true,
-          'external-filename': '/tmp/auto-ja-orig.vtt',
-        },
-        {
-          type: 'sub',
-          id: 6,
-          lang: 'en',
-          title: 'manual-en.vtt',
-          external: true,
-          'external-filename': null,
-        },
-      ];
+        return secondarySidReads >= 2 ? read() : null;
+      },
     },
-    refreshCurrentSubtitle: () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async (ms) => {
-      waits.push(ms);
-    },
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: () => {
-      throw new Error('secondary selection retry should not report failure');
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
   });
 
-  await runtime.openManualPicker({ url: 'https://example.com' });
+  await harness.runtime.openManualPicker({ url: 'https://example.com' });
 
+  const secondary = harness.mpv.selectedTrack('secondary-sid');
+  assert.equal(secondary?.title, path.basename(downloadPath(secondaryTrack.id)));
   assert.equal(
-    commands.filter(
+    harness.mpv.commands.filter(
       (command) =>
-        command[0] === 'set_property' && command[1] === 'secondary-sid' && command[2] === 6,
+        command[0] === 'set_property' &&
+        command[1] === 'secondary-sid' &&
+        command[2] === secondary?.id,
     ).length,
     2,
   );
-  assert.ok(waits.includes(100));
+  assert.ok(harness.waits.includes(100));
+  assertNoProblems(harness);
 });
 
 test('youtube flow reuses the matching existing manual secondary track instead of a loose language match', async () => {
-  const commands: Array<Array<string | number>> = [];
-  let selectedSecondarySid: number | null = null;
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [
-        primaryTrack,
-        {
-          ...secondaryTrack,
-          id: 'manual:en',
-          sourceLanguage: 'en',
-          kind: 'manual',
-          title: 'manual-en.vtt',
-        },
-      ],
-    }),
-    acquireYoutubeSubtitleTracks: async () =>
-      new Map<string, string>([
-        [primaryTrack.id, '/tmp/auto-ja-orig.vtt'],
-        [secondaryTrack.id, '/tmp/manual-en.vtt'],
-      ]),
-    acquireYoutubeSubtitleTrack: async ({ track }) => ({
-      path: `/tmp/${track.id.replace(/[^a-z0-9_-]+/gi, '-')}.vtt`,
-    }),
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: 'manual:en',
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-      if (
-        command[0] === 'set_property' &&
-        command[1] === 'secondary-sid' &&
-        typeof command[2] === 'number'
-      ) {
-        selectedSecondarySid = command[2];
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      if (name === 'sid') {
-        return 5;
-      }
-      if (name === 'secondary-sid') {
-        return selectedSecondarySid;
-      }
-      return [
-        {
-          type: 'sub',
-          id: 5,
-          lang: 'ja-orig',
-          title: 'auto-ja-orig.vtt',
-          external: true,
-          'external-filename': '/tmp/auto-ja-orig.vtt',
-        },
-        {
-          type: 'sub',
-          id: 6,
-          lang: 'en',
-          title: 'English',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 8,
-          lang: 'en',
-          title: 'manual-en.vtt',
-          external: true,
-          'external-filename': null,
-        },
-      ];
-    },
-    refreshCurrentSubtitle: () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: () => {
-      throw new Error('authoritative secondary bind should not report failure');
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
+  const titledSecondary = { ...secondaryTrack, title: 'manual-en.vtt' };
+  const harness = createFlowHarness({
+    probeTracks: [primaryTrack, titledSecondary],
+    pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: titledSecondary.id },
+    mpv: { tracks: [mpvTrack(6, 'en', 'English'), mpvTrack(8, 'en', 'manual-en.vtt')] },
   });
 
-  await runtime.openManualPicker({ url: 'https://example.com' });
+  await harness.runtime.openManualPicker({ url: 'https://example.com' });
 
-  assert.equal(selectedSecondarySid, 8);
-  assert.ok(
-    commands.some(
-      (command) =>
-        command[0] === 'set_property' && command[1] === 'secondary-sid' && command[2] === 8,
-    ),
-  );
+  assert.equal(harness.mpv.state.secondarySid, 8);
+  assert.deepEqual(harness.singleDownloads, [primaryTrack.id]);
+  assertNoProblems(harness);
 });
 
-test('youtube flow leaves non-authoritative youtube subtitle tracks untouched after authoritative tracks bind', async () => {
-  const commands: Array<Array<string | number>> = [];
-  let selectedPrimarySid: number | null = null;
-  let selectedSecondarySid: number | null = null;
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [primaryTrack, secondaryTrack],
-    }),
-    acquireYoutubeSubtitleTracks: async () =>
-      new Map<string, string>([
-        [primaryTrack.id, '/tmp/manual-ja.ja.srt'],
-        [secondaryTrack.id, '/tmp/manual-en.en.srt'],
-      ]),
-    acquireYoutubeSubtitleTrack: async ({ track }) => ({
-      path: `/tmp/${track.id.replace(/[^a-z0-9_-]+/gi, '-')}.vtt`,
-    }),
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: secondaryTrack.id,
-        });
-      });
-      return true;
+const reuseCases: Array<{
+  name: string;
+  probeTracks: YoutubeTrackOption[];
+  /** Null runs the automatic flow instead of the manual picker. */
+  pick: FlowHarnessOptions['pick'] | null;
+  mpv: () => FakeMpvOptions;
+  expectedSecondarySid: number | null;
+}> = [
+  {
+    name: 'while reusing existing manual secondary tracks',
+    probeTracks: [manualJa, manualEn],
+    pick: { primaryTrackId: manualJa.id, secondaryTrackId: manualEn.id },
+    mpv: () => ({ tracks: streamedYoutubeTracks() }),
+    expectedSecondarySid: 1,
+  },
+  {
+    name: 'while waiting for manual secondary tracks that appear after startup',
+    probeTracks: [manualJa, manualEn],
+    pick: { primaryTrackId: manualJa.id, secondaryTrackId: manualEn.id },
+    mpv: () => {
+      let trackListReads = 0;
+      return {
+        tracks: streamedYoutubeTracks(),
+        readProperty: (name, read) =>
+          name === 'track-list' && ++trackListReads === 1 ? [] : read(),
+      };
     },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-      if (command[0] === 'set_property' && command[1] === 'sid' && typeof command[2] === 'number') {
-        selectedPrimarySid = command[2];
-      }
-      if (
-        command[0] === 'set_property' &&
-        command[1] === 'secondary-sid' &&
-        typeof command[2] === 'number'
-      ) {
-        selectedSecondarySid = command[2];
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      if (name === 'sid') {
-        return selectedPrimarySid;
-      }
-      if (name === 'secondary-sid') {
-        return selectedSecondarySid;
-      }
-      return [
-        {
-          type: 'sub',
-          id: 1,
-          lang: 'en',
-          title: 'English',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 2,
-          lang: 'ja',
-          title: 'Japanese',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 3,
-          lang: 'ja-en',
-          title: 'Japanese from English',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 4,
-          lang: 'ja-ja',
-          title: 'Japanese from Japanese',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 5,
-          lang: 'ja-orig',
-          title: 'auto-ja-orig.vtt',
-          external: true,
-          'external-filename': '/tmp/auto-ja-orig.vtt',
-        },
-        {
-          type: 'sub',
-          id: 6,
-          lang: 'en',
-          title: 'manual-en.en.srt',
-          external: true,
-          'external-filename': '/tmp/manual-en.en.srt',
-        },
-      ];
-    },
-    refreshCurrentSubtitle: () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: () => {
-      throw new Error('authoritative bind should not report failure');
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
-  });
-
-  await runtime.openManualPicker({ url: 'https://example.com' });
-
-  assert.equal(
-    commands.some((command) => command[0] === 'sub-remove'),
-    false,
-  );
-});
-
-test('youtube flow injects downloaded primary while reusing existing manual secondary tracks', async () => {
-  const commands: Array<Array<string | number>> = [];
-  let selectedPrimarySid: number | null = null;
-  let selectedSecondarySid: number | null = null;
-  let downloadedPrimaryAdded = false;
-  const refreshedSidebarSources: string[] = [];
-  const downloadedPrimaryPath = '/tmp/manual-ja.ja.srt';
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
+    expectedSecondarySid: 1,
+  },
+  {
+    name: 'even when reusable manual youtube tracks exist in the automatic flow',
+    probeTracks: [manualJa, manualEn],
+    pick: null,
+    mpv: () => ({
       tracks: [
-        {
-          ...primaryTrack,
-          id: 'manual:ja',
-          sourceLanguage: 'ja',
-          kind: 'manual',
-          title: 'Japanese',
-        },
-        {
-          ...secondaryTrack,
-          id: 'manual:en',
-          sourceLanguage: 'en',
-          kind: 'manual',
-          title: 'English',
-        },
+        mpvTrack(1, 'en', 'English', '/tmp/mpv-ytdl-track-en.vtt'),
+        mpvTrack(2, 'ja', 'Japanese', '/tmp/mpv-ytdl-track-ja.vtt'),
+        mpvTrack(3, 'ja-en', 'Japanese from English', '/tmp/mpv-ytdl-track-ja-en.vtt'),
       ],
     }),
-    acquireYoutubeSubtitleTracks: async () => {
-      throw new Error('should not batch download when both manual tracks already exist in mpv');
-    },
-    acquireYoutubeSubtitleTrack: async ({ track }) => {
-      if (track.language === 'ja') {
-        return { path: downloadedPrimaryPath };
-      }
-      throw new Error('should not download secondary track when manual english already exists');
-    },
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: 'manual:ja',
-          secondaryTrackId: 'manual:en',
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-      if (
-        command[0] === 'sub-add' &&
-        command[1] === downloadedPrimaryPath &&
-        command[2] === 'select'
-      ) {
-        downloadedPrimaryAdded = true;
-      }
-      if (command[0] === 'set_property' && command[1] === 'sid' && typeof command[2] === 'number') {
-        selectedPrimarySid = command[2];
-      }
-      if (
-        command[0] === 'set_property' &&
-        command[1] === 'secondary-sid' &&
-        typeof command[2] === 'number'
-      ) {
-        selectedSecondarySid = command[2];
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      if (name === 'sid') {
-        return selectedPrimarySid;
-      }
-      if (name === 'secondary-sid') {
-        return selectedSecondarySid;
-      }
-      const tracks: Array<Record<string, unknown>> = [
-        {
-          type: 'sub',
-          id: 1,
-          lang: 'en',
-          title: 'English',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 2,
-          lang: 'ja',
-          title: 'Japanese',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 3,
-          lang: 'ja-en',
-          title: 'Japanese from English',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 4,
-          lang: 'ja-ja',
-          title: 'Japanese from Japanese',
-          external: true,
-          'external-filename': null,
-        },
-      ];
-      if (downloadedPrimaryAdded) {
-        tracks.push({
-          type: 'sub',
-          id: 9,
-          lang: 'ja',
-          title: path.basename(downloadedPrimaryPath),
-          external: true,
-          'external-filename': downloadedPrimaryPath,
-        });
-      }
-      return tracks;
-    },
-    refreshCurrentSubtitle: () => {},
-    refreshSubtitleSidebarSource: async (sourcePath) => {
-      refreshedSidebarSources.push(sourcePath);
-    },
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: () => {
-      throw new Error('existing manual tracks should not report failure');
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
+    expectedSecondarySid: 1,
+  },
+  {
+    name: 'instead of reusing streamed youtube tracks',
+    probeTracks: [manualJa],
+    pick: { primaryTrackId: manualJa.id, secondaryTrackId: null },
+    mpv: () => ({ tracks: [mpvTrack(2, 'ja', 'Japanese', '/tmp/mpv-ytdl-track-ja.vtt')] }),
+    expectedSecondarySid: null,
+  },
+  {
+    name: 'and leaves non-authoritative youtube tracks in place',
+    probeTracks: [primaryTrack, secondaryTrack],
+    pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: secondaryTrack.id },
+    mpv: () => ({ tracks: streamedYoutubeTracks() }),
+    expectedSecondarySid: 1,
+  },
+];
+
+for (const reuse of reuseCases) {
+  test(`youtube flow injects downloaded primary ${reuse.name}`, async () => {
+    const harness = createFlowHarness({
+      probeTracks: reuse.probeTracks,
+      pick: reuse.pick ?? undefined,
+      mpv: reuse.mpv(),
+    });
+    const url = 'https://example.com/watch?v=video123';
+
+    if (reuse.pick) {
+      await harness.runtime.openManualPicker({ url });
+    } else {
+      await harness.runtime.runYoutubePlaybackFlow({ url });
+    }
+
+    const primaryId = reuse.probeTracks[0]!.id;
+    const primaryPath = downloadPath(primaryId);
+    assert.equal(harness.mpv.selectedTrack('sid')?.['external-filename'], primaryPath);
+    assert.equal(harness.mpv.state.secondarySid, reuse.expectedSecondarySid);
+    // Reused secondary tracks are never downloaded again.
+    assert.deepEqual(harness.singleDownloads, [primaryId]);
+    assert.deepEqual(harness.batchDownloads, []);
+    assert.deepEqual(harness.sidebarSources, [primaryPath]);
+    assert.equal(
+      harness.mpv.commands.some((command) => command[0] === 'sub-remove'),
+      false,
+    );
+    assertNoProblems(harness);
   });
+}
 
-  await runtime.openManualPicker({ url: 'https://example.com' });
-
-  assert.equal(selectedPrimarySid, 9);
-  assert.equal(selectedSecondarySid, 1);
-  assert.ok(
-    commands.some(
-      (command) =>
-        command[0] === 'sub-add' && command[1] === downloadedPrimaryPath && command[2] === 'select',
-    ),
-  );
-  assert.deepEqual(refreshedSidebarSources, [downloadedPrimaryPath]);
-  assert.equal(
-    commands.some((command) => command[0] === 'sub-remove'),
-    false,
-  );
-});
-
-test('youtube flow injects downloaded primary subtitles instead of reusing streamed youtube tracks', async () => {
-  const commands: Array<Array<string | number>> = [];
-  const refreshedSidebarSources: string[] = [];
-  let selectedPrimarySid: number | null = null;
-  let downloadedPrimaryAdded = false;
-  const downloadedPrimaryPath = '/tmp/subminer-youtube-subtitles-abc/manual-ja.ja.vtt';
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
+test('youtube flow falls back to existing auto secondary track when auto secondary download fails', async () => {
+  const autoJa: YoutubeTrackOption = {
+    id: 'auto:ja-orig',
+    language: 'ja-orig',
+    sourceLanguage: 'ja-orig',
+    kind: 'auto',
+    title: 'Japanese (Original)',
+    label: 'Japanese (Original) (auto)',
+  };
+  const autoEn: YoutubeTrackOption = {
+    id: 'auto:en',
+    language: 'en',
+    sourceLanguage: 'en',
+    kind: 'auto',
+    title: 'English',
+    label: 'English (auto)',
+  };
+  const primaryPath = downloadPath(autoJa.id);
+  const harness = createFlowHarness({
+    probeTracks: [autoJa, autoEn],
+    mpv: {
       tracks: [
-        {
-          ...primaryTrack,
-          id: 'manual:ja',
-          sourceLanguage: 'ja',
-          kind: 'manual',
-          title: 'Japanese',
-        },
+        mpvTrack(1, 'en', 'English', '/tmp/mpv-auto-en.vtt'),
+        mpvTrack(3, 'ja-orig', 'Japanese (Original)', '/tmp/mpv-auto-ja-orig.vtt'),
       ],
-    }),
-    acquireYoutubeSubtitleTracks: async () => {
-      throw new Error('single primary selection should not batch download');
     },
-    acquireYoutubeSubtitleTrack: async ({ track }) => {
-      assert.equal(track.id, 'manual:ja');
-      return { path: downloadedPrimaryPath };
+    deps: {
+      acquireYoutubeSubtitleTracks: async () => new Map([[autoJa.id, primaryPath]]),
+      acquireYoutubeSubtitleTrack: async ({ track }) => {
+        if (track.id === autoEn.id) throw new Error('HTTP 429 while downloading en');
+        return { path: primaryPath };
+      },
     },
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: 'manual:ja',
-          secondaryTrackId: null,
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-      if (
-        command[0] === 'sub-add' &&
-        command[1] === downloadedPrimaryPath &&
-        command[2] === 'select'
-      ) {
-        downloadedPrimaryAdded = true;
-      }
-      if (command[0] === 'set_property' && command[1] === 'sid' && typeof command[2] === 'number') {
-        selectedPrimarySid = command[2];
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      if (name === 'sid') {
-        return selectedPrimarySid;
-      }
-      return downloadedPrimaryAdded
-        ? [
-            {
-              type: 'sub',
-              id: 2,
-              lang: 'ja',
-              title: 'Japanese',
-              external: true,
-              'external-filename': '/tmp/mpv-ytdl-track-ja.vtt',
-            },
-            {
-              type: 'sub',
-              id: 9,
-              lang: 'ja',
-              title: path.basename(downloadedPrimaryPath),
-              external: true,
-              'external-filename': downloadedPrimaryPath,
-            },
-          ]
-        : [
-            {
-              type: 'sub',
-              id: 2,
-              lang: 'ja',
-              title: 'Japanese',
-              external: true,
-              'external-filename': '/tmp/mpv-ytdl-track-ja.vtt',
-            },
-          ];
-    },
-    refreshCurrentSubtitle: () => {},
-    refreshSubtitleSidebarSource: async (sourcePath) => {
-      refreshedSidebarSources.push(sourcePath);
-    },
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => {
-      throw new Error(message);
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
   });
 
-  await runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
+  await harness.runtime.runYoutubePlaybackFlow({ url: 'https://example.com/watch?v=video123' });
 
-  assert.equal(selectedPrimarySid, 9);
-  assert.deepEqual(refreshedSidebarSources, [downloadedPrimaryPath]);
-  assert.ok(
-    commands.some(
-      (command) =>
-        command[0] === 'sub-add' && command[1] === downloadedPrimaryPath && command[2] === 'select',
-    ),
-  );
+  assert.equal(harness.mpv.selectedTrack('sid')?.['external-filename'], primaryPath);
+  assert.equal(harness.mpv.state.secondarySid, 1);
+  assert.deepEqual(harness.failures, []);
 });
 
 test('youtube flow confirms primary subtitle load before sidebar and tokenization waits', async () => {
   const events: string[] = [];
-  let selectedPrimarySid: number | null = null;
-  let downloadedPrimaryAdded = false;
-  const downloadedPrimaryPath = '/tmp/subminer-youtube-subtitles-abc/auto-ja-orig.vtt';
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [primaryTrack],
-    }),
-    acquireYoutubeSubtitleTracks: async () => {
-      throw new Error('single primary selection should not batch download');
+  const harness = createFlowHarness({
+    pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: null },
+    deps: {
+      notifyPrimarySubtitleLoaded: () => events.push('notify'),
+      refreshSubtitleSidebarSource: async () => {
+        events.push('sidebar');
+      },
+      waitForTokenizationReady: async () => {
+        events.push('tokenization');
+      },
     },
-    acquireYoutubeSubtitleTrack: async () => ({ path: downloadedPrimaryPath }),
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: null,
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      if (
-        command[0] === 'sub-add' &&
-        command[1] === downloadedPrimaryPath &&
-        command[2] === 'select'
-      ) {
-        downloadedPrimaryAdded = true;
-      }
-      if (command[0] === 'set_property' && command[1] === 'sid' && typeof command[2] === 'number') {
-        selectedPrimarySid = command[2];
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      if (name === 'sid') {
-        return selectedPrimarySid;
-      }
-      return downloadedPrimaryAdded
-        ? [
-            {
-              type: 'sub',
-              id: 9,
-              lang: 'ja-orig',
-              title: path.basename(downloadedPrimaryPath),
-              external: true,
-              'external-filename': downloadedPrimaryPath,
-            },
-          ]
-        : [];
-    },
-    refreshCurrentSubtitle: () => {},
-    refreshSubtitleSidebarSource: async () => {
-      events.push('sidebar');
-      assert.ok(
-        events.includes('notify'),
-        'primary load should be confirmed before sidebar parsing can delay',
-      );
-    },
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {
-      events.push('tokenization');
-      assert.ok(
-        events.includes('notify'),
-        'primary load should be confirmed before tokenization waits can delay',
-      );
-    },
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => {
-      throw new Error(message);
-    },
-    notifyPrimarySubtitleLoaded: () => {
-      events.push('notify');
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
   });
 
-  await runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
+  await harness.runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
 
   assert.deepEqual(events, ['notify', 'sidebar', 'tokenization']);
 });
 
 test('youtube flow downloads subtitles into temporary dirs and exposes cleanup', async () => {
-  const outputDirs: string[] = [];
   const cleanupCalls: string[][] = [];
+  const outputDirs: string[] = [];
   let tempDirIndex = 0;
-  let selectedPrimarySid: number | null = null;
-  let addedSubtitlePath: string | null = null;
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [primaryTrack],
-    }),
-    acquireYoutubeSubtitleTracks: async () => {
-      throw new Error('single primary selection should not batch download');
-    },
-    acquireYoutubeSubtitleTrack: async ({ outputDir }) => {
-      outputDirs.push(outputDir);
-      return { path: path.join(outputDir, 'auto-ja-orig.vtt') };
-    },
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: null,
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      if (command[0] === 'sub-add' && typeof command[1] === 'string') {
-        addedSubtitlePath = command[1];
-      }
-      if (command[0] === 'set_property' && command[1] === 'sid' && typeof command[2] === 'number') {
-        selectedPrimarySid = command[2];
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      if (name === 'sid') {
-        return selectedPrimarySid;
-      }
-      return addedSubtitlePath
-        ? [
-            {
-              type: 'sub',
-              id: 10 + tempDirIndex,
-              lang: 'ja-orig',
-              title: path.basename(addedSubtitlePath),
-              external: true,
-              'external-filename': addedSubtitlePath,
-            },
-          ]
-        : [];
-    },
-    refreshCurrentSubtitle: () => {},
-    refreshSubtitleSidebarSource: async () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => {
-      throw new Error(message);
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp/unused-youtube-cache',
-    createSubtitleTempDir: async () => {
-      tempDirIndex += 1;
-      return `/tmp/subminer-youtube-subtitles-${tempDirIndex}`;
-    },
-    cleanupSubtitleTempDirs: (dirs) => {
-      cleanupCalls.push([...dirs]);
+  const harness = createFlowHarness({
+    pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: null },
+    deps: {
+      getYoutubeOutputDir: () => '/tmp/unused-youtube-cache',
+      acquireYoutubeSubtitleTrack: async ({ track, outputDir }) => {
+        outputDirs.push(outputDir);
+        return { path: downloadPath(track.id, outputDir) };
+      },
+      createSubtitleTempDir: async () => {
+        tempDirIndex += 1;
+        return `/tmp/subminer-youtube-subtitles-${tempDirIndex}`;
+      },
+      cleanupSubtitleTempDirs: (dirs) => {
+        cleanupCalls.push([...dirs]);
+      },
     },
   });
 
-  await runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
-  addedSubtitlePath = null;
-  selectedPrimarySid = null;
-  await runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
-  runtime.cleanupSubtitleTempDirs();
-  runtime.cleanupSubtitleTempDirs();
+  await harness.runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
+  await harness.runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
+  harness.runtime.cleanupSubtitleTempDirs();
+  harness.runtime.cleanupSubtitleTempDirs();
 
   assert.deepEqual(outputDirs, [
     '/tmp/subminer-youtube-subtitles-1',
     '/tmp/subminer-youtube-subtitles-2',
   ]);
+  // Each new load cleans the previous dir; the explicit cleanup removes the last one once.
   assert.deepEqual(cleanupCalls, [
     ['/tmp/subminer-youtube-subtitles-1'],
     ['/tmp/subminer-youtube-subtitles-2'],
   ]);
+  assertNoProblems(harness);
 });
 
 test('youtube flow falls back to configured output dir when subtitle temp dir creation fails', async () => {
   const outputDirs: string[] = [];
-  const warnings: string[] = [];
-  let selectedPrimarySid: number | null = null;
-  let addedSubtitlePath: string | null = null;
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [primaryTrack],
-    }),
-    acquireYoutubeSubtitleTracks: async () => {
-      throw new Error('single primary selection should not batch download');
+  const harness = createFlowHarness({
+    pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: null },
+    deps: {
+      getYoutubeOutputDir: () => '/tmp/youtube-cache',
+      acquireYoutubeSubtitleTrack: async ({ track, outputDir }) => {
+        outputDirs.push(outputDir);
+        return { path: downloadPath(track.id, outputDir) };
+      },
+      createSubtitleTempDir: async () => {
+        throw new Error('tmp unavailable');
+      },
+      cleanupSubtitleTempDirs: () => {},
     },
-    acquireYoutubeSubtitleTrack: async ({ outputDir }) => {
-      outputDirs.push(outputDir);
-      return { path: path.join(outputDir, 'auto-ja-orig.vtt') };
-    },
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: primaryTrack.id,
-          secondaryTrackId: null,
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      if (command[0] === 'sub-add' && typeof command[1] === 'string') {
-        addedSubtitlePath = command[1];
-      }
-      if (command[0] === 'set_property' && command[1] === 'sid' && typeof command[2] === 'number') {
-        selectedPrimarySid = command[2];
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      if (name === 'sid') {
-        return selectedPrimarySid;
-      }
-      return addedSubtitlePath
-        ? [
-            {
-              type: 'sub',
-              id: 11,
-              lang: 'ja-orig',
-              title: path.basename(addedSubtitlePath),
-              external: true,
-              'external-filename': addedSubtitlePath,
-            },
-          ]
-        : [];
-    },
-    refreshCurrentSubtitle: () => {},
-    refreshSubtitleSidebarSource: async () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => {
-      throw new Error(message);
-    },
-    warn: (message) => {
-      warnings.push(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp/youtube-cache',
-    createSubtitleTempDir: async () => {
-      throw new Error('tmp unavailable');
-    },
-    cleanupSubtitleTempDirs: () => {},
   });
 
-  await runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
+  await harness.runtime.openManualPicker({ url: 'https://example.com/watch?v=video123' });
 
   assert.deepEqual(outputDirs, ['/tmp/youtube-cache']);
-  assert.deepEqual(warnings, [
+  assert.deepEqual(harness.warnings, [
     'Failed to create YouTube subtitle temp dir; using configured output dir: tmp unavailable',
   ]);
+  assert.deepEqual(harness.failures, []);
 });
-
-test('youtube flow waits for manual secondary tracks while injecting downloaded primary', async () => {
-  const commands: Array<Array<string | number>> = [];
-  let selectedPrimarySid: number | null = null;
-  let selectedSecondarySid: number | null = null;
-  let trackListReads = 0;
-  let downloadedPrimaryAdded = false;
-  const downloadedPrimaryPath = '/tmp/manual-ja.ja.srt';
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [
-        {
-          ...primaryTrack,
-          id: 'manual:ja',
-          sourceLanguage: 'ja',
-          kind: 'manual',
-          title: 'Japanese',
-        },
-        {
-          ...secondaryTrack,
-          id: 'manual:en',
-          sourceLanguage: 'en',
-          kind: 'manual',
-          title: 'English',
-        },
-      ],
-    }),
-    acquireYoutubeSubtitleTracks: async () => {
-      throw new Error('should not batch download when manual tracks appear after startup');
-    },
-    acquireYoutubeSubtitleTrack: async ({ track }) => {
-      if (track.language === 'ja') {
-        return { path: downloadedPrimaryPath };
-      }
-      throw new Error('should not download secondary track when manual english appears in mpv');
-    },
-    openPicker: async (payload) => {
-      queueMicrotask(() => {
-        void runtime.resolveActivePicker({
-          sessionId: payload.sessionId,
-          action: 'use-selected',
-          primaryTrackId: 'manual:ja',
-          secondaryTrackId: 'manual:en',
-        });
-      });
-      return true;
-    },
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-      if (
-        command[0] === 'sub-add' &&
-        command[1] === downloadedPrimaryPath &&
-        command[2] === 'select'
-      ) {
-        downloadedPrimaryAdded = true;
-      }
-      if (command[0] === 'set_property' && command[1] === 'sid' && typeof command[2] === 'number') {
-        selectedPrimarySid = command[2];
-      }
-      if (
-        command[0] === 'set_property' &&
-        command[1] === 'secondary-sid' &&
-        typeof command[2] === 'number'
-      ) {
-        selectedSecondarySid = command[2];
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '字幕です';
-      }
-      if (name === 'sid') {
-        return selectedPrimarySid;
-      }
-      if (name === 'secondary-sid') {
-        return selectedSecondarySid;
-      }
-      trackListReads += 1;
-      if (trackListReads === 1) {
-        return [];
-      }
-      const tracks: Array<Record<string, unknown>> = [
-        {
-          type: 'sub',
-          id: 1,
-          lang: 'en',
-          title: 'English',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 2,
-          lang: 'ja',
-          title: 'Japanese',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 3,
-          lang: 'ja-en',
-          title: 'Japanese from English',
-          external: true,
-          'external-filename': null,
-        },
-        {
-          type: 'sub',
-          id: 4,
-          lang: 'ja-ja',
-          title: 'Japanese from Japanese',
-          external: true,
-          'external-filename': null,
-        },
-      ];
-      if (downloadedPrimaryAdded) {
-        tracks.push({
-          type: 'sub',
-          id: 9,
-          lang: 'ja',
-          title: path.basename(downloadedPrimaryPath),
-          external: true,
-          'external-filename': downloadedPrimaryPath,
-        });
-      }
-      return tracks;
-    },
-    refreshCurrentSubtitle: () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: () => {
-      throw new Error('delayed manual tracks should not report failure');
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
-  });
-
-  await runtime.openManualPicker({ url: 'https://example.com' });
-
-  assert.equal(selectedPrimarySid, 9);
-  assert.equal(selectedSecondarySid, 1);
-  assert.ok(
-    commands.some(
-      (command) =>
-        command[0] === 'sub-add' && command[1] === downloadedPrimaryPath && command[2] === 'select',
-    ),
-  );
-});
-
-test('youtube flow injects downloaded primary even when reusable manual youtube tracks exist', async () => {
-  const commands: Array<Array<string | number>> = [];
-  let selectedPrimarySid: number | null = null;
-  let selectedSecondarySid: number | null = null;
-  let downloadedPrimaryAdded = false;
-  const downloadedPrimaryPath = '/tmp/manual-ja.ja.srt';
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [
-        {
-          id: 'manual:ja',
-          language: 'ja',
-          sourceLanguage: 'ja',
-          kind: 'manual',
-          title: 'Japanese',
-          label: 'Japanese',
-        },
-        {
-          id: 'manual:en',
-          language: 'en',
-          sourceLanguage: 'en',
-          kind: 'manual',
-          title: 'English',
-          label: 'English',
-        },
-      ],
-    }),
-    acquireYoutubeSubtitleTracks: async () => {
-      throw new Error('should not batch-download when existing manual tracks are reusable');
-    },
-    acquireYoutubeSubtitleTrack: async ({ track }) => {
-      if (track.id === 'manual:ja') {
-        return { path: downloadedPrimaryPath };
-      }
-      throw new Error(
-        'should not download secondary track when existing manual english track is reusable',
-      );
-    },
-    openPicker: async () => false,
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-      if (
-        command[0] === 'sub-add' &&
-        command[1] === downloadedPrimaryPath &&
-        command[2] === 'select'
-      ) {
-        downloadedPrimaryAdded = true;
-      }
-      if (command[0] === 'set_property' && command[1] === 'sid') {
-        selectedPrimarySid = Number(command[2]);
-      }
-      if (command[0] === 'set_property' && command[1] === 'secondary-sid') {
-        selectedSecondarySid = Number(command[2]);
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'track-list') {
-        const tracks: Array<Record<string, unknown>> = [
-          {
-            type: 'sub',
-            id: 1,
-            lang: 'en',
-            title: 'English',
-            external: true,
-            'external-filename': '/tmp/mpv-ytdl-track-en.vtt',
-          },
-          {
-            type: 'sub',
-            id: 2,
-            lang: 'ja',
-            title: 'Japanese',
-            external: true,
-            'external-filename': '/tmp/mpv-ytdl-track-ja.vtt',
-          },
-          {
-            type: 'sub',
-            id: 3,
-            lang: 'ja-en',
-            title: 'Japanese from English',
-            external: true,
-            'external-filename': '/tmp/mpv-ytdl-track-ja-en.vtt',
-          },
-        ];
-        if (downloadedPrimaryAdded) {
-          tracks.push({
-            type: 'sub',
-            id: 9,
-            lang: 'ja',
-            title: path.basename(downloadedPrimaryPath),
-            external: true,
-            'external-filename': downloadedPrimaryPath,
-          });
-        }
-        return tracks;
-      }
-      if (name === 'sid') {
-        return selectedPrimarySid;
-      }
-      if (name === 'secondary-sid') {
-        return selectedSecondarySid;
-      }
-      if (name === 'sub-text') {
-        return '';
-      }
-      return null;
-    },
-    refreshCurrentSubtitle: () => {},
-    refreshSubtitleSidebarSource: async () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => {
-      throw new Error(message);
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
-  });
-
-  await runtime.runYoutubePlaybackFlow({
-    url: 'https://example.com/watch?v=video123',
-  });
-
-  assert.equal(selectedPrimarySid, 9);
-  assert.equal(selectedSecondarySid, 1);
-  assert.ok(
-    commands.some(
-      (command) =>
-        command[0] === 'sub-add' && command[1] === downloadedPrimaryPath && command[2] === 'select',
-    ),
-  );
-});
-
-test('youtube flow falls back to existing auto secondary track when auto secondary download fails', async () => {
-  const commands: Array<Array<string | number>> = [];
-  let selectedPrimarySid: number | null = null;
-  let selectedSecondarySid: number | null = null;
-  let primaryTrackAdded = false;
-
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => ({
-      videoId: 'video123',
-      title: 'Video 123',
-      tracks: [
-        {
-          id: 'auto:ja-orig',
-          language: 'ja-orig',
-          sourceLanguage: 'ja-orig',
-          kind: 'auto',
-          title: 'Japanese (Original)',
-          label: 'Japanese (Original) (auto)',
-        },
-        {
-          id: 'auto:en',
-          language: 'en',
-          sourceLanguage: 'en',
-          kind: 'auto',
-          title: 'English',
-          label: 'English (auto)',
-        },
-      ],
-    }),
-    acquireYoutubeSubtitleTracks: async () =>
-      new Map<string, string>([['auto:ja-orig', '/tmp/auto-ja-orig.ja-orig.vtt']]),
-    acquireYoutubeSubtitleTrack: async ({ track }) => {
-      if (track.id === 'auto:en') {
-        throw new Error('HTTP 429 while downloading en');
-      }
-      return { path: '/tmp/auto-ja-orig.ja-orig.vtt' };
-    },
-    openPicker: async () => false,
-    pauseMpv: () => {},
-    resumeMpv: () => {},
-    sendMpvCommand: (command) => {
-      commands.push(command);
-      if (
-        command[0] === 'sub-add' &&
-        command[1] === '/tmp/auto-ja-orig.ja-orig.vtt' &&
-        command[2] === 'select'
-      ) {
-        primaryTrackAdded = true;
-      }
-      if (command[0] === 'set_property' && command[1] === 'sid' && typeof command[2] === 'number') {
-        selectedPrimarySid = command[2];
-      }
-      if (
-        command[0] === 'set_property' &&
-        command[1] === 'secondary-sid' &&
-        typeof command[2] === 'number'
-      ) {
-        selectedSecondarySid = command[2];
-      }
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'sub-text') {
-        return '';
-      }
-      if (name === 'sid') {
-        return selectedPrimarySid;
-      }
-      if (name === 'secondary-sid') {
-        return selectedSecondarySid;
-      }
-      return primaryTrackAdded
-        ? [
-            {
-              type: 'sub',
-              id: 1,
-              lang: 'en',
-              title: 'English',
-              external: true,
-              'external-filename': '/tmp/mpv-auto-en.vtt',
-            },
-            {
-              type: 'sub',
-              id: 3,
-              lang: 'ja-orig',
-              title: 'Japanese (Original)',
-              external: true,
-              'external-filename': '/tmp/mpv-auto-ja-orig.vtt',
-            },
-            {
-              type: 'sub',
-              id: 4,
-              lang: 'ja-orig',
-              title: 'auto-ja-orig.ja-orig.vtt',
-              external: true,
-              'external-filename': '/tmp/auto-ja-orig.ja-orig.vtt',
-            },
-          ]
-        : [
-            {
-              type: 'sub',
-              id: 1,
-              lang: 'en',
-              title: 'English',
-              external: true,
-              'external-filename': '/tmp/mpv-auto-en.vtt',
-            },
-            {
-              type: 'sub',
-              id: 3,
-              lang: 'ja-orig',
-              title: 'Japanese (Original)',
-              external: true,
-              'external-filename': '/tmp/mpv-auto-ja-orig.vtt',
-            },
-          ];
-    },
-    refreshCurrentSubtitle: () => {},
-    refreshSubtitleSidebarSource: async () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => {
-      throw new Error(message);
-    },
-    warn: (message) => {
-      throw new Error(message);
-    },
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
-  });
-
-  await runtime.runYoutubePlaybackFlow({
-    url: 'https://example.com/watch?v=video123',
-  });
-
-  assert.equal(selectedPrimarySid, 4);
-  assert.equal(selectedSecondarySid, 1);
-});
-
-function createWhisperFlowHarness(
-  generateWhisperSubtitles: (input: {
-    url: string;
-    outputPath: string;
-    signal: AbortSignal;
-  }) => Promise<string | null>,
-) {
-  const events: string[] = [];
-  const failures: string[] = [];
-  let addedSubtitlePath: string | null = null;
-  const runtime = createYoutubeFlowRuntime({
-    probeYoutubeTracks: async () => {
-      throw new Error('Whisper mode must not probe YouTube captions');
-    },
-    acquireYoutubeSubtitleTracks: async () => {
-      throw new Error('Whisper mode must not download YouTube captions');
-    },
-    acquireYoutubeSubtitleTrack: async () => {
-      throw new Error('Whisper mode must not download YouTube captions');
-    },
-    openPicker: async () => false,
-    pauseMpv: () => events.push('pause'),
-    resumeMpv: () => events.push('resume'),
-    sendMpvCommand: (command) => {
-      if (command[0] === 'sub-add') {
-        addedSubtitlePath = String(command[1]);
-        events.push('sub-add');
-      }
-      if (command[0] === 'script-message') events.push(String(command[1]));
-    },
-    requestMpvProperty: async (name) => {
-      if (name === 'track-list') {
-        return addedSubtitlePath
-          ? [{ type: 'sub', id: 3, external: true, 'external-filename': addedSubtitlePath }]
-          : [];
-      }
-      if (name === 'sid') return addedSubtitlePath ? 3 : null;
-      return null;
-    },
-    refreshCurrentSubtitle: () => {},
-    startTokenizationWarmups: async () => {},
-    waitForTokenizationReady: async () => {},
-    waitForAnkiReady: async () => {},
-    wait: async () => {},
-    waitForPlaybackWindowReady: async () => {},
-    waitForOverlayGeometryReady: async () => {},
-    focusOverlayWindow: () => {},
-    showMpvOsd: () => {},
-    reportSubtitleFailure: (message) => failures.push(message),
-    warn: () => {},
-    log: () => {},
-    getYoutubeOutputDir: () => '/tmp',
-    getSubtitleSource: () => 'whisper',
-    generateWhisperSubtitles: (input) => {
-      events.push('generate');
-      return generateWhisperSubtitles(input);
-    },
-    openSubtitleGenerationModal: async () => {
-      events.push('open-modal');
-      return true;
-    },
-  });
-  return {
-    runtime,
-    failures,
-    // The modal opens once the player window is ready, so its position in the order varies.
-    events: () => events.filter((event) => event !== 'open-modal'),
-    openedModal: () => events.includes('open-modal'),
-    getAddedSubtitlePath: () => addedSubtitlePath,
-  };
-}
 
 const WHISPER_URL = 'https://www.youtube.com/watch?v=abcdefghijk';
+
+function createWhisperFlowHarness(
+  generate: NonNullable<YoutubeFlowDeps['generateWhisperSubtitles']>,
+) {
+  let modalOpened = false;
+  const mustNotFetchCaptions = async (): Promise<never> => {
+    throw new Error('Whisper mode must not probe or download YouTube captions');
+  };
+  const harness = createFlowHarness({
+    deps: {
+      probeYoutubeTracks: mustNotFetchCaptions,
+      acquireYoutubeSubtitleTrack: mustNotFetchCaptions,
+      acquireYoutubeSubtitleTracks: mustNotFetchCaptions,
+      getSubtitleSource: () => 'whisper',
+      generateWhisperSubtitles: (input) => {
+        harness.timeline.push('generate');
+        return generate(input);
+      },
+      openSubtitleGenerationModal: async () => {
+        modalOpened = true;
+        return true;
+      },
+    },
+  });
+  const addedSubtitlePaths = () =>
+    harness.mpv.commands.filter((command) => command[0] === 'sub-add').map((command) => command[1]);
+  return { ...harness, modalOpened: () => modalOpened, addedSubtitlePaths };
+}
 
 test('whisper subtitle source keeps the video paused until the generated subtitles load', async () => {
   const harness = createWhisperFlowHarness(async (input) => input.outputPath);
 
   await harness.runtime.runYoutubePlaybackFlow({ url: WHISPER_URL });
 
-  assert.deepEqual(harness.events(), [
+  assert.deepEqual(harness.timeline, [
     'pause',
     'subminer-autoplay-hold',
     'generate',
@@ -1976,8 +668,11 @@ test('whisper subtitle source keeps the video paused until the generated subtitl
     'subminer-autoplay-ready',
     'resume',
   ]);
-  assert.equal(harness.openedModal(), true);
-  assert.equal(path.basename(harness.getAddedSubtitlePath() ?? ''), 'youtube-whisper.ja.srt');
+  assert.equal(harness.modalOpened(), true);
+  assert.deepEqual(
+    harness.addedSubtitlePaths().map((filePath) => path.basename(String(filePath))),
+    ['youtube-whisper.ja.srt'],
+  );
   assert.deepEqual(harness.failures, []);
 });
 
@@ -1986,9 +681,9 @@ test('cancelling whisper generation resumes playback without subtitles or an err
 
   await harness.runtime.runYoutubePlaybackFlow({ url: WHISPER_URL });
 
-  assert.equal(harness.getAddedSubtitlePath(), null);
+  assert.deepEqual(harness.addedSubtitlePaths(), []);
   assert.deepEqual(harness.failures, []);
-  assert.equal(harness.events().at(-1), 'resume');
+  assert.equal(harness.timeline.at(-1), 'resume');
 });
 
 test('whisper generation stops quietly and leaves playback alone when the video changes', async () => {
@@ -2009,9 +704,9 @@ test('whisper generation stops quietly and leaves playback alone when the video 
   await flow;
 
   assert.equal((signal as AbortSignal).aborted, true);
-  assert.equal(harness.getAddedSubtitlePath(), null);
+  assert.deepEqual(harness.addedSubtitlePaths(), []);
   assert.deepEqual(harness.failures, []);
-  assert.equal(harness.events().includes('resume'), false);
+  assert.equal(harness.timeline.includes('resume'), false);
 });
 
 test('whisper generation failures are reported and playback resumes', async () => {
@@ -2022,6 +717,6 @@ test('whisper generation failures are reported and playback resumes', async () =
   await harness.runtime.runYoutubePlaybackFlow({ url: WHISPER_URL });
 
   assert.deepEqual(harness.failures, ['Whisper subtitles failed: No Whisper model found.']);
-  assert.equal(harness.getAddedSubtitlePath(), null);
-  assert.equal(harness.events().at(-1), 'resume');
+  assert.deepEqual(harness.addedSubtitlePaths(), []);
+  assert.equal(harness.timeline.at(-1), 'resume');
 });

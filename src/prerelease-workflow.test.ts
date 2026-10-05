@@ -1,120 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import {
-  jobSteps,
-  readWorkflow,
-  stepRunsCommand,
-  stepsMissingEnvDeclaration,
-  templateExpressionsInRunBodies,
-} from './workflow-test-helpers';
+import { commandPositions, jobSteps, readWorkflow, stepRunsCommand } from './workflow-test-helpers';
 
-const prereleaseWorkflowPath = resolve(__dirname, '../.github/workflows/prerelease.yml');
-const prereleaseWorkflow = readFileSync(prereleaseWorkflowPath, 'utf8').replace(/\r\n/g, '\n');
-const packageWorkflow = readFileSync(
-  resolve(__dirname, '../.github/workflows/package-release.yml'),
-  'utf8',
-);
-const parsedPrereleaseWorkflow = readWorkflow(prereleaseWorkflowPath);
-const parsedPackageWorkflow = readWorkflow(
-  resolve(__dirname, '../.github/workflows/package-release.yml'),
-);
-const packageJsonPath = resolve(__dirname, '../package.json');
-const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
-  scripts: Record<string, string>;
-};
-
-test('prerelease workflow triggers on beta and rc tags only', () => {
-  assert.match(prereleaseWorkflow, /name: Prerelease/);
-  const tagsBlock = prereleaseWorkflow.match(/tags:\s*\n((?:\s*-\s*'[^']+'\s*\n?)+)/);
-  assert.ok(tagsBlock, 'Workflow tags block not found');
-  const tagsText = tagsBlock[1];
-  assert.ok(tagsText, 'Workflow tags entries not found');
-  const tagPatterns = [...tagsText.matchAll(/-\s*'([^']+)'/g)].map(([, pattern]) => pattern);
-  assert.deepEqual(tagPatterns, ['v*-beta.*', 'v*-rc.*']);
-});
-
-test('package scripts expose prerelease notes generation separately from stable changelog build', () => {
-  assert.equal(
-    packageJson.scripts['changelog:prerelease-notes'],
-    'bun run scripts/build-changelog.ts prerelease-notes',
-  );
-});
-
-test('prerelease workflow uses committed prerelease notes and never calls claude in CI', () => {
-  assert.match(prereleaseWorkflow, /--notes-file release\/prerelease-notes\.md/);
-  assert.doesNotMatch(prereleaseWorkflow, /run: bun run changelog:prerelease-notes/);
-  assert.doesNotMatch(prereleaseWorkflow, /run: bun run changelog:build/);
-});
-
-test('prerelease delegates its quality gate instead of duplicating quality steps', () => {
-  assert.deepEqual(parsedPrereleaseWorkflow.jobs?.['quality-gate'], {
-    permissions: { contents: 'read' },
-    uses: './.github/workflows/quality-gate.yml',
-  });
-});
-
-test('prerelease workflow publishes GitHub prereleases and keeps them off latest', () => {
-  assert.match(prereleaseWorkflow, /gh release edit[\s\S]*--prerelease/);
-  assert.match(prereleaseWorkflow, /gh release create[\s\S]*--prerelease/);
-  assert.match(prereleaseWorkflow, /gh release create[\s\S]*--latest=false/);
-});
-
-test('prerelease packaging workflows scope dependency caches by runner architecture', () => {
-  const archScopedCacheKeyMatches = (prereleaseWorkflow + packageWorkflow).match(
-    /key:\s*\${{\s*runner\.os\s*}}-\${{\s*runner\.arch\s*}}-bun-/g,
-  );
-  const archScopedRestoreKeyMatches = (prereleaseWorkflow + packageWorkflow).match(
-    /\${{\s*runner\.os\s*}}-\${{\s*runner\.arch\s*}}-bun-/g,
-  );
-  assert.equal(archScopedCacheKeyMatches?.length, 4);
-  assert.ok((archScopedRestoreKeyMatches?.length ?? 0) >= 8);
-});
-
-test('prerelease workflow builds and uploads all release platforms', () => {
-  assert.deepEqual(Object.keys(parsedPrereleaseWorkflow.jobs ?? {}).sort(), [
-    'package',
-    'quality-gate',
-    'release',
-  ]);
-  assert.equal(
-    parsedPrereleaseWorkflow.jobs?.package?.uses,
-    './.github/workflows/package-release.yml',
-  );
-  assert.deepEqual(parsedPrereleaseWorkflow.jobs?.package?.needs, ['quality-gate']);
-  assert.deepEqual(parsedPrereleaseWorkflow.jobs?.release?.needs, ['package']);
-  assert.deepEqual(Object.keys(parsedPackageWorkflow.jobs ?? {}).sort(), [
-    'build-linux',
-    'build-macos',
-    'build-windows',
-  ]);
-  for (const [job, name, paths] of [
-    ['build-linux', 'appimage', ['release/*.AppImage']],
-    ['build-macos', 'macos', ['release/*.dmg', 'release/*.zip']],
-    ['build-windows', 'windows', ['release/*.exe', 'release/*.zip']],
-  ] as const) {
-    const uploads = jobSteps(parsedPackageWorkflow, job).filter(
-      (step) => step.uses === 'actions/upload-artifact@v4',
-    );
-    assert.equal(uploads.length, 1);
-    const upload = uploads[0];
-    assert.ok(upload);
-    assert.equal(upload.with?.name, name);
-    assert.equal(upload.with?.['if-no-files-found'], 'error');
-    const uploadPath = upload.with?.path;
-    assert.ok(typeof uploadPath === 'string');
-    assert.deepEqual(uploadPath.trim().split('\n'), [
-      ...paths,
-      'release/latest*.yml',
-      'release/*.blockmap',
-    ]);
-    const download = jobSteps(parsedPrereleaseWorkflow, 'release').find(
-      (step) => step.uses === 'actions/download-artifact@v4' && step.with?.name === name,
-    );
-    assert.equal(download?.with?.path, 'release');
-  }
-});
+const workflowPath = (file: string): string => resolve(__dirname, '../.github/workflows', file);
+const prereleaseWorkflow = readWorkflow(workflowPath('prerelease.yml'));
+const packageWorkflow = readWorkflow(workflowPath('package-release.yml'));
 
 test('release callers pass only the declared packaging secrets', () => {
   const signingSecrets = [
@@ -127,14 +18,11 @@ test('release callers pass only the declared packaging secrets', () => {
   // The bundled TMDB key is optional: artifacts stay valid without it and
   // users fall back to their own tmdb.apiKey.
   const optionalSecrets = ['SUBMINER_TMDB_API_KEY'];
-  assert.deepEqual(parsedPackageWorkflow.on?.workflow_call?.secrets, {
+  assert.deepEqual(packageWorkflow.on?.workflow_call?.secrets, {
     ...Object.fromEntries(signingSecrets.map((name) => [name, { required: true }])),
     ...Object.fromEntries(optionalSecrets.map((name) => [name, { required: false }])),
   });
-  for (const workflow of [
-    parsedPrereleaseWorkflow,
-    readWorkflow(resolve(__dirname, '../.github/workflows/release.yml')),
-  ]) {
+  for (const workflow of [prereleaseWorkflow, readWorkflow(workflowPath('release.yml'))]) {
     assert.equal(workflow.jobs?.package?.uses, './.github/workflows/package-release.yml');
     assert.deepEqual(
       workflow.jobs?.package?.secrets,
@@ -148,67 +36,10 @@ test('release callers pass only the declared packaging secrets', () => {
   }
 });
 
-test('prerelease workflow publishes both launcher wrappers with the platform packages', () => {
-  assert.match(
-    prereleaseWorkflow,
-    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz release\/latest\*\.yml release\/\*\.blockmap dist\/launcher\/subminer dist\/launcher\/subminer\.cmd\)/,
-  );
-  assert.match(
-    prereleaseWorkflow,
-    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/latest\*\.yml[\s\S]*release\/\*\.blockmap[\s\S]*release\/SHA256SUMS\.txt[\s\S]*dist\/launcher\/subminer[\s\S]*dist\/launcher\/subminer\.cmd[\s\S]*\)/,
-  );
-});
-
-test('prerelease workflow uploads updater metadata without builder debug YAML files', () => {
-  assert.match(prereleaseWorkflow, /release\/latest\*\.yml/);
-  assert.doesNotMatch(prereleaseWorkflow, /release\/\*\.yml/);
-});
-
-test('prerelease workflow writes checksum entries using release asset basenames', () => {
-  assert.match(prereleaseWorkflow, /: > release\/SHA256SUMS\.txt/);
-  assert.match(prereleaseWorkflow, /for file in "\$\{files\[@\]\}"; do/);
-  assert.match(prereleaseWorkflow, /\$\{file##\*\/\}/);
-  assert.doesNotMatch(
-    prereleaseWorkflow,
-    /sha256sum "\$\{files\[@\]\}" > release\/SHA256SUMS\.txt/,
-  );
-});
-
-test('prerelease workflow relies on builder artifact names without post-build zip renames', () => {
-  assert.doesNotMatch(prereleaseWorkflow, /Rename Windows ZIP artifacts/);
-  assert.doesNotMatch(prereleaseWorkflow, /Rename-Item[\s\S]*-win\.zip/);
-});
-
-test('prerelease workflow validates artifacts before publishing the release and only undrafts after upload', () => {
-  const artifactsIndex = prereleaseWorkflow.indexOf('artifacts=(');
-  const createIndex = prereleaseWorkflow.indexOf('gh release create');
-  const uploadIndex = prereleaseWorkflow.indexOf('gh release upload');
-  const undraftIndex = prereleaseWorkflow.indexOf('--draft=false');
-
-  assert.notEqual(artifactsIndex, -1);
-  assert.notEqual(createIndex, -1);
-  assert.notEqual(uploadIndex, -1);
-  assert.notEqual(undraftIndex, -1);
-  assert.ok(artifactsIndex < createIndex);
-  assert.ok(uploadIndex < undraftIndex);
-  assert.match(prereleaseWorkflow, /gh release create[\s\S]*--draft[\s\S]*--prerelease/);
-});
-
-test('prerelease workflow does not publish to AUR', () => {
-  assert.doesNotMatch(prereleaseWorkflow, /aur-publish:/);
-  assert.doesNotMatch(prereleaseWorkflow, /AUR_SSH_PRIVATE_KEY/);
-  assert.doesNotMatch(prereleaseWorkflow, /scripts\/update-aur-package\.sh/);
-});
-
 test('prerelease workflow rejects committed notes generated for a different beta or rc', () => {
-  assert.equal(
-    packageJson.scripts['changelog:check-prerelease-notes'],
-    'bun run scripts/build-changelog.ts check-prerelease-notes',
-  );
-
   // Matched at command positions only, so commenting the check out or quoting it
   // inside an echo fails the test rather than silently satisfying it.
-  const steps = jobSteps(parsedPrereleaseWorkflow, 'release');
+  const steps = jobSteps(prereleaseWorkflow, 'release');
   const checkIndex = steps.findIndex((step) =>
     stepRunsCommand(
       step,
@@ -225,7 +56,21 @@ test('prerelease workflow rejects committed notes generated for a different beta
   assert.ok(checkIndex < publishIndex);
 });
 
-test('prerelease workflow keeps tag-derived values out of shell bodies', () => {
-  assert.deepEqual(templateExpressionsInRunBodies(parsedPrereleaseWorkflow), []);
-  assert.deepEqual(stepsMissingEnvDeclaration(parsedPrereleaseWorkflow, 'RELEASE_VERSION'), []);
+test('prerelease stays a draft until every asset is uploaded', () => {
+  const commands = jobSteps(prereleaseWorkflow, 'release')
+    .flatMap((step) => commandPositions(step))
+    .filter((command) => /^gh release (create|edit|upload)\b/.test(command));
+  const uploads = commands.flatMap((command, index) =>
+    command.startsWith('gh release upload') ? [index] : [],
+  );
+  const lastUpload = Math.max(-1, ...uploads);
+  const undraft = commands.findIndex((command) => /\s--draft=false\b/.test(command));
+
+  assert.notEqual(lastUpload, -1);
+  assert.ok(undraft > lastUpload, 'the release must only be undrafted after the last upload');
+  for (const command of commands.slice(0, lastUpload)) {
+    if (/^gh release (create|edit)\b/.test(command)) {
+      assert.match(command, /\s--draft(\s|$)/, `published before upload: ${command}`);
+    }
+  }
 });

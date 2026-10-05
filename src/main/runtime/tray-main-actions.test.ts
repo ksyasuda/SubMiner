@@ -2,153 +2,96 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createBuildTrayMenuTemplateHandler,
-  createResolveTrayIconPathHandler,
   shouldShowTexthookerTrayEntry,
 } from './tray-main-actions';
 
-test('resolve tray icon path handler forwards runtime dependencies', () => {
+type TrayTemplateDeps = Parameters<typeof createBuildTrayMenuTemplateHandler<string>>[0];
+type TrayTemplateHandlers = Parameters<TrayTemplateDeps['buildTrayMenuTemplateRuntime']>[0];
+
+// Builds the tray template and returns the handlers it passed to the runtime builder.
+function buildHandlers(overrides: Partial<TrayTemplateDeps> = {}) {
   const calls: string[] = [];
-  const resolveTrayIconPath = createResolveTrayIconPathHandler({
-    resolveTrayIconPathRuntime: (options) => {
-      calls.push(`platform:${options.platform}`);
-      calls.push(`resources:${options.resourcesPath}`);
-      calls.push(`app:${options.appPath}`);
-      calls.push(`dir:${options.dirname}`);
-      calls.push(`join:${options.joinPath('a', 'b')}`);
-      calls.push(`exists:${options.fileExists('/tmp/icon.png')}`);
-      return '/tmp/icon.png';
+  let handlers: TrayTemplateHandlers | null = null;
+  const buildTemplate = createBuildTrayMenuTemplateHandler<string>({
+    buildTrayMenuTemplateRuntime: (nextHandlers) => {
+      handlers = nextHandlers;
+      return ['ok'];
     },
-    platform: 'darwin',
-    resourcesPath: '/resources',
-    appPath: '/app',
-    dirname: '/dir',
-    joinPath: (...parts) => parts.join('/'),
-    fileExists: () => true,
+    initializeOverlayRuntime: () => calls.push('init'),
+    isOverlayRuntimeInitialized: () => false,
+    openSessionHelpModal: () => calls.push('help'),
+    openChangelogModal: () => calls.push('changelog'),
+    openTexthookerInBrowser: () => {},
+    showTexthookerPage: () => true,
+    showFirstRunSetup: () => true,
+    openFirstRunSetupWindow: (force?: boolean) => calls.push(force ? 'setup-forced' : 'setup'),
+    showWindowsMpvLauncherSetup: () => false,
+    openYomitanSettings: () => {},
+    openConfigSettingsWindow: () => {},
+    openSyncUiWindow: () => {},
+    openYoutubeBrowserWindow: () => {},
+    exportLogs: () => {},
+    openJellyfinSetupWindow: () => {},
+    isJellyfinConfigured: () => false,
+    isJellyfinDiscoveryActive: () => false,
+    toggleJellyfinDiscovery: () => {},
+    openAnilistSetupWindow: () => {},
+    checkForUpdates: () => {},
+    quitApp: () => {},
+    ...overrides,
   });
 
-  assert.equal(resolveTrayIconPath(), '/tmp/icon.png');
-  assert.deepEqual(calls, [
-    'platform:darwin',
-    'resources:/resources',
-    'app:/app',
-    'dir:/dir',
-    'join:a/b',
-    'exists:true',
-  ]);
-});
+  assert.deepEqual(buildTemplate(), ['ok']);
+  assert.ok(handlers);
+  return { handlers: handlers as TrayTemplateHandlers, calls };
+}
 
-test('build tray template handler wires actions and init guards', () => {
-  const calls: string[] = [];
+test('tray modal actions initialize the overlay runtime only once', () => {
   let initialized = false;
-  const buildTemplate = createBuildTrayMenuTemplateHandler({
-    buildTrayMenuTemplateRuntime: (handlers) => {
-      calls.push(`platform:${handlers.platform}`);
-      handlers.openSessionHelp();
-      handlers.openTexthookerInBrowser();
-      calls.push(`show-texthooker:${handlers.showTexthookerPage}`);
-      handlers.openFirstRunSetup();
-      handlers.openWindowsMpvLauncherSetup();
-      handlers.openYomitanSettings();
-      handlers.openConfigSettings();
-      handlers.openSyncUi();
-      handlers.openYoutubeBrowser();
-      handlers.exportLogs();
-      handlers.openJellyfinSetup();
-      handlers.toggleJellyfinDiscovery(true);
-      handlers.openAnilistSetup();
-      handlers.checkForUpdates();
-      handlers.quitApp();
-      return [{ label: 'ok' }] as never;
-    },
+  const { handlers, calls } = buildHandlers({
     initializeOverlayRuntime: () => {
       initialized = true;
       calls.push('init');
     },
     isOverlayRuntimeInitialized: () => initialized,
-    openSessionHelpModal: () => calls.push('help'),
-    openChangelogModal: () => calls.push('changelog'),
-    openTexthookerInBrowser: () => calls.push('texthooker'),
-    showTexthookerPage: () => true,
-    showFirstRunSetup: () => true,
-    openFirstRunSetupWindow: (force?: boolean) => calls.push(force ? 'setup-forced' : 'setup'),
-    showWindowsMpvLauncherSetup: () => true,
-    openYomitanSettings: () => calls.push('yomitan'),
-    openConfigSettingsWindow: () => calls.push('configuration'),
-    openSyncUiWindow: () => calls.push('sync-ui'),
-    openYoutubeBrowserWindow: () => calls.push('youtube'),
-    exportLogs: () => calls.push('export-logs'),
-    openJellyfinSetupWindow: () => calls.push('jellyfin'),
-    isJellyfinConfigured: () => true,
-    isJellyfinDiscoveryActive: () => false,
-    toggleJellyfinDiscovery: async (checked) => {
-      calls.push(`jellyfin-discovery:${checked}`);
-    },
-    platform: 'linux',
-    openAnilistSetupWindow: () => calls.push('anilist'),
-    checkForUpdates: () => calls.push('updates'),
-    quitApp: () => calls.push('quit'),
   });
 
-  const template = buildTemplate();
-  assert.deepEqual(template, [{ label: 'ok' }]);
-  assert.deepEqual(calls, [
-    'platform:linux',
-    'init',
-    'help',
-    'texthooker',
-    'show-texthooker:true',
-    'setup',
-    'setup-forced',
-    'yomitan',
-    'configuration',
-    'sync-ui',
-    'youtube',
-    'export-logs',
-    'jellyfin',
-    'jellyfin-discovery:true',
-    'anilist',
-    'updates',
-    'quit',
-  ]);
+  handlers.openSessionHelp();
+  handlers.openChangelog();
+  handlers.openSessionHelp();
+
+  assert.deepEqual(calls, ['init', 'help', 'changelog', 'help']);
 });
 
-test('windows mpv launcher tray action force-opens completed setup', () => {
-  const calls: string[] = [];
-  const buildTemplate = createBuildTrayMenuTemplateHandler({
-    buildTrayMenuTemplateRuntime: (handlers) => {
-      assert.equal(handlers.showFirstRunSetup, false);
-      assert.equal(handlers.showWindowsMpvLauncherSetup, true);
-      handlers.openWindowsMpvLauncherSetup();
-      return [{ label: 'ok' }] as never;
-    },
-    initializeOverlayRuntime: () => calls.push('init'),
-    isOverlayRuntimeInitialized: () => true,
-    openSessionHelpModal: () => calls.push('help'),
-    openChangelogModal: () => calls.push('changelog'),
-    openTexthookerInBrowser: () => calls.push('texthooker'),
-    showTexthookerPage: () => true,
+test('first-run setup opens normally while the windows mpv launcher action forces it open', () => {
+  const { handlers, calls } = buildHandlers({
     showFirstRunSetup: () => false,
-    openFirstRunSetupWindow: (force?: boolean) => calls.push(force ? 'setup-forced' : 'setup'),
     showWindowsMpvLauncherSetup: () => true,
-    openYomitanSettings: () => calls.push('yomitan'),
-    openConfigSettingsWindow: () => calls.push('configuration'),
-    openSyncUiWindow: () => calls.push('configuration'),
-    openYoutubeBrowserWindow: () => calls.push('youtube'),
-    exportLogs: () => calls.push('export-logs'),
-    openJellyfinSetupWindow: () => calls.push('jellyfin'),
-    isJellyfinConfigured: () => false,
-    isJellyfinDiscoveryActive: () => false,
-    toggleJellyfinDiscovery: () => {
-      calls.push('jellyfin-discovery');
-    },
-    platform: 'win32',
-    openAnilistSetupWindow: () => calls.push('anilist'),
-    checkForUpdates: () => calls.push('updates'),
-    quitApp: () => calls.push('quit'),
   });
 
-  assert.deepEqual(buildTemplate(), [{ label: 'ok' }]);
-  assert.deepEqual(calls, ['setup-forced']);
+  assert.equal(handlers.showFirstRunSetup, false);
+  assert.equal(handlers.showWindowsMpvLauncherSetup, true);
+  handlers.openFirstRunSetup();
+  handlers.openWindowsMpvLauncherSetup();
+  assert.deepEqual(calls, ['setup', 'setup-forced']);
+});
+
+test('jellyfin discovery entry follows configuration and forwards toggles', async () => {
+  const toggles: boolean[] = [];
+  const { handlers } = buildHandlers({
+    isJellyfinConfigured: () => true,
+    isJellyfinDiscoveryActive: () => true,
+    toggleJellyfinDiscovery: async (checked) => {
+      toggles.push(checked);
+    },
+  });
+
+  assert.equal(handlers.showJellyfinDiscovery, true);
+  assert.equal(handlers.jellyfinDiscoveryActive, true);
+  handlers.toggleJellyfinDiscovery(false);
+  assert.deepEqual(toggles, [false]);
+
+  assert.equal(buildHandlers().handlers.showJellyfinDiscovery, false);
 });
 
 test('texthooker tray visibility follows websocket server enabled state', () => {

@@ -78,19 +78,14 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   };
 }
 
-test('runStartupBootstrapRuntime configures startup state and starts lifecycle', () => {
+function runBootstrap(
+  argsOverrides: Partial<CliArgs> = {},
+  depOverrides: Partial<Parameters<typeof runStartupBootstrapRuntime>[0]> = {},
+) {
   const calls: string[] = [];
-  const args = makeArgs({
-    logLevel: 'debug',
-    socketPath: '/tmp/custom.sock',
-    texthookerPort: 9001,
-    backend: 'x11',
-    autoStartOverlay: true,
-    texthooker: true,
-  });
-
+  const args = makeArgs(argsOverrides);
   const result = runStartupBootstrapRuntime({
-    argv: ['node', 'main.ts', '--log-level', 'debug'],
+    argv: ['node', 'main.ts'],
     parseArgs: () => args,
     setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
     forceX11Backend: () => calls.push('forceX11'),
@@ -99,6 +94,19 @@ test('runStartupBootstrapRuntime configures startup state and starts lifecycle',
     defaultTexthookerPort: 5174,
     runGenerateConfigFlow: () => false,
     startAppLifecycle: () => calls.push('startLifecycle'),
+    ...depOverrides,
+  });
+  return { args, result, calls };
+}
+
+test('runStartupBootstrapRuntime maps CLI args to startup state', () => {
+  const { args, result } = runBootstrap({
+    socketPath: '/tmp/custom.sock',
+    texthookerPort: 9001,
+    backend: 'x11',
+    autoStartOverlay: true,
+    texthooker: true,
+    background: true,
   });
 
   assert.equal(result.initialArgs, args);
@@ -107,141 +115,59 @@ test('runStartupBootstrapRuntime configures startup state and starts lifecycle',
   assert.equal(result.backendOverride, 'x11');
   assert.equal(result.autoStartOverlay, true);
   assert.equal(result.texthookerOnlyMode, true);
-  assert.equal(result.backgroundMode, false);
-  assert.deepEqual(calls, ['setLog:debug:cli', 'forceX11', 'enforceWayland', 'startLifecycle']);
+  assert.equal(result.backgroundMode, true);
 });
 
-test('runStartupBootstrapRuntime keeps log-level precedence for repeated calls', () => {
-  const calls: string[] = [];
-  const args = makeArgs({
-    logLevel: 'warn',
-  });
-
-  runStartupBootstrapRuntime({
-    argv: ['node', 'main.ts', '--log-level', 'warn'],
-    parseArgs: () => args,
-    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
-    forceX11Backend: () => calls.push('forceX11'),
-    enforceUnsupportedWaylandMode: () => calls.push('enforceWayland'),
-    getDefaultSocketPath: () => '/tmp/default.sock',
-    defaultTexthookerPort: 5174,
-    runGenerateConfigFlow: () => false,
-    startAppLifecycle: () => calls.push('startLifecycle'),
-  });
-
-  assert.deepEqual(calls.slice(0, 3), ['setLog:warn:cli', 'forceX11', 'enforceWayland']);
-});
-
-test('runStartupBootstrapRuntime remains lifecycle-stable with Jellyfin CLI flags', () => {
-  const calls: string[] = [];
-  const args = makeArgs({
-    jellyfin: true,
-    jellyfinLibraries: true,
-    socketPath: '/tmp/stable.sock',
-    texthookerPort: 8888,
-  });
-
-  const result = runStartupBootstrapRuntime({
-    argv: ['node', 'main.ts', '--jellyfin', '--jellyfin-libraries'],
-    parseArgs: () => args,
-    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
-    forceX11Backend: () => calls.push('forceX11'),
-    enforceUnsupportedWaylandMode: () => calls.push('enforceWayland'),
-    getDefaultSocketPath: () => '/tmp/default.sock',
-    defaultTexthookerPort: 5174,
-    runGenerateConfigFlow: () => false,
-    startAppLifecycle: () => calls.push('startLifecycle'),
-  });
-
-  assert.equal(result.mpvSocketPath, '/tmp/stable.sock');
-  assert.equal(result.texthookerPort, 8888);
-  assert.equal(result.backendOverride, null);
-  assert.equal(result.autoStartOverlay, false);
-  assert.equal(result.texthookerOnlyMode, false);
-  assert.equal(result.backgroundMode, false);
-  assert.deepEqual(calls, ['forceX11', 'enforceWayland', 'startLifecycle']);
-});
-
-test('runStartupBootstrapRuntime keeps --debug separate from log verbosity', () => {
-  const calls: string[] = [];
-  const args = makeArgs({
-    debug: true,
-  });
-
-  runStartupBootstrapRuntime({
-    argv: ['node', 'main.ts', '--debug'],
-    parseArgs: () => args,
-    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
-    forceX11Backend: () => calls.push('forceX11'),
-    enforceUnsupportedWaylandMode: () => calls.push('enforceWayland'),
-    getDefaultSocketPath: () => '/tmp/default.sock',
-    defaultTexthookerPort: 5174,
-    runGenerateConfigFlow: () => false,
-    startAppLifecycle: () => calls.push('startLifecycle'),
-  });
-
-  assert.deepEqual(calls, ['forceX11', 'enforceWayland', 'startLifecycle']);
-});
-
-test('runStartupBootstrapRuntime skips lifecycle when generate-config flow handled', () => {
-  const calls: string[] = [];
-  const args = makeArgs({ generateConfig: true, logLevel: 'warn' });
-
-  const result = runStartupBootstrapRuntime({
-    argv: ['node', 'main.ts', '--generate-config'],
-    parseArgs: () => args,
-    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
-    forceX11Backend: () => calls.push('forceX11'),
-    enforceUnsupportedWaylandMode: () => calls.push('enforceWayland'),
-    getDefaultSocketPath: () => '/tmp/default.sock',
-    defaultTexthookerPort: 5174,
-    runGenerateConfigFlow: () => true,
-    startAppLifecycle: () => calls.push('startLifecycle'),
-  });
+test('runStartupBootstrapRuntime falls back to defaults when args are unset', () => {
+  const { result } = runBootstrap();
 
   assert.equal(result.mpvSocketPath, '/tmp/default.sock');
   assert.equal(result.texthookerPort, 5174);
   assert.equal(result.backendOverride, null);
+  assert.equal(result.autoStartOverlay, false);
+  assert.equal(result.texthookerOnlyMode, false);
   assert.equal(result.backgroundMode, false);
-  assert.deepEqual(calls, ['setLog:warn:cli', 'forceX11', 'enforceWayland']);
 });
 
-test('runStartupBootstrapRuntime lets config govern background log level by default', () => {
-  const calls: string[] = [];
-  const args = makeArgs({ background: true });
+const logLevelCases: Array<{ name: string; args: Partial<CliArgs>; expected: string[] }> = [
+  {
+    name: '--log-level applies the requested level',
+    args: { logLevel: 'debug' },
+    expected: ['setLog:debug:cli'],
+  },
+  { name: '--update defaults to warn', args: { update: true }, expected: ['setLog:warn:cli'] },
+  {
+    name: '--log-level wins over --update',
+    args: { update: true, logLevel: 'info' },
+    expected: ['setLog:info:cli'],
+  },
+  { name: '--debug leaves log verbosity alone', args: { debug: true }, expected: [] },
+  { name: '--background leaves log level to config', args: { background: true }, expected: [] },
+];
 
-  const result = runStartupBootstrapRuntime({
-    argv: ['node', 'main.ts', '--background'],
-    parseArgs: () => args,
-    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
-    forceX11Backend: () => calls.push('forceX11'),
-    enforceUnsupportedWaylandMode: () => calls.push('enforceWayland'),
-    getDefaultSocketPath: () => '/tmp/default.sock',
-    defaultTexthookerPort: 5174,
-    runGenerateConfigFlow: () => false,
-    startAppLifecycle: () => calls.push('startLifecycle'),
+for (const c of logLevelCases) {
+  test(`runStartupBootstrapRuntime log level: ${c.name}`, () => {
+    const { calls } = runBootstrap(c.args);
+
+    assert.deepEqual(
+      calls.filter((call) => call.startsWith('setLog:')),
+      c.expected,
+    );
   });
+}
 
-  assert.equal(result.backgroundMode, true);
-  assert.deepEqual(calls, ['forceX11', 'enforceWayland', 'startLifecycle']);
+test('runStartupBootstrapRuntime applies log level and platform setup before starting lifecycle', () => {
+  const { calls } = runBootstrap({ logLevel: 'debug' });
+
+  const index = (call: string) => calls.indexOf(call);
+  assert.ok(index('setLog:debug:cli') >= 0);
+  assert.ok(index('setLog:debug:cli') < index('forceX11'));
+  assert.ok(index('forceX11') < index('startLifecycle'));
+  assert.ok(index('enforceWayland') < index('startLifecycle'));
 });
 
-test('runStartupBootstrapRuntime enables quiet update mode by default', () => {
-  const calls: string[] = [];
-  const args = makeArgs({ update: true });
+test('runStartupBootstrapRuntime skips lifecycle when generate-config flow handled', () => {
+  const { calls } = runBootstrap({ generateConfig: true }, { runGenerateConfigFlow: () => true });
 
-  const result = runStartupBootstrapRuntime({
-    argv: ['node', 'main.ts', '--update'],
-    parseArgs: () => args,
-    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
-    forceX11Backend: () => calls.push('forceX11'),
-    enforceUnsupportedWaylandMode: () => calls.push('enforceWayland'),
-    getDefaultSocketPath: () => '/tmp/default.sock',
-    defaultTexthookerPort: 5174,
-    runGenerateConfigFlow: () => false,
-    startAppLifecycle: () => calls.push('startLifecycle'),
-  });
-
-  assert.equal(result.backgroundMode, false);
-  assert.deepEqual(calls, ['setLog:warn:cli', 'forceX11', 'enforceWayland', 'startLifecycle']);
+  assert.equal(calls.includes('startLifecycle'), false);
 });

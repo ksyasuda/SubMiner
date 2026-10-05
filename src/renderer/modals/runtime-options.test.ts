@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import type { ElectronAPI, RuntimeOptionState } from '../../types';
 import { createRendererState } from '../state.js';
-import { createRuntimeOptionsModal } from './runtime-options.js';
+import { createRuntimeOptionsModal, scrollActiveRuntimeOptionIntoView } from './runtime-options.js';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -218,4 +218,14 @@ test('openRuntimeOptionsModal keeps modal visible when loading fails', async () 
       assert.equal(input.statusNode.classList.contains('error'), true);
     },
   );
+});
+
+test('scrollActiveRuntimeOptionIntoView no-ops without active option', () => {
+  const list = {
+    querySelector: () => null,
+  };
+
+  assert.doesNotThrow(() => {
+    scrollActiveRuntimeOptionIntoView(list);
+  });
 });

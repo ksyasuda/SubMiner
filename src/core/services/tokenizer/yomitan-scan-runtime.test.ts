@@ -258,20 +258,6 @@ test('halfwidth voiced kana compose into the reading instead of leaving a stray 
   ]);
 });
 
-test('requestYomitanScanTokens falls back to the exhaustive name scan without candidates', async () => {
-  const withoutLookups: string[] = [];
-  const withoutCandidates = await requestYomitanScanTokens(
-    NAME_SCAN_LINE,
-    createNameScanDeps(withoutLookups),
-    { error: () => undefined },
-    { includeNameMatchMetadata: true, currentCharacterDictionaryMediaId: 1, nameCandidates: null },
-  );
-
-  assert.equal(withoutCandidates?.[0]?.isNameMatch, true);
-  // No candidate list means every Japanese position is probed, as before.
-  assert.ok(countTermsFindLookups(withoutLookups, '校に') > 0);
-});
-
 test('requestYomitanScanTokens reinstalls name candidates when the media changes', async () => {
   const lookups: string[] = [];
   const deps = createNameScanDeps(lookups);
@@ -301,4 +287,36 @@ test('requestYomitanScanTokens reinstalls name candidates when the media changes
   );
   assert.equal(correctMedia?.[0]?.surface, 'ミナト');
   assert.equal(correctMedia?.[0]?.isNameMatch, true);
+});
+
+test('requestYomitanScanTokens skips the greedy name pre-pass when name matching is off', async () => {
+  const cases = [
+    {
+      name: 'name-match metadata disabled',
+      dictionaries: undefined,
+      includeNameMatchMetadata: false,
+      expectedNameMatch: false,
+    },
+    {
+      name: 'no enabled character dictionary',
+      dictionaries: ['JMdict'],
+      includeNameMatchMetadata: true,
+      // The main walk still classifies the match; only the pre-pass is gated.
+      expectedNameMatch: true,
+    },
+  ];
+  for (const c of cases) {
+    const lookups: string[] = [];
+    const result = await requestYomitanScanTokens(
+      NAME_SCAN_LINE,
+      createNameScanDeps(lookups, NAME_SCAN_WORDS, c.dictionaries),
+      { error: () => undefined },
+      { includeNameMatchMetadata: c.includeNameMatchMetadata },
+    );
+
+    assert.equal(result?.[0]?.surface, 'ミナト', c.name);
+    assert.equal(result?.[0]?.isNameMatch, c.expectedNameMatch, c.name);
+    // Mid-token positions are only probed by the pre-pass.
+    assert.equal(countTermsFindLookups(lookups, '校に'), 0, c.name);
+  }
 });
