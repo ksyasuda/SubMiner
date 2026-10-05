@@ -62,6 +62,8 @@
     "test:launcher:unit:src": "bun scripts/run-test-lane.mjs bun-launcher-unit",
     "test:scripts": "bun scripts/run-test-lane.mjs scripts",
     "test:stats": "bun scripts/run-test-lane.mjs stats",
+    "test:e2e": "bun scripts/run-test-lane.mjs e2e --jobs 1",
+    "e2e": "bun e2e/cli.ts",
     "test:env": "bun run test:launcher:smoke:src && bun run test:plugin:src && bun run test:immersion:sqlite:src",
     "test:runtime:compat": "bun run test:smoke:dist",
     "test": "bun run test:fast",

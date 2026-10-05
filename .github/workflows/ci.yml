@@ -9,3 +9,74 @@ on:
 jobs:
   build-test-audit:
     uses: ./.github/workflows/quality-gate.yml
+
+  # Boots the built app with a real mpv on each platform. Kept outside the
+  # reusable quality gate so releases do not depend on it while the lane is new.
+  e2e:
+    name: E2E (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      # os.tmpdir() follows these, which puts the kept session logs somewhere uploadable.
+      TMPDIR: ${{ runner.temp }}/e2e
+      TEMP: ${{ runner.temp }}/e2e
+      TMP: ${{ runner.temp }}/e2e
+      SUBMINER_E2E_KEEP: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Create temp directory
+        run: mkdir -p "$TMPDIR"
+
+      - name: Install mpv and ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Only Ubuntu sources are needed; unrelated runner repositories can be unavailable.
+          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          sudo apt-get "${apt_sources[@]}" update
+          sudo apt-get "${apt_sources[@]}" install -y mpv ffmpeg xvfb
+
+      - name: Install mpv and ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install mpv ffmpeg
+
+      - name: Install mpv and ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install mpv ffmpeg -y --no-progress
+
+      - name: Install dependencies
+        run: |
+          bun install --frozen-lockfile
+          cd stats && bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: End-to-end suite
+        run: bun run test:e2e
+
+      - name: Upload session logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs-${{ matrix.os }}
+          path: ${{ runner.temp }}/e2e/subminer-e2e-*/*.log
+          if-no-files-found: ignore
