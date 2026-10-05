@@ -1,4 +1,4 @@
-import { waitUntil, type WaitOptions } from './wait';
+import { waitUntil, type Truthy, type WaitOptions } from './wait';
 
 export type CdpTarget = {
   type: string;
@@ -13,7 +13,7 @@ export type CdpPage = {
   /** Evaluates an expression in the page, awaiting promises, and returns its JSON value. */
   evaluate: <T>(expression: string) => Promise<T>;
   /** Polls an expression until it is truthy and returns that value. */
-  waitFor: <T>(expression: string, options: WaitOptions) => Promise<NonNullable<T>>;
+  waitFor: <T>(expression: string, options: WaitOptions) => Promise<Truthy<T>>;
   /** PNG of the page as rendered by Chromium; needs no OS screen-capture permission. */
   screenshot: () => Promise<Buffer>;
   close: () => void;

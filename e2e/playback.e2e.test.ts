@@ -1,39 +1,49 @@
 import assert from 'node:assert/strict';
-import test, { after, before } from 'node:test';
+import test, { after } from 'node:test';
 import type { CdpPage } from './harness/cdp';
 import { FAKE_ANKI_DECK, FAKE_ANKI_MODEL } from './harness/fake-anki';
 import { FIXTURE_CUES } from './harness/fixtures';
 import { OVERLAY_PAGE, startE2eSession, type E2eSession } from './harness/session';
 import { waitUntil } from './harness/wait';
 
-let session: E2eSession;
-let overlay: CdpPage;
+type Started = { session: E2eSession; overlay: CdpPage };
 
-before(
-  async () => {
-    session = await startE2eSession();
-    overlay = await session.openPage(OVERLAY_PAGE);
-  },
-  { timeout: 120_000 },
-);
+// Bun caps node:test hooks at 5s whatever their timeout option says, so the
+// session boots inside whichever test runs first and every test budgets for it.
+const TEST_TIMEOUT_MS = 120_000;
+let started: Promise<Started> | undefined;
 
-after(() => session?.dispose(), { timeout: 30_000 });
+function useSession(): Promise<Started> {
+  started ??= (async () => {
+    const session = await startE2eSession();
+    return { session, overlay: await session.openPage(OVERLAY_PAGE) };
+  })();
+  return started;
+}
+
+after(async () => {
+  const running = await started?.catch(() => undefined);
+  await running?.session.dispose();
+});
 
 type RenderedToken = { surface: string; headword: string | null };
 
 // Parks playback inside a cue and waits for the overlay to show that line.
 async function showCue(cue: (typeof FIXTURE_CUES)[number]): Promise<RenderedToken[]> {
+  const { session, overlay } = await useSession();
   await session.mpv.command('seek', cue.at, 'absolute+exact');
-  await overlay.waitFor(
-    `document.getElementById('subtitleRoot').textContent === ${JSON.stringify(cue.text)}
-      && document.querySelector('#subtitleRoot .word') !== null`,
+  // One expression reads the line and its tokens together, so a re-render
+  // between two round trips cannot hand back a half-updated subtitle.
+  return overlay.waitFor<RenderedToken[] | false>(
+    `(() => {
+      const root = document.getElementById('subtitleRoot');
+      const words = Array.from(root.querySelectorAll('.word'), (word) => ({
+        surface: word.textContent,
+        headword: word.getAttribute('data-headword'),
+      }));
+      return root.textContent === ${JSON.stringify(cue.text)} && words.length > 0 && words;
+    })()`,
     { description: `overlay to render "${cue.text}" tokenized` },
-  );
-  return overlay.evaluate<RenderedToken[]>(
-    `Array.from(document.querySelectorAll('#subtitleRoot .word'), (word) => ({
-      surface: word.textContent,
-      headword: word.getAttribute('data-headword'),
-    }))`,
   );
 }
 
@@ -43,7 +53,7 @@ function hasToken(tokens: RenderedToken[], surface: string, headword: string): b
 
 test(
   'overlay renders the current mpv subtitle line as dictionary tokens',
-  { timeout: 30_000 },
+  { timeout: TEST_TIMEOUT_MS },
   async () => {
     const tokens = await showCue(FIXTURE_CUES[0]);
 
@@ -54,7 +64,7 @@ test(
 
 test(
   'seeking to another cue replaces the line and deinflects verbs to their headword',
-  { timeout: 30_000 },
+  { timeout: TEST_TIMEOUT_MS },
   async () => {
     const tokens = await showCue(FIXTURE_CUES[2]);
 
@@ -64,8 +74,9 @@ test(
 
 test(
   'mining a sentence card sends the line with generated audio and image to Anki',
-  { timeout: 60_000 },
+  { timeout: TEST_TIMEOUT_MS },
   async () => {
+    const { session } = await useSession();
     const cue = FIXTURE_CUES[1];
     await showCue(cue);
     session.anki.requests.length = 0;
@@ -104,8 +115,9 @@ test(
 // Runs last: it leaves the lookup popup open over the overlay.
 test(
   'holding Shift over a word opens the Yomitan popup with its dictionary entry',
-  { timeout: 30_000 },
+  { timeout: TEST_TIMEOUT_MS },
   async () => {
+    const { session, overlay } = await useSession();
     await showCue(FIXTURE_CUES[0]);
     const word = await overlay.evaluate<{ x: number; y: number }>(
       `(() => {

@@ -89,10 +89,12 @@ function buildConfig(mpvSocketPath: string, ankiUrl: string): JsonObject {
   };
 }
 
+// Outside Electron the package's entry point is the path of its binary, and
+// resolving it downloads the binary when an install skipped that step (CI).
 function resolveElectronBinary(): string {
-  const packageDir = path.join(repoRoot, 'node_modules', 'electron');
-  const relativeBinary = fs.readFileSync(path.join(packageDir, 'path.txt'), 'utf8').trim();
-  return path.join(packageDir, 'dist', relativeBinary);
+  const binary: unknown = require('electron');
+  if (typeof binary !== 'string') throw new Error('Could not resolve the Electron binary path');
+  return binary;
 }
 
 function readDevToolsPort(portFile: string): number | null {
@@ -257,13 +259,26 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
 
     const app = await launchApp(['--start']);
     // mpv starts paused and the app resumes it once the overlay and tokenizer
-    // are ready, so that resume marks the end of startup. Pause again so
-    // scenarios control the playback position themselves.
+    // are ready, so that resume marks the end of startup.
     await waitUntil(async () => (await mpv.command('get_property', 'pause')) === false, {
       description: 'SubMiner to resume playback after overlay startup',
       timeoutMs: 30_000,
     });
-    await mpv.command('set_property', 'pause', true);
+    // Hand scenarios a paused player. The app retries its resume for a moment,
+    // so keep pausing until the pause has held for longer than that retry window.
+    let pausedSince: number | null = null;
+    await waitUntil(
+      async () => {
+        if ((await mpv.command('get_property', 'pause')) !== true) {
+          pausedSince = null;
+          await mpv.command('set_property', 'pause', true);
+          return false;
+        }
+        pausedSince ??= Date.now();
+        return Date.now() - pausedSince >= 1_500;
+      },
+      { description: 'playback to stay paused after startup', timeoutMs: 40_000 },
+    );
     const pages: CdpPage[] = [];
     teardown.push(() => pages.forEach((page) => page.close()));
 
