@@ -3,8 +3,9 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { HachidoriHostStatus } from '../../../shared/hachidori-sharing';
 
-// hachidori-docker names itself this in the sharing hello; browser and app hosts
-// report their own name and have no management API to upload to.
+// hachidori-docker names itself this in the sharing hello. Hosts that advertise
+// linked imports take uploads over the link instead; this management API covers
+// hachidori-docker and is the only route to it.
 export const HACHIDORI_DOCKER_HOST_NAME = 'Hachidori Docker host';
 export const HACHIDORI_DOCKER_MANAGEMENT_PORT = 8780;
 
@@ -35,7 +36,7 @@ export function resolveHachidoriManagementUrl(
   }
   if (host.name !== HACHIDORI_DOCKER_HOST_NAME) {
     throw new Error(
-      `The linked ${host.name} at ${linkHostname} cannot receive dictionary uploads. Import ${zipPath} from its Hachidori settings, or link a Hachidori Docker host.`,
+      `The linked ${host.name} at ${linkHostname} cannot receive dictionary uploads. Update its Hachidori to 0.2.3 or later, or import ${zipPath} from its Hachidori settings.`,
     );
   }
   return new URL(`http://${linkHostname}:${HACHIDORI_DOCKER_MANAGEMENT_PORT}`).origin;

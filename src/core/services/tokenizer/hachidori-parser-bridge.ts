@@ -9,6 +9,7 @@ export const HACHIDORI_PARSER_BRIDGE_SCRIPT = String.raw`
   (async () => {
     if (globalThis.__subminerDictionarySendMessage) return;
     const { createApiHost } = await import('./api-host.js');
+    const { uploadDictionary } = await import('./linked-import.js');
     await import('./reader-options.js');
     const send = async (type, fields = {}, target = 'hoshidicts-offscreen') => {
       const reply = await chrome.runtime.sendMessage({
@@ -207,13 +208,26 @@ export const HACHIDORI_PARSER_BRIDGE_SCRIPT = String.raw`
     globalThis.__subminerDictionarySendMessage = ({ action, params }, callback) => {
       void invoke(action, params).then(result => callback({ result }), error => callback({ error: { message: error.message } }));
     };
+    // Archives go through Hachidori's upload requests: an unlinked install imports
+    // the ZIP itself and a linked one forwards it to its host. A busy engine keeps
+    // the upload open, so the same commit is sent again.
+    const sendUpload = async (type, fields) => {
+      const deadline = Date.now() + 300000;
+      for (;;) {
+        const reply = await chrome.runtime.sendMessage({
+          target: 'hachidori-linked-import', type, requestId: crypto.randomUUID(), ...fields,
+        });
+        if (type !== 'hd_import_commit' || reply?.errorCode !== 'engine-mutating' || Date.now() >= deadline) {
+          return reply;
+        }
+        await sleep(500);
+      }
+    };
     async function importArchive(blob, fileName) {
-      const blobUrl = URL.createObjectURL(blob);
-      try {
-        const reply = await engine('hd_import', { blobUrl, fileName });
-        if (reply.report?.success !== true) throw new Error(reply.report?.error || 'Hachidori dictionary import failed');
-      } finally {
-        URL.revokeObjectURL(blobUrl);
+      await waitForEngineReady();
+      const reply = await uploadDictionary({ blob, fileName, replace: true, send: sendUpload });
+      if (reply?.report?.success !== true) {
+        throw new Error(reply?.report?.error || reply?.error || 'Hachidori dictionary import failed');
       }
     }
     globalThis.__subminerYomitanSettingsAutomation = {

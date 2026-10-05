@@ -49,7 +49,9 @@ Setup checks the connection and the host's dictionaries before **Finish** unlock
 
 While linked, dictionaries and dictionary settings come from the host. Anki templates, pronunciation sources, custom buttons, and SubMiner's audio and image processing stay local. Frequency annotations use ranks returned with dictionary entries, and SubMiner asks the host for missing ones. Words with no matching definition entry may stay unranked even if a frequency dictionary lists them.
 
-When linked to a Docker host, SubMiner uploads [character dictionaries](/character-dictionary) to the linked machine's management port (8780) and replaces the previous dictionary once the import succeeds, retrying while the host is busy. If the host uses a different `ADMIN_PORT` or sits behind a reverse proxy, set `hachidori.externalHostManagementUrl` to its management origin, for example `"http://pve-main:9000"`. This is not the WebSocket sharing address. Browser and app hosts cannot receive uploads over the link, so sync reports where the merged ZIP is and you import it from that host's Hachidori settings. Local Hachidori does not need this setting.
+SubMiner sends [character dictionaries](/character-dictionary) to the linked host over the link and replaces the previous one once the import succeeds, retrying while the host is busy. This needs Hachidori 0.2.3 or later on the host. With an older host, sync reports where the merged ZIP is so you can import it from that host's Hachidori settings.
+
+Docker hosts take the upload on their management port (8780) instead. If the host uses a different `ADMIN_PORT` or sits behind a reverse proxy, set `hachidori.externalHostManagementUrl` to its management origin, for example `"http://pve-main:9000"`. This is not the WebSocket sharing address. Browser hosts and local Hachidori do not need this setting.
 
 ## Picking files
 

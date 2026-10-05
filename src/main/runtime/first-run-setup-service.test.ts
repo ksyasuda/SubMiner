@@ -881,6 +881,7 @@ test('Hachidori setup gates on the linked host instead of local dictionaries', a
       address: 'ws://127.0.0.1:8771/link',
       name: 'Docker',
       dictionaryCount: 2,
+      capabilities: [],
     };
     const service = createFirstRunSetupService({
       configDir: dir,
@@ -905,6 +906,7 @@ test('Hachidori setup gates on the linked host instead of local dictionaries', a
       address: 'ws://127.0.0.1:8771/link',
       name: 'Docker',
       dictionaryCount: 0,
+      capabilities: [],
     };
     assert.equal((await service.getSetupStatus()).canFinish, false);
     // A reachable host with no dictionaries does reopen setup.

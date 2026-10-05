@@ -75,6 +75,60 @@ test('linked Hachidori uploads replacement bytes, retries a busy host, and never
   }
 });
 
+test('a linked host that accepts imports gets the ZIP over the link, not its management API', async () => {
+  const zipPath = path.join(await mkdtemp(path.join(os.tmpdir(), 'hachi-import-')), 'merged.zip');
+  await writeFile(zipPath, 'PK-linked');
+  const linkedUploads: string[] = [];
+  // Serves both the parser window (sharing status) and the settings window (import).
+  const runScript = async (script: string): Promise<unknown> => {
+    if (script.includes('hd_sharing_status')) {
+      return {
+        ok: true,
+        sharing: {
+          client: {
+            linked: true,
+            connected: true,
+            address: 'ws://desktop:8771/link',
+            host: { name: 'Helium', dictionaryCount: 8, capabilities: ['linked-import-v1'] },
+          },
+        },
+      };
+    }
+    const archiveUrl = /importDictionaryArchiveUrl\(\s*("[^"]+")/.exec(script)?.[1];
+    if (archiveUrl) linkedUploads.push(await (await fetch(JSON.parse(archiveUrl))).text());
+    return true;
+  };
+  const settingsWindow = {
+    isDestroyed: () => false,
+    destroy: () => undefined,
+    webContents: { executeJavaScript: runScript },
+  };
+  const deps = {
+    ...createDeps(runScript, {
+      createYomitanExtensionWindow: async () => settingsWindow,
+    }),
+    getYomitanExt: () => ({
+      id: 'hachi',
+      name: 'Hachidori',
+      version: '1',
+      path: '',
+      url: '',
+      manifest: {},
+    }),
+  };
+  // Nothing listens here: reaching the management API would fail the import.
+  assert.equal(
+    await importYomitanDictionaryFromZip(
+      zipPath,
+      deps,
+      { error: assert.fail },
+      'http://127.0.0.1:9',
+    ),
+    true,
+  );
+  assert.deepEqual(linkedUploads, ['PK-linked']);
+});
+
 test('Hachidori upload requires a successful import report, not just HTTP success', async () => {
   const zipPath = path.join(await mkdtemp(path.join(os.tmpdir(), 'hachi-import-')), 'merged.zip');
   await writeFile(zipPath, 'bad archive');
@@ -129,7 +183,7 @@ test('management URL comes from the linked Docker host unless overridden', () =>
   assert.match(warnings[0] ?? '', /linked to pve-main/);
 });
 
-test('browser and app hosts without an override explain the manual import', () => {
+test('hosts without linked imports or an override explain the update or manual import', () => {
   assert.throws(
     () =>
       resolveHachidoriManagementUrl(
@@ -137,7 +191,7 @@ test('browser and app hosts without an override explain the manual import', () =
         '',
         '/dicts/merged.zip',
       ),
-    /Chrome at desktop cannot receive dictionary uploads\. Import \/dicts\/merged\.zip/,
+    /Chrome at desktop cannot receive dictionary uploads\. Update its Hachidori to 0\.2\.3 or later, or import \/dicts\/merged\.zip/,
   );
 });
 

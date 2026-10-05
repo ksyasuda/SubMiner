@@ -35,6 +35,29 @@ function lookupResult(matched: string, expression: string, reading: string, dict
   };
 }
 
+type UploadReply = Record<string, unknown>;
+// The parts of vendor/hachidori/extension/linked-import.js the harness drives.
+type LinkedImportModule = {
+  ENGINE_BUSY_CODE: string;
+  createUploadHost(options: {
+    store: {
+      append(token: string, data: string): void;
+      discard(token: string): void;
+    };
+    importUpload(
+      token: string,
+      upload: { fileName: string; replace: boolean },
+    ): Promise<UploadReply>;
+    setTimer(): number;
+    clearTimer(): void;
+  }): {
+    begin(message: UploadReply, owner: string): UploadReply;
+    chunk(message: UploadReply, owner: string): Promise<UploadReply>;
+    commit(message: UploadReply, owner: string): Promise<UploadReply>;
+    abort(message: UploadReply, owner: string): UploadReply;
+  };
+};
+
 async function createHarness(emptyLibrary = false) {
   const messages: Array<Record<string, unknown>> = [];
   let dictionaryRevision = 2;
@@ -62,11 +85,42 @@ async function createHarness(emptyLibrary = false) {
   let proxyUrl: unknown;
   let loadingStatusReplies = 0;
   let busyEngineReplies = 0;
+  let busyCommits = 0;
+  const uploads: Array<{ fileName: string; replace: boolean; bytes: Buffer }> = [];
   const apiModule: unknown = await import(
     pathToFileURL(path.join(extensionPath, 'api-host.js')).href
   );
+  const linkedImportModule = (await import(
+    pathToFileURL(path.join(extensionPath, 'linked-import.js')).href
+  )) as LinkedImportModule;
+  // Hachidori's own upload host, with the engine import replaced by a recorder.
+  const uploadParts = new Map<string, Buffer[]>();
+  const uploadHost = linkedImportModule.createUploadHost({
+    store: {
+      append: (token: string, data: string) => {
+        uploadParts.set(token, [...(uploadParts.get(token) ?? []), Buffer.from(data, 'base64')]);
+      },
+      discard: (token: string) => {
+        uploadParts.delete(token);
+      },
+    },
+    importUpload: async (
+      token: string,
+      { fileName, replace }: { fileName: string; replace: boolean },
+    ) => {
+      if (busyCommits > 0) {
+        busyCommits -= 1;
+        return { ok: false, error: 'busy', errorCode: linkedImportModule.ENGINE_BUSY_CODE };
+      }
+      uploads.push({ fileName, replace, bytes: Buffer.concat(uploadParts.get(token) ?? []) });
+      return { ok: true, report: { success: true } };
+    },
+    setTimer: () => 0,
+    clearTimer: () => {},
+  });
   const context = vm.createContext({
     __testApiModule: apiModule,
+    __testLinkedImportModule: linkedImportModule,
     setTimeout,
     crypto,
     URL,
@@ -89,6 +143,23 @@ async function createHarness(emptyLibrary = false) {
         getManifest: () => ({ version: 'test' }),
         sendMessage: async (message: Record<string, unknown>) => {
           messages.push(structuredClone(message));
+          if (message.target === 'hachidori-linked-import') {
+            // Mirrors background.js answerUploadRequest: commit answers with the import reply.
+            try {
+              switch (message.type) {
+                case 'hd_import_begin':
+                  return { ok: true, ...uploadHost.begin(message, 'local') };
+                case 'hd_import_chunk':
+                  return { ok: true, ...(await uploadHost.chunk(message, 'local')) };
+                case 'hd_import_abort':
+                  return { ok: true, ...uploadHost.abort(message, 'local') };
+                default:
+                  return await uploadHost.commit(message, 'local');
+              }
+            } catch (error) {
+              return { ok: false, error: (error as Error).message };
+            }
+          }
           if (message.type === 'hd_status') {
             const loading = loadingStatusReplies > 0;
             if (loading) loadingStatusReplies -= 1;
@@ -151,8 +222,6 @@ async function createHarness(emptyLibrary = false) {
               };
             case 'hd_anki_submit':
               return { ok: true, state: 'added', noteId: 19 };
-            case 'hd_import':
-              return { ok: true, report: { success: true } };
             case 'hd_remove':
               return { ok: true };
             default:
@@ -167,7 +236,9 @@ async function createHarness(emptyLibrary = false) {
   const script = HACHIDORI_PARSER_BRIDGE_SCRIPT.replace(
     "await import('./api-host.js')",
     '__testApiModule',
-  ).replace("await import('./reader-options.js')", 'Promise.resolve()');
+  )
+    .replace("await import('./linked-import.js')", '__testLinkedImportModule')
+    .replace("await import('./reader-options.js')", 'Promise.resolve()');
   await vm.runInContext(script, context);
   const run = async (code: string): Promise<unknown> =>
     structuredClone(await vm.runInContext(code, context));
@@ -209,6 +280,10 @@ async function createHarness(emptyLibrary = false) {
     setBusyEngineReplies: (count: number) => {
       busyEngineReplies = count;
     },
+    setBusyCommits: (count: number) => {
+      busyCommits = count;
+    },
+    uploads: () => uploads,
   };
 }
 
@@ -464,17 +539,19 @@ test('Hachidori mining requests render native dictionary aliases and frequency m
   );
 });
 
-test('Hachidori settings automation imports ZIP bytes and removes the matching dictionary ID', async () => {
+test('Hachidori settings automation uploads ZIP bytes as a replacement and removes the matching dictionary ID', async () => {
   const harness = await createHarness();
+  // The engine is mid-change for the first commit; the same upload must still land once.
+  harness.setBusyCommits(1);
   await harness.run(
-    "__subminerYomitanSettingsAutomation.importDictionaryArchiveBase64('UEs=', 'characters.zip')",
+    "__subminerYomitanSettingsAutomation.importDictionaryArchiveBase64('UEstdGVzdA==', 'characters.zip')",
   );
+  assert.deepEqual(harness.uploads(), [
+    { fileName: 'characters.zip', replace: true, bytes: Buffer.from('PK-test') },
+  ]);
   await harness.run(
     `__subminerYomitanSettingsAutomation.deleteDictionary(${JSON.stringify(characterDictionary)})`,
   );
-  const imported = harness.messages.find((message) => message.type === 'hd_import');
-  assert.equal(imported?.fileName, 'characters.zip');
-  assert.match(String(imported?.blobUrl), /^blob:/);
   const removed = harness.messages.find((message) => message.type === 'hd_remove');
   assert.equal(removed?.id, 'names');
 });

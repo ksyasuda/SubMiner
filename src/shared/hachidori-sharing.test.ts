@@ -52,7 +52,7 @@ test('sharing script safely links an address and checks live engine inventory', 
                 linked: true,
                 connected: true,
                 address,
-                host: { name: 'Host', dictionaryCount: 99 },
+                host: { name: 'Host', dictionaryCount: 99, capabilities: ['linked-import-v1', 7] },
               },
             },
           };
@@ -66,6 +66,7 @@ test('sharing script safely links an address and checks live engine inventory', 
     address,
     name: 'Host',
     dictionaryCount: 2,
+    capabilities: ['linked-import-v1'],
   });
 });
 

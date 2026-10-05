@@ -7,6 +7,7 @@ import {
 } from './hachidori-dictionary-import';
 import {
   buildHachidoriSharingScript,
+  HACHIDORI_LINKED_IMPORT_CAPABILITY,
   parseHachidoriHostStatus,
   type HachidoriSharingRequest,
 } from '../../../shared/hachidori-sharing';
@@ -1817,7 +1818,12 @@ export async function importYomitanDictionaryFromZip(
       const host = await requestHachidoriSharing({ type: 'hd_sharing_status' }, deps, logger);
       if (host.kind === 'disconnected' || host.kind === 'unavailable')
         throw new Error(host.message);
-      if (host.kind === 'connected') {
+      // Hosts with linked imports take the ZIP over the link like a local import,
+      // below. Older hosts and hachidori-docker need their management API.
+      if (
+        host.kind === 'connected' &&
+        !host.capabilities.includes(HACHIDORI_LINKED_IMPORT_CAPABILITY)
+      ) {
         const origin = resolveHachidoriManagementUrl(
           host,
           hachidoriManagementUrl,

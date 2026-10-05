@@ -1,8 +1,18 @@
 export type HachidoriHostStatus =
   | { kind: 'local' }
-  | { kind: 'connected'; address: string; name: string; dictionaryCount: number }
+  | {
+      kind: 'connected';
+      address: string;
+      name: string;
+      dictionaryCount: number;
+      // Advertised by the host in its sharing hello, e.g. HACHIDORI_LINKED_IMPORT_CAPABILITY.
+      capabilities: readonly string[];
+    }
   | { kind: 'disconnected'; address: string; message: string }
   | { kind: 'unavailable'; message: string };
+
+// Hosts with this capability (Hachidori 0.2.3+) accept dictionary ZIPs over the link.
+export const HACHIDORI_LINKED_IMPORT_CAPABILITY = 'linked-import-v1';
 
 export type HachidoriSharingRequest =
   | { type: 'hd_sharing_status' }
@@ -68,6 +78,9 @@ export function parseHachidoriHostStatus(reply: unknown): HachidoriHostStatus {
     address: client.address,
     name: typeof host.name === 'string' ? host.name : 'Hachidori',
     dictionaryCount: host.dictionaryCount,
+    capabilities: Array.isArray(host.capabilities)
+      ? host.capabilities.filter((entry): entry is string => typeof entry === 'string')
+      : [],
   };
 }
 
