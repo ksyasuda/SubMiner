@@ -73,7 +73,7 @@ function mergeConfig(base: JsonObject, overrides: JsonObject): JsonObject {
 // Anki, ports the user's own SubMiner holds) is off or pointed at a fake.
 function buildConfig(mpvSocketPath: string, ankiUrl: string): JsonObject {
   return {
-    mpv: { socketPath: mpvSocketPath },
+    mpv: { socketPath: mpvSocketPath, aniskipEnabled: false },
     ankiConnect: {
       url: ankiUrl,
       deck: FAKE_ANKI_DECK,

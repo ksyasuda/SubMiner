@@ -107,14 +107,16 @@ whenever the behavior does not depend on a specific compositor.
   `main`, outside the reusable quality gate, and uploads the session logs when it fails.
 - Every run is sandboxed in a temp dir: its own config and Electron profile, mpv IPC
   socket, and a fake AnkiConnect on a free port. It never touches the user's running
-  SubMiner, Anki, or stats database.
+  SubMiner, Anki, or stats database. It is not offline: the app still asks AniList for
+  cover art matching the clip's title.
 - Media is synthetic: an ffmpeg test-pattern clip, a three-cue Japanese `.srt`, and a
   tiny Yomitan dictionary covering those cues (`e2e/harness/fixtures.ts`). The harness
   imports the dictionary on a first boot, then restarts the app for the scenario.
 - Display: Linux runs everything inside a private Xvfb server, so no window reaches the
   desktop. macOS and Windows have no offscreen display server, so windows open in the
   current session there; `SUBMINER_E2E_DISPLAY=host` forces the same on Linux. The
-  macOS and Windows paths are written but have not been run yet.
+  macOS path passes in CI. Windows boots and renders the first line, then the overlay
+  stops updating, so its CI job is marked experimental and does not fail the workflow.
 - The app is driven over the Chrome DevTools Protocol (DOM queries, input events,
   per-window screenshots), mpv over its JSON IPC socket, and app commands through the
   normal CLI handoff (`--mine-sentence`, `--toggle-subtitle-sidebar`, ...).

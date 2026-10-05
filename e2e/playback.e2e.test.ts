@@ -16,7 +16,12 @@ let started: Promise<Started> | undefined;
 function useSession(): Promise<Started> {
   started ??= (async () => {
     const session = await startE2eSession();
-    return { session, overlay: await session.openPage(OVERLAY_PAGE) };
+    try {
+      return { session, overlay: await session.openPage(OVERLAY_PAGE) };
+    } catch (error) {
+      await session.dispose();
+      throw error;
+    }
   })();
   return started;
 }
@@ -34,8 +39,9 @@ async function showCue(cue: (typeof FIXTURE_CUES)[number]): Promise<RenderedToke
   await session.mpv.command('seek', cue.at, 'absolute+exact');
   // One expression reads the line and its tokens together, so a re-render
   // between two round trips cannot hand back a half-updated subtitle.
-  return overlay.waitFor<RenderedToken[] | false>(
-    `(() => {
+  return overlay
+    .waitFor<RenderedToken[] | false>(
+      `(() => {
       const root = document.getElementById('subtitleRoot');
       const words = Array.from(root.querySelectorAll('.word'), (word) => ({
         surface: word.textContent,
@@ -43,8 +49,19 @@ async function showCue(cue: (typeof FIXTURE_CUES)[number]): Promise<RenderedToke
       }));
       return root.textContent === ${JSON.stringify(cue.text)} && words.length > 0 && words;
     })()`,
-    { description: `overlay to render "${cue.text}" tokenized` },
-  );
+      { description: `overlay to render "${cue.text}" tokenized` },
+    )
+    .catch(async (error: unknown) => {
+      // Say what the overlay was showing instead, and whether it was being painted.
+      const state = await overlay.evaluate<string>(
+        `JSON.stringify({
+          visibility: document.visibilityState,
+          text: document.getElementById('subtitleRoot').textContent,
+          html: document.getElementById('subtitleRoot').innerHTML.slice(0, 300),
+        })`,
+      );
+      throw new Error(`Overlay state: ${state}`, { cause: error });
+    });
 }
 
 function hasToken(tokens: RenderedToken[], surface: string, headword: string): boolean {
@@ -151,7 +168,9 @@ test(
         );
         seen = [];
         for (const target of targets) {
-          const frame = await connectCdpPage(target);
+          // A frame can go away between listing and connecting; skip it.
+          const frame = await connectCdpPage(target).catch(() => undefined);
+          if (!frame) continue;
           const text = await frame.evaluate<string>('document.body?.innerText ?? ""');
           frame.close();
           seen.push(text);
