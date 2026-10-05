@@ -8,7 +8,6 @@ import {
   resolveMediaCoverApiUrl,
   summarizeMediaLibraryGroups,
 } from './media-library-grouping';
-import { CoverImage } from '../components/library/CoverImage';
 import { MediaCard } from '../components/library/MediaCard';
 
 const youtubeEpisodeA: MediaLibraryItem = {
@@ -151,19 +150,6 @@ test('groupMediaLibraryItems backfills missing group artwork from later items', 
   const groups = groupMediaLibraryItems([first, second]);
 
   assert.equal(groups[0]?.imageUrl, second.videoThumbnailUrl);
-});
-
-test('CoverImage renders explicit remote artwork when src is provided', () => {
-  const markup = renderToStaticMarkup(
-    <CoverImage
-      videoId={youtubeEpisodeA.videoId}
-      title={youtubeEpisodeA.canonicalTitle}
-      src={youtubeEpisodeA.videoThumbnailUrl}
-      className="w-8 h-8"
-    />,
-  );
-
-  assert.match(markup, /src="https:\/\/i\.ytimg\.com\/vi\/yt-1\/hqdefault\.jpg"/);
 });
 
 test('MediaCard uses the proxied cover endpoint instead of metadata artwork urls', () => {

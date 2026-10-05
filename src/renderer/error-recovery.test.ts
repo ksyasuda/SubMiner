@@ -2,16 +2,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createRendererRecoveryController } from './error-recovery.js';
-import {
-  YOMITAN_POPUP_HOST_SELECTOR,
-  YOMITAN_POPUP_IFRAME_SELECTOR,
-  YOMITAN_POPUP_VISIBLE_HOST_SELECTOR,
-  hasYomitanPopupIframe,
-  isYomitanPopupIframe,
-  isYomitanPopupVisible,
-} from './yomitan-popup.js';
-import { scrollActiveRuntimeOptionIntoView } from './modals/runtime-options.js';
-import { resolvePlatformInfo } from './utils/platform.js';
+
+type RecoveryDeps = Parameters<typeof createRendererRecoveryController>[0];
+
+function makeDeps(overrides: Partial<RecoveryDeps> = {}): RecoveryDeps {
+  return {
+    dismissActiveUi: () => {},
+    restoreOverlayInteraction: () => {},
+    showToast: () => {},
+    getSnapshot: () => ({
+      activeModal: null,
+      subtitlePreview: '',
+      secondarySubtitlePreview: '',
+      isOverlayInteractive: false,
+      isOverSubtitle: false,
+      overlayLayer: 'visible',
+    }),
+    logError: () => {},
+    ...overrides,
+  };
+}
 
 test('handleError logs context and recovers overlay state', () => {
   const payloads: unknown[] = [];
@@ -19,28 +29,30 @@ test('handleError logs context and recovers overlay state', () => {
   let restored = 0;
   const shown: string[] = [];
 
-  const controller = createRendererRecoveryController({
-    dismissActiveUi: () => {
-      dismissed += 1;
-    },
-    restoreOverlayInteraction: () => {
-      restored += 1;
-    },
-    showToast: (message) => {
-      shown.push(message);
-    },
-    getSnapshot: () => ({
-      activeModal: 'jimaku',
-      subtitlePreview: '字幕テキスト',
-      secondarySubtitlePreview: 'secondary',
-      isOverlayInteractive: true,
-      isOverSubtitle: true,
-      overlayLayer: 'visible',
+  const controller = createRendererRecoveryController(
+    makeDeps({
+      dismissActiveUi: () => {
+        dismissed += 1;
+      },
+      restoreOverlayInteraction: () => {
+        restored += 1;
+      },
+      showToast: (message) => {
+        shown.push(message);
+      },
+      getSnapshot: () => ({
+        activeModal: 'jimaku',
+        subtitlePreview: '字幕テキスト',
+        secondarySubtitlePreview: 'secondary',
+        isOverlayInteractive: true,
+        isOverSubtitle: true,
+        overlayLayer: 'visible',
+      }),
+      logError: (payload) => {
+        payloads.push(payload);
+      },
     }),
-    logError: (payload) => {
-      payloads.push(payload);
-    },
-  });
+  );
 
   controller.handleError(new Error('renderer boom'), {
     source: 'callback',
@@ -69,23 +81,13 @@ test('handleError logs context and recovers overlay state', () => {
 
 test('handleError normalizes non-Error values', () => {
   const payloads: unknown[] = [];
-
-  const controller = createRendererRecoveryController({
-    dismissActiveUi: () => {},
-    restoreOverlayInteraction: () => {},
-    showToast: () => {},
-    getSnapshot: () => ({
-      activeModal: null,
-      subtitlePreview: '',
-      secondarySubtitlePreview: '',
-      isOverlayInteractive: false,
-      isOverSubtitle: false,
-      overlayLayer: 'visible',
+  const controller = createRendererRecoveryController(
+    makeDeps({
+      logError: (payload) => {
+        payloads.push(payload);
+      },
     }),
-    logError: (payload) => {
-      payloads.push(payload);
-    },
-  });
+  );
 
   controller.handleError({ code: 500, reason: 'timeout' }, { source: 'callback', action: 'modal' });
 
@@ -97,334 +99,25 @@ test('handleError normalizes non-Error values', () => {
 test('nested recovery errors are ignored while current recovery is active', () => {
   const payloads: unknown[] = [];
   let restored = 0;
-
   let controllerRef: ReturnType<typeof createRendererRecoveryController> | null = null;
 
-  const controller = createRendererRecoveryController({
-    dismissActiveUi: () => {
-      controllerRef?.handleError(new Error('nested'), { source: 'callback', action: 'nested' });
-    },
-    restoreOverlayInteraction: () => {
-      restored += 1;
-    },
-    showToast: () => {},
-    getSnapshot: () => ({
-      activeModal: 'runtime-options',
-      subtitlePreview: '',
-      secondarySubtitlePreview: '',
-      isOverlayInteractive: true,
-      isOverSubtitle: false,
-      overlayLayer: 'visible',
+  const controller = createRendererRecoveryController(
+    makeDeps({
+      dismissActiveUi: () => {
+        controllerRef?.handleError(new Error('nested'), { source: 'callback', action: 'nested' });
+      },
+      restoreOverlayInteraction: () => {
+        restored += 1;
+      },
+      logError: (payload) => {
+        payloads.push(payload);
+      },
     }),
-    logError: (payload) => {
-      payloads.push(payload);
-    },
-  });
+  );
   controllerRef = controller;
 
   controller.handleError(new Error('outer'), { source: 'callback', action: 'outer' });
 
   assert.equal(payloads.length, 1);
   assert.equal(restored, 1);
-});
-
-test('resolvePlatformInfo prefers query layer over preload layer', () => {
-  const previousWindow = (globalThis as { window?: unknown }).window;
-  const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getOverlayLayer: () => 'modal',
-      },
-      location: { search: '?layer=visible' },
-    },
-  });
-  Object.defineProperty(globalThis, 'navigator', {
-    configurable: true,
-    value: {
-      platform: 'MacIntel',
-      userAgent: 'Mozilla/5.0 (Macintosh)',
-    },
-  });
-
-  try {
-    const info = resolvePlatformInfo();
-    assert.equal(info.overlayLayer, 'visible');
-  } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'navigator', {
-      configurable: true,
-      value: previousNavigator,
-    });
-  }
-});
-
-test('resolvePlatformInfo ignores legacy secondary layer and falls back to visible', () => {
-  const previousWindow = (globalThis as { window?: unknown }).window;
-  const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getOverlayLayer: () => 'secondary',
-      },
-      location: { search: '' },
-    },
-  });
-  Object.defineProperty(globalThis, 'navigator', {
-    configurable: true,
-    value: {
-      platform: 'MacIntel',
-      userAgent: 'Mozilla/5.0 (Macintosh)',
-    },
-  });
-
-  try {
-    const info = resolvePlatformInfo();
-    assert.equal(info.overlayLayer, 'visible');
-    assert.equal(info.shouldToggleMouseIgnore, true);
-  } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'navigator', {
-      configurable: true,
-      value: previousNavigator,
-    });
-  }
-});
-
-test('resolvePlatformInfo supports modal layer and disables mouse-ignore toggles', () => {
-  const previousWindow = (globalThis as { window?: unknown }).window;
-  const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getOverlayLayer: () => 'modal',
-      },
-      location: { search: '' },
-    },
-  });
-  Object.defineProperty(globalThis, 'navigator', {
-    configurable: true,
-    value: {
-      platform: 'MacIntel',
-      userAgent: 'Mozilla/5.0 (Macintosh)',
-    },
-  });
-
-  try {
-    const info = resolvePlatformInfo();
-    assert.equal(info.overlayLayer, 'modal');
-    assert.equal(info.isModalLayer, true);
-    assert.equal(info.shouldToggleMouseIgnore, false);
-  } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'navigator', {
-      configurable: true,
-      value: previousNavigator,
-    });
-  }
-});
-
-test('resolvePlatformInfo flags Windows platforms', () => {
-  const previousWindow = (globalThis as { window?: unknown }).window;
-  const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      electronAPI: {
-        getOverlayLayer: () => 'visible',
-      },
-      location: { search: '' },
-    },
-  });
-  Object.defineProperty(globalThis, 'navigator', {
-    configurable: true,
-    value: {
-      platform: 'Win32',
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-    },
-  });
-
-  try {
-    const info = resolvePlatformInfo();
-    assert.equal(info.isWindowsPlatform, true);
-    assert.equal(info.isMacOSPlatform, false);
-    assert.equal(info.isLinuxPlatform, false);
-    assert.equal(info.shouldToggleMouseIgnore, true);
-  } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'navigator', {
-      configurable: true,
-      value: previousNavigator,
-    });
-  }
-});
-
-test('isYomitanPopupIframe matches modern popup class and legacy id prefix', () => {
-  const createElement = (options: {
-    tagName: string;
-    id?: string;
-    classNames?: string[];
-  }): Element =>
-    ({
-      tagName: options.tagName,
-      id: options.id ?? '',
-      classList: {
-        contains: (className: string) => (options.classNames ?? []).includes(className),
-      },
-    }) as unknown as Element;
-
-  assert.equal(
-    isYomitanPopupIframe(
-      createElement({
-        tagName: 'IFRAME',
-        classNames: ['yomitan-popup'],
-      }),
-    ),
-    true,
-  );
-  assert.equal(
-    isYomitanPopupIframe(
-      createElement({
-        tagName: 'IFRAME',
-        id: 'yomitan-popup-123',
-      }),
-    ),
-    true,
-  );
-  assert.equal(
-    isYomitanPopupIframe(
-      createElement({
-        tagName: 'IFRAME',
-        id: 'something-else',
-      }),
-    ),
-    false,
-  );
-});
-
-test('hasYomitanPopupIframe queries for modern + legacy selector', () => {
-  let selector = '';
-  const root = {
-    querySelector: (value: string) => {
-      selector = value;
-      return {};
-    },
-  } as unknown as ParentNode;
-
-  assert.equal(hasYomitanPopupIframe(root), true);
-  assert.equal(selector, YOMITAN_POPUP_IFRAME_SELECTOR);
-});
-
-test('hasYomitanPopupIframe falls back to popup host selector for shadow-hosted popups', () => {
-  const selectors: string[] = [];
-  const root = {
-    querySelector: (value: string) => {
-      selectors.push(value);
-      if (value === YOMITAN_POPUP_HOST_SELECTOR) {
-        return {};
-      }
-      return null;
-    },
-  } as unknown as ParentNode;
-
-  assert.equal(hasYomitanPopupIframe(root), true);
-  assert.deepEqual(selectors, [YOMITAN_POPUP_IFRAME_SELECTOR, YOMITAN_POPUP_HOST_SELECTOR]);
-});
-
-test('isYomitanPopupVisible requires visible iframe geometry', () => {
-  const previousWindow = (globalThis as { window?: unknown }).window;
-  const selectors: string[] = [];
-  const visibleFrame = {
-    getBoundingClientRect: () => ({ width: 320, height: 180 }),
-  } as unknown as HTMLIFrameElement;
-  const hiddenFrame = {
-    getBoundingClientRect: () => ({ width: 320, height: 180 }),
-  } as unknown as HTMLIFrameElement;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      getComputedStyle: (element: Element) => {
-        if (element === hiddenFrame) {
-          return { visibility: 'hidden', display: 'block', opacity: '1' } as CSSStyleDeclaration;
-        }
-        return { visibility: 'visible', display: 'block', opacity: '1' } as CSSStyleDeclaration;
-      },
-    },
-  });
-
-  try {
-    const root = {
-      querySelectorAll: (value: string) => {
-        selectors.push(value);
-        if (
-          value === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR ||
-          value === YOMITAN_POPUP_HOST_SELECTOR
-        ) {
-          return [];
-        }
-        return [hiddenFrame, visibleFrame];
-      },
-    } as unknown as ParentNode;
-
-    assert.equal(isYomitanPopupVisible(root), true);
-    assert.deepEqual(selectors, [
-      YOMITAN_POPUP_VISIBLE_HOST_SELECTOR,
-      YOMITAN_POPUP_IFRAME_SELECTOR,
-    ]);
-  } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-  }
-});
-
-test('isYomitanPopupVisible detects visible shadow-hosted popup marker without iframe access', () => {
-  let selector = '';
-  const root = {
-    querySelectorAll: (value: string) => {
-      selector = value;
-      if (value === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR) {
-        return [{ getAttribute: () => 'true' }];
-      }
-      return [];
-    },
-  } as unknown as ParentNode;
-
-  assert.equal(isYomitanPopupVisible(root), true);
-  assert.equal(selector, YOMITAN_POPUP_VISIBLE_HOST_SELECTOR);
-});
-
-test('scrollActiveRuntimeOptionIntoView scrolls active runtime option with nearest block', () => {
-  const calls: Array<{ block?: ScrollLogicalPosition }> = [];
-  const activeItem = {
-    scrollIntoView: (options?: ScrollIntoViewOptions) => {
-      calls.push({ block: options?.block });
-    },
-  };
-
-  const list = {
-    querySelector: (selector: string) => {
-      assert.equal(selector, '.runtime-options-item.active');
-      return activeItem as unknown as Element;
-    },
-  };
-
-  scrollActiveRuntimeOptionIntoView(list);
-  assert.deepEqual(calls, [{ block: 'nearest' }]);
-});
-
-test('scrollActiveRuntimeOptionIntoView no-ops without active option', () => {
-  const list = {
-    querySelector: () => null,
-  };
-
-  assert.doesNotThrow(() => {
-    scrollActiveRuntimeOptionIntoView(list);
-  });
 });

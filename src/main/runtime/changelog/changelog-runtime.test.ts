@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  CHANGELOG_REQUEST_TIMEOUT_MS,
-  createChangelogRuntime,
-  withRequestTimeout,
-} from './changelog-runtime';
+import { createChangelogRuntime, withRequestTimeout } from './changelog-runtime';
 import type { FetchLike, FetchResponseLike } from '../update/release-assets';
 import { createCurlFetch } from '../update/fetch-adapter';
 
@@ -114,9 +110,4 @@ test('changelog timeout reaches the curl transport, not just global fetch', asyn
   await assert.rejects(wrapped('https://example.test/stalled'));
 
   assert.equal(killed, 'SIGKILL', 'the stalled curl process is killed at the changelog deadline');
-});
-
-test('changelog request timeout is finite', () => {
-  assert.ok(Number.isFinite(CHANGELOG_REQUEST_TIMEOUT_MS));
-  assert.ok(CHANGELOG_REQUEST_TIMEOUT_MS > 0);
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAppendToMpvLogHandler, createShowMpvOsdHandler } from './mpv-osd-log';
+import { createAppendToMpvLogHandler } from './mpv-osd-log';
 
 test('append mpv log writes timestamped message', () => {
   const writes: string[] = [];
@@ -110,27 +110,4 @@ test('append mpv log swallows async filesystem errors', async () => {
 
   assert.doesNotThrow(() => appendToMpvLog('hello'));
   await assert.doesNotReject(async () => flushMpvLog());
-});
-
-test('show mpv osd logs marker and forwards fallback logging', () => {
-  const calls: string[] = [];
-  const client = { connected: false, send: () => {} } as never;
-  const showMpvOsd = createShowMpvOsdHandler({
-    appendToMpvLog: (message) => calls.push(`append:${message}`),
-    showMpvOsdRuntime: (_client, text, fallbackLog) => {
-      calls.push(`show:${text}`);
-      fallbackLog('fallback-line');
-      return false;
-    },
-    getMpvClient: () => client,
-    logInfo: (line) => calls.push(`info:${line}`),
-  });
-
-  const shown = showMpvOsd('subtitle copied');
-  assert.equal(shown, false);
-  assert.deepEqual(calls, [
-    'append:[OSD] subtitle copied',
-    'show:subtitle copied',
-    'info:fallback-line',
-  ]);
 });

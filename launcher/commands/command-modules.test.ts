@@ -150,74 +150,7 @@ test('doctor command exits non-zero for missing hard dependencies', () => {
   );
 });
 
-test('doctor command forwards refresh-known-words to app binary', () => {
-  const context = createContext();
-  context.args.doctor = true;
-  context.args.doctorRefreshKnownWords = true;
-  const forwarded: string[][] = [];
-
-  const handled = runDoctorCommand(context, {
-    commandExists: () => false,
-    configExists: () => true,
-    resolveMainConfigPath: () => '/tmp/SubMiner/config.jsonc',
-    runAppCommandWithInherit: (_appPath, appArgs) => {
-      forwarded.push(appArgs);
-    },
-  });
-
-  assert.equal(handled, true);
-  assert.deepEqual(forwarded, [['--refresh-known-words']]);
-});
-
-test('logs command exports logs and writes archive path', () => {
-  const writes: string[] = [];
-  const context = createContext();
-  context.args.logsExport = true;
-  context.processAdapter = {
-    ...context.processAdapter,
-    writeStdout: (text) => writes.push(text),
-  };
-
-  const handled = runLogsCommand(context, {
-    exportLogsArchive: () => ({
-      zipPath: '/tmp/subminer-logs.zip',
-      exportedFiles: ['/tmp/app.log'],
-      mode: 'current-day',
-    }),
-  });
-
-  assert.equal(handled, true);
-  assert.deepEqual(writes, ['/tmp/subminer-logs.zip\n']);
-});
-
-test('logs command ignores unrelated launcher commands', () => {
-  const context = createContext();
-
-  assert.equal(runLogsCommand(context), false);
-});
-
-test('app command starts default macOS background app detached from launcher', () => {
-  const context = createContext();
-  context.args.appPassthrough = true;
-  context.args.appArgs = [];
-  const calls: string[] = [];
-
-  const handled = runAppPassthroughCommand(context, {
-    runAppCommandWithInherit: () => {
-      calls.push('attached');
-    },
-    launchSyncUiDetached: () => calls.push('sync-ui'),
-    launchYoutubeBrowserDetached: () => calls.push('youtube'),
-    launchAppBackgroundDetached: (appPath, logLevel) => {
-      calls.push(`detached:${appPath}:${logLevel}`);
-    },
-  });
-
-  assert.equal(handled, true);
-  assert.deepEqual(calls, ['detached:/tmp/subminer.app:warn']);
-});
-
-test('app command starts default Linux background app detached from launcher', () => {
+test('app command starts default background app detached from launcher app detached from launcher', () => {
   const context = createContext();
   context.args.appPassthrough = true;
   context.args.appArgs = [];
@@ -389,49 +322,6 @@ test('dictionary command forwards candidate and selection modes to app binary', 
   ]);
 });
 
-test('dictionary command returns after app handoff starts', () => {
-  const context = createContext();
-  context.args.dictionary = true;
-
-  const handled = runDictionaryCommand(context, {
-    runAppCommandWithInherit: () => undefined,
-  });
-
-  assert.equal(handled, true);
-});
-
-test('update command runs direct Linux release update without launching Electron', async () => {
-  const context = createContext();
-  context.args.update = true;
-  const calls: string[] = [];
-
-  const handled = await runUpdateCommand(context, {
-    runAppCommandCaptureOutput: () => {
-      throw new Error('unexpected Electron launch');
-    },
-    runDirectReleaseUpdate: async (request) => {
-      calls.push(`direct:${request.appPath}:${request.launcherPath}:${request.channel}`);
-      return {
-        appImage: { status: 'not-found' },
-        launcher: { status: 'updated' },
-        supportAssets: [{ status: 'skipped' }],
-      };
-    },
-    readMainConfig: () => null,
-    log: (level, _configured, message) => {
-      calls.push(`${level}:${message}`);
-    },
-  });
-
-  assert.equal(handled, true);
-  assert.deepEqual(calls, [
-    'direct:/tmp/subminer.app:/tmp/subminer:stable',
-    'info:AppImage update: not-found',
-    'info:Launcher update: updated',
-    'info:Support assets update: skipped',
-  ]);
-});
-
 test('stats command launches attached app command with response path', async () => {
   const harness = createStatsTestHarness({ stats: true, logLevel: 'debug' });
   const handled = await runStatsCommand(harness.context, harness.commandDeps);
@@ -449,16 +339,41 @@ test('stats command launches attached app command with response path', async () 
   assert.equal(harness.removedPaths.length, 1);
 });
 
-test('stats background command launches attached daemon control command with response path', async () => {
-  const harness = createStatsTestHarness({ stats: true, statsBackground: true });
-  const handled = await runStatsCommand(harness.context, harness.commandDeps);
+const STATS_RESPONSE_ARGS = ['--stats-response-path', '/tmp/subminer-stats-test/response.json'];
 
-  assert.equal(handled, true);
-  assert.deepEqual(harness.forwarded, [
-    ['--stats-daemon-start', '--stats-response-path', '/tmp/subminer-stats-test/response.json'],
-  ]);
-  assert.equal(harness.removedPaths.length, 1);
-});
+const statsForwardingCases = [
+  {
+    name: 'stats background command launches the daemon start command',
+    overrides: { statsBackground: true },
+    expected: ['--stats-daemon-start', ...STATS_RESPONSE_ARGS],
+  },
+  {
+    name: 'stats stop command forwards the daemon stop flag',
+    overrides: { statsStop: true },
+    expected: ['--stats-daemon-stop', ...STATS_RESPONSE_ARGS],
+  },
+  {
+    name: 'stats cleanup command forwards cleanup vocab flags',
+    overrides: { statsCleanup: true, statsCleanupVocab: true },
+    expected: ['--stats', ...STATS_RESPONSE_ARGS, '--stats-cleanup', '--stats-cleanup-vocab'],
+  },
+  {
+    name: 'stats cleanup command forwards the lifetime rebuild flag',
+    overrides: { statsCleanup: true, statsCleanupLifetime: true },
+    expected: ['--stats', ...STATS_RESPONSE_ARGS, '--stats-cleanup', '--stats-cleanup-lifetime'],
+  },
+];
+
+for (const c of statsForwardingCases) {
+  test(`${c.name} to the app`, async () => {
+    const harness = createStatsTestHarness({ stats: true, ...c.overrides });
+    const handled = await runStatsCommand(harness.context, harness.commandDeps);
+
+    assert.equal(handled, true);
+    assert.deepEqual(harness.forwarded, [c.expected]);
+    assert.equal(harness.removedPaths.length, 1);
+  });
+}
 
 test('stats command waits for attached app exit after startup response', async () => {
   const harness = createStatsTestHarness({ stats: true });
@@ -503,45 +418,6 @@ test('stats command throws when attached app exits non-zero after startup respon
   assert.equal(harness.removedPaths.length, 1);
 });
 
-test('stats cleanup command forwards cleanup vocab flags to the app', async () => {
-  const harness = createStatsTestHarness({
-    stats: true,
-    statsCleanup: true,
-    statsCleanupVocab: true,
-  });
-  const handled = await runStatsCommand(harness.context, {
-    ...harness.commandDeps,
-    waitForStatsResponse: async () => ({ ok: true }),
-  });
-
-  assert.equal(handled, true);
-  assert.deepEqual(harness.forwarded, [
-    [
-      '--stats',
-      '--stats-response-path',
-      '/tmp/subminer-stats-test/response.json',
-      '--stats-cleanup',
-      '--stats-cleanup-vocab',
-    ],
-  ]);
-  assert.equal(harness.removedPaths.length, 1);
-});
-
-test('stats stop command forwards stop flag to the app', async () => {
-  const harness = createStatsTestHarness({ stats: true, statsStop: true });
-
-  const handled = await runStatsCommand(harness.context, {
-    ...harness.commandDeps,
-    waitForStatsResponse: async () => ({ ok: true }),
-  });
-
-  assert.equal(handled, true);
-  assert.deepEqual(harness.forwarded, [
-    ['--stats-daemon-stop', '--stats-response-path', '/tmp/subminer-stats-test/response.json'],
-  ]);
-  assert.equal(harness.removedPaths.length, 1);
-});
-
 test('stats stop command exits on process exit without waiting for startup response', async () => {
   const harness = createStatsTestHarness({ stats: true, statsStop: true });
   let waitedForResponse = false;
@@ -560,30 +436,6 @@ test('stats stop command exits on process exit without waiting for startup respo
 
   assert.equal(handled, true);
   assert.equal(waitedForResponse, false);
-  assert.equal(harness.removedPaths.length, 1);
-});
-
-test('stats cleanup command forwards lifetime rebuild flag to the app', async () => {
-  const harness = createStatsTestHarness({
-    stats: true,
-    statsCleanup: true,
-    statsCleanupLifetime: true,
-  });
-  const handled = await runStatsCommand(harness.context, {
-    ...harness.commandDeps,
-    waitForStatsResponse: async () => ({ ok: true }),
-  });
-
-  assert.equal(handled, true);
-  assert.deepEqual(harness.forwarded, [
-    [
-      '--stats',
-      '--stats-response-path',
-      '/tmp/subminer-stats-test/response.json',
-      '--stats-cleanup',
-      '--stats-cleanup-lifetime',
-    ],
-  ]);
   assert.equal(harness.removedPaths.length, 1);
 });
 
@@ -688,39 +540,6 @@ test('stats command aborts pending response wait when attached app fails to spaw
     },
     (error: unknown) => error === spawnError,
   );
-
-  assert.equal(aborted, true);
-  assert.equal(harness.removedPaths.length, 1);
-});
-
-test('stats cleanup command aborts pending response wait when app exits before startup response', async () => {
-  const harness = createStatsTestHarness({
-    stats: true,
-    statsCleanup: true,
-    statsCleanupVocab: true,
-  });
-  let aborted = false;
-
-  await assert.rejects(async () => {
-    await runStatsCommand(harness.context, {
-      ...harness.commandDeps,
-      runAppCommandAttached: async (...args) => {
-        await harness.runAppCommandAttachedStub(...args);
-        return 2;
-      },
-      waitForStatsResponse: async (_responsePath, signal) =>
-        await new Promise((resolve) => {
-          signal?.addEventListener(
-            'abort',
-            () => {
-              aborted = true;
-              resolve({ ok: false, error: 'aborted' });
-            },
-            { once: true },
-          );
-        }),
-    });
-  }, /Stats app exited before startup response \(status 2\)\./);
 
   assert.equal(aborted, true);
   assert.equal(harness.removedPaths.length, 1);

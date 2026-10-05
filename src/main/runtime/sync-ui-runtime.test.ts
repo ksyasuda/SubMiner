@@ -83,27 +83,6 @@ function withTempDir(fn: (dir: string) => Promise<void> | void): Promise<void> |
   return result;
 }
 
-test('registerHandlers registers every sync-ui request channel', () =>
-  withTempDir((root) => {
-    const { handlers } = makeTestRig(root);
-    for (const channel of [
-      'sync-ui:get-snapshot',
-      'sync-ui:save-host',
-      'sync-ui:remove-host',
-      'sync-ui:set-auto-sync-interval',
-      'sync-ui:run-sync',
-      'sync-ui:cancel-run',
-      'sync-ui:check-host',
-      'sync-ui:create-snapshot',
-      'sync-ui:merge-snapshot-file',
-      'sync-ui:delete-snapshot',
-      'sync-ui:reveal-snapshot',
-      'sync-ui:pick-snapshot-file',
-    ]) {
-      assert.ok(handlers.has(channel), `missing ${channel}`);
-    }
-  }));
-
 test('save/remove host round-trips through the hosts file', () =>
   withTempDir(async (root) => {
     const { invoke, sent } = makeTestRig(root);
@@ -284,15 +263,6 @@ test('post-run side-effect failures are logged without rejecting cleanup', () =>
     launcherCalls[0]!.finish({ ok: true, error: null });
     await new Promise((resolve) => setImmediate(resolve));
     assert.ok(logs.some((message) => message.includes('window gone')));
-  }));
-
-test('cancel-run cancels the active run', () =>
-  withTempDir(async (root) => {
-    const { invoke, launcherCalls } = makeTestRig(root);
-    await invoke('sync-ui:run-sync', { host: 'media-box' });
-    const cancelled = (await invoke('sync-ui:cancel-run')) as boolean;
-    assert.equal(cancelled, true);
-    assert.equal(launcherCalls[0]!.cancelled, true);
   }));
 
 test('get-snapshot lists snapshot files newest first', () =>

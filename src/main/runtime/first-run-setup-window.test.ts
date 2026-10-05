@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   buildFirstRunSetupHtml,
   createHandleFirstRunSetupNavigationHandler,
-  createMaybeFocusExistingFirstRunSetupWindowHandler,
   createOpenFirstRunSetupWindowHandler,
   parseFirstRunSetupSubmissionUrl,
 } from './first-run-setup-window';
@@ -33,78 +32,6 @@ function createCommandLineLauncherSnapshot(
     ...overrides,
   };
 }
-
-test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish state', () => {
-  const html = buildFirstRunSetupHtml({
-    configReady: true,
-    dictionaryCount: 0,
-    canFinish: false,
-    externalYomitanConfigured: false,
-    pluginStatus: 'required',
-    pluginInstallPathSummary: null,
-    mpvExecutablePath: '',
-    mpvExecutablePathStatus: 'blank',
-    windowsMpvShortcuts: {
-      supported: false,
-      startMenuEnabled: true,
-      desktopEnabled: true,
-      startMenuInstalled: false,
-      desktopInstalled: false,
-      status: 'optional',
-    },
-    commandLineLauncher: createCommandLineLauncherSnapshot(),
-    message: 'Waiting for dictionaries',
-  });
-
-  assert.match(html, /SubMiner setup/);
-  assert.doesNotMatch(html, /Install legacy mpv plugin/);
-  assert.doesNotMatch(html, /action=install-plugin/);
-  assert.doesNotMatch(html, /mpv runtime plugin/);
-  assert.doesNotMatch(html, /Bundled ready/);
-  assert.doesNotMatch(html, /Managed mpv launches use the bundled runtime plugin\./);
-  assert.match(html, /Open Yomitan Settings/);
-  assert.match(html, /Open SubMiner Settings/);
-  assert.match(
-    html,
-    /action=open-yomitan-settings'">Open Yomitan Settings<\/button>\s*<button class="ghost" onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=refresh'">Refresh status<\/button>\s*<button onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=open-config-settings'">Open SubMiner Settings<\/button>\s*<button class="primary" disabled onclick="window\.location\.href='subminer:\/\/first-run-setup\?action=finish'">Finish setup<\/button>/,
-  );
-  assert.match(html, /Finish setup/);
-  assert.match(html, /disabled/);
-  assert.match(html, /html,\s*body\s*{\s*min-height:\s*100%;/);
-  assert.match(html, /min-height:\s*100vh;/);
-  assert.match(html, /box-sizing:\s*border-box;/);
-});
-
-test('buildFirstRunSetupHtml omits bundled mpv plugin readiness when already installed', () => {
-  const html = buildFirstRunSetupHtml({
-    configReady: true,
-    dictionaryCount: 1,
-    canFinish: true,
-    externalYomitanConfigured: false,
-    pluginStatus: 'installed',
-    pluginInstallPathSummary: '/tmp/mpv',
-    mpvExecutablePath: 'C:\\Program Files\\mpv\\mpv.exe',
-    mpvExecutablePathStatus: 'configured',
-    windowsMpvShortcuts: {
-      supported: true,
-      startMenuEnabled: true,
-      desktopEnabled: true,
-      startMenuInstalled: true,
-      desktopInstalled: false,
-      status: 'installed',
-    },
-    commandLineLauncher: createCommandLineLauncherSnapshot(),
-    message: null,
-  });
-
-  assert.doesNotMatch(html, /Reinstall mpv plugin/);
-  assert.doesNotMatch(html, /action=install-plugin/);
-  assert.doesNotMatch(html, /mpv runtime plugin/);
-  assert.match(html, /mpv executable path/);
-  assert.match(html, /Leave blank to auto-discover mpv\.exe from PATH\./);
-  assert.match(html, /aria-label="Path to mpv\.exe"/);
-  assert.doesNotMatch(html, /SubMiner-managed mpv launches use the bundled runtime plugin\./);
-});
 
 test('buildFirstRunSetupHtml shows legacy mpv plugin removal action with confirmation', () => {
   const html = buildFirstRunSetupHtml({
@@ -169,6 +96,7 @@ test('buildFirstRunSetupHtml marks an invalid configured mpv path as invalid', (
 
   assert.match(html, />Invalid</);
   assert.match(html, /Current: C:\\Broken\\mpv\.exe \(invalid; file not found\)/);
+  assert.match(html, /aria-label="Path to mpv\.exe"/);
 });
 
 test('buildFirstRunSetupHtml explains the config blocker when setup is missing config', () => {
@@ -194,6 +122,10 @@ test('buildFirstRunSetupHtml explains the config blocker when setup is missing c
   });
 
   assert.match(html, /Create or provide the config file before finishing setup\./);
+  assert.match(
+    html,
+    /<button class="primary" disabled [^>]*action=finish'">Finish setup<\/button>/,
+  );
 });
 
 test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish enabled', () => {
@@ -397,19 +329,6 @@ test('buildFirstRunSetupHtml disables launcher install when no target is install
   );
 });
 
-test('first-run setup window handler focuses existing window', () => {
-  const calls: string[] = [];
-  const maybeFocus = createMaybeFocusExistingFirstRunSetupWindowHandler({
-    getSetupWindow: () => ({
-      show: () => calls.push('show'),
-      focus: () => calls.push('focus'),
-    }),
-  });
-
-  assert.equal(maybeFocus(), true);
-  assert.deepEqual(calls, ['show', 'focus']);
-});
-
 test('first-run setup navigation handler prevents default and dispatches supported action', async () => {
   const calls: string[] = [];
   const handleNavigation = createHandleFirstRunSetupNavigationHandler({
@@ -428,13 +347,6 @@ test('first-run setup navigation handler prevents default and dispatches support
   assert.equal(prevented, true);
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(calls, ['preventDefault', 'refresh']);
-});
-
-test('first-run setup parser rejects legacy global plugin install action', () => {
-  assert.equal(
-    parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=install-plugin'),
-    null,
-  );
 });
 
 test('first-run setup navigation handler swallows stale custom-scheme actions', () => {

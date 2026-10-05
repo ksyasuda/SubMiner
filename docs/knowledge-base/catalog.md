@@ -21,6 +21,7 @@ Read when: finding internal docs or checking verification status
 | Planning guide | `docs/workflow/planning.md` | active | 2026-05-23 | lightweight vs execution plans |
 | Agent skills | `docs/workflow/agent-skills.md` | active | 2026-08-23 | repo-local workflow skill ownership |
 | Verification guide | `docs/workflow/verification.md` | active | 2026-08-13 | maintained verification lanes |
+| Testing guidelines | `docs/workflow/testing.md` | active | 2026-10-04 | test style and anti-patterns |
 | Release guide | `docs/RELEASING.md` | active | 2026-05-23 | release checklist |
 
 ## Update Rules

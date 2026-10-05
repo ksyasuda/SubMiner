@@ -39,7 +39,11 @@ function createYomitanScriptSandbox(handler: (action: string, params: unknown) =
           callback: (response: { result?: unknown; error?: { message?: string } }) => void,
         ) => {
           try {
-            callback({ result: handler(payload.action ?? '', payload.params) });
+            // Messages cross a process boundary in Electron; clone params into
+            // the host realm so handlers can compare them structurally.
+            const params =
+              payload.params === undefined ? undefined : structuredClone(payload.params);
+            callback({ result: handler(payload.action ?? '', params) });
           } catch (error) {
             callback({ error: { message: (error as Error).message } });
           }
@@ -98,8 +102,128 @@ export function countTermsFindLookups(lookups: string[], prefix: string): number
   return lookups.filter((lookupText) => lookupText.startsWith(prefix)).length;
 }
 
+export interface TermsFindResult {
+  originalTextLength: number;
+  dictionaryEntries: unknown[];
+}
+
+// One termsFind dictionary entry whose headword exactly matches `originalText`
+// (the scanned surface, defaulting to the term). `dictionary` attaches a
+// definition from that dictionary, e.g. a SubMiner character dictionary.
+export function termEntry(
+  term: string,
+  reading: string,
+  options: { originalText?: string; isPrimary?: boolean; dictionary?: string } = {},
+) {
+  return {
+    headwords: [
+      {
+        term,
+        reading,
+        sources: [
+          {
+            originalText: options.originalText ?? term,
+            isPrimary: options.isPrimary ?? true,
+            matchType: 'exact',
+          },
+        ],
+      },
+    ],
+    ...(options.dictionary ? { definitions: [{ dictionary: options.dictionary }] } : {}),
+  };
+}
+
+export function termsFound(
+  originalTextLength: number,
+  ...dictionaryEntries: unknown[]
+): TermsFindResult {
+  return { originalTextLength, dictionaryEntries };
+}
+
+// Scan deps backed by a fake Yomitan backend. The active profile enables
+// `dictionaries` (in priority order; omitted means no dictionary list),
+// getDictionaryInfo returns `dictionaryInfo`, and termsFind answers through
+// `termsFind` (null/undefined means no match) while recording each text in
+// `lookups`. `actions` handles any other backend action and overrides the
+// defaults above; anything else throws. Every action name lands in `actionLog`.
+export function createBackendDeps(
+  options: {
+    dictionaries?: string[];
+    dictionaryInfo?: unknown[];
+    termsFind?: (text: string) => TermsFindResult | null | undefined;
+    lookups?: string[];
+    actions?: Record<string, (params: unknown) => unknown>;
+    actionLog?: string[];
+    onScript?: (script: string) => void;
+  } = {},
+) {
+  return createScanDeps(
+    (action, params) => {
+      options.actionLog?.push(action);
+      const override = options.actions?.[action];
+      if (override) {
+        return override(params);
+      }
+      if (action === 'optionsGetFull') {
+        return {
+          profileCurrent: 0,
+          profiles: [
+            {
+              options: {
+                scanning: { length: 40 },
+                ...(options.dictionaries
+                  ? {
+                      dictionaries: options.dictionaries.map((name, id) => ({
+                        name,
+                        enabled: true,
+                        id,
+                      })),
+                    }
+                  : {}),
+              },
+            },
+          ],
+        };
+      }
+      if (action === 'getDictionaryInfo') {
+        return options.dictionaryInfo ?? [];
+      }
+      if (action === 'termsFind' && options.termsFind) {
+        const text = (params as { text?: string } | undefined)?.text ?? '';
+        options.lookups?.push(text);
+        return options.termsFind(text) ?? termsFound(0);
+      }
+      throw new Error(`unexpected action: ${action}`);
+    },
+    { onScript: options.onScript },
+  );
+}
+
+// Deps whose hidden settings.html window runs injected scripts against a fake
+// `__subminerYomitanSettingsAutomation` bridge, like the real settings page.
+export function createSettingsAutomationDeps(automation: Record<string, unknown>) {
+  const context = vm.createContext({
+    __subminerYomitanSettingsAutomation: { ready: true, ...automation },
+    setTimeout,
+  });
+  const settingsWindow = {
+    isDestroyed: () => false,
+    destroy: () => undefined,
+    webContents: {
+      executeJavaScript: async (script: string) => await vm.runInContext(script, context),
+    },
+  };
+  return createDeps(async () => true, {
+    createYomitanExtensionWindow: async (pageName) =>
+      pageName === 'settings.html' ? settingsWindow : null,
+  });
+}
+
+export const SUBMINER_TEST_CHARACTER_DICTIONARY = 'SubMiner Character Dictionary (AniList 1)';
+
 // Backend stub for the greedy name pre-pass: one character name (ミナト) in a
-// line of ordinary words, with the SubMiner character dictionary enabled.
+// line of ordinary words, with the SubMiner character dictionary enabled
+// unless `dictionaries` says otherwise.
 export const NAME_SCAN_WORDS: Array<[string, string, string, boolean]> = [
   ['ミナト', 'ミナト', 'みなと', true],
   ['は', 'は', 'は', false],
@@ -112,57 +236,24 @@ export const NAME_SCAN_WORDS: Array<[string, string, string, boolean]> = [
 export function createNameScanDeps(
   lookups: string[],
   words: Array<[string, string, string, boolean]> = NAME_SCAN_WORDS,
+  dictionaries: string[] = ['JMdict', SUBMINER_TEST_CHARACTER_DICTIONARY],
 ) {
-  return createScanDeps((action, params) => {
-    if (action === 'optionsGetFull') {
-      return {
-        profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
-              dictionaries: [
-                { name: 'JMdict', enabled: true, id: 0 },
-                {
-                  name: 'SubMiner Character Dictionary (AniList 1)',
-                  enabled: true,
-                  id: 1,
-                },
-              ],
-            },
-          },
-        ],
-      };
-    }
-    if (action === 'getDictionaryInfo') {
-      return [];
-    }
-    if (action !== 'termsFind') {
-      throw new Error(`unexpected action: ${action}`);
-    }
-    const text = (params as { text?: string } | undefined)?.text ?? '';
-    lookups.push(text);
-    for (const [surface, term, reading, isName] of words) {
-      if (text.startsWith(surface)) {
-        return {
-          originalTextLength: surface.length,
-          dictionaryEntries: [
-            {
-              headwords: [
-                {
-                  term,
-                  reading,
-                  sources: [{ originalText: surface, isPrimary: true, matchType: 'exact' }],
-                },
-              ],
-              definitions: [
-                { dictionary: isName ? 'SubMiner Character Dictionary (AniList 1)' : 'JMdict' },
-              ],
-            },
-          ],
-        };
+  return createBackendDeps({
+    dictionaries,
+    lookups,
+    termsFind: (text) => {
+      const match = words.find(([surface]) => text.startsWith(surface));
+      if (!match) {
+        return null;
       }
-    }
-    return { originalTextLength: 0, dictionaryEntries: [] };
+      const [surface, term, reading, isName] = match;
+      return termsFound(
+        surface.length,
+        termEntry(term, reading, {
+          originalText: surface,
+          dictionary: isName ? SUBMINER_TEST_CHARACTER_DICTIONARY : 'JMdict',
+        }),
+      );
+    },
   });
 }

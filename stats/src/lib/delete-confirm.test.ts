@@ -8,271 +8,153 @@ import {
   setDeleteConfirmPresenter,
 } from './delete-confirm';
 
-test('confirmSessionDelete uses the shared session delete warning copy', async () => {
+interface NativeStatsApi {
+  confirmNativeDialog?: (message: string) => boolean;
+  beginNativeDialog?: () => void;
+  endNativeDialog?: () => void;
+}
+
+type ElectronGlobal = typeof globalThis & { electronAPI?: { stats?: NativeStatsApi } };
+
+/**
+ * Runs `run` with a fake browser `confirm` (answering `confirmAnswer`) and, when
+ * `electronStats` is given, a fake Electron stats bridge built from the shared `calls`
+ * log. Calls into either end up in `calls`, in order.
+ */
+async function withConfirmGlobals(
+  options: {
+    confirmAnswer?: boolean;
+    electronStats?: (calls: string[]) => NativeStatsApi;
+  },
+  run: (calls: string[]) => Promise<void>,
+): Promise<void> {
   const calls: string[] = [];
-  const originalConfirm = globalThis.confirm;
-  globalThis.confirm = ((message?: string) => {
-    calls.push(message ?? '');
-    return true;
+  const globals = globalThis as ElectronGlobal;
+  const originalConfirm = globals.confirm;
+  const originalElectronAPI = globals.electronAPI;
+
+  globals.confirm = ((message?: string) => {
+    calls.push(`browser-confirm:${message ?? ''}`);
+    return options.confirmAnswer ?? true;
   }) as typeof globalThis.confirm;
+  globals.electronAPI = options.electronStats ? { stats: options.electronStats(calls) } : undefined;
 
   try {
-    assert.equal(await confirmSessionDelete(), true);
-    assert.deepEqual(calls, ['Delete this session and all associated data?']);
+    await run(calls);
   } finally {
-    globalThis.confirm = originalConfirm;
+    globals.confirm = originalConfirm;
+    globals.electronAPI = originalElectronAPI;
   }
+}
+
+const SESSION_WARNING = 'Delete this session and all associated data?';
+
+test('confirmSessionDelete falls back to the browser confirm with the shared warning copy', async () => {
+  await withConfirmGlobals({}, async (calls) => {
+    assert.equal(await confirmSessionDelete(), true);
+    assert.deepEqual(calls, [`browser-confirm:${SESSION_WARNING}`]);
+  });
 });
 
 test('confirmSessionDelete suspends stats overlay layering around native confirm', async () => {
-  const calls: string[] = [];
-  const originalConfirm = globalThis.confirm;
-  const originalElectronAPI = (
-    globalThis as typeof globalThis & {
-      electronAPI?: {
-        stats?: {
-          beginNativeDialog?: () => void;
-          endNativeDialog?: () => void;
-        };
-      };
-    }
-  ).electronAPI;
-  (
-    globalThis as typeof globalThis & {
-      electronAPI?: {
-        stats?: {
-          beginNativeDialog?: () => void;
-          endNativeDialog?: () => void;
-        };
-      };
-    }
-  ).electronAPI = {
-    stats: {
-      beginNativeDialog: () => calls.push('begin-native-dialog'),
-      endNativeDialog: () => calls.push('end-native-dialog'),
+  await withConfirmGlobals(
+    {
+      electronStats: (calls) => ({
+        beginNativeDialog: () => calls.push('begin-native-dialog'),
+        endNativeDialog: () => calls.push('end-native-dialog'),
+      }),
     },
-  };
-  globalThis.confirm = ((message?: string) => {
-    calls.push(`confirm:${message ?? ''}`);
-    return true;
-  }) as typeof globalThis.confirm;
-
-  try {
-    assert.equal(await confirmSessionDelete(), true);
-    assert.deepEqual(calls, [
-      'begin-native-dialog',
-      'confirm:Delete this session and all associated data?',
-      'end-native-dialog',
-    ]);
-  } finally {
-    globalThis.confirm = originalConfirm;
-    (
-      globalThis as typeof globalThis & {
-        electronAPI?: {
-          stats?: {
-            beginNativeDialog?: () => void;
-            endNativeDialog?: () => void;
-          };
-        };
-      }
-    ).electronAPI = originalElectronAPI;
-  }
+    async (calls) => {
+      assert.equal(await confirmSessionDelete(), true);
+      assert.deepEqual(calls, [
+        'begin-native-dialog',
+        `browser-confirm:${SESSION_WARNING}`,
+        'end-native-dialog',
+      ]);
+    },
+  );
 });
 
 test('confirmSessionDelete uses parented Electron confirm when available', async () => {
-  const calls: string[] = [];
-  const originalConfirm = globalThis.confirm;
-  const originalElectronAPI = (
-    globalThis as typeof globalThis & {
-      electronAPI?: {
-        stats?: {
-          confirmNativeDialog?: (message: string) => boolean;
-          beginNativeDialog?: () => void;
-          endNativeDialog?: () => void;
-        };
-      };
-    }
-  ).electronAPI;
-  (
-    globalThis as typeof globalThis & {
-      electronAPI?: {
-        stats?: {
-          confirmNativeDialog?: (message: string) => boolean;
-          beginNativeDialog?: () => void;
-          endNativeDialog?: () => void;
-        };
-      };
-    }
-  ).electronAPI = {
-    stats: {
-      confirmNativeDialog: (message) => {
-        calls.push(`native-confirm:${message}`);
-        return false;
-      },
-      beginNativeDialog: () => calls.push('begin-native-dialog'),
-      endNativeDialog: () => calls.push('end-native-dialog'),
+  await withConfirmGlobals(
+    {
+      electronStats: (calls) => ({
+        confirmNativeDialog: (message) => {
+          calls.push(`native-confirm:${message}`);
+          return false;
+        },
+        beginNativeDialog: () => calls.push('begin-native-dialog'),
+        endNativeDialog: () => calls.push('end-native-dialog'),
+      }),
     },
-  };
-  globalThis.confirm = ((message?: string) => {
-    calls.push(`browser-confirm:${message ?? ''}`);
-    return true;
-  }) as typeof globalThis.confirm;
-
-  try {
-    assert.equal(await confirmSessionDelete(), false);
-    assert.deepEqual(calls, ['native-confirm:Delete this session and all associated data?']);
-  } finally {
-    globalThis.confirm = originalConfirm;
-    (
-      globalThis as typeof globalThis & {
-        electronAPI?: {
-          stats?: {
-            confirmNativeDialog?: (message: string) => boolean;
-            beginNativeDialog?: () => void;
-            endNativeDialog?: () => void;
-          };
-        };
-      }
-    ).electronAPI = originalElectronAPI;
-  }
+    async (calls) => {
+      assert.equal(await confirmSessionDelete(), false);
+      assert.deepEqual(calls, [`native-confirm:${SESSION_WARNING}`]);
+    },
+  );
 });
 
 test('confirmSessionDelete uses the registered stats presenter before native or browser confirm', async () => {
-  const calls: string[] = [];
-  const originalConfirm = globalThis.confirm;
-  const originalElectronAPI = (
-    globalThis as typeof globalThis & {
-      electronAPI?: {
-        stats?: {
-          confirmNativeDialog?: (message: string) => boolean;
-        };
-      };
-    }
-  ).electronAPI;
-  (
-    globalThis as typeof globalThis & {
-      electronAPI?: {
-        stats?: {
-          confirmNativeDialog?: (message: string) => boolean;
-        };
-      };
-    }
-  ).electronAPI = {
-    stats: {
-      confirmNativeDialog: (message) => {
-        calls.push(`native-confirm:${message}`);
-        return true;
-      },
+  await withConfirmGlobals(
+    {
+      electronStats: (calls) => ({
+        confirmNativeDialog: (message) => {
+          calls.push(`native-confirm:${message}`);
+          return true;
+        },
+      }),
     },
-  };
-  globalThis.confirm = ((message?: string) => {
-    calls.push(`browser-confirm:${message ?? ''}`);
-    return true;
-  }) as typeof globalThis.confirm;
+    async (calls) => {
+      const unregister = setDeleteConfirmPresenter(async (message) => {
+        calls.push(`presenter:${message}`);
+        return false;
+      });
 
-  const unregister = setDeleteConfirmPresenter(async (message) => {
-    calls.push(`presenter:${message}`);
-    return false;
-  });
-
-  try {
-    assert.equal(await confirmSessionDelete(), false);
-    assert.deepEqual(calls, ['presenter:Delete this session and all associated data?']);
-  } finally {
-    unregister();
-    globalThis.confirm = originalConfirm;
-    (
-      globalThis as typeof globalThis & {
-        electronAPI?: {
-          stats?: {
-            confirmNativeDialog?: (message: string) => boolean;
-          };
-        };
+      try {
+        assert.equal(await confirmSessionDelete(), false);
+        assert.deepEqual(calls, [`presenter:${SESSION_WARNING}`]);
+      } finally {
+        unregister();
       }
-    ).electronAPI = originalElectronAPI;
-  }
+    },
+  );
 });
 
-test('confirmDayGroupDelete includes the day label and count in the warning copy', async () => {
-  const calls: string[] = [];
-  const originalConfirm = globalThis.confirm;
-  globalThis.confirm = ((message?: string) => {
-    calls.push(message ?? '');
-    return true;
-  }) as typeof globalThis.confirm;
+const copyCases = [
+  {
+    name: 'confirmDayGroupDelete includes the day label and count',
+    ask: () => confirmDayGroupDelete('Today', 3),
+    message: 'Delete all 3 sessions from Today and all associated data?',
+  },
+  {
+    name: 'confirmDayGroupDelete uses singular for one session',
+    ask: () => confirmDayGroupDelete('Yesterday', 1),
+    message: 'Delete this session from Yesterday and all associated data?',
+  },
+  {
+    name: 'confirmBucketDelete names the episode and count for multiple sessions',
+    ask: () => confirmBucketDelete('My Episode', 3),
+    message: 'Delete all 3 sessions of "My Episode" from this day and all associated data?',
+  },
+  {
+    name: 'confirmBucketDelete uses a clean singular form for one session',
+    ask: () => confirmBucketDelete('Solo Episode', 1),
+    message: 'Delete this session of "Solo Episode" from this day and all associated data?',
+  },
+  {
+    name: 'confirmEpisodeDelete includes the episode title',
+    ask: () => confirmEpisodeDelete('Episode 4'),
+    message: 'Delete "Episode 4" and all its sessions?',
+  },
+];
 
-  try {
-    assert.equal(await confirmDayGroupDelete('Today', 3), true);
-    assert.deepEqual(calls, ['Delete all 3 sessions from Today and all associated data?']);
-  } finally {
-    globalThis.confirm = originalConfirm;
-  }
-});
-
-test('confirmDayGroupDelete uses singular for one session', async () => {
-  const calls: string[] = [];
-  const originalConfirm = globalThis.confirm;
-  globalThis.confirm = ((message?: string) => {
-    calls.push(message ?? '');
-    return true;
-  }) as typeof globalThis.confirm;
-
-  try {
-    assert.equal(await confirmDayGroupDelete('Yesterday', 1), true);
-    assert.deepEqual(calls, ['Delete this session from Yesterday and all associated data?']);
-  } finally {
-    globalThis.confirm = originalConfirm;
-  }
-});
-
-test('confirmBucketDelete asks about merging multiple sessions of the same episode', async () => {
-  const calls: string[] = [];
-  const originalConfirm = globalThis.confirm;
-  globalThis.confirm = ((message?: string) => {
-    calls.push(message ?? '');
-    return true;
-  }) as typeof globalThis.confirm;
-
-  try {
-    assert.equal(await confirmBucketDelete('My Episode', 3), true);
-    assert.deepEqual(calls, [
-      'Delete all 3 sessions of "My Episode" from this day and all associated data?',
-    ]);
-  } finally {
-    globalThis.confirm = originalConfirm;
-  }
-});
-
-test('confirmBucketDelete uses a clean singular form for one session', async () => {
-  const calls: string[] = [];
-  const originalConfirm = globalThis.confirm;
-  globalThis.confirm = ((message?: string) => {
-    calls.push(message ?? '');
-    return false;
-  }) as typeof globalThis.confirm;
-
-  try {
-    assert.equal(await confirmBucketDelete('Solo Episode', 1), false);
-    assert.deepEqual(calls, [
-      'Delete this session of "Solo Episode" from this day and all associated data?',
-    ]);
-  } finally {
-    globalThis.confirm = originalConfirm;
-  }
-});
-
-test('confirmEpisodeDelete includes the episode title in the shared warning copy', async () => {
-  const calls: string[] = [];
-  const originalConfirm = globalThis.confirm;
-  globalThis.confirm = ((message?: string) => {
-    calls.push(message ?? '');
-    return false;
-  }) as typeof globalThis.confirm;
-
-  try {
-    assert.equal(await confirmEpisodeDelete('Episode 4'), false);
-    assert.deepEqual(calls, ['Delete "Episode 4" and all its sessions?']);
-  } finally {
-    globalThis.confirm = originalConfirm;
-  }
-});
+for (const { name, ask, message } of copyCases) {
+  test(`${name} and returns the user's answer`, async () => {
+    for (const answer of [true, false]) {
+      await withConfirmGlobals({ confirmAnswer: answer }, async (calls) => {
+        assert.equal(await ask(), answer);
+        assert.deepEqual(calls, [`browser-confirm:${message}`]);
+      });
+    }
+  });
+}

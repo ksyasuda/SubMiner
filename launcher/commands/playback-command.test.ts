@@ -4,81 +4,53 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { Args } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 import { registerCleanup, runPlaybackCommandWithDeps } from './playback-command.js';
-import { state } from '../mpv.js';
+import { state, type startMpv } from '../mpv.js';
+import { makeLauncherArgs } from '../test-support/args.js';
+import { withEnv } from '../test-support/env.js';
 
-function createContext(): LauncherCommandContext {
+type PlaybackDeps = Parameters<typeof runPlaybackCommandWithDeps>[1];
+type StartMpvOptions = NonNullable<Parameters<typeof startMpv>[6]>;
+
+const YOUTUBE_URL = 'https://www.youtube.com/watch?v=65Ovd7t8sNw';
+
+function makePluginConfig(
+  overrides: Partial<LauncherCommandContext['pluginRuntimeConfig']> = {},
+): LauncherCommandContext['pluginRuntimeConfig'] {
   return {
-    args: {
-      backend: 'auto',
-      directory: '.',
-      recursive: false,
-      profile: '',
-      startOverlay: false,
-      youtubePrimarySubLangs: [],
-      youtubeSecondarySubLangs: [],
-      youtubeAudioLangs: [],
-      useTexthooker: false,
-      autoStartOverlay: false,
-      texthookerOnly: false,
-      texthookerOpenBrowser: false,
-      useRofi: false,
-      history: false,
-      sync: false,
-      syncCliTokens: [],
-      syncUi: false,
-      logLevel: 'info',
-      logRotation: 7,
-      passwordStore: '',
-      target: 'https://www.youtube.com/watch?v=65Ovd7t8sNw',
+    socketPath: '/tmp/subminer.sock',
+    binaryPath: '',
+    backend: 'auto',
+    autoStart: true,
+    autoStartVisibleOverlay: true,
+    autoStartPauseUntilReady: true,
+    osdMessages: false,
+    texthookerEnabled: false,
+    ...overrides,
+  };
+}
+
+/** A context for a YouTube URL target with logging at info and CLI texthooker off. */
+function createContext(
+  options: {
+    args?: Partial<Args>;
+    plugin?: Partial<LauncherCommandContext['pluginRuntimeConfig']>;
+  } = {},
+): LauncherCommandContext {
+  return {
+    args: makeLauncherArgs({
+      target: YOUTUBE_URL,
       targetKind: 'url',
-      jimakuApiKey: '',
-      jimakuApiKeyCommand: '',
-      jimakuApiBaseUrl: '',
-      jimakuLanguagePreference: 'ja',
-      jimakuMaxEntryResults: 20,
-      jellyfin: false,
-      jellyfinLogin: false,
-      jellyfinLogout: false,
-      jellyfinPlay: false,
-      jellyfinDiscovery: false,
-      dictionary: false,
-      dictionaryCandidates: false,
-      dictionarySelect: false,
-      stats: false,
-      doctor: false,
-      doctorRefreshKnownWords: false,
-      logsExport: false,
-      version: false,
-      settings: false,
-      youtubeBrowser: false,
-      configPath: false,
-      configShow: false,
-      mpvIdle: false,
-      mpvSocket: false,
-      mpvStatus: false,
-      mpvArgs: '',
-      appPassthrough: false,
-      appArgs: [],
-      jellyfinServer: '',
-      jellyfinUsername: '',
-      jellyfinPassword: '',
-      launchMode: 'normal',
-    },
+      logLevel: 'info',
+      useTexthooker: false,
+      ...options.args,
+    }),
     scriptPath: '/tmp/subminer',
     scriptName: 'subminer',
     mpvSocketPath: '/tmp/subminer.sock',
-    pluginRuntimeConfig: {
-      socketPath: '/tmp/subminer.sock',
-      binaryPath: '',
-      backend: 'auto',
-      autoStart: true,
-      autoStartVisibleOverlay: true,
-      autoStartPauseUntilReady: true,
-      osdMessages: false,
-      texthookerEnabled: false,
-    },
+    pluginRuntimeConfig: makePluginConfig(options.plugin),
     appPath: '/tmp/SubMiner.AppImage',
     launcherJellyfinConfig: {},
     processAdapter: {
@@ -93,8 +65,70 @@ function createContext(): LauncherCommandContext {
   };
 }
 
+const FILE_TARGET = { target: '/tmp/movie.mkv', targetKind: 'file' } as const;
+
+/**
+ * Playback harness. Deps are inert by default and record what the tests assert on: the
+ * options mpv was started with, the overlay launches, and an `events` log for the few cases
+ * where relative order is the behavior.
+ */
+function makeHarness(
+  options: {
+    context?: LauncherCommandContext;
+    deps?: Partial<PlaybackDeps>;
+    events?: string[];
+  } = {},
+) {
+  const context = options.context ?? createContext();
+  const events = options.events ?? [];
+  const startMpvOptions: StartMpvOptions[] = [];
+  const overlayCalls: Array<{ extraAppArgs: string[]; configDir?: string }> = [];
+  const deps: PlaybackDeps = {
+    ensurePlaybackSetupReady: async () => {},
+    ensureRuntimePluginReady: async () => {
+      events.push('plugin');
+    },
+    chooseTarget: async () => ({
+      target: context.args.target,
+      kind: context.args.targetKind === 'file' ? 'file' : 'url',
+    }),
+    checkDependencies: () => {},
+    registerCleanup: () => {},
+    startMpv: async (_target, _kind, _args, _socket, _appPath, _subtitles, startOptions) => {
+      events.push('startMpv');
+      if (startOptions) startMpvOptions.push(startOptions);
+    },
+    waitForUnixSocketReady: async () => true,
+    startOverlay: async (_appPath, _args, _socket, extraAppArgs = [], configDir) => {
+      events.push('startOverlay');
+      overlayCalls.push({ extraAppArgs, configDir });
+    },
+    launchAppCommandDetached: () => {},
+    log: () => {},
+    cleanupPlaybackSession: async () => {},
+    getMpvProc: () => null,
+    ...options.deps,
+  };
+  return {
+    context,
+    events,
+    startMpvOptions,
+    overlayCalls,
+    run: () => runPlaybackCommandWithDeps(context, deps),
+  };
+}
+
+function assertRanInOrder(events: string[], ...expected: string[]): void {
+  const positions = expected.map((event) => events.indexOf(event));
+  assert.ok(
+    positions.every(
+      (position, index) => position >= 0 && (index === 0 || position > positions[index - 1]!),
+    ),
+    `expected ${expected.join(' -> ')} in order, got ${events.join(', ')}`,
+  );
+}
+
 test('playback cleanup signal handlers are registered once across repeated sessions', () => {
-  assert.equal(typeof registerCleanup, 'function', 'cleanup registration is not exported');
   const context = createContext();
   const registeredSignals: NodeJS.Signals[] = [];
   context.processAdapter.onSignal = (signal) => {
@@ -108,121 +142,41 @@ test('playback cleanup signal handlers are registered once across repeated sessi
 });
 
 test('youtube playback launches overlay with app-owned youtube flow args', async () => {
-  const calls: string[] = [];
-  const context = createContext();
-  context.pluginRuntimeConfig = {
-    ...context.pluginRuntimeConfig,
-    autoStart: false,
-    autoStartVisibleOverlay: false,
-    autoStartPauseUntilReady: false,
-  };
-  const receivedStartMpvOptions: Record<string, unknown>[] = [];
-
-  await runPlaybackCommandWithDeps(context, {
-    ensurePlaybackSetupReady: async () => {},
-    ensureRuntimePluginReady: async () => {},
-    chooseTarget: async (_args, _scriptPath) => ({ target: context.args.target, kind: 'url' }),
-    checkDependencies: () => {},
-    registerCleanup: () => {},
-    startMpv: async (
-      _target,
-      _targetKind,
-      _args,
-      _socketPath,
-      _appPath,
-      _preloadedSubtitles,
-      options,
-    ) => {
-      if (options) {
-        receivedStartMpvOptions.push(options as Record<string, unknown>);
-      }
-      calls.push('startMpv');
-    },
-    waitForUnixSocketReady: async () => true,
-    startOverlay: async (_appPath, _args, _socketPath, extraAppArgs = []) => {
-      calls.push(`startOverlay:${extraAppArgs.join(' ')}`);
-    },
-    launchAppCommandDetached: (_appPath: string, appArgs: string[]) => {
-      calls.push(`launch:${appArgs.join(' ')}`);
-    },
-    log: () => {},
-    cleanupPlaybackSession: async () => {},
-    getMpvProc: () => null,
+  const harness = makeHarness({
+    context: createContext({
+      plugin: {
+        autoStart: false,
+        autoStartVisibleOverlay: false,
+        autoStartPauseUntilReady: false,
+      },
+    }),
   });
 
-  assert.deepEqual(calls, [
-    'startMpv',
-    'startOverlay:--youtube-play https://www.youtube.com/watch?v=65Ovd7t8sNw',
-  ]);
-  assert.equal(receivedStartMpvOptions[0]?.startPaused, true);
-  assert.equal(receivedStartMpvOptions[0]?.disableYoutubeSubtitleAutoLoad, true);
+  await harness.run();
+
+  assertRanInOrder(harness.events, 'startMpv', 'startOverlay');
+  assert.deepEqual(harness.overlayCalls[0]?.extraAppArgs, ['--youtube-play', YOUTUBE_URL]);
+  assert.equal(harness.startMpvOptions[0]?.startPaused, true);
+  assert.equal(harness.startMpvOptions[0]?.disableYoutubeSubtitleAutoLoad, true);
 });
 
 test('youtube app-owned playback disables mpv plugin auto-start', async () => {
-  const context = createContext();
-  context.pluginRuntimeConfig = {
-    ...context.pluginRuntimeConfig,
-    autoStart: true,
-    autoStartVisibleOverlay: true,
-    autoStartPauseUntilReady: true,
-  };
-  const receivedStartMpvOptions: Record<string, unknown>[] = [];
+  const harness = makeHarness();
 
-  await runPlaybackCommandWithDeps(context, {
-    ensurePlaybackSetupReady: async () => {},
-    ensureRuntimePluginReady: async () => {},
-    chooseTarget: async () => ({ target: context.args.target, kind: 'url' }),
-    checkDependencies: () => {},
-    registerCleanup: () => {},
-    startMpv: async (
-      _target,
-      _targetKind,
-      _args,
-      _socketPath,
-      _appPath,
-      _preloadedSubtitles,
-      options,
-    ) => {
-      if (options) {
-        receivedStartMpvOptions.push(options as Record<string, unknown>);
-      }
-    },
-    waitForUnixSocketReady: async () => true,
-    startOverlay: async () => {},
-    launchAppCommandDetached: () => {},
-    log: () => {},
-    cleanupPlaybackSession: async () => {},
-    getMpvProc: () => null,
-  });
+  await harness.run();
 
-  const runtimeConfig = receivedStartMpvOptions[0]?.runtimePluginConfig as
-    | { autoStart?: boolean; autoStartVisibleOverlay?: boolean; autoStartPauseUntilReady?: boolean }
-    | undefined;
+  const runtimeConfig = harness.startMpvOptions[0]?.runtimePluginConfig;
   assert.equal(runtimeConfig?.autoStart, false);
   assert.equal(runtimeConfig?.autoStartVisibleOverlay, false);
   assert.equal(runtimeConfig?.autoStartPauseUntilReady, false);
 });
 
 test('plugin auto-start playback leaves app lifetime to managed-playback owner', async () => {
-  const context = createContext();
-  context.args = {
-    ...context.args,
-    target: '/tmp/movie.mkv',
-    targetKind: 'file',
-    useTexthooker: true,
-  };
-  context.pluginRuntimeConfig = {
-    socketPath: '/tmp/subminer.sock',
-    binaryPath: '',
-    backend: 'auto',
-    autoStart: true,
-    autoStartVisibleOverlay: false,
-    autoStartPauseUntilReady: false,
-    osdMessages: false,
-    texthookerEnabled: false,
-  };
-  const appPath = context.appPath ?? '';
-  state.appPath = appPath;
+  const context = createContext({
+    args: { ...FILE_TARGET, useTexthooker: true },
+    plugin: { autoStartVisibleOverlay: false, autoStartPauseUntilReady: false },
+  });
+  state.appPath = context.appPath ?? '';
   state.overlayManagedByLauncher = false;
   const mpvProc = new EventEmitter() as EventEmitter & {
     exitCode: number | null;
@@ -233,31 +187,27 @@ test('plugin auto-start playback leaves app lifetime to managed-playback owner',
   mpvProc.killed = false;
   mpvProc.kill = () => true;
   let cleanupSawManagedOverlay = true;
-
-  try {
-    await runPlaybackCommandWithDeps(context, {
-      ensurePlaybackSetupReady: async () => {},
-      ensureRuntimePluginReady: async () => {},
-      chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
-      checkDependencies: () => {},
-      registerCleanup: () => {},
+  const harness = makeHarness({
+    context,
+    deps: {
       startMpv: async () => {
         setTimeout(() => {
           mpvProc.exitCode = 0;
           mpvProc.emit('exit', 0);
         }, 5);
       },
-      waitForUnixSocketReady: async () => true,
       startOverlay: async () => {
         throw new Error('startOverlay should not run when plugin auto-start is used');
       },
-      launchAppCommandDetached: () => {},
-      log: () => {},
       cleanupPlaybackSession: async () => {
         cleanupSawManagedOverlay = state.overlayManagedByLauncher;
       },
       getMpvProc: () => mpvProc as NonNullable<typeof state.mpvProc>,
-    });
+    },
+  });
+
+  try {
+    await harness.run();
 
     assert.equal(cleanupSawManagedOverlay, false);
   } finally {
@@ -267,258 +217,89 @@ test('plugin auto-start playback leaves app lifetime to managed-playback owner',
 });
 
 test('plugin auto-start playback attaches a warm background app through the launcher', async () => {
-  const context = createContext();
-  context.args = {
-    ...context.args,
-    target: '/tmp/movie.mkv',
-    targetKind: 'file',
-    useTexthooker: true,
-  };
-  context.pluginRuntimeConfig = {
-    socketPath: '/tmp/subminer.sock',
-    binaryPath: '',
-    backend: 'auto',
-    autoStart: true,
-    autoStartVisibleOverlay: true,
-    autoStartPauseUntilReady: true,
-    osdMessages: false,
-    texthookerEnabled: true,
-  };
-  const calls: string[] = [];
-  const receivedStartMpvOptions: Record<string, unknown>[] = [];
-
-  await runPlaybackCommandWithDeps(context, {
-    ensurePlaybackSetupReady: async () => {},
-    ensureRuntimePluginReady: async () => {},
-    chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
-    checkDependencies: () => {},
-    registerCleanup: () => {},
-    startMpv: async (
-      _target,
-      _targetKind,
-      _args,
-      _socketPath,
-      _appPath,
-      _preloadedSubtitles,
-      options,
-    ) => {
-      calls.push('startMpv');
-      if (options) {
-        receivedStartMpvOptions.push(options as Record<string, unknown>);
-      }
-    },
-    waitForUnixSocketReady: async () => true,
-    startOverlay: async (_appPath, _args, _socketPath, extraAppArgs = []) => {
-      calls.push(`startOverlay:${extraAppArgs.join(' ')}`);
-    },
-    launchAppCommandDetached: () => {},
-    log: () => {},
-    cleanupPlaybackSession: async () => {},
-    getMpvProc: () => null,
-    isAppControlServerAvailable: async () => true,
-  } as Parameters<typeof runPlaybackCommandWithDeps>[1] & {
-    isAppControlServerAvailable: () => Promise<boolean>;
+  const harness = makeHarness({
+    context: createContext({
+      args: { ...FILE_TARGET, useTexthooker: true },
+      plugin: { texthookerEnabled: true },
+    }),
+    deps: { isAppControlServerAvailable: async () => true },
   });
 
-  assert.deepEqual(calls, ['startMpv', 'startOverlay:--show-visible-overlay --texthooker']);
-  assert.equal(receivedStartMpvOptions[0]?.startPaused, true);
-  assert.equal(
-    (receivedStartMpvOptions[0]?.runtimePluginConfig as { autoStart?: boolean } | undefined)
-      ?.autoStart,
-    false,
-  );
+  await harness.run();
+
+  assertRanInOrder(harness.events, 'startMpv', 'startOverlay');
+  assert.deepEqual(harness.overlayCalls[0]?.extraAppArgs, [
+    '--show-visible-overlay',
+    '--texthooker',
+  ]);
+  assert.equal(harness.startMpvOptions[0]?.startPaused, true);
+  assert.equal(harness.startMpvOptions[0]?.runtimePluginConfig?.autoStart, false);
 });
 
 test('plugin auto-start attach mode reuses launcher-resolved config dir for app control', async () => {
-  const context = createContext();
-  const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
-  const originalAppData = process.env.APPDATA;
   const xdgConfigHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-xdg-'));
   const expectedConfigDir = path.join(xdgConfigHome, 'SubMiner');
   fs.mkdirSync(expectedConfigDir, { recursive: true });
   fs.writeFileSync(path.join(expectedConfigDir, 'config.jsonc'), '{}');
-  context.args = {
-    ...context.args,
-    target: '/tmp/movie.mkv',
-    targetKind: 'file',
-    useTexthooker: true,
-  };
-  context.pluginRuntimeConfig = {
-    socketPath: '/tmp/subminer.sock',
-    binaryPath: '',
-    backend: 'auto',
-    autoStart: true,
-    autoStartVisibleOverlay: true,
-    autoStartPauseUntilReady: true,
-    osdMessages: false,
-    texthookerEnabled: true,
-  };
   let availabilityConfigDir: string | undefined;
-  let overlayConfigDir: string | undefined;
-  let overlayLoadingOsd: boolean | undefined;
-
-  try {
-    process.env.XDG_CONFIG_HOME = xdgConfigHome;
-    process.env.APPDATA = xdgConfigHome;
-
-    await runPlaybackCommandWithDeps(context, {
-      ensurePlaybackSetupReady: async () => {},
-      ensureRuntimePluginReady: async () => {},
-      chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
-      checkDependencies: () => {},
-      registerCleanup: () => {},
-      startMpv: async (
-        _target,
-        _targetKind,
-        _args,
-        _socketPath,
-        _appPath,
-        _preloadedSubtitles,
-        options,
-      ) => {
-        overlayLoadingOsd = (
-          options?.runtimePluginConfig as { overlayLoadingOsd?: boolean } | undefined
-        )?.overlayLoadingOsd;
-      },
-      waitForUnixSocketReady: async () => true,
-      startOverlay: async (_appPath, _args, _socketPath, _extraAppArgs = [], configDir) => {
-        overlayConfigDir = configDir;
-      },
-      launchAppCommandDetached: () => {},
-      log: () => {},
-      cleanupPlaybackSession: async () => {},
-      getMpvProc: () => null,
+  const harness = makeHarness({
+    context: createContext({
+      args: { ...FILE_TARGET, useTexthooker: true },
+      plugin: { texthookerEnabled: true },
+    }),
+    deps: {
       isAppControlServerAvailable: async (_logLevel, configDir) => {
         availabilityConfigDir = configDir;
         return true;
       },
-    });
+    },
+  });
+
+  try {
+    await withEnv({ XDG_CONFIG_HOME: xdgConfigHome, APPDATA: xdgConfigHome }, () => harness.run());
 
     assert.equal(availabilityConfigDir, expectedConfigDir);
-    assert.equal(overlayConfigDir, expectedConfigDir);
-    assert.equal(overlayLoadingOsd, true);
+    assert.equal(harness.overlayCalls[0]?.configDir, expectedConfigDir);
+    assert.equal(harness.startMpvOptions[0]?.runtimePluginConfig?.overlayLoadingOsd, true);
   } finally {
-    if (originalXdgConfigHome === undefined) {
-      delete process.env.XDG_CONFIG_HOME;
-    } else {
-      process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
-    }
-    if (originalAppData === undefined) {
-      delete process.env.APPDATA;
-    } else {
-      process.env.APPDATA = originalAppData;
-    }
     fs.rmSync(xdgConfigHome, { recursive: true, force: true });
   }
 });
 
 test('plugin auto-start attach mode omits texthooker flag when CLI texthooker is disabled', async () => {
-  const context = createContext();
-  context.args = {
-    ...context.args,
-    target: '/tmp/movie.mkv',
-    targetKind: 'file',
-  };
-  context.pluginRuntimeConfig = {
-    socketPath: '/tmp/subminer.sock',
-    binaryPath: '',
-    backend: 'auto',
-    autoStart: true,
-    autoStartVisibleOverlay: true,
-    autoStartPauseUntilReady: true,
-    osdMessages: false,
-    texthookerEnabled: true,
-  };
-  const calls: string[] = [];
-
-  await runPlaybackCommandWithDeps(context, {
-    ensurePlaybackSetupReady: async () => {},
-    ensureRuntimePluginReady: async () => {},
-    chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
-    checkDependencies: () => {},
-    registerCleanup: () => {},
-    startMpv: async () => {
-      calls.push('startMpv');
-    },
-    waitForUnixSocketReady: async () => true,
-    startOverlay: async (_appPath, _args, _socketPath, extraAppArgs = []) => {
-      calls.push(`startOverlay:${extraAppArgs.join(' ')}`);
-    },
-    launchAppCommandDetached: () => {},
-    log: () => {},
-    cleanupPlaybackSession: async () => {},
-    getMpvProc: () => null,
-    isAppControlServerAvailable: async () => true,
-  } as Parameters<typeof runPlaybackCommandWithDeps>[1] & {
-    isAppControlServerAvailable: () => Promise<boolean>;
+  const harness = makeHarness({
+    context: createContext({ args: FILE_TARGET, plugin: { texthookerEnabled: true } }),
+    deps: { isAppControlServerAvailable: async () => true },
   });
 
-  assert.deepEqual(calls, ['startMpv', 'startOverlay:--show-visible-overlay']);
+  await harness.run();
+
+  assert.deepEqual(harness.overlayCalls[0]?.extraAppArgs, ['--show-visible-overlay']);
 });
 
 test('playback command ensures Linux runtime plugin before mpv launch', async () => {
-  const context = createContext();
-  context.args = {
-    ...context.args,
-    target: '/tmp/movie.mkv',
-    targetKind: 'file',
-  };
-  const calls: string[] = [];
+  const harness = makeHarness({ context: createContext({ args: FILE_TARGET }) });
 
-  await runPlaybackCommandWithDeps(context, {
-    ensurePlaybackSetupReady: async () => {},
-    ensureRuntimePluginReady: async () => {
-      calls.push('plugin');
-    },
-    chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
-    checkDependencies: () => {},
-    registerCleanup: () => {},
-    startMpv: async () => {
-      calls.push('startMpv');
-    },
-    waitForUnixSocketReady: async () => true,
-    startOverlay: async () => {},
-    launchAppCommandDetached: () => {},
-    log: () => {},
-    cleanupPlaybackSession: async () => {},
-    getMpvProc: () => null,
-  });
+  await harness.run();
 
-  assert.deepEqual(calls, ['plugin', 'startMpv']);
+  assertRanInOrder(harness.events, 'plugin', 'startMpv');
 });
 
 test('rofi playback repairs support assets before opening the picker', async () => {
-  const context = createContext();
-  context.args = {
-    ...context.args,
-    target: '',
-    targetKind: '',
-    useRofi: true,
-  };
-  const calls: string[] = [];
-
-  await runPlaybackCommandWithDeps(context, {
-    ensurePlaybackSetupReady: async () => {},
-    ensureRuntimePluginReady: async () => {
-      calls.push('assets');
+  const events: string[] = [];
+  const harness = makeHarness({
+    events,
+    context: createContext({ args: { target: '', targetKind: '', useRofi: true } }),
+    deps: {
+      chooseTarget: async () => {
+        events.push('picker');
+        return { target: '/tmp/movie.mkv', kind: 'file' };
+      },
+      checkPickerDependencies: () => {},
     },
-    chooseTarget: async () => {
-      calls.push('picker');
-      return { target: '/tmp/movie.mkv', kind: 'file' };
-    },
-    checkPickerDependencies: () => {},
-    checkDependencies: () => {},
-    registerCleanup: () => {},
-    startMpv: async () => {
-      calls.push('startMpv');
-    },
-    waitForUnixSocketReady: async () => true,
-    startOverlay: async () => {},
-    launchAppCommandDetached: () => {},
-    log: () => {},
-    cleanupPlaybackSession: async () => {},
-    getMpvProc: () => null,
   });
 
-  assert.deepEqual(calls, ['assets', 'picker', 'startMpv']);
+  await harness.run();
+
+  assertRanInOrder(events, 'plugin', 'picker', 'startMpv');
 });

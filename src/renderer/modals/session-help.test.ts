@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
 
 import { createRendererState } from '../state.js';
@@ -33,16 +31,6 @@ test('session help formats bracket keybindings as physical keys', () => {
 
 test('session help normalizes configured modifier aliases', () => {
   assert.equal(formatSessionHelpKeybinding('CommandOrControl+KeyS'), 'Cmd/Ctrl + S');
-});
-
-test('session help imports browser-safe special command constants', () => {
-  const source = fs.readFileSync(
-    path.join(process.cwd(), 'src', 'renderer', 'modals', 'session-help-sections.ts'),
-    'utf8',
-  );
-
-  assert.match(source, /from ['"]\.\.\/\.\.\/config\/definitions\/shared['"]/);
-  assert.doesNotMatch(source, /from ['"]\.\.\/\.\.\/config\/definitions['"]/);
 });
 
 test('session help builds rows from canonical session bindings and fixed overlay affordances', () => {

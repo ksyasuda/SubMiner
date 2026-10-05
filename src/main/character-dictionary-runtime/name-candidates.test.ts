@@ -106,12 +106,14 @@ test('returns null for a media with no cached snapshot', async () => {
   });
 });
 
-test('key changes when the snapshot content changes', async () => {
+test('invalidate picks up a snapshot change within the recheck interval and changes the key', async () => {
   await withTempDir(async (dir) => {
     writeSnapshot(dir, 1, [['ミナト', 'みなと']]);
+    // Frozen clock: only invalidate() can trigger the refresh below.
     const lookup = createCharacterNameCandidateLookup({
       outputDir: dir,
       getCurrentMediaId: () => 1,
+      now: () => 1_000_000,
     });
     const first = await waitForRefresh(() => lookup.get());
 
@@ -160,33 +162,5 @@ test('does not re-read the snapshot directory on every lookup', async () => {
       return candidates && candidates.forms.length === 4 ? candidates : null;
     });
     assert.equal(refreshed.forms.length, 4, 'expected a refresh past the interval');
-  });
-});
-
-test('invalidate picks up a snapshot change on the next refresh', async () => {
-  await withTempDir(async (dir) => {
-    writeSnapshot(dir, 1, [['ミナト', 'みなと']]);
-    let nowMs = 1_000_000;
-    const lookup = createCharacterNameCandidateLookup({
-      outputDir: dir,
-      getCurrentMediaId: () => 1,
-      now: () => nowMs,
-    });
-
-    await waitForRefresh(() => lookup.get());
-    assert.equal(lookup.get()?.forms.length, 2);
-
-    writeSnapshot(dir, 1, [
-      ['ミナト', 'みなと'],
-      ['アクア', 'あくあ'],
-    ]);
-    nowMs += 1;
-    lookup.invalidate();
-
-    const refreshed = await waitForRefresh(() => {
-      const candidates = lookup.get();
-      return candidates && candidates.forms.length === 4 ? candidates : null;
-    });
-    assert.equal(refreshed.forms.length, 4);
   });
 });

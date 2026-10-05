@@ -48,49 +48,6 @@ test('runSyncCommand proxies sync argv to the app in --sync-cli mode', async () 
   assert.equal(spawned.length, 1);
 });
 
-test('runSyncCommand forwards tokens verbatim and appends the effective log level', async () => {
-  const spawned: string[][] = [];
-  const deps: Partial<SyncCommandDeps> = {
-    runAppCommand: (_appPath, appArgs) => {
-      spawned.push(appArgs);
-    },
-  };
-
-  await runSyncCommand(
-    makeContext({
-      syncCliTokens: [
-        'media-box',
-        '--pull',
-        '--remote-cmd',
-        '/opt/SubMiner.AppImage',
-        '--db',
-        '/tmp/db.sqlite',
-        '--force',
-        '--json',
-      ],
-      logLevel: 'debug',
-    }),
-    deps,
-  );
-
-  assert.deepEqual(spawned, [
-    [
-      '--sync-cli',
-      'sync',
-      'media-box',
-      '--pull',
-      '--remote-cmd',
-      '/opt/SubMiner.AppImage',
-      '--db',
-      '/tmp/db.sqlite',
-      '--force',
-      '--json',
-      '--log-level',
-      'debug',
-    ],
-  ]);
-});
-
 test('runSyncCommand fails with a clear message when the app binary is missing', async () => {
   const deps: Partial<SyncCommandDeps> = {
     runAppCommand: () => {

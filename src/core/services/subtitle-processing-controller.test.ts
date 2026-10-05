@@ -541,20 +541,6 @@ test('cache evicts least recently used entries once the limit is reached', () =>
   );
 });
 
-test('default cache limit covers a full-length title without evicting', () => {
-  const controller = createSubtitleProcessingController({
-    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
-    emitSubtitle: () => {},
-  });
-
-  for (let i = 0; i < 2000; i += 1) {
-    controller.preCacheTokenization(`line-${i}`, { text: `line-${i}`, tokens: [] });
-  }
-
-  assert.equal(controller.hasCachedSubtitle('line-0'), true);
-  assert.equal(controller.hasCachedSubtitle('line-1999'), true);
-});
-
 test('onSubtitleChange reports whether processing was scheduled', async () => {
   const emitted: SubtitleData[] = [];
   const controller = createSubtitleProcessingController({

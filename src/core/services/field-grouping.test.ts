@@ -98,124 +98,59 @@ test('field grouping callback does not reject the next request after a response'
   assert.equal(secondChoice.keepNoteId, 2);
 });
 
-test('field grouping callback dismisses the modal UI when the send fails', async () => {
-  const store = createWrappedResolverStore();
-  let dismissed = 0;
-  const callback = createFieldGroupingCallback({
-    getVisibleOverlayVisible: () => false,
-    setVisibleOverlayVisible: () => {},
-    getResolver: store.getResolver,
-    setResolver: store.setResolver,
-    sendRequestToVisibleOverlay: () => false,
-    dismissModalUi: () => {
-      dismissed += 1;
-    },
-  });
+const dismissCases = [
+  { name: 'the send fails', sends: false, responseTimeoutMs: undefined },
+  { name: 'the response times out', sends: true, responseTimeoutMs: 5 },
+];
 
-  const result = await callback(makeRequestData());
-  assert.equal(result.cancelled, true);
-  assert.equal(dismissed, 1);
-  assert.equal(store.getResolver(), null);
-});
-
-test('field grouping callback handles modal dismiss failures on send failure', async () => {
-  const store = createWrappedResolverStore();
-  const originalConsoleError = console.error;
-  console.error = () => {};
-  try {
+for (const c of dismissCases) {
+  test(`field grouping callback dismisses the modal UI when ${c.name}`, async () => {
+    const store = createWrappedResolverStore();
+    let dismissed = 0;
     const callback = createFieldGroupingCallback({
       getVisibleOverlayVisible: () => false,
       setVisibleOverlayVisible: () => {},
       getResolver: store.getResolver,
       setResolver: store.setResolver,
-      sendRequestToVisibleOverlay: () => false,
+      sendRequestToVisibleOverlay: () => c.sends,
       dismissModalUi: () => {
-        throw new Error('dismiss failed');
+        dismissed += 1;
       },
+      responseTimeoutMs: c.responseTimeoutMs,
     });
 
     const result = await callback(makeRequestData());
-
     assert.equal(result.cancelled, true);
+    assert.equal(dismissed, 1);
     assert.equal(store.getResolver(), null);
-  } finally {
-    console.error = originalConsoleError;
-  }
-});
-
-test('field grouping callback handles modal dismiss failures on timeout', async () => {
-  const store = createWrappedResolverStore();
-  const originalConsoleError = console.error;
-  console.error = () => {};
-  try {
-    const callback = createFieldGroupingCallback({
-      getVisibleOverlayVisible: () => false,
-      setVisibleOverlayVisible: () => {},
-      getResolver: store.getResolver,
-      setResolver: store.setResolver,
-      sendRequestToVisibleOverlay: () => true,
-      dismissModalUi: () => {
-        throw new Error('dismiss failed');
-      },
-      responseTimeoutMs: 5,
-    });
-
-    const result = await callback(makeRequestData());
-
-    assert.equal(result.cancelled, true);
-    assert.equal(store.getResolver(), null);
-  } finally {
-    console.error = originalConsoleError;
-  }
-});
-
-test('field grouping callback reports modal dismiss failures', async () => {
-  const store = createWrappedResolverStore();
-  const errors: unknown[] = [];
-  const originalConsoleError = console.error;
-  console.error = (...args: unknown[]) => {
-    errors.push(args);
-  };
-  try {
-    const callback = createFieldGroupingCallback({
-      getVisibleOverlayVisible: () => false,
-      setVisibleOverlayVisible: () => {},
-      getResolver: store.getResolver,
-      setResolver: store.setResolver,
-      sendRequestToVisibleOverlay: () => false,
-      dismissModalUi: () => {
-        throw new Error('dismiss failed');
-      },
-    });
-
-    await callback(makeRequestData());
-
-    assert.equal(errors.length, 1);
-  } finally {
-    console.error = originalConsoleError;
-  }
-});
-
-test('field grouping callback dismisses the modal UI when the response times out', async () => {
-  const store = createWrappedResolverStore();
-  let dismissed = 0;
-  const callback = createFieldGroupingCallback({
-    getVisibleOverlayVisible: () => false,
-    setVisibleOverlayVisible: () => {},
-    getResolver: store.getResolver,
-    setResolver: store.setResolver,
-    sendRequestToVisibleOverlay: () => true,
-    dismissModalUi: () => {
-      dismissed += 1;
-    },
-    responseTimeoutMs: 5,
   });
 
-  const result = await callback(makeRequestData());
-  assert.equal(result.cancelled, true);
-  assert.equal(dismissed, 1);
-  assert.equal(store.getResolver(), null);
-});
+  test(`field grouping callback still cancels and clears the resolver when ${c.name} and dismiss throws`, async () => {
+    const store = createWrappedResolverStore();
+    const originalConsoleError = console.error;
+    console.error = () => {};
+    try {
+      const callback = createFieldGroupingCallback({
+        getVisibleOverlayVisible: () => false,
+        setVisibleOverlayVisible: () => {},
+        getResolver: store.getResolver,
+        setResolver: store.setResolver,
+        sendRequestToVisibleOverlay: () => c.sends,
+        dismissModalUi: () => {
+          throw new Error('dismiss failed');
+        },
+        responseTimeoutMs: c.responseTimeoutMs,
+      });
+
+      const result = await callback(makeRequestData());
+
+      assert.equal(result.cancelled, true);
+      assert.equal(store.getResolver(), null);
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+}
 
 test('field grouping callback does not dismiss the modal UI on a normal response', async () => {
   const store = createWrappedResolverStore();

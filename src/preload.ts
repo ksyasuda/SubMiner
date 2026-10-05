@@ -18,6 +18,7 @@
 
 import { clipboard, contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron';
 import { resolveOverlayLayerFromArgv } from './preload-args';
+import { createIpcListenerFactories } from './preload-ipc-listeners';
 import type {
   SubtitleData,
   SubtitlePosition,
@@ -82,100 +83,17 @@ import type {
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 import type { SubtitleGenerationProgress } from './shared/subtitle-generation';
 
+const {
+  createQueuedIpcListener,
+  createQueuedIpcListenerWithPayload,
+  createLatestValueIpcListenerWithPayload,
+} = createIpcListenerFactories((channel, handler) =>
+  ipcRenderer.on(channel, (_event, payload: unknown) => handler(payload)),
+);
+
 const overlayLayer = resolveOverlayLayerFromArgv(process.argv);
 const onSubtitleSelectionOpen = createQueuedIpcListener(IPC_CHANNELS.event.subtitleSelectionOpen);
 const onSubtitleGenerationOpen = createQueuedIpcListener(IPC_CHANNELS.event.subtitleGenerationOpen);
-
-type EmptyListener = () => void;
-type PayloadedListener<T> = (payload: T) => void;
-
-function createQueuedIpcListener(channel: string): (listener: EmptyListener) => void {
-  let count = 0;
-  const listeners: EmptyListener[] = [];
-
-  const dispatch = (): void => {
-    if (listeners.length === 0) {
-      count += 1;
-      return;
-    }
-    for (const listener of listeners) {
-      listener();
-    }
-  };
-
-  ipcRenderer.on(channel, () => {
-    dispatch();
-  });
-
-  return (listener: EmptyListener): void => {
-    listeners.push(listener);
-    while (count > 0) {
-      count -= 1;
-      listener();
-    }
-  };
-}
-
-function createQueuedIpcListenerWithPayload<T>(
-  channel: string,
-  normalize: (payload: unknown) => T,
-): (listener: PayloadedListener<T>) => void {
-  const pending: T[] = [];
-  const listeners: PayloadedListener<T>[] = [];
-
-  const dispatch = (payload: T): void => {
-    if (listeners.length === 0) {
-      pending.push(payload);
-      return;
-    }
-    for (const listener of listeners) {
-      listener(payload);
-    }
-  };
-
-  ipcRenderer.on(channel, (_event: IpcRendererEvent, payloadArg: unknown) => {
-    dispatch(normalize(payloadArg));
-  });
-
-  return (listener: PayloadedListener<T>): void => {
-    listeners.push(listener);
-    while (pending.length > 0) {
-      const payload = pending.shift();
-      listener(payload as T);
-    }
-  };
-}
-
-function createLatestValueIpcListenerWithPayload<T>(
-  channel: string,
-  normalize: (payload: unknown) => T,
-): (listener: PayloadedListener<T>) => void {
-  let pending: T | undefined;
-  const listeners: PayloadedListener<T>[] = [];
-
-  const dispatch = (payload: T): void => {
-    if (listeners.length === 0) {
-      pending = payload;
-      return;
-    }
-    for (const listener of listeners) {
-      listener(payload);
-    }
-  };
-
-  ipcRenderer.on(channel, (_event: IpcRendererEvent, payloadArg: unknown) => {
-    dispatch(normalize(payloadArg));
-  });
-
-  return (listener: PayloadedListener<T>): void => {
-    listeners.push(listener);
-    if (pending !== undefined) {
-      const payload = pending;
-      pending = undefined;
-      listener(payload);
-    }
-  };
-}
 
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
 const onOpenSessionHelpEvent = createQueuedIpcListenerWithPayload<SessionHelpOpenPayload>(

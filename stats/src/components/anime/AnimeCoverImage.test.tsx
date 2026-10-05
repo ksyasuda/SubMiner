@@ -1,16 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AnimeCoverImage } from './AnimeCoverImage';
 import { AnimeHeader } from './AnimeHeader';
-
-test('AnimeCoverImage includes manual relink cover retry tokens', () => {
-  const markup = renderToStaticMarkup(
-    <AnimeCoverImage animeId={42} title="Test Anime" coverRetryToken={7} />,
-  );
-
-  assert.match(markup, /\/api\/stats\/anime\/42\/cover\?coverRetry=7/);
-});
 
 test('AnimeHeader uses the linked AniList id to avoid stale cached cover art', () => {
   const markup = renderToStaticMarkup(

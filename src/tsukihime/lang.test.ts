@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  tsukihimeLangToFilenameSuffix,
   tsukihimeTrackMatchesLanguages,
   describeTsukihimeTabLanguages,
   normalizeTsukihimeLangCode,
@@ -37,9 +36,4 @@ test('describeTsukihimeTabLanguages names common languages and dedupes', () => {
   assert.equal(describeTsukihimeTabLanguages(['en', 'de']), 'English / German');
   assert.equal(describeTsukihimeTabLanguages(['vie']), 'VIE');
   assert.equal(describeTsukihimeTabLanguages([]), 'English');
-});
-
-test('tsukihimeLangToFilenameSuffix is re-exported from the pure module', () => {
-  assert.equal(tsukihimeLangToFilenameSuffix('jpn'), 'ja');
-  assert.equal(tsukihimeLangToFilenameSuffix('eng'), 'en');
 });

@@ -500,3 +500,38 @@ test('Senren merge keeps duplicate SentenceFurigana when the kept field is empty
 
   assert.equal(merged.SentenceFurigana, '<span class="group">duplicate furigana</span>');
 });
+
+test('computeFieldGroupingMergedFields keeps independent groups for identical sentence, audio, and image values', async () => {
+  const { collaborator } = createCollaborator();
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    202,
+    101,
+    makeNote(202, {
+      Sentence: 'same sentence',
+      SentenceAudio: '[sound:same.mp3]',
+      Picture: '<img src="same.png">',
+      ExpressionAudio: '[sound:same.mp3]',
+    }),
+    makeNote(101, {
+      Sentence: 'same sentence',
+      SentenceAudio: '[sound:same.mp3]',
+      Picture: '<img src="same.png">',
+    }),
+    false,
+  );
+
+  assert.equal(
+    merged.Sentence,
+    '<span data-group-id="202">same sentence</span><span data-group-id="101">same sentence</span>',
+  );
+  assert.equal(
+    merged.SentenceAudio,
+    '<span data-group-id="202">[sound:same.mp3]</span><span data-group-id="101">[sound:same.mp3]</span>',
+  );
+  assert.equal(
+    merged.Picture,
+    '<img data-group-id="202" src="same.png"><img data-group-id="101" src="same.png">',
+  );
+  assert.equal('ExpressionAudio' in merged, false);
+});

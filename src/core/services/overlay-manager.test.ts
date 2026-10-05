@@ -1,36 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  broadcastRuntimeOptionsChangedRuntime,
   createOverlayManager,
   setOverlayDebugVisualizationEnabledRuntime,
 } from './overlay-manager';
-
-test('overlay manager initializes with empty windows and hidden overlays', () => {
-  const manager = createOverlayManager();
-  assert.equal(manager.getMainWindow(), null);
-  assert.equal(manager.getModalWindow(), null);
-  assert.equal(manager.getVisibleOverlayVisible(), false);
-  assert.deepEqual(manager.getOverlayWindows(), []);
-});
-
-test('overlay manager stores window references and returns stable window order', () => {
-  const manager = createOverlayManager();
-  const visibleWindow = {
-    isDestroyed: () => false,
-  } as unknown as Electron.BrowserWindow;
-  const modalWindow = {
-    isDestroyed: () => false,
-  } as unknown as Electron.BrowserWindow;
-
-  manager.setMainWindow(visibleWindow);
-  manager.setModalWindow(modalWindow);
-
-  assert.equal(manager.getMainWindow(), visibleWindow);
-  assert.equal(manager.getModalWindow(), modalWindow);
-  assert.equal(manager.getOverlayWindow(), visibleWindow);
-  assert.deepEqual(manager.getOverlayWindows(), [visibleWindow]);
-});
 
 test('overlay manager excludes destroyed windows', () => {
   const manager = createOverlayManager();
@@ -42,13 +15,6 @@ test('overlay manager excludes destroyed windows', () => {
   } as unknown as Electron.BrowserWindow);
 
   assert.equal(manager.getOverlayWindows().length, 0);
-});
-
-test('overlay manager stores visibility state', () => {
-  const manager = createOverlayManager();
-
-  manager.setVisibleOverlayVisible(true);
-  assert.equal(manager.getVisibleOverlayVisible(), true);
 });
 
 test('overlay manager broadcasts to non-destroyed windows', () => {
@@ -136,19 +102,13 @@ test('overlay manager can suppress z-order promotion during bounds updates', () 
   assert.deepEqual(calls, ['promote:false']);
 });
 
-test('runtime-option broadcast still uses expected channel', () => {
-  const broadcasts: unknown[][] = [];
-  broadcastRuntimeOptionsChangedRuntime(
-    () => [],
-    (channel, ...args) => {
-      broadcasts.push([channel, ...args]);
-    },
-  );
+test('setOverlayDebugVisualizationEnabledRuntime only updates state when the value changes', () => {
   let state = false;
-  const changed = setOverlayDebugVisualizationEnabledRuntime(state, true, (enabled) => {
+  const setState = (enabled: boolean) => {
     state = enabled;
-  });
-  assert.equal(changed, true);
+  };
+
+  assert.equal(setOverlayDebugVisualizationEnabledRuntime(state, false, setState), false);
+  assert.equal(setOverlayDebugVisualizationEnabledRuntime(state, true, setState), true);
   assert.equal(state, true);
-  assert.deepEqual(broadcasts, [['runtime-options:changed', []]]);
 });

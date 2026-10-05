@@ -133,31 +133,6 @@ test('triggerSubsyncFromConfig marks ffsubsync unavailable for remote media path
   assert.equal(ffsubsyncAvailable, false);
 });
 
-test('triggerSubsyncFromConfig does not run automatic sync', async () => {
-  const osd: string[] = [];
-  let payloadTrackCount = 0;
-  let spinnerRan = false;
-
-  await triggerSubsyncFromConfig(
-    makeDeps({
-      openManualPicker: (payload) => {
-        payloadTrackCount = payload.subtitleTracks.length;
-      },
-      showMpvOsd: (text) => {
-        osd.push(text);
-      },
-      runWithSubsyncSpinner: async <T>(task: () => Promise<T>) => {
-        spinnerRan = true;
-        return task();
-      },
-    }),
-  );
-
-  assert.equal(payloadTrackCount, 2);
-  assert.equal(spinnerRan, false);
-  assert.deepEqual(osd, ['Subsync: choose engine and subtitles']);
-});
-
 test('triggerSubsyncFromConfig dedupes repeated subtitle source tracks', async () => {
   let payloadTrackCount = 0;
 

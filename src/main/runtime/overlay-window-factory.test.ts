@@ -2,50 +2,56 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createCreateMainWindowHandler,
-  createCreateModalWindowHandler,
   createCreateOverlayWindowHandler,
 } from './overlay-window-factory';
 
-test('create overlay window handler forwards options and kind', () => {
-  const calls: string[] = [];
-  const window = { id: 1 };
-  const yomitanSession = { id: 'session' } as never;
+test('create overlay window handler applies the linux X11 fullscreen flag only to the visible window', () => {
+  const seen: Array<{ kind: string; linuxX11FullscreenOverlay?: boolean }> = [];
   const createOverlayWindow = createCreateOverlayWindowHandler({
     createOverlayWindowCore: (kind, options) => {
-      calls.push(`kind:${kind}`);
-      assert.equal(options.isDev, true);
-      assert.equal(options.isOverlayVisible('visible'), true);
-      assert.equal(options.isOverlayVisible('modal'), false);
-      assert.equal(options.yomitanSession, yomitanSession);
-      options.forwardTabToMpv();
-      options.onVisibleWindowFocused?.();
-      options.onRuntimeOptionsChanged();
-      options.setOverlayDebugVisualizationEnabled(true);
-      options.onWindowClosed(kind, window);
-      return window;
+      seen.push({ kind, linuxX11FullscreenOverlay: options.linuxX11FullscreenOverlay });
+      return {};
     },
-    isDev: true,
+    isDev: false,
     ensureOverlayWindowLevel: () => {},
-    onRuntimeOptionsChanged: () => calls.push('runtime-options'),
-    setOverlayDebugVisualizationEnabled: (enabled) => calls.push(`debug:${enabled}`),
-    isOverlayVisible: (kind) => kind === 'visible',
+    onRuntimeOptionsChanged: () => {},
+    setOverlayDebugVisualizationEnabled: () => {},
+    isOverlayVisible: () => false,
     tryHandleOverlayShortcutLocalFallback: () => false,
-    forwardTabToMpv: () => calls.push('forward-tab'),
-    onVisibleWindowFocused: () => calls.push('visible-focus'),
-    onWindowClosed: (kind, closedWindow) =>
-      calls.push(`closed:${kind}:${(closedWindow as { id: number }).id}`),
-    getYomitanSession: () => yomitanSession,
+    forwardTabToMpv: () => {},
+    onWindowClosed: () => {},
+    getLinuxX11FullscreenOverlay: () => true,
   });
 
-  assert.equal(createOverlayWindow('visible'), window);
-  assert.deepEqual(calls, [
-    'kind:visible',
-    'forward-tab',
-    'visible-focus',
-    'runtime-options',
-    'debug:true',
-    'closed:visible:1',
+  createOverlayWindow('visible');
+  createOverlayWindow('modal');
+
+  assert.deepEqual(seen, [
+    { kind: 'visible', linuxX11FullscreenOverlay: true },
+    { kind: 'modal', linuxX11FullscreenOverlay: undefined },
   ]);
+});
+
+test('create overlay window handler defaults the yomitan session to null', () => {
+  let session: unknown = 'unset';
+  const createOverlayWindow = createCreateOverlayWindowHandler({
+    createOverlayWindowCore: (_kind, options) => {
+      session = options.yomitanSession;
+      return {};
+    },
+    isDev: false,
+    ensureOverlayWindowLevel: () => {},
+    onRuntimeOptionsChanged: () => {},
+    setOverlayDebugVisualizationEnabled: () => {},
+    isOverlayVisible: () => false,
+    tryHandleOverlayShortcutLocalFallback: () => false,
+    forwardTabToMpv: () => {},
+    onWindowClosed: () => {},
+  });
+
+  createOverlayWindow('visible');
+
+  assert.equal(session, null);
 });
 
 test('create main window handler stores visible window', () => {
@@ -84,19 +90,4 @@ test('create main window handler reuses an existing live visible window', () => 
 
   assert.equal(createMainWindow(), existingWindow);
   assert.deepEqual(calls, []);
-});
-
-test('create modal window handler stores modal window', () => {
-  const calls: string[] = [];
-  const modalWindow = { id: 'modal' };
-  const createModalWindow = createCreateModalWindowHandler({
-    createOverlayWindow: (kind) => {
-      calls.push(`create:${kind}`);
-      return modalWindow;
-    },
-    setModalWindow: (window) => calls.push(`set:${(window as { id: string }).id}`),
-  });
-
-  assert.equal(createModalWindow(), modalWindow);
-  assert.deepEqual(calls, ['create:modal', 'set:modal']);
 });

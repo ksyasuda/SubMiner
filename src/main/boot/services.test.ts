@@ -1,109 +1,66 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ConfigStartupParseError } from '../../config';
 import { createMainBootServices } from './services';
 
-test('createMainBootServices builds boot-phase service bundle', () => {
-  type MockAppLifecycleApp = {
-    requestSingleInstanceLock: () => boolean;
-    quit: () => void;
-    exit: (code?: number) => void;
-    on: (event: string, listener: (...args: unknown[]) => void) => MockAppLifecycleApp;
-    whenReady: () => Promise<void>;
-  };
-
-  const calls: string[] = [];
-  let setPathValue: string | null = null;
-  const appOnCalls: string[] = [];
-  let secondInstanceHandlerRegistered = false;
-
-  const services = createMainBootServices<
-    { configDir: string },
-    { targetPath: string },
-    { targetPath: string },
-    { targetPath: string },
-    { kind: string; payloadMode: 'plain' | 'annotated' },
-    { scope: string; warn: () => void; info: () => void; error: () => void },
-    { registry: boolean },
-    { getMainWindow: () => null; getModalWindow: () => null },
-    {
-      inputState: boolean;
-      getModalInputExclusive: () => boolean;
-      handleModalInputStateChange: (isActive: boolean) => void;
-    },
-    { measurementStore: boolean },
-    { modalRuntime: boolean },
-    { mpvSocketPath: string; texthookerPort: number },
-    MockAppLifecycleApp
-  >({
-    platform: 'linux',
+// Minimal params whose factories echo their inputs, so tests can assert what each service received.
+function baseParams() {
+  return {
+    platform: 'linux' as NodeJS.Platform,
     argv: ['node', 'main.ts'],
     appDataDir: undefined,
     xdgConfigHome: undefined,
     homeDir: '/home/tester',
     defaultMpvLogFile: '/tmp/default.log',
-    envMpvLog: ' /tmp/custom.log ',
+    envMpvLog: undefined as string | undefined,
     defaultTexthookerPort: 5174,
     getDefaultSocketPath: () => '/tmp/subminer.sock',
     resolveConfigDir: () => '/tmp/subminer-config',
-    existsSync: () => false,
-    mkdirSync: (targetPath) => {
-      calls.push(`mkdir:${targetPath}`);
-    },
-    joinPath: (...parts) => parts.join('/'),
+    existsSync: (_targetPath: string) => false,
+    mkdirSync: (_targetPath: string) => {},
+    joinPath: (...parts: string[]) => parts.join('/'),
     app: {
-      setPath: (_name, value) => {
-        setPathValue = value;
-      },
+      setPath: (_name: string, _value: string) => {},
       quit: () => {},
-      exit: (code?: number) => {
-        calls.push(`exit:${code ?? 0}`);
-      },
-      on: (event: string) => {
-        appOnCalls.push(event);
-        return {};
-      },
+      exit: (_code?: number) => {},
+      on: (_event: string, _listener: unknown) => ({}),
       whenReady: async () => {},
     },
     shouldBypassSingleInstanceLock: () => false,
     requestSingleInstanceLockEarly: () => true,
-    registerSecondInstanceHandlerEarly: () => {
-      secondInstanceHandlerRegistered = true;
-    },
-    onConfigStartupParseError: () => {
-      throw new Error('unexpected parse failure');
-    },
-    createConfigService: (configDir) => ({ configDir }),
-    createAnilistTokenStore: (targetPath) => ({ targetPath }),
-    createJellyfinTokenStore: (targetPath) => ({ targetPath }),
-    createAnilistUpdateQueue: (targetPath) => ({ targetPath }),
-    createSubtitleWebSocket: (payloadMode) => ({ kind: 'ws', payloadMode }),
-    createLogger: (scope) =>
-      ({
-        scope,
-        warn: () => {},
-        info: () => {},
-        error: () => {},
-      }) as const,
-    createMainRuntimeRegistry: () => ({ registry: true }),
-    createOverlayManager: () => ({
-      getMainWindow: () => null,
-      getModalWindow: () => null,
-    }),
+    registerSecondInstanceHandlerEarly: (_listener: unknown) => {},
+    onConfigStartupParseError: (_error: ConfigStartupParseError) => {},
+    createConfigService: (configDir: string) => ({ configDir }),
+    createAnilistTokenStore: (targetPath: string) => ({ targetPath }),
+    createJellyfinTokenStore: (targetPath: string) => ({ targetPath }),
+    createAnilistUpdateQueue: (targetPath: string) => ({ targetPath }),
+    createSubtitleWebSocket: (payloadMode: 'plain' | 'annotated') => ({ payloadMode }),
+    createLogger: () => ({ warn: () => {}, info: () => {}, error: () => {} }),
+    createMainRuntimeRegistry: () => ({}),
+    createOverlayManager: () => ({ getMainWindow: () => null, getModalWindow: () => null }),
     createOverlayModalInputState: () => ({
-      inputState: true,
       getModalInputExclusive: () => false,
-      handleModalInputStateChange: () => {},
+      handleModalInputStateChange: (_isActive: boolean) => {},
     }),
-    createOverlayContentMeasurementStore: () => ({ measurementStore: true }),
-    getSyncOverlayShortcutsForModal: () => () => {},
+    createOverlayContentMeasurementStore: () => ({}),
+    getSyncOverlayShortcutsForModal: () => (_isActive: boolean) => {},
     getSyncOverlayVisibilityForModal: () => () => {},
-    createOverlayModalRuntime: () => ({ modalRuntime: true }),
-    createAppState: (input) => ({ ...input }),
-  });
+    createOverlayModalRuntime: () => ({}),
+    createAppState: (input: { mpvSocketPath: string; texthookerPort: number }) => input,
+  };
+}
+
+function createServices(
+  overrides: Partial<ReturnType<typeof baseParams>> & { configDir?: string },
+) {
+  return createMainBootServices({ ...baseParams(), ...overrides });
+}
+
+test('createMainBootServices derives data paths from the resolved config dir', () => {
+  const services = createServices({});
 
   assert.equal(services.configDir, '/tmp/subminer-config');
   assert.equal(services.userDataPath, '/tmp/subminer-config');
-  assert.equal(services.defaultMpvLogPath, '/tmp/custom.log');
   assert.equal(services.defaultImmersionDbPath, '/tmp/subminer-config/immersion.sqlite');
   assert.deepEqual(services.configService, { configDir: '/tmp/subminer-config' });
   assert.deepEqual(services.anilistTokenStore, {
@@ -115,79 +72,115 @@ test('createMainBootServices builds boot-phase service bundle', () => {
   assert.deepEqual(services.anilistUpdateQueue, {
     targetPath: '/tmp/subminer-config/anilist-retry-queue.json',
   });
-  assert.deepEqual(services.subtitleWsService, { kind: 'ws', payloadMode: 'plain' });
-  assert.deepEqual(services.annotationSubtitleWsService, {
-    kind: 'ws',
-    payloadMode: 'annotated',
-  });
+  assert.deepEqual(services.subtitleWsService, { payloadMode: 'plain' });
+  assert.deepEqual(services.annotationSubtitleWsService, { payloadMode: 'annotated' });
   assert.deepEqual(services.appState, {
     mpvSocketPath: '/tmp/subminer.sock',
     texthookerPort: 5174,
   });
-  assert.equal(
-    services.appLifecycleApp.on('ready', () => {}),
-    services.appLifecycleApp,
-  );
-  assert.equal(
-    services.appLifecycleApp.on('second-instance', () => {}),
-    services.appLifecycleApp,
-  );
-  services.appLifecycleApp.exit(7);
-  assert.deepEqual(appOnCalls, ['ready']);
-  assert.equal(secondInstanceHandlerRegistered, true);
-  assert.deepEqual(calls, ['mkdir:/tmp/subminer-config', 'exit:7']);
-  assert.equal(setPathValue, '/tmp/subminer-config');
+});
+
+test('createMainBootServices creates the user data dir only when missing and registers it', () => {
+  for (const exists of [false, true]) {
+    const created: string[] = [];
+    const setPaths: Array<[string, string]> = [];
+    createServices({
+      existsSync: () => exists,
+      mkdirSync: (targetPath) => {
+        created.push(targetPath);
+      },
+      app: {
+        ...baseParams().app,
+        setPath: (name, value) => {
+          setPaths.push([name, value]);
+        },
+      },
+    });
+
+    assert.deepEqual(created, exists ? [] : ['/tmp/subminer-config']);
+    assert.deepEqual(setPaths, [['userData', '/tmp/subminer-config']]);
+  }
+});
+
+test('createMainBootServices uses a trimmed MPV log env path and falls back when blank', () => {
+  const cases = [
+    { envMpvLog: ' /tmp/custom.log ', expected: '/tmp/custom.log' },
+    { envMpvLog: '   ', expected: '/tmp/default.log' },
+    { envMpvLog: undefined, expected: '/tmp/default.log' },
+  ];
+  for (const { envMpvLog, expected } of cases) {
+    assert.equal(createServices({ envMpvLog }).defaultMpvLogPath, expected);
+  }
 });
 
 test('createMainBootServices honors the profile selected by the early entrypoint', () => {
-  const services = createMainBootServices({
-    platform: 'linux',
-    argv: ['electron', '.', '--dev'],
+  const services = createServices({
     configDir: '/tmp/SubMiner-dev',
-    appDataDir: undefined,
-    xdgConfigHome: undefined,
-    homeDir: '/home/tester',
-    defaultMpvLogFile: '/tmp/default.log',
-    envMpvLog: undefined,
-    defaultTexthookerPort: 5174,
-    getDefaultSocketPath: () => '/tmp/subminer.sock',
     resolveConfigDir: () => {
       throw new Error('early profile should be authoritative');
     },
-    existsSync: () => false,
-    mkdirSync: () => {},
-    joinPath: (...parts) => parts.join('/'),
-    app: {
-      setPath: () => {},
-      quit: () => {},
-      exit: () => {},
-      on: () => ({}),
-      whenReady: async () => {},
-    },
-    shouldBypassSingleInstanceLock: () => false,
-    requestSingleInstanceLockEarly: () => true,
-    registerSecondInstanceHandlerEarly: () => {},
-    onConfigStartupParseError: () => {},
-    createConfigService: (configDir) => ({ configDir }),
-    createAnilistTokenStore: (targetPath) => ({ targetPath }),
-    createJellyfinTokenStore: (targetPath) => ({ targetPath }),
-    createAnilistUpdateQueue: (targetPath) => ({ targetPath }),
-    createSubtitleWebSocket: (payloadMode) => ({ payloadMode }),
-    createLogger: () => ({ warn: () => {}, info: () => {}, error: () => {} }),
-    createMainRuntimeRegistry: () => ({}),
-    createOverlayManager: () => ({ getMainWindow: () => null, getModalWindow: () => null }),
-    createOverlayModalInputState: () => ({
-      getModalInputExclusive: () => false,
-      handleModalInputStateChange: () => {},
-    }),
-    createOverlayContentMeasurementStore: () => ({}),
-    getSyncOverlayShortcutsForModal: () => () => {},
-    getSyncOverlayVisibilityForModal: () => () => {},
-    createOverlayModalRuntime: () => ({}),
-    createAppState: (input) => input,
   });
 
   assert.equal(services.configDir, '/tmp/SubMiner-dev');
   assert.equal(services.userDataPath, '/tmp/SubMiner-dev');
   assert.deepEqual(services.configService, { configDir: '/tmp/SubMiner-dev' });
+});
+
+test('createMainBootServices routes second-instance listeners to the early handler', () => {
+  const appEvents: string[] = [];
+  const earlyListeners: unknown[] = [];
+  const services = createServices({
+    app: {
+      ...baseParams().app,
+      on: (event) => {
+        appEvents.push(event);
+        return {};
+      },
+    },
+    registerSecondInstanceHandlerEarly: (listener) => {
+      earlyListeners.push(listener);
+    },
+  });
+
+  const secondInstanceListener = () => {};
+  services.appLifecycleApp.on('ready', () => {});
+  services.appLifecycleApp.on('second-instance', secondInstanceListener);
+
+  assert.deepEqual(appEvents, ['ready']);
+  assert.deepEqual(earlyListeners, [secondInstanceListener]);
+});
+
+test('createMainBootServices skips the single-instance lock when bypassed', () => {
+  for (const bypass of [false, true]) {
+    let lockRequests = 0;
+    const services = createServices({
+      shouldBypassSingleInstanceLock: () => bypass,
+      requestSingleInstanceLockEarly: () => {
+        lockRequests += 1;
+        return false;
+      },
+    });
+
+    assert.equal(services.appLifecycleApp.requestSingleInstanceLock(), bypass);
+    assert.equal(lockRequests, bypass ? 0 : 1);
+  }
+});
+
+test('createMainBootServices reports config parse errors and rethrows', () => {
+  const parseError = new ConfigStartupParseError('/tmp/config.jsonc', 'unexpected token');
+  const reported: ConfigStartupParseError[] = [];
+
+  assert.throws(
+    () =>
+      createServices({
+        createConfigService: () => {
+          throw parseError;
+        },
+        onConfigStartupParseError: (error) => {
+          reported.push(error);
+        },
+      }),
+    (error) => error === parseError,
+  );
+  assert.deepEqual(reported, [parseError]);
 });

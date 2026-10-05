@@ -129,47 +129,32 @@ test('handleMpvCommandFromIpc emits mpv OSD for subtitle step keybinding proxies
   assert.deepEqual(playbackFeedback, []);
 });
 
-test('handleMpvCommandFromIpc does not dispatch retired subtitle-delay shift tokens', () => {
-  const { options, calls, sentCommands, osd } = createOptions();
-  handleMpvCommandFromIpc(['__sub-delay-next-line'], options);
-  assert.deepEqual(calls, []);
-  assert.deepEqual(sentCommands, [['__sub-delay-next-line']]);
-  assert.deepEqual(osd, []);
-});
+const specialCommandCases = [
+  { name: 'youtube picker open', command: '__youtube-picker-open', expected: 'youtube-picker' },
+  { name: 'jimaku open', command: '__jimaku-open', expected: 'jimaku' },
+  // Legacy Animetosho command is kept as a TsukiHime alias.
+  {
+    name: 'legacy Animetosho open as a TsukiHime alias',
+    command: '__animetosho-open',
+    expected: 'tsukihime',
+  },
+  {
+    name: 'playlist browser open',
+    command: '__playlist-browser-open',
+    expected: 'playlist-browser',
+  },
+];
 
-test('handleMpvCommandFromIpc dispatches special youtube picker open command', () => {
-  const { options, calls, sentCommands, osd } = createOptions();
-  handleMpvCommandFromIpc(['__youtube-picker-open'], options);
-  assert.deepEqual(calls, ['youtube-picker']);
-  assert.deepEqual(sentCommands, []);
-  assert.deepEqual(osd, []);
-});
-
-test('handleMpvCommandFromIpc dispatches special jimaku open command', () => {
-  const { options, calls, sentCommands, osd } = createOptions();
-  handleMpvCommandFromIpc(['__jimaku-open'], options);
-  assert.deepEqual(calls, ['jimaku']);
-  assert.deepEqual(sentCommands, []);
-  assert.deepEqual(osd, []);
-});
-
-test('handleMpvCommandFromIpc keeps the legacy Animetosho command as a TsukiHime alias', () => {
-  const { options, calls, sentCommands } = createOptions();
-
-  handleMpvCommandFromIpc(['__animetosho-open'], options);
-
-  assert.deepEqual(calls, ['tsukihime']);
-  assert.deepEqual(sentCommands, []);
-});
-
-test('handleMpvCommandFromIpc dispatches special playlist browser open command', async () => {
-  const { options, calls, sentCommands, osd } = createOptions();
-  handleMpvCommandFromIpc(['__playlist-browser-open'], options);
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(calls, ['playlist-browser']);
-  assert.deepEqual(sentCommands, []);
-  assert.deepEqual(osd, []);
-});
+for (const c of specialCommandCases) {
+  test(`handleMpvCommandFromIpc dispatches special ${c.name} command`, async () => {
+    const { options, calls, sentCommands, osd } = createOptions();
+    handleMpvCommandFromIpc([c.command], options);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(calls, [c.expected]);
+    assert.deepEqual(sentCommands, []);
+    assert.deepEqual(osd, []);
+  });
+}
 
 test('handleMpvCommandFromIpc surfaces playlist browser open rejections via mpv osd', async () => {
   const { options, osd } = createOptions({

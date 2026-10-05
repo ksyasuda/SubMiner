@@ -1,11 +1,14 @@
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { availableParallelism } from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
 import { collectLaneFiles } from './test-lanes.ts';
 
 // Runs a test lane with per-file process isolation: one `bun test` process per
 // test file so a hanging test or leaked global in one file cannot poison the
 // rest of the lane. Use --single-process for the old all-in-one-process mode.
+//
+// Files run in parallel, one worker per CPU by default; --jobs 1 runs serially.
 //
 // Usage: bun scripts/run-test-lane.mjs <lane> [--jobs N] [--timeout-secs N] [--single-process]
 
@@ -34,7 +37,12 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 }
 
 function parseArgs(argv) {
-  const options = { lane: undefined, jobs: 1, timeoutSecs: 300, singleProcess: false };
+  const options = {
+    lane: undefined,
+    jobs: availableParallelism(),
+    timeoutSecs: 300,
+    singleProcess: false,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--jobs') {

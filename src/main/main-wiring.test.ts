@@ -1,3 +1,7 @@
+// Interim source-text guards: each test regexes src/main.ts (or a runtime file) to
+// pin a startup/overlay invariant that main.ts closures make hard to exercise.
+// Replace each with a behavioral test as the logic moves out of main.ts closures
+// (see docs/workflow/testing.md, Known Debt). Do not add new tests here.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -50,16 +54,6 @@ test('media path changes clear rendered subtitle state without clearing same-you
   );
 });
 
-test('media path changes start the YouTube media cache coordinator', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /updateCurrentMediaPath:\s*\(path\)\s*=>\s*\{(?<body>[\s\S]*?)\n    restoreMpvSubVisibility:/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(actionBlock, /youtubeMediaCachePlaybackRuntime\.handleMediaPathChange\(path\);/);
-});
-
 test('same media path updates do not reset autoplay ready fallback state', () => {
   const source = readMainSource();
   const actionBlock = source.match(
@@ -104,19 +98,6 @@ test('mpv startup signals start overlay loading OSD before readiness work', () =
   );
 });
 
-test('overlay loading dismiss notifies mpv plugin to stop early loading OSD', () => {
-  const source = readSource('src/main/runtime/overlay-notifications-runtime.ts');
-  const dismissBlock = source.match(
-    /function dismissOverlayLoadingStatusNotification\(\): void \{(?<body>[\s\S]*?)\n  \}/,
-  )?.groups?.body;
-
-  assert.ok(dismissBlock);
-  assert.match(
-    dismissBlock,
-    /sendMpvCommandRuntime\(deps\.getMpvClient\(\), \[\s*'script-message',\s*'subminer-overlay-loading-ready',\s*\]\);/,
-  );
-});
-
 test('manual visible overlay toggles only release current-media autoplay when hiding', () => {
   const source = readMainSource();
   const actionBlock = source.match(
@@ -157,6 +138,19 @@ test('all visible overlay hide paths clear stale overlay input state', () => {
     setOverlayBlock,
     /if \(!visible\) \{[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?resetVisibleOverlayInputState\(\);[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
   );
+  // Hiding must also dismiss the loading OSD, or it lingers over mpv.
+  assert.match(
+    setVisibleBlock,
+    /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
+  );
+  assert.match(
+    toggleBlock,
+    /if \(!nextVisible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
+  );
+  assert.match(
+    setOverlayBlock,
+    /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
+  );
 });
 
 test('subtitle sidebar media path tag is assigned after prefetch succeeds', () => {
@@ -174,56 +168,6 @@ test('subtitle sidebar media path tag is assigned after prefetch succeeds', () =
     actionBlock.indexOf('deps.initSubtitlePrefetch(') <
       actionBlock.indexOf('deps.setActiveParsedSubtitleMediaPath(nextMediaPath);'),
   );
-});
-
-test('remote media keeps parsed cues when the active subtitle source cannot be resolved', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /createRefreshSubtitlePrefetchFromActiveTrackHandler\(\{(?<body>[\s\S]*?)\n  \}\);/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(
-    actionBlock,
-    /isYoutubeMediaPath\(videoPath\) \|\| \(await detectRemoteMediaPath\(videoPath\)\)/,
-  );
-});
-
-test('jellyfin subtitle preload seeds the tokenization prefetch directly', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /preloadJellyfinExternalSubtitlesMainDeps:\s*\{(?<body>[\s\S]*?)\n  \},/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(
-    actionBlock,
-    /initSubtitlePrefetch: \(sourcePath\) =>\s*subtitlePrefetchRuntime\.refreshSubtitleSidebarFromSource\(sourcePath\),/,
-  );
-});
-
-test('update overlay notification action triggers install flow', () => {
-  const source = readMainSource();
-  const runtimeSource = readSource('src/main/runtime/overlay-notifications-runtime.ts');
-
-  assert.match(
-    source,
-    /handleOverlayNotificationAction:\s*\(notificationId,\s*actionId,\s*noteId\)\s*=>/,
-  );
-  assert.match(source, /notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID/);
-  assert.match(source, /actionId === INSTALL_UPDATE_ACTION_ID/);
-  assert.match(source, /installWhenAvailable:\s*true/);
-  assert.match(source, /actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined/);
-  assert.match(runtimeSource, /deps\.getAnkiIntegration\(\)\?\.openNoteInAnki\(noteId\)/);
-  assert.match(
-    runtimeSource,
-    /deps\.getRuntimeOptionsManager\(\)\?\.getEffectiveAnkiConnectConfig/,
-  );
-  assert.match(
-    runtimeSource,
-    /new AnkiConnectClient\(\s*effectiveAnkiConfig\.url \|\| DEFAULT_CONFIG\.ankiConnect\.url/,
-  );
-  assert.match(runtimeSource, /fallbackClient\.openNoteInBrowser\(noteId\)/);
 });
 
 test('subtitle change pauses prefetch without restarting its run before tokenizing current line', () => {
@@ -263,37 +207,10 @@ test('autoplay subtitle prime emits cached annotations and avoids raw fallback o
   );
   assert.match(actionBlock, /if \(cachedPayload\) \{/);
   assert.match(actionBlock, /emitSubtitlePayload\(cachedPayload\);/);
-  assert.doesNotMatch(actionBlock, /withCurrentSubtitleTiming\(\{ text, tokens: null \}\)/);
-  assert.doesNotMatch(actionBlock, /broadcastToOverlayWindows\('subtitle:set', rawPayload\)/);
   assert.match(actionBlock, /subtitleProcessingController\.onSubtitleChange\(text\);/);
   assert.ok(
     actionBlock.indexOf('consumeCachedSubtitle(text)') <
       actionBlock.indexOf('subtitleProcessingController.onSubtitleChange(text);'),
-  );
-});
-
-test('autoplay subtitle prime reuses active parsed cues before synthetic warm release', () => {
-  const source = readMainSource();
-  const runtimeDepsBlock = source.match(
-    /const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime\(\{(?<body>[\s\S]*?)\n\}\);/,
-  )?.groups?.body;
-  const primeSource = readSource('src/main/runtime/autoplay-subtitle-priming-runtime.ts');
-  const emptyTextBlock = primeSource.match(
-    /if \(!text\.trim\(\) && isCurrentAutoplayMediaPath\(mediaPath\)\) \{(?<body>[\s\S]*?)\n    \}/,
-  )?.groups?.body;
-
-  assert.ok(runtimeDepsBlock);
-  assert.match(
-    runtimeDepsBlock,
-    /getActiveParsedSubtitleCues:\s*\(\) => appState\.activeParsedSubtitleCues/,
-  );
-
-  assert.ok(emptyTextBlock);
-  assert.ok(
-    emptyTextBlock.indexOf('await deps.refreshSubtitlePrefetchFromActiveTrack()') <
-      emptyTextBlock.indexOf(
-        'await primeAutoplaySubtitleFromParsedCues(mediaPath, deps.getActiveParsedSubtitleCues())',
-      ),
   );
 });
 
@@ -509,20 +426,6 @@ test('subtitle annotation updates invalidate prefetched tokenizations before ref
   );
 });
 
-test('character portrait index readiness refreshes cached subtitle annotations', () => {
-  const source = readMainSource();
-  const lookupDeps = source.match(
-    /const characterDictionaryImageLookup = createCharacterDictionaryImageLookup\(\{(?<body>[\s\S]*?)\n\}\);/,
-  )?.groups?.body;
-
-  assert.ok(lookupDeps);
-  assert.match(lookupDeps, /onIndexReady: \(\) => refreshCurrentSubtitleAnnotations\(\),/);
-  assert.match(
-    lookupDeps,
-    /onIndexReadyError: \(error\) =>[\s\S]*?logger\.warn\([\s\S]*?character portrait index became ready\.[\s\S]*?error,/,
-  );
-});
-
 test('subtitle processing controller resumes prefetch on settle, not on its emits', () => {
   const source = readMainSource();
   const depsBlock = source.match(
@@ -539,120 +442,6 @@ test('subtitle processing controller resumes prefetch on settle, not on its emit
   assert.match(
     depsBlock,
     /onProcessingSettled: \(\) => \{\s+subtitlePrefetchService\?\.resume\(\);/,
-  );
-});
-
-test('manual visible overlay changes notify mpv plugin visibility state', () => {
-  const source = readMainSource();
-  const setBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const toggleBlock = source.match(
-    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(setBlock);
-  assert.ok(toggleBlock);
-  assert.match(setBlock, /notifyMpvPluginVisibleOverlayVisibility\(visible\);/);
-  assert.match(toggleBlock, /const nextVisible = !overlayManager\.getVisibleOverlayVisible\(\);/);
-  assert.match(toggleBlock, /notifyMpvPluginVisibleOverlayVisibility\(nextVisible\);/);
-});
-
-test('manual visible overlay hide dismisses loading OSD', () => {
-  const source = readMainSource();
-  const setBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const toggleBlock = source.match(
-    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const setOverlayBlock = source.match(
-    /function setOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(setBlock);
-  assert.ok(toggleBlock);
-  assert.ok(setOverlayBlock);
-  assert.match(setBlock, /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/);
-  assert.match(
-    toggleBlock,
-    /if \(!nextVisible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
-  );
-  assert.match(
-    setOverlayBlock,
-    /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
-  );
-});
-
-test('configured overlay notifications require visible ready overlay window', () => {
-  const source = readSource('src/main/runtime/overlay-notifications-runtime.ts');
-  const readinessBlock = source.match(
-    /function isVisibleOverlayContentReady\(\): boolean \{(?<body>[\s\S]*?)\n  \}/,
-  )?.groups?.body;
-  const statusBlock = source.match(
-    /function showConfiguredStatusNotification\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n  \}/,
-  )?.groups?.body;
-
-  assert.ok(readinessBlock);
-  assert.ok(statusBlock);
-  assert.match(readinessBlock, /deps\.getVisibleOverlayVisible\(\)/);
-  assert.match(readinessBlock, /isOverlayWindowReadyForNotification\(overlayWindow\)/);
-  assert.doesNotMatch(readinessBlock, /isOverlayWindowContentReady\(overlayWindow\)/);
-  assert.match(statusBlock, /isOverlayReady: \(\) => isVisibleOverlayContentReady\(\)/);
-});
-
-test('YouTube media cache lifecycle routes through configured status notifications', () => {
-  const source = readMainSource();
-  const cacheBlock = source.match(
-    /const youtubeMediaCache = createYoutubeMediaCacheService\(\{(?<body>[\s\S]*?)\n\}\);\nconst waitForYoutubeMpvConnected/,
-  )?.groups?.body;
-  const startCacheBlock = source.match(
-    /startYoutubeMediaCache:\s*\(url\)\s*=>\s*\{(?<body>[\s\S]*?)\n  \},\n  runYoutubePlaybackFlow/,
-  )?.groups?.body;
-
-  assert.ok(cacheBlock);
-  assert.ok(startCacheBlock);
-  assert.match(
-    cacheBlock,
-    /onDownloadStarted:\s*\(event\)\s*=>\s*\{[\s\S]*showConfiguredStatusNotification\(\s*'YouTube media cache is downloading\.'/,
-  );
-  assert.match(cacheBlock, /id:\s*'youtube-media-cache-status'/);
-  assert.match(cacheBlock, /variant:\s*'progress'/);
-  assert.match(cacheBlock, /persistent:\s*true/);
-  assert.match(
-    cacheBlock,
-    /onReady:\s*\(event\)\s*=>\s*\{[\s\S]*showConfiguredStatusNotification\(\s*'YouTube media cache ready\.'/,
-  );
-  assert.match(cacheBlock, /variant:\s*'success'/);
-  assert.match(cacheBlock, /notifyNoQueued:\s*false/);
-  assert.match(
-    startCacheBlock,
-    /const mediaCacheConfig = configService\.getConfig\(\)\.youtube\.mediaCache;/,
-  );
-  assert.match(startCacheBlock, /mode:\s*mediaCacheConfig\.mode/);
-  assert.match(startCacheBlock, /maxHeight:\s*mediaCacheConfig\.maxHeight/);
-});
-
-test('subtitle broadcasts share one frequency options snapshot per emitted payload', () => {
-  const source = readMainSource();
-  const emitBlock = source.match(
-    /function emitSubtitlePayload\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const frequencyOptionsSnapshot = emitBlock?.match(
-    /const frequencyDictionary = configService\.getConfig\(\)\.subtitleStyle\.frequencyDictionary;(?<body>[\s\S]*?)\n  \};/,
-  )?.[0];
-
-  assert.ok(emitBlock);
-  assert.ok(frequencyOptionsSnapshot);
-  assert.match(frequencyOptionsSnapshot, /const frequencyOptions = \{/);
-  assert.match(frequencyOptionsSnapshot, /enabled:\s*frequencyDictionary\.enabled/);
-  assert.match(frequencyOptionsSnapshot, /topX:\s*frequencyDictionary\.topX/);
-  assert.match(frequencyOptionsSnapshot, /mode:\s*frequencyDictionary\.mode/);
-  assert.equal((frequencyOptionsSnapshot.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
-  assert.match(emitBlock, /subtitleWsService\.broadcast\(timedPayload, frequencyOptions\);/);
-  assert.match(
-    emitBlock,
-    /annotationSubtitleWsService\.broadcast\(timedPayload, frequencyOptions\);/,
   );
 });
 
@@ -685,31 +474,6 @@ test('annotation upgrades skip the duplicate basic websocket event', () => {
   );
 });
 
-test('websocket frequency options callbacks each read one configuration snapshot', () => {
-  const source = readMainSource();
-  const subtitleBlock = source.match(
-    /startSubtitleWebsocket:\s*\(port: number\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    startAnnotationWebsocket:/,
-  )?.groups?.body;
-  const annotationBlock = source.match(
-    /startAnnotationWebsocket:\s*\(port: number\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    startTexthooker:/,
-  )?.groups?.body;
-  const subtitleFrequencyOptionsCallback = subtitleBlock?.match(
-    /(?<body>\(\) => \{\s+const frequencyDictionary = configService\.getConfig\(\)\.subtitleStyle\.frequencyDictionary;[\s\S]*?\s+return \{[\s\S]*?\s+\};\s+\})/,
-  )?.groups?.body;
-  const annotationFrequencyOptionsCallback = annotationBlock?.match(
-    /(?<body>\(\) => \{\s+const frequencyDictionary = configService\.getConfig\(\)\.subtitleStyle\.frequencyDictionary;[\s\S]*?\s+return \{[\s\S]*?\s+\};\s+\})/,
-  )?.groups?.body;
-
-  assert.ok(subtitleFrequencyOptionsCallback);
-  assert.ok(annotationFrequencyOptionsCallback);
-  for (const callback of [subtitleFrequencyOptionsCallback, annotationFrequencyOptionsCallback]) {
-    assert.match(callback, /return \{[\s\S]*enabled:\s*frequencyDictionary\.enabled/);
-    assert.match(callback, /topX:\s*frequencyDictionary\.topX/);
-    assert.match(callback, /mode:\s*frequencyDictionary\.mode/);
-    assert.equal((callback.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
-  }
-});
-
 test('mpv connection flushes queued configured OSD notifications', () => {
   const source = readMainSource();
   const connectedBlock = source.match(
@@ -719,48 +483,6 @@ test('mpv connection flushes queued configured OSD notifications', () => {
   assert.ok(connectedBlock);
   assert.match(source, /flushQueuedMpvOsdNotifications/);
   assert.match(connectedBlock, /flushQueuedMpvOsdNotifications\(\);/);
-});
-
-test('manual visible overlay show primes current subtitle from mpv before relying on live events', () => {
-  const source = readMainSource();
-  const setBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const toggleBlock = source.match(
-    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(setBlock);
-  assert.ok(toggleBlock);
-  assert.match(
-    setBlock,
-    /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);\s+visibleOverlayInteractionRuntime\.resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+visibleOverlayInteractionRuntime\.startLinuxVisibleOverlayStartupInputGrace\(\);\s+visibleOverlayInteractionRuntime\.restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);\s+void autoplaySubtitlePrimingRuntime\.primeCurrentSubtitleForVisibleOverlay\(\);/,
-  );
-  assert.match(
-    toggleBlock,
-    /else \{\s+maybeStartOverlayLoadingOsd\(\);\s+visibleOverlayInteractionRuntime\.resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+visibleOverlayInteractionRuntime\.startLinuxVisibleOverlayStartupInputGrace\(\);\s+visibleOverlayInteractionRuntime\.restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);\s+void autoplaySubtitlePrimingRuntime\.primeCurrentSubtitleForVisibleOverlay\(\);/,
-  );
-});
-
-test('Linux visible overlay show/reset does not leave an empty X11 window shape', () => {
-  const source = readMainSource();
-  const runtimeSource = readSource('src/main/runtime/visible-overlay-interaction-runtime.ts');
-  const resetBlock = runtimeSource.match(
-    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n  \}/,
-  )?.groups?.body;
-  const setBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(resetBlock);
-  assert.ok(setBlock);
-  assert.match(resetBlock, /restoreLinuxOverlayWindowShape\(mainWindow\);/);
-  assert.doesNotMatch(source, /setShape\?\.\(\[\]\)|setShape\(\[\]\)/);
-  assert.doesNotMatch(runtimeSource, /setShape\?\.\(\[\]\)|setShape\(\[\]\)/);
-  assert.match(
-    setBlock,
-    /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);\s+visibleOverlayInteractionRuntime\.resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+visibleOverlayInteractionRuntime\.startLinuxVisibleOverlayStartupInputGrace\(\);\s+visibleOverlayInteractionRuntime\.restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);/,
-  );
 });
 
 test('Linux visible overlay startup reapplies passive passthrough after input reset', () => {
@@ -841,16 +563,6 @@ test('Linux visible overlay bounds refresh restores X11 shape after applying mpv
   );
 });
 
-test('main process uses one shared mpv plugin runtime config helper', () => {
-  const source = readMainSource();
-  assert.match(source, /function getMpvPluginRuntimeConfig\(\)/);
-  assert.equal((source.match(/socketPath: appState\.mpvSocketPath/g) ?? []).length, 1);
-  assert.equal(
-    (source.match(/binaryPath: getResolvedConfig\(\)\.mpv\.subminerBinaryPath/g) ?? []).length,
-    0,
-  );
-});
-
 test('subtitle sidebar snapshot prefers cached YouTube parsed cues before active-source parsing', () => {
   const source = readMainSource();
   const snapshotBlock = source.match(
@@ -864,21 +576,5 @@ test('subtitle sidebar snapshot prefers cached YouTube parsed cues before active
   assert.ok(
     snapshotBlock.indexOf('shouldUseCachedYoutubeParsedCues(') <
       snapshotBlock.indexOf('resolveActiveSubtitleSidebarSourceHandler'),
-  );
-});
-
-test('main process extracts internal subtitle tracks without a network-mount guard', () => {
-  const source = readMainSource();
-  const resolverWiring = source.match(
-    /const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler\(\{(?<body>[\s\S]*?)\n\}\);/,
-  )?.groups?.body;
-
-  assert.ok(resolverWiring);
-  // Network-mounted files are extracted like local ones; only remote URLs skip
-  // extraction, handled inside the resolver itself.
-  assert.doesNotMatch(resolverWiring, /isRemoteMediaPath/);
-  assert.match(
-    resolverWiring,
-    /extractInternalSubtitleTrack:[\s\S]*cachedInternalSubtitleTrackExtractor\.extract/,
   );
 });

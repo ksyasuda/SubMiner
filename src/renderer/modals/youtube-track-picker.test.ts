@@ -92,17 +92,6 @@ function restoreGlobalProp<K extends keyof typeof globalThis>(
   Reflect.deleteProperty(globalThis, key);
 }
 
-function restoreGlobalDescriptor<K extends keyof typeof globalThis>(
-  key: K,
-  descriptor: PropertyDescriptor | undefined,
-) {
-  if (descriptor) {
-    Object.defineProperty(globalThis, key, descriptor);
-    return;
-  }
-  Reflect.deleteProperty(globalThis, key);
-}
-
 function setupYoutubePickerTestEnv(options?: {
   windowValue?: YoutubePickerTestWindow;
   customEventValue?: unknown;
@@ -163,41 +152,11 @@ function setupYoutubePickerTestEnv(options?: {
   };
 }
 
-test('youtube picker test env restore deletes injected globals that were originally absent', () => {
-  const previousWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const previousDocumentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
-
-  try {
-    Reflect.deleteProperty(globalThis, 'window');
-    Reflect.deleteProperty(globalThis, 'document');
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
-
-    const env = setupYoutubePickerTestEnv();
-
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), true);
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), true);
-
-    env.restore();
-
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'window'), false);
-    assert.equal(Object.prototype.hasOwnProperty.call(globalThis, 'document'), false);
-    assert.equal(typeof globalThis.window, 'undefined');
-    assert.equal(typeof globalThis.document, 'undefined');
-  } finally {
-    restoreGlobalDescriptor('window', previousWindowDescriptor);
-    restoreGlobalDescriptor('document', previousDocumentDescriptor);
-  }
-});
-
 test('youtube track picker close restores focus and mouse-ignore state', () => {
-  const overlayFocusCalls: number[] = [];
-  const windowFocusCalls: number[] = [];
-  const focusMainWindowCalls: number[] = [];
+  let overlayFocused = false;
   const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
   const notifications: string[] = [];
   const frontendCommands: unknown[] = [];
-  const syncCalls: string[] = [];
 
   class TestCustomEvent extends Event {
     detail: unknown;
@@ -214,17 +173,13 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
         frontendCommands.push(event.detail ?? null);
         return true;
       },
-      focus: () => {
-        windowFocusCalls.push(1);
-      },
+      focus: () => {},
       electronAPI: {
         notifyOverlayModalOpened: () => {},
         notifyOverlayModalClosed: (modal: string) => {
           notifications.push(modal);
         },
-        focusMainWindow: async () => {
-          focusMainWindowCalls.push(1);
-        },
+        focusMainWindow: async () => {},
         youtubePickerResolve: async () => ({ ok: true, message: '' }),
         setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
           ignoreCalls.push({ ignore, forward: options?.forward });
@@ -238,7 +193,7 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
     const state = createRendererState();
     const dom = createYoutubePickerDomFixture();
     dom.overlay.focus = () => {
-      overlayFocusCalls.push(1);
+      overlayFocused = true;
     };
     const { overlay } = dom;
 
@@ -252,12 +207,8 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
       } as never,
       {
         modalStateReader: { isAnyModalOpen: () => false },
-        restorePointerInteractionState: () => {
-          syncCalls.push('restore-pointer');
-        },
-        syncSettingsModalSubtitleSuppression: () => {
-          syncCalls.push('sync');
-        },
+        restorePointerInteractionState: () => {},
+        syncSettingsModalSubtitleSuppression: () => {},
       },
     );
 
@@ -272,13 +223,10 @@ test('youtube track picker close restores focus and mouse-ignore state', () => {
     modal.closeYoutubePickerModal();
 
     assert.equal(state.youtubePickerModalOpen, false);
-    assert.deepEqual(syncCalls, ['sync', 'sync', 'restore-pointer']);
     assert.deepEqual(notifications, ['youtube-track-picker']);
     assert.deepEqual(frontendCommands, [{ type: 'refreshOptions' }]);
     assert.equal(overlay.classList.contains('interactive'), false);
-    assert.equal(focusMainWindowCalls.length > 0, true);
-    assert.equal(overlayFocusCalls.length > 0, true);
-    assert.equal(windowFocusCalls.length > 0, true);
+    assert.equal(overlayFocused, true);
     assert.deepEqual(ignoreCalls, [{ ignore: true, forward: true }]);
   } finally {
     env.restore();

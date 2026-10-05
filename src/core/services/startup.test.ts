@@ -1,447 +1,126 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { runAppReadyRuntime } from './startup';
+import { runAppReadyRuntime, type AppReadyRuntimeDeps } from './startup';
 
-test('runAppReadyRuntime minimal startup skips Yomitan and first-run setup while still handling CLI args', async () => {
+// Every dep records its name in `calls`; overrides replace individual deps.
+function createAppReadyDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
   const calls: string[] = [];
-
-  await runAppReadyRuntime({
-    ensureDefaultConfigBootstrap: () => {
-      calls.push('bootstrap');
-    },
-    loadSubtitlePosition: () => {
-      calls.push('load-subtitle-position');
-    },
-    resolveKeybindings: () => {
-      calls.push('resolve-keybindings');
-    },
-    createMpvClient: () => {
-      calls.push('create-mpv');
-    },
-    reloadConfig: () => {
-      calls.push('reload-config');
-    },
-    getResolvedConfig: () => ({}),
-    getConfigWarnings: () => [],
-    logConfigWarning: () => {
-      calls.push('config-warning');
-    },
-    setLogLevel: () => {
-      calls.push('set-log-level');
-    },
-    initRuntimeOptionsManager: () => {
-      calls.push('init-runtime-options');
-    },
-    setSecondarySubMode: () => {
-      calls.push('set-secondary-sub-mode');
-    },
-    defaultSecondarySubMode: 'hover',
-    defaultWebsocketPort: 0,
-    defaultAnnotationWebsocketPort: 0,
-    defaultTexthookerPort: 0,
-    hasMpvWebsocketPlugin: () => false,
-    startSubtitleWebsocket: () => {
-      calls.push('subtitle-ws');
-    },
-    startAnnotationWebsocket: () => {
-      calls.push('annotation-ws');
-    },
-    startTexthooker: () => {
-      calls.push('texthooker');
-    },
-    log: () => {
-      calls.push('log');
-    },
-    createMecabTokenizerAndCheck: async () => {
-      calls.push('mecab');
-    },
-    createSubtitleTimingTracker: () => {
-      calls.push('subtitle-timing');
-    },
-    createImmersionTracker: () => {
-      calls.push('immersion');
-    },
-    startJellyfinRemoteSession: async () => {
-      calls.push('jellyfin');
-    },
-    loadYomitanExtension: async () => {
-      calls.push('load-yomitan');
-    },
-    handleFirstRunSetup: async () => {
-      calls.push('first-run');
-    },
-    prewarmSubtitleDictionaries: async () => {
-      calls.push('prewarm');
-    },
-    startBackgroundWarmups: () => {
-      calls.push('warmups');
-    },
-    texthookerOnlyMode: false,
-    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
-    setVisibleOverlayVisible: () => {
-      calls.push('visible-overlay');
-    },
-    initializeOverlayRuntime: () => {
-      calls.push('init-overlay');
-    },
-    handleInitialArgs: () => {
-      calls.push('handle-initial-args');
-    },
-    shouldUseMinimalStartup: () => true,
-    shouldSkipHeavyStartup: () => false,
-  });
-
-  assert.deepEqual(calls, ['bootstrap', 'reload-config', 'handle-initial-args']);
-});
-
-test('runAppReadyRuntime headless refresh bootstraps Anki runtime without UI startup', async () => {
-  const calls: string[] = [];
-
-  await runAppReadyRuntime({
-    ensureDefaultConfigBootstrap: () => {
-      calls.push('bootstrap');
-    },
-    loadSubtitlePosition: () => {
-      calls.push('load-subtitle-position');
-    },
-    resolveKeybindings: () => {
-      calls.push('resolve-keybindings');
-    },
-    createMpvClient: () => {
-      calls.push('create-mpv');
-    },
-    reloadConfig: () => {
-      calls.push('reload-config');
-    },
-    getResolvedConfig: () => ({}),
-    getConfigWarnings: () => [],
-    logConfigWarning: () => {
-      calls.push('config-warning');
-    },
-    setLogLevel: () => {
-      calls.push('set-log-level');
-    },
-    initRuntimeOptionsManager: () => {
-      calls.push('init-runtime-options');
-    },
-    setSecondarySubMode: () => {
-      calls.push('set-secondary-sub-mode');
-    },
-    defaultSecondarySubMode: 'hover',
-    defaultWebsocketPort: 0,
-    defaultAnnotationWebsocketPort: 0,
-    defaultTexthookerPort: 0,
-    hasMpvWebsocketPlugin: () => false,
-    startSubtitleWebsocket: () => {
-      calls.push('subtitle-ws');
-    },
-    startAnnotationWebsocket: () => {
-      calls.push('annotation-ws');
-    },
-    startTexthooker: () => {
-      calls.push('texthooker');
-    },
-    log: () => {
-      calls.push('log');
-    },
-    createMecabTokenizerAndCheck: async () => {
-      calls.push('mecab');
-    },
-    createSubtitleTimingTracker: () => {
-      calls.push('subtitle-timing');
-    },
-    createImmersionTracker: () => {
-      calls.push('immersion');
-    },
-    startJellyfinRemoteSession: async () => {
-      calls.push('jellyfin');
-    },
-    loadYomitanExtension: async () => {
-      calls.push('load-yomitan');
-    },
-    handleFirstRunSetup: async () => {
-      calls.push('first-run');
-    },
-    prewarmSubtitleDictionaries: async () => {
-      calls.push('prewarm');
-    },
-    startBackgroundWarmups: () => {
-      calls.push('warmups');
-    },
-    texthookerOnlyMode: false,
-    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
-    setVisibleOverlayVisible: () => {
-      calls.push('visible-overlay');
-    },
-    initializeOverlayRuntime: () => {
-      calls.push('init-overlay');
-    },
-    runHeadlessInitialCommand: async () => {
-      calls.push('run-headless-command');
-    },
-    handleInitialArgs: () => {
-      calls.push('handle-initial-args');
-    },
-    shouldRunHeadlessInitialCommand: () => true,
-    shouldUseMinimalStartup: () => false,
-    shouldSkipHeavyStartup: () => false,
-  });
-
-  assert.deepEqual(calls, [
-    'bootstrap',
-    'reload-config',
-    'init-runtime-options',
-    'run-headless-command',
-  ]);
-});
-
-test('runAppReadyRuntime loads Yomitan before headless overlay fallback initialization', async () => {
-  const calls: string[] = [];
-
-  await runAppReadyRuntime({
-    ensureDefaultConfigBootstrap: () => {
-      calls.push('bootstrap');
-    },
-    loadSubtitlePosition: () => {
-      calls.push('load-subtitle-position');
-    },
-    resolveKeybindings: () => {
-      calls.push('resolve-keybindings');
-    },
-    createMpvClient: () => {
-      calls.push('create-mpv');
-    },
-    reloadConfig: () => {
-      calls.push('reload-config');
-    },
-    getResolvedConfig: () => ({}),
-    getConfigWarnings: () => [],
-    logConfigWarning: () => {},
-    setLogLevel: () => {},
-    initRuntimeOptionsManager: () => {
-      calls.push('init-runtime-options');
-    },
-    setSecondarySubMode: () => {},
-    defaultSecondarySubMode: 'hover',
-    defaultWebsocketPort: 0,
-    defaultAnnotationWebsocketPort: 0,
-    defaultTexthookerPort: 0,
-    hasMpvWebsocketPlugin: () => false,
-    startSubtitleWebsocket: () => {},
-    startAnnotationWebsocket: () => {},
-    startTexthooker: () => {},
-    log: () => {},
-    createMecabTokenizerAndCheck: async () => {},
-    createSubtitleTimingTracker: () => {
-      calls.push('subtitle-timing');
-    },
-    createImmersionTracker: () => {},
-    startJellyfinRemoteSession: async () => {},
-    loadYomitanExtension: async () => {
-      calls.push('load-yomitan');
-    },
-    handleFirstRunSetup: async () => {},
-    prewarmSubtitleDictionaries: async () => {},
-    startBackgroundWarmups: () => {},
-    texthookerOnlyMode: false,
-    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
-    setVisibleOverlayVisible: () => {},
-    initializeOverlayRuntime: () => {
-      calls.push('init-overlay');
-    },
-    handleInitialArgs: () => {
-      calls.push('handle-initial-args');
-    },
-    shouldRunHeadlessInitialCommand: () => true,
-    shouldUseMinimalStartup: () => false,
-    shouldSkipHeavyStartup: () => false,
-  });
-
-  assert.deepEqual(calls, [
-    'bootstrap',
-    'reload-config',
-    'init-runtime-options',
-    'create-mpv',
-    'subtitle-timing',
-    'load-yomitan',
-    'init-overlay',
-    'handle-initial-args',
-  ]);
-});
-
-test('runAppReadyRuntime auto-initializes overlay runtime before warmups and Yomitan', async () => {
-  const calls: string[] = [];
-
-  await runAppReadyRuntime({
-    ensureDefaultConfigBootstrap: () => {
-      calls.push('bootstrap');
-    },
-    loadSubtitlePosition: () => {
-      calls.push('load-subtitle-position');
-    },
-    resolveKeybindings: () => {
-      calls.push('resolve-keybindings');
-    },
-    createMpvClient: () => {
-      calls.push('create-mpv');
-    },
-    reloadConfig: () => {
-      calls.push('reload-config');
-    },
+  const record = (name: string) => () => {
+    calls.push(name);
+  };
+  const recordAsync = (name: string) => async () => {
+    calls.push(name);
+  };
+  const deps: AppReadyRuntimeDeps = {
+    ensureDefaultConfigBootstrap: record('bootstrap'),
+    loadSubtitlePosition: record('load-subtitle-position'),
+    resolveKeybindings: record('resolve-keybindings'),
+    createMpvClient: record('create-mpv'),
+    reloadConfig: record('reload-config'),
     getResolvedConfig: () => ({
       websocket: { enabled: false },
       annotationWebsocket: { enabled: false },
       texthooker: { launchAtStartup: false },
     }),
     getConfigWarnings: () => [],
-    logConfigWarning: () => {},
-    setLogLevel: () => {
-      calls.push('set-log-level');
-    },
-    initRuntimeOptionsManager: () => {
-      calls.push('init-runtime-options');
-    },
-    setSecondarySubMode: () => {
-      calls.push('set-secondary-sub-mode');
-    },
+    logConfigWarning: record('config-warning'),
+    setLogLevel: record('set-log-level'),
+    initRuntimeOptionsManager: record('init-runtime-options'),
+    setSecondarySubMode: record('set-secondary-sub-mode'),
     defaultSecondarySubMode: 'hover',
     defaultWebsocketPort: 0,
     defaultAnnotationWebsocketPort: 0,
     defaultTexthookerPort: 0,
     hasMpvWebsocketPlugin: () => false,
-    startSubtitleWebsocket: () => {
-      calls.push('subtitle-ws');
-    },
-    startAnnotationWebsocket: () => {
-      calls.push('annotation-ws');
-    },
-    startTexthooker: () => {
-      calls.push('texthooker');
-    },
-    log: () => {
-      calls.push('log');
-    },
-    createMecabTokenizerAndCheck: async () => {},
-    createSubtitleTimingTracker: () => {
-      calls.push('subtitle-timing');
-    },
-    createImmersionTracker: () => {
-      calls.push('immersion');
-    },
-    startJellyfinRemoteSession: async () => {},
-    loadYomitanExtension: async () => {
-      calls.push('load-yomitan');
-    },
-    handleFirstRunSetup: async () => {
-      calls.push('first-run');
-    },
-    prewarmSubtitleDictionaries: async () => {},
-    startBackgroundWarmups: () => {
-      calls.push('warmups');
-    },
+    startSubtitleWebsocket: record('subtitle-ws'),
+    startAnnotationWebsocket: record('annotation-ws'),
+    startTexthooker: record('texthooker'),
+    log: record('log'),
+    createMecabTokenizerAndCheck: recordAsync('mecab'),
+    createSubtitleTimingTracker: record('subtitle-timing'),
+    createImmersionTracker: record('immersion'),
+    startJellyfinRemoteSession: recordAsync('jellyfin'),
+    loadYomitanExtension: recordAsync('load-yomitan'),
+    handleFirstRunSetup: recordAsync('first-run'),
+    prewarmSubtitleDictionaries: recordAsync('prewarm'),
+    startBackgroundWarmups: record('warmups'),
     texthookerOnlyMode: false,
-    shouldAutoInitializeOverlayRuntimeFromConfig: () => true,
-    setVisibleOverlayVisible: () => {
-      calls.push('visible-overlay');
-    },
-    initializeOverlayRuntime: () => {
-      calls.push('init-overlay');
-    },
-    handleInitialArgs: () => {
-      calls.push('handle-initial-args');
-    },
+    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
+    setVisibleOverlayVisible: record('visible-overlay'),
+    initializeOverlayRuntime: record('init-overlay'),
+    handleInitialArgs: record('handle-initial-args'),
     shouldUseMinimalStartup: () => false,
     shouldSkipHeavyStartup: () => false,
+    ...overrides,
+  };
+  return { calls, deps };
+}
+
+function assertBefore(calls: string[], earlier: string, later: string) {
+  const earlierIndex = calls.indexOf(earlier);
+  const laterIndex = calls.indexOf(later);
+  assert.notEqual(earlierIndex, -1, `${earlier} was not called`);
+  assert.notEqual(laterIndex, -1, `${later} was not called`);
+  assert.ok(earlierIndex < laterIndex, `${earlier} should run before ${later}`);
+}
+
+test('runAppReadyRuntime minimal startup skips Yomitan and first-run setup while still handling CLI args', async () => {
+  const { calls, deps } = createAppReadyDeps({ shouldUseMinimalStartup: () => true });
+
+  await runAppReadyRuntime(deps);
+
+  assert.ok(calls.includes('handle-initial-args'));
+  for (const skipped of ['load-yomitan', 'first-run', 'create-mpv', 'init-overlay', 'warmups']) {
+    assert.equal(calls.includes(skipped), false, `${skipped} should be skipped`);
+  }
+});
+
+test('runAppReadyRuntime headless refresh bootstraps Anki runtime without UI startup', async () => {
+  const { calls, deps } = createAppReadyDeps({
+    shouldRunHeadlessInitialCommand: () => true,
+    runHeadlessInitialCommand: async () => {
+      calls.push('run-headless-command');
+    },
   });
 
-  assert.ok(calls.indexOf('init-overlay') !== -1);
-  assert.ok(calls.indexOf('warmups') !== -1);
-  assert.ok(calls.indexOf('init-overlay') < calls.indexOf('warmups'));
+  await runAppReadyRuntime(deps);
+
+  assertBefore(calls, 'init-runtime-options', 'run-headless-command');
+  for (const skipped of ['create-mpv', 'load-yomitan', 'init-overlay', 'handle-initial-args']) {
+    assert.equal(calls.includes(skipped), false, `${skipped} should be skipped`);
+  }
+});
+
+test('runAppReadyRuntime loads Yomitan before headless overlay fallback initialization', async () => {
+  const { calls, deps } = createAppReadyDeps({ shouldRunHeadlessInitialCommand: () => true });
+
+  await runAppReadyRuntime(deps);
+
+  assertBefore(calls, 'create-mpv', 'subtitle-timing');
+  assertBefore(calls, 'load-yomitan', 'init-overlay');
+  assertBefore(calls, 'init-overlay', 'handle-initial-args');
+});
+
+test('runAppReadyRuntime auto-initializes overlay runtime before warmups and Yomitan', async () => {
+  const { calls, deps } = createAppReadyDeps({
+    shouldAutoInitializeOverlayRuntimeFromConfig: () => true,
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assertBefore(calls, 'init-overlay', 'warmups');
   assert.equal(calls.includes('load-yomitan'), false);
 });
 
 test('runAppReadyRuntime reuses guarded Yomitan loader after scheduling startup warmups', async () => {
-  const calls: string[] = [];
-
-  await runAppReadyRuntime({
-    ensureDefaultConfigBootstrap: () => {
-      calls.push('bootstrap');
-    },
-    loadSubtitlePosition: () => {
-      calls.push('load-subtitle-position');
-    },
-    resolveKeybindings: () => {
-      calls.push('resolve-keybindings');
-    },
-    createMpvClient: () => {
-      calls.push('create-mpv');
-    },
-    reloadConfig: () => {
-      calls.push('reload-config');
-    },
-    getResolvedConfig: () => ({
-      websocket: { enabled: false },
-      annotationWebsocket: { enabled: false },
-      texthooker: { launchAtStartup: false },
-    }),
-    getConfigWarnings: () => [],
-    logConfigWarning: () => {},
-    setLogLevel: () => {
-      calls.push('set-log-level');
-    },
-    initRuntimeOptionsManager: () => {
-      calls.push('init-runtime-options');
-    },
-    setSecondarySubMode: () => {
-      calls.push('set-secondary-sub-mode');
-    },
-    defaultSecondarySubMode: 'hover',
-    defaultWebsocketPort: 0,
-    defaultAnnotationWebsocketPort: 0,
-    defaultTexthookerPort: 0,
-    hasMpvWebsocketPlugin: () => false,
-    startSubtitleWebsocket: () => {},
-    startAnnotationWebsocket: () => {},
-    startTexthooker: () => {},
-    log: () => {
-      calls.push('log');
-    },
-    createMecabTokenizerAndCheck: async () => {},
-    createSubtitleTimingTracker: () => {
-      calls.push('subtitle-timing');
-    },
-    createImmersionTracker: () => {
-      calls.push('immersion');
-    },
-    startJellyfinRemoteSession: async () => {},
-    loadYomitanExtension: async () => {
-      calls.push('load-yomitan-direct');
-    },
+  const { calls, deps } = createAppReadyDeps({
     ensureYomitanExtensionLoaded: async () => {
       calls.push('load-yomitan-guarded');
     },
-    handleFirstRunSetup: async () => {
-      calls.push('first-run');
-    },
-    prewarmSubtitleDictionaries: async () => {},
-    startBackgroundWarmups: () => {
-      calls.push('warmups');
-    },
-    texthookerOnlyMode: false,
-    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
-    setVisibleOverlayVisible: () => {
-      calls.push('visible-overlay');
-    },
-    initializeOverlayRuntime: () => {
-      calls.push('init-overlay');
-    },
-    handleInitialArgs: () => {
-      calls.push('handle-initial-args');
-    },
-    shouldUseMinimalStartup: () => false,
-    shouldSkipHeavyStartup: () => false,
   });
 
-  assert.equal(calls.includes('load-yomitan-direct'), false);
-  assert.equal(calls.includes('load-yomitan-guarded'), true);
+  await runAppReadyRuntime(deps);
+
+  assert.equal(calls.includes('load-yomitan'), false);
+  assertBefore(calls, 'warmups', 'load-yomitan-guarded');
 });

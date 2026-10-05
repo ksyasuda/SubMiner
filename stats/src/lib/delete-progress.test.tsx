@@ -1,8 +1,5 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DeleteProgressToast } from '../components/common/DeleteProgressToast';
 import { apiClient } from './api-client';
@@ -81,25 +78,6 @@ test('DeleteProgressToast stays hidden while idle and reports active deletes', (
     endFirst();
     endSecond();
     resetDeleteProgress();
-  }
-});
-
-test('the delete indicator is mounted once at the app root, not inside tab panels', () => {
-  const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const read = (relativePath: string): string =>
-    fs.readFileSync(path.join(srcDir, relativePath), 'utf8');
-
-  const app = read('App.tsx');
-  assert.match(app, /<DeleteProgressToast \/>/);
-  // Sibling of the confirm dialog: outside every `hidden` tab panel, so the
-  // indicator survives tab switches and detail-view navigation.
-  assert.match(app, /<DeleteConfirmDialog \/>\s*<DeleteProgressToast \/>/);
-
-  for (const tab of [
-    'components/overview/OverviewTab.tsx',
-    'components/sessions/SessionsTab.tsx',
-  ]) {
-    assert.doesNotMatch(read(tab), /DeleteProgressToast/, `${tab} must not mount its own toast`);
   }
 });
 

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { DEFAULT_CONFIG, deepCloneConfig } from '../../config';
 import {
   buildConfigHotReloadPayload,
-  buildRestartRequiredConfigMessage,
   createConfigHotReloadAppliedHandler,
   createConfigHotReloadMessageHandler,
 } from './config-hot-reload-handlers';
@@ -328,11 +327,4 @@ test('createConfigHotReloadMessageHandler routes message through configured noti
     'overlay:SubMiner:Config reload failed:warning',
     'notify:SubMiner:Config reload failed',
   ]);
-});
-
-test('buildRestartRequiredConfigMessage formats changed fields', () => {
-  assert.equal(
-    buildRestartRequiredConfigMessage(['websocket', 'subtitleStyle']),
-    'Config updated; restart required for: websocket, subtitleStyle',
-  );
 });

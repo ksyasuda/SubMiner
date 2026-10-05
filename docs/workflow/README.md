@@ -13,6 +13,7 @@ This section is the internal workflow map for contributors and agents.
 
 - [Planning](./planning.md) - when to write a lightweight plan vs a full execution plan
 - [Verification](./verification.md) - maintained test/build lanes and handoff gate
+- [Testing](./testing.md) - what a good test looks like and what not to write
 - [Agent Skills](./agent-skills.md) - repo-local workflow skill ownership
 - [Release Guide](../RELEASING.md) - tagged release workflow
 

@@ -82,39 +82,6 @@ test('yomitan extension runtime reuses in-flight ensure load and clears it after
   assert.equal(loadCalls, 1);
 });
 
-test('yomitan extension runtime direct load delegates to core', async () => {
-  let loadCalls = 0;
-  let receivedExternalProfilePath = '';
-  let yomitanSession: unknown = null;
-
-  const runtime = createYomitanExtensionRuntime({
-    loadYomitanExtensionCore: async (options) => {
-      loadCalls += 1;
-      receivedExternalProfilePath = options.externalProfilePath ?? '';
-      options.setYomitanSession({ id: 'session' } as never);
-      return null;
-    },
-    userDataPath: '/tmp',
-    externalProfilePath: '/tmp/gsm-profile',
-    getYomitanParserWindow: () => null,
-    setYomitanParserWindow: () => {},
-    setYomitanParserReadyPromise: () => {},
-    setYomitanParserInitPromise: () => {},
-    setYomitanExtension: () => {},
-    setYomitanSession: (next) => {
-      yomitanSession = next;
-    },
-    getYomitanExtension: () => null,
-    getLoadInFlight: () => null,
-    setLoadInFlight: () => {},
-  });
-
-  assert.equal(await runtime.loadYomitanExtension(), null);
-  assert.equal(loadCalls, 1);
-  assert.equal(receivedExternalProfilePath, '/tmp/gsm-profile');
-  assert.deepEqual(yomitanSession, { id: 'session' });
-});
-
 test('yomitan extension runtime notifies once after concurrent ensure load resolves', async () => {
   let extension: Extension | null = null;
   let inFlight: Promise<Extension | null> | null = null;

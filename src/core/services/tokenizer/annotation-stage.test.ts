@@ -208,17 +208,6 @@ test('annotateTokens hides known-word marks while still using known words for N+
   assert.equal(result[2]?.isNPlusOneTarget, true);
 });
 
-test('shouldExcludeTokenFromSubtitleAnnotations excludes unparsed-run tokens', () => {
-  // 戻 from 「…とこ戻ろ…」: Yomitan had no dictionary entry, headword falls back
-  // to the surface. Without the flag the token passes every other filter.
-  const unflagged = makeToken({ surface: '戻', headword: '戻', reading: '' });
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(unflagged), false);
-
-  const flagged = makeToken({ surface: '戻', headword: '戻', reading: '', isUnparsedRun: true });
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(flagged), true);
-  assert.equal(shouldExcludeTokenFromVocabularyPersistence(flagged), true);
-});
-
 test('annotateTokens ignores unparsed-run tokens for annotations and N+1', () => {
   // もう いるぅ～！-style line: the elongation run is the only unknown token and
   // used to become the sole N+1 candidate despite having no dictionary entry.
@@ -467,319 +456,354 @@ test('annotateTokens handles JLPT disabled and eligibility exclusion paths', () 
   assert.equal(excludedLookupCalls, 0);
 });
 
-test('shouldExcludeTokenFromSubtitleAnnotations excludes explanatory ending variants', () => {
-  const tokens = [
-    makeToken({
-      surface: 'んです',
-      headword: 'ん',
-      reading: 'ンデス',
-      pos1: '名詞|助動詞',
-      pos2: '非自立',
-    }),
-    makeToken({
-      surface: 'のだ',
-      headword: 'の',
-      reading: 'ノダ',
-      pos1: '名詞|助動詞',
-      pos2: '非自立',
-    }),
-    makeToken({
-      surface: 'んだ',
-      headword: 'ん',
-      reading: 'ンダ',
-      pos1: '名詞|助動詞',
-      pos2: '非自立',
-    }),
-    makeToken({
-      surface: 'のです',
-      headword: 'の',
-      reading: 'ノデス',
-      pos1: '名詞|助動詞',
-      pos2: '非自立',
-    }),
-    makeToken({
+// One-token predicate cases. `vocabularyExcluded` also checks
+// shouldExcludeTokenFromVocabularyPersistence for the same token.
+const SUBTITLE_ANNOTATION_EXCLUSION_CASES: Array<{
+  label: string;
+  token: Partial<MergedToken>;
+  excluded: boolean;
+  vocabularyExcluded?: boolean;
+}> = [
+  // 戻 from 「…とこ戻ろ…」: Yomitan had no dictionary entry, headword falls back
+  // to the surface. Without the flag the token passes every other filter.
+  {
+    label: 'unparsed-run tokens',
+    token: { surface: '戻', headword: '戻', reading: '', isUnparsedRun: true },
+    excluded: true,
+    vocabularyExcluded: true,
+  },
+  {
+    label: 'surface-headword tokens without the unparsed-run flag',
+    token: { surface: '戻', headword: '戻', reading: '' },
+    excluded: false,
+  },
+  ...[
+    { surface: 'んです', headword: 'ん', reading: 'ンデス', pos1: '名詞|助動詞', pos2: '非自立' },
+    { surface: 'のだ', headword: 'の', reading: 'ノダ', pos1: '名詞|助動詞', pos2: '非自立' },
+    { surface: 'んだ', headword: 'ん', reading: 'ンダ', pos1: '名詞|助動詞', pos2: '非自立' },
+    { surface: 'のです', headword: 'の', reading: 'ノデス', pos1: '名詞|助動詞', pos2: '非自立' },
+    {
       surface: 'なんです',
       headword: 'だ',
       reading: 'ナンデス',
       pos1: '助動詞|名詞|助動詞',
       pos2: '|非自立',
-    }),
-    makeToken({
-      surface: 'んでした',
+    },
+    { surface: 'んでした', headword: 'ん', reading: 'ンデシタ', pos1: '助動詞|助動詞|助動詞' },
+    { surface: 'のでは', headword: 'の', reading: 'ノデハ', pos1: '助詞|接続詞' },
+    { surface: 'のかな', headword: 'の', reading: 'ノカナ', pos1: '名詞|助動詞', pos2: '非自立' },
+    {
+      surface: 'んですけど',
       headword: 'ん',
-      reading: 'ンデシタ',
-      pos1: '助動詞|助動詞|助動詞',
-    }),
-    makeToken({
-      surface: 'のでは',
-      headword: 'の',
-      reading: 'ノデハ',
-      pos1: '助詞|接続詞',
-    }),
-  ];
-
-  for (const token of tokens) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
-  }
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes explanatory pondering endings', () => {
-  const token = makeToken({
-    surface: 'のかな',
-    headword: 'の',
-    reading: 'ノカナ',
-    pos1: '名詞|助動詞',
-    pos2: '非自立',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes explanatory contrast endings', () => {
-  const token = makeToken({
-    surface: 'んですけど',
-    headword: 'ん',
-    reading: 'ンデスケド',
-    pos1: '名詞|助動詞|助詞',
-    pos2: '非自立',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes ja-nai explanatory endings', () => {
-  const tokens = [
-    makeToken({
+      reading: 'ンデスケド',
+      pos1: '名詞|助動詞|助詞',
+      pos2: '非自立',
+    },
+  ].map((token) => ({ label: 'explanatory endings', token, excluded: true })),
+  ...[
+    {
       surface: 'じゃない',
       headword: 'じゃない',
       reading: 'ジャナイ',
       partOfSpeech: PartOfSpeech.i_adjective,
       pos1: '接続詞|形容詞',
       pos2: '*|自立',
-    }),
-    makeToken({
+    },
+    {
       surface: 'じゃないですか',
       headword: 'じゃない',
       reading: 'ジャナイデスカ',
       partOfSpeech: PartOfSpeech.i_adjective,
       pos1: '接続詞|形容詞|助動詞|助詞',
       pos2: '*|自立|*|副助詞／並立助詞／終助詞',
-    }),
-  ];
-
-  for (const token of tokens) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
-  }
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes standalone polite copula suffix endings without POS tags', () => {
-  const tokens = [
-    makeToken({
-      surface: 'ですよ',
-      headword: 'です',
-      reading: 'デスヨ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      pos2: '',
-    }),
-  ];
-
-  for (const token of tokens) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
-  }
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes grammar-ending patterns without enumerating variants', () => {
-  const tokens = [
-    makeToken({
-      surface: 'ですわ',
-      headword: 'です',
-      reading: 'デスワ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      pos2: '',
-    }),
-    makeToken({
-      surface: 'ではないですか',
-      headword: 'ない',
-      reading: 'デハナイデスカ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      pos2: '',
-    }),
-  ];
-
-  for (const token of tokens) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
-  }
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes auxiliary-stem そうだ grammar tails', () => {
-  const token = makeToken({
-    surface: 'そうだ',
-    headword: 'そうだ',
-    reading: 'ソウダ',
-    pos1: '名詞|助動詞',
-    pos2: '特殊',
-    pos3: '助動詞語幹',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations keeps lexical tokens outside explanatory ending family', () => {
-  const token = makeToken({
-    surface: '問題',
-    headword: '問題',
-    reading: 'モンダイ',
-    partOfSpeech: PartOfSpeech.noun,
-    pos1: '名詞',
-    pos2: '一般',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations keeps lexical non-independent kanji nouns', () => {
+    },
+  ].map((token) => ({ label: 'ja-nai explanatory endings', token, excluded: true })),
+  // Grammar-ending patterns match without enumerating every variant.
+  ...[
+    { surface: 'ですよ', headword: 'です', reading: 'デスヨ' },
+    { surface: 'ですわ', headword: 'です', reading: 'デスワ' },
+    { surface: 'ではないですか', headword: 'ない', reading: 'デハナイデスカ' },
+  ].map((token) => ({
+    label: 'polite copula grammar endings without POS tags',
+    token: { ...token, partOfSpeech: PartOfSpeech.other, pos1: '', pos2: '' },
+    excluded: true,
+  })),
+  {
+    label: 'auxiliary-stem そうだ grammar tails',
+    token: {
+      surface: 'そうだ',
+      headword: 'そうだ',
+      reading: 'ソウダ',
+      pos1: '名詞|助動詞',
+      pos2: '特殊',
+      pos3: '助動詞語幹',
+    },
+    excluded: true,
+  },
+  {
+    label: 'auxiliary-stem そうだ grammar tails',
+    token: {
+      surface: 'そうだ',
+      headword: 'そう',
+      reading: 'ソウダ',
+      pos1: '名詞|助動詞',
+      pos2: '一般|',
+      pos3: '助動詞語幹|',
+    },
+    excluded: true,
+    vocabularyExcluded: true,
+  },
+  {
+    label: 'lexical tokens outside the explanatory ending family',
+    token: { surface: '問題', headword: '問題', reading: 'モンダイ', pos1: '名詞', pos2: '一般' },
+    excluded: false,
+  },
   // Yomitan segments 以外/日/方 as standalone vocabulary tokens; MeCab's
   // 非自立 tag must only suppress kana grammar nouns (こと, もの, とき).
-  const token = makeToken({
-    surface: '以外',
-    headword: '以外',
-    reading: 'イガイ',
-    partOfSpeech: PartOfSpeech.noun,
-    pos1: '名詞',
-    pos2: '非自立',
-    pos3: '副詞可能',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
-  assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), false);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations still excludes kana non-independent nouns', () => {
-  const token = makeToken({
-    surface: 'こと',
-    headword: 'こと',
-    reading: 'コト',
-    partOfSpeech: PartOfSpeech.noun,
-    pos1: '名詞',
-    pos2: '非自立',
-    pos3: '一般',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-  assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes standalone particles auxiliaries and adnominals', () => {
-  const tokens = [
-    makeToken({
+  {
+    label: 'lexical non-independent kanji nouns',
+    token: {
+      surface: '以外',
+      headword: '以外',
+      reading: 'イガイ',
+      pos1: '名詞',
+      pos2: '非自立',
+      pos3: '副詞可能',
+    },
+    excluded: false,
+    vocabularyExcluded: false,
+  },
+  {
+    label: 'kana non-independent nouns',
+    token: {
+      surface: 'こと',
+      headword: 'こと',
+      reading: 'コト',
+      pos1: '名詞',
+      pos2: '非自立',
+      pos3: '一般',
+    },
+    excluded: true,
+    vocabularyExcluded: true,
+  },
+  {
+    label: 'standalone particles',
+    token: {
       surface: 'は',
       headword: 'は',
       reading: 'ハ',
       partOfSpeech: PartOfSpeech.particle,
       pos1: '助詞',
-    }),
-    makeToken({
+    },
+    excluded: true,
+  },
+  {
+    label: 'standalone auxiliaries',
+    token: {
       surface: 'です',
       headword: 'です',
       reading: 'デス',
       partOfSpeech: PartOfSpeech.bound_auxiliary,
       pos1: '助動詞',
-    }),
-    makeToken({
+    },
+    excluded: true,
+  },
+  {
+    label: 'standalone adnominals',
+    token: {
       surface: 'この',
       headword: 'この',
       reading: 'コノ',
       partOfSpeech: PartOfSpeech.other,
       pos1: '連体詞',
-    }),
-  ];
-
-  for (const token of tokens) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
-  }
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations keeps mixed content tokens with trailing helpers', () => {
-  const token = makeToken({
-    surface: '行きます',
-    headword: '行く',
-    reading: 'イキマス',
-    partOfSpeech: PartOfSpeech.verb,
-    pos1: '動詞|助動詞',
-    pos2: '自立',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes merged lexical tokens with trailing quote particles', () => {
-  const token = makeToken({
-    surface: 'どうしてもって',
-    headword: 'どうしても',
-    reading: 'ドウシテモッテ',
-    partOfSpeech: PartOfSpeech.other,
-    pos1: '副詞|助詞',
-    pos2: '一般|格助詞',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes kana-only demonstrative helper merges', () => {
-  const token = makeToken({
-    surface: 'これで',
-    headword: 'これ',
-    reading: 'コレデ',
-    partOfSpeech: PartOfSpeech.noun,
-    pos1: '名詞|助詞',
-    pos2: '代名詞|格助詞',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes kana-only non-independent noun helper merges', () => {
-  const token = makeToken({
-    surface: 'ことに',
-    headword: '事',
-    reading: 'コトニ',
-    partOfSpeech: PartOfSpeech.noun,
-    pos1: '名詞|助詞',
-    pos2: '非自立|格助詞',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromVocabularyPersistence mirrors subtitle annotation grammar filters', () => {
-  const tokens = [
-    makeToken({
+    },
+    excluded: true,
+  },
+  {
+    label: 'mixed content tokens with trailing helpers',
+    token: {
+      surface: '行きます',
+      headword: '行く',
+      reading: 'イキマス',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞|助動詞',
+      pos2: '自立',
+    },
+    excluded: false,
+  },
+  {
+    label: 'merged lexical tokens with trailing quote particles',
+    token: {
       surface: 'どうしてもって',
       headword: 'どうしても',
       reading: 'ドウシテモッテ',
       partOfSpeech: PartOfSpeech.other,
       pos1: '副詞|助詞',
       pos2: '一般|格助詞',
-    }),
-    makeToken({
-      surface: 'そうだ',
-      headword: 'そう',
-      reading: 'ソウダ',
-      partOfSpeech: PartOfSpeech.noun,
-      pos1: '名詞|助動詞',
-      pos2: '一般|',
-      pos3: '助動詞語幹|',
-    }),
-  ];
+    },
+    excluded: true,
+    vocabularyExcluded: true,
+  },
+  {
+    label: 'kana-only demonstrative helper merges',
+    token: {
+      surface: 'これで',
+      headword: 'これ',
+      reading: 'コレデ',
+      pos1: '名詞|助詞',
+      pos2: '代名詞|格助詞',
+    },
+    excluded: true,
+  },
+  {
+    label: 'kana-only non-independent noun helper merges',
+    token: {
+      surface: 'ことに',
+      headword: '事',
+      reading: 'コトニ',
+      pos1: '名詞|助詞',
+      pos2: '非自立|格助詞',
+    },
+    excluded: true,
+  },
+  ...[
+    {
+      surface: '確かに',
+      headword: '確かに',
+      reading: 'たしかに',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '名詞|助詞',
+      pos2: '形容動詞語幹|副詞化',
+      pos3: '*',
+    },
+    {
+      surface: 'やはり',
+      headword: 'やはり',
+      reading: 'ヤハリ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '副詞',
+      pos2: '一般',
+      pos3: '*',
+    },
+  ].map((token) => ({
+    label: 'content adverbs',
+    token,
+    excluded: false,
+    vocabularyExcluded: false,
+  })),
+  ...[
+    { surface: 'して', reading: 'シテ', pos1: '動詞|助詞', pos2: '自立|接続助詞' },
+    { surface: 'してる', reading: 'シテル', pos1: '動詞|助動詞', pos2: '自立|非自立' },
+  ].map((token) => ({
+    label: 'standalone して grammar helper fragments',
+    token: { ...token, headword: 'する', partOfSpeech: PartOfSpeech.verb },
+    excluded: true,
+  })),
+  ...[
+    { surface: 'れる', reading: 'レル', pos1: '動詞', pos2: '接尾' },
+    { surface: 'れた', reading: 'レタ', pos1: '動詞|助動詞', pos2: '接尾|*' },
+  ].map((token) => ({
+    label: 'standalone auxiliary inflection fragments',
+    token: { ...token, headword: 'れる', partOfSpeech: PartOfSpeech.verb },
+    excluded: true,
+  })),
+  {
+    label: 'auxiliary-only te-kureru helper spans',
+    token: {
+      surface: 'てく',
+      headword: 'てく',
+      reading: 'テク',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '助詞|動詞',
+      pos2: '接続助詞|非自立',
+    },
+    excluded: true,
+  },
+  // Standalone particle, quote, auxiliary, and interjection terms that arrive
+  // without POS tags.
+  ...[
+    { surface: 'と', headword: 'と', reading: 'ト' },
+    { surface: 'たって', headword: 'たって', reading: 'タッテ' },
+    { surface: 'って', headword: 'って', reading: 'ッテ' },
+    { surface: 'べき', headword: 'べき', reading: 'ベキ' },
+    { surface: 'あ', headword: 'あ', reading: 'あ' },
+    { surface: 'は', headword: 'は', reading: 'は' },
+    { surface: 'この', headword: 'この', reading: 'この' },
+  ].map((token) => ({
+    label: 'standalone grammar terms without POS tags',
+    token: { ...token, partOfSpeech: PartOfSpeech.other, pos1: '', pos2: '' },
+    excluded: true,
+  })),
+  {
+    label: 'lexical verbs whose reading matches connective particles',
+    token: {
+      surface: '立って',
+      headword: '立つ',
+      reading: 'タッテ',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '自立',
+    },
+    excluded: false,
+  },
+  ...[
+    { surface: 'もんか', headword: 'もんか', reading: 'モンカ' },
+    { surface: 'ものか', headword: 'ものか', reading: 'モノカ' },
+  ].map((token) => ({
+    label: 'rhetorical もんか grammar particle phrases',
+    token: { ...token, pos1: '名詞|助詞', pos2: '非自立|副助詞／並立助詞／終助詞' },
+    excluded: true,
+  })),
+  {
+    label: 'bare くれ auxiliary fragments',
+    token: { surface: 'くれ', headword: '暮れ', reading: 'クレ', pos1: '名詞', pos2: '一般' },
+    excluded: true,
+  },
+  ...['ある', '有る'].map((surface) => ({
+    label: 'aru existence verbs',
+    token: {
+      surface,
+      headword: surface,
+      reading: 'アル',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '自立',
+    },
+    excluded: true,
+  })),
+  ...[
+    { surface: 'ふ', headword: '不', partOfSpeech: PartOfSpeech.other, pos1: '接頭詞', pos2: '' },
+    { surface: 'フ', headword: '負', pos1: '名詞', pos2: '一般' },
+    { surface: 'た', headword: 'た', partOfSpeech: PartOfSpeech.other, pos1: '', pos2: '' },
+  ].map((token) => ({
+    label: 'single-kana surface fragments',
+    token: { reading: token.surface, ...token },
+    excluded: true,
+  })),
+  {
+    label: 'single-kanji tokens without POS tags',
+    token: {
+      surface: '山',
+      headword: '山',
+      reading: 'やま',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '',
+      pos2: '',
+    },
+    excluded: false,
+  },
+];
 
-  for (const token of tokens) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
-    assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), true, token.surface);
-  }
-});
+for (const c of SUBTITLE_ANNOTATION_EXCLUSION_CASES) {
+  const verb = c.excluded ? 'excludes' : 'keeps';
+  test(`shouldExcludeTokenFromSubtitleAnnotations ${verb} ${c.label}: ${c.token.surface}`, () => {
+    const token = makeToken(c.token);
+    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), c.excluded);
+    if (c.vocabularyExcluded !== undefined) {
+      assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), c.vocabularyExcluded);
+    }
+  });
+}
 
 test('shouldExcludeTokenFromVocabularyPersistence excludes common frequency stop terms', () => {
   const tokens = [
@@ -823,196 +847,6 @@ test('shouldExcludeTokenFromVocabularyPersistence excludes common frequency stop
 
   for (const token of tokens) {
     assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), true, token.surface);
-  }
-});
-
-test('content adverbs are not excluded from annotations or vocabulary persistence', () => {
-  const tokens = [
-    makeToken({
-      surface: '確かに',
-      headword: '確かに',
-      reading: 'たしかに',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '名詞|助詞',
-      pos2: '形容動詞語幹|副詞化',
-      pos3: '*',
-    }),
-    makeToken({
-      surface: 'やはり',
-      headword: 'やはり',
-      reading: 'ヤハリ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '副詞',
-      pos2: '一般',
-      pos3: '*',
-    }),
-  ];
-
-  for (const token of tokens) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false, token.surface);
-    assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), false, token.surface);
-  }
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes standalone して grammar helper fragments', () => {
-  const token = makeToken({
-    surface: 'して',
-    headword: 'する',
-    reading: 'シテ',
-    partOfSpeech: PartOfSpeech.verb,
-    pos1: '動詞|助詞',
-    pos2: '自立|接続助詞',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes inflected standalone して grammar helper fragments', () => {
-  const token = makeToken({
-    surface: 'してる',
-    headword: 'する',
-    reading: 'シテル',
-    partOfSpeech: PartOfSpeech.verb,
-    pos1: '動詞|助動詞',
-    pos2: '自立|非自立',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes standalone particle fragments without POS tags', () => {
-  const token = makeToken({
-    surface: 'と',
-    headword: 'と',
-    reading: 'ト',
-    partOfSpeech: PartOfSpeech.other,
-    pos1: '',
-    pos2: '',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes standalone connective particle fragments without POS tags', () => {
-  const token = makeToken({
-    surface: 'たって',
-    headword: 'たって',
-    reading: 'タッテ',
-    partOfSpeech: PartOfSpeech.other,
-    pos1: '',
-    pos2: '',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations keeps lexical verbs whose reading matches connective particles', () => {
-  const token = makeToken({
-    surface: '立って',
-    headword: '立つ',
-    reading: 'タッテ',
-    partOfSpeech: PartOfSpeech.verb,
-    pos1: '動詞',
-    pos2: '自立',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes rhetorical もんか grammar particle phrases', () => {
-  for (const surface of ['もんか', 'ものか']) {
-    const token = makeToken({
-      surface,
-      headword: surface,
-      reading: surface === 'もんか' ? 'モンカ' : 'モノカ',
-      partOfSpeech: PartOfSpeech.noun,
-      pos1: '名詞|助詞',
-      pos2: '非自立|副助詞／並立助詞／終助詞',
-    });
-
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, surface);
-  }
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes bare くれ auxiliary fragments', () => {
-  const token = makeToken({
-    surface: 'くれ',
-    headword: '暮れ',
-    reading: 'クレ',
-    partOfSpeech: PartOfSpeech.noun,
-    pos1: '名詞',
-    pos2: '一般',
-  });
-
-  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes aru existence verbs', () => {
-  for (const token of [
-    makeToken({
-      surface: 'ある',
-      headword: 'ある',
-      reading: 'アル',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '動詞',
-      pos2: '自立',
-    }),
-    makeToken({
-      surface: '有る',
-      headword: '有る',
-      reading: 'アル',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '動詞',
-      pos2: '自立',
-    }),
-  ]) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
-  }
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes standalone quote particle and auxiliary grammar terms', () => {
-  for (const token of [
-    makeToken({
-      surface: 'って',
-      headword: 'って',
-      reading: 'ッテ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      pos2: '',
-    }),
-    makeToken({
-      surface: 'べき',
-      headword: 'べき',
-      reading: 'ベキ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      pos2: '',
-    }),
-  ]) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
-  }
-});
-
-test('shouldExcludeTokenFromSubtitleAnnotations excludes single-kana surface fragments', () => {
-  for (const token of [
-    makeToken({
-      surface: 'ふ',
-      headword: '不',
-      reading: 'フ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '接頭詞',
-      pos2: '',
-    }),
-    makeToken({
-      surface: 'フ',
-      headword: '負',
-      reading: 'フ',
-      partOfSpeech: PartOfSpeech.noun,
-      pos1: '名詞',
-      pos2: '一般',
-    }),
-  ]) {
-    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true, token.surface);
   }
 });
 
@@ -1174,6 +1008,40 @@ test('annotateTokens N+1 handoff marks expected target when threshold is satisfi
   assert.equal(result[2]?.isNPlusOneTarget, false);
 });
 
+test('annotateTokens marks no N+1 target without exactly one candidate in a long enough sentence', () => {
+  const cases = [
+    {
+      name: 'two-word sentence below the default three-word minimum',
+      surfaces: ['私', '犬'],
+      known: ['私'],
+      options: {},
+    },
+    {
+      name: 'two unknown candidates',
+      surfaces: ['私', '猫', '犬'],
+      known: ['私'],
+      options: { minSentenceWordsForNPlusOne: 3 },
+    },
+  ];
+  for (const c of cases) {
+    const tokens = c.surfaces.map((surface, index) =>
+      makeToken({ surface, headword: surface, startPos: index, endPos: index + 1 }),
+    );
+
+    const result = annotateTokens(
+      tokens,
+      makeDeps({ isKnownWord: (text) => c.known.includes(text) }),
+      c.options,
+    );
+
+    assert.equal(
+      result.some((token) => token.isNPlusOneTarget),
+      false,
+      c.name,
+    );
+  }
+});
+
 test('annotateTokens does not mark kana-only unknown target as N+1', () => {
   const tokens = [
     makeToken({
@@ -1293,105 +1161,58 @@ test('annotateTokens N+1 minimum sentence words excludes unknown tokens filtered
 });
 
 test('annotateTokens N+1 sentence word count respects source punctuation gaps omitted by Yomitan', () => {
-  const tokens = [
-    makeToken({
-      surface: '私',
-      headword: '私',
-      pos1: '名詞',
-      startPos: 0,
-      endPos: 1,
-    }),
-    makeToken({
-      surface: '猫',
-      headword: '猫',
-      pos1: '名詞',
-      startPos: 1,
-      endPos: 2,
-    }),
-    makeToken({
-      surface: '犬',
-      headword: '犬',
-      pos1: '名詞',
-      startPos: 2,
-      endPos: 3,
-    }),
-    makeToken({
-      surface: 'ふざけん',
-      headword: 'ふざける',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '動詞',
-      pos2: '自立',
-      startPos: 4,
-      endPos: 8,
-    }),
-  ];
+  // ！ splits the line into 私猫犬 and ふざけんなよ, so neither sentence reaches
+  // three words. CRLF line breaks are normalized before the gap check.
+  for (const { sourceText, offsets } of [
+    { sourceText: '私猫犬！ふざけんなよ！', offsets: [0, 1, 2, 4] },
+    { sourceText: '私\r\n猫犬！ふざけんなよ！', offsets: [0, 2, 3, 5] },
+  ]) {
+    const [first, second, third, verb] = offsets as [number, number, number, number];
+    const tokens = [
+      makeToken({
+        surface: '私',
+        headword: '私',
+        pos1: '名詞',
+        startPos: first,
+        endPos: first + 1,
+      }),
+      makeToken({
+        surface: '猫',
+        headword: '猫',
+        pos1: '名詞',
+        startPos: second,
+        endPos: second + 1,
+      }),
+      makeToken({
+        surface: '犬',
+        headword: '犬',
+        pos1: '名詞',
+        startPos: third,
+        endPos: third + 1,
+      }),
+      makeToken({
+        surface: 'ふざけん',
+        headword: 'ふざける',
+        partOfSpeech: PartOfSpeech.verb,
+        pos1: '動詞',
+        pos2: '自立',
+        startPos: verb,
+        endPos: verb + 4,
+      }),
+    ];
 
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === '私' || text === '猫' || text === '犬',
-    }),
-    {
-      minSentenceWordsForNPlusOne: 3,
-      sourceText: '私猫犬！ふざけんなよ！',
-    },
-  );
+    const result = annotateTokens(
+      tokens,
+      makeDeps({ isKnownWord: (text) => text === '私' || text === '猫' || text === '犬' }),
+      { minSentenceWordsForNPlusOne: 3, sourceText },
+    );
 
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[1]?.isNPlusOneTarget, false);
-  assert.equal(result[2]?.isNPlusOneTarget, false);
-  assert.equal(result[3]?.isNPlusOneTarget, false);
-});
-
-test('annotateTokens N+1 sentence word count normalizes line breaks before gap detection', () => {
-  const tokens = [
-    makeToken({
-      surface: '私',
-      headword: '私',
-      pos1: '名詞',
-      startPos: 0,
-      endPos: 1,
-    }),
-    makeToken({
-      surface: '猫',
-      headword: '猫',
-      pos1: '名詞',
-      startPos: 2,
-      endPos: 3,
-    }),
-    makeToken({
-      surface: '犬',
-      headword: '犬',
-      pos1: '名詞',
-      startPos: 3,
-      endPos: 4,
-    }),
-    makeToken({
-      surface: 'ふざけん',
-      headword: 'ふざける',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '動詞',
-      pos2: '自立',
-      startPos: 5,
-      endPos: 9,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === '私' || text === '猫' || text === '犬',
-    }),
-    {
-      minSentenceWordsForNPlusOne: 3,
-      sourceText: '私\r\n猫犬！ふざけんなよ！',
-    },
-  );
-
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[1]?.isNPlusOneTarget, false);
-  assert.equal(result[2]?.isNPlusOneTarget, false);
-  assert.equal(result[3]?.isNPlusOneTarget, false);
+    assert.deepEqual(
+      result.map((token) => token.isNPlusOneTarget),
+      [false, false, false, false],
+      JSON.stringify(sourceText),
+    );
+  }
 });
 
 test('annotateTokens applies configured pos1 exclusions to both frequency and N+1', () => {
@@ -1507,35 +1328,6 @@ test('annotateTokens keeps known-word status for non-independent kanji noun toke
   assert.equal(result[0]?.jlptLevel, 'N3');
 });
 
-test('annotateTokens keeps known-word status for lexical non-independent kanji nouns', () => {
-  const tokens = [
-    makeToken({
-      surface: '以外',
-      reading: 'イガイ',
-      headword: '以外',
-      partOfSpeech: PartOfSpeech.noun,
-      pos1: '名詞',
-      pos2: '非自立',
-      pos3: '副詞可能',
-      startPos: 2,
-      endPos: 4,
-      frequencyRank: 437,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === '以外',
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  assert.equal(result[0]?.isKnown, true);
-  assert.equal(result[0]?.frequencyRank, 437);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-});
-
 test('annotateTokens keeps frequency for unknown non-independent kanji noun tokens', () => {
   // 日 in いい日だったな: MeCab tags it 名詞/非自立 but Yomitan segments it as
   // a standalone vocabulary token, so frequency highlighting must survive.
@@ -1568,32 +1360,6 @@ test('annotateTokens keeps frequency for unknown non-independent kanji noun toke
   assert.equal(result[0]?.jlptLevel, 'N4');
 });
 
-test('annotateTokens still clears annotations for kana non-independent noun tokens', () => {
-  const tokens = [
-    makeToken({
-      surface: 'こと',
-      reading: 'こと',
-      headword: 'こと',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '名詞',
-      pos2: '非自立',
-      pos3: '一般',
-      startPos: 0,
-      endPos: 2,
-      frequencyRank: 96,
-    }),
-  ];
-
-  const result = annotateTokens(tokens, makeDeps(), {
-    minSentenceWordsForNPlusOne: 1,
-  });
-
-  assert.equal(result[0]?.isKnown, false);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
-});
-
 test('annotateTokens excludes likely kana SFX tokens from frequency when POS tags are missing', () => {
   const tokens = [
     makeToken({
@@ -1613,58 +1379,6 @@ test('annotateTokens excludes likely kana SFX tokens from frequency when POS tag
   });
 
   assert.equal(result[0]?.frequencyRank, undefined);
-});
-
-test('annotateTokens clears all annotations from single hiragana and katakana surface fragments', () => {
-  const tokens = [
-    makeToken({
-      surface: 'た',
-      reading: 'た',
-      headword: 'た',
-      pos1: '',
-      pos2: '',
-      partOfSpeech: PartOfSpeech.other,
-      frequencyRank: 21,
-      startPos: 0,
-      endPos: 1,
-    }),
-    makeToken({
-      surface: 'フ',
-      reading: 'フ',
-      headword: '負',
-      pos1: '名詞',
-      pos2: '',
-      partOfSpeech: PartOfSpeech.noun,
-      frequencyRank: 22,
-      startPos: 1,
-      endPos: 2,
-    }),
-    makeToken({
-      surface: '山',
-      reading: 'やま',
-      headword: '山',
-      pos1: '',
-      pos2: '',
-      partOfSpeech: PartOfSpeech.other,
-      frequencyRank: 23,
-      startPos: 2,
-      endPos: 3,
-    }),
-  ];
-
-  const result = annotateTokens(tokens, makeDeps(), {
-    minSentenceWordsForNPlusOne: 1,
-  });
-
-  assert.equal(result[0]?.isKnown, false);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
-  assert.equal(result[1]?.isKnown, false);
-  assert.equal(result[1]?.isNPlusOneTarget, false);
-  assert.equal(result[1]?.frequencyRank, undefined);
-  assert.equal(result[1]?.jlptLevel, undefined);
-  assert.equal(result[2]?.frequencyRank, 23);
 });
 
 test('annotateTokens keeps frequency when mecab tags classify token as content-bearing', () => {
@@ -1806,79 +1520,6 @@ test('annotateTokens lets known words bypass the shared exclusion gate for known
   assert.equal(result[0]?.jlptLevel, undefined);
 });
 
-test('annotateTokens keeps known status while clearing other annotations for kana-only non-independent noun helper merges', () => {
-  const tokens = [
-    makeToken({
-      surface: 'ことに',
-      headword: '事',
-      reading: 'コトニ',
-      partOfSpeech: PartOfSpeech.noun,
-      pos1: '名詞|助詞',
-      pos2: '非自立|格助詞',
-      startPos: 0,
-      endPos: 3,
-      frequencyRank: 81,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === '事',
-      getJlptLevel: (text) => (text === '事' ? 'N4' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  assert.equal(result[0]?.isKnown, true);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
-});
-
-test('annotateTokens keeps known status while clearing other annotations for standalone auxiliary inflection fragments', () => {
-  const tokens = [
-    makeToken({
-      surface: 'れる',
-      headword: 'れる',
-      reading: 'レル',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '動詞',
-      pos2: '接尾',
-      startPos: 0,
-      endPos: 2,
-      frequencyRank: 18,
-    }),
-    makeToken({
-      surface: 'れた',
-      headword: 'れる',
-      reading: 'レタ',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '動詞|助動詞',
-      pos2: '接尾|*',
-      startPos: 2,
-      endPos: 4,
-      frequencyRank: 19,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === 'れる',
-      getJlptLevel: (text) => (text === 'れる' ? 'N4' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  for (const token of result) {
-    assert.equal(token.isKnown, true, token.surface);
-    assert.equal(token.isNPlusOneTarget, false, token.surface);
-    assert.equal(token.frequencyRank, undefined, token.surface);
-    assert.equal(token.jlptLevel, undefined, token.surface);
-  }
-});
-
 test('annotateTokens excludes standalone noun-suffix tokens from annotations while keeping cache-backed known status', () => {
   const tokens = [
     makeToken({
@@ -1909,49 +1550,6 @@ test('annotateTokens excludes standalone noun-suffix tokens from annotations whi
   assert.equal(result[0]?.jlptLevel, undefined);
 });
 
-test('annotateTokens keeps known status while clearing other annotations for auxiliary-only te-kureru helper spans', () => {
-  const tokens = [
-    makeToken({
-      surface: 'てく',
-      headword: 'てく',
-      reading: 'テク',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '助詞|動詞',
-      pos2: '接続助詞|非自立',
-      startPos: 0,
-      endPos: 2,
-      frequencyRank: 140,
-    }),
-    makeToken({
-      surface: 'れた',
-      headword: 'れる',
-      reading: 'レタ',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '動詞|助動詞',
-      pos2: '接尾|*',
-      startPos: 2,
-      endPos: 4,
-      frequencyRank: 19,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === 'てく' || text === 'れる',
-      getJlptLevel: (text) => (text === 'てく' || text === 'れる' ? 'N4' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  for (const token of result) {
-    assert.equal(token.isKnown, true, token.surface);
-    assert.equal(token.isNPlusOneTarget, false, token.surface);
-    assert.equal(token.frequencyRank, undefined, token.surface);
-    assert.equal(token.jlptLevel, undefined, token.surface);
-  }
-});
-
 test('annotateTokens keeps lexical くれる forms eligible for annotation', () => {
   const tokens = [
     makeToken({
@@ -1979,66 +1577,6 @@ test('annotateTokens keeps lexical くれる forms eligible for annotation', () 
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[0]?.frequencyRank, 20);
   assert.equal(result[0]?.jlptLevel, 'N4');
-});
-
-test('annotateTokens keeps known status while clearing other annotations for standalone して helper fragments', () => {
-  const tokens = [
-    makeToken({
-      surface: 'してる',
-      headword: 'する',
-      reading: 'シテル',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '動詞|助動詞',
-      pos2: '自立|非自立',
-      startPos: 0,
-      endPos: 3,
-      frequencyRank: 22,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === 'する',
-      getJlptLevel: (text) => (text === 'する' ? 'N5' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  assert.equal(result[0]?.isKnown, true);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
-});
-
-test('annotateTokens keeps known status while clearing other annotations for standalone particle fragments without POS tags', () => {
-  const tokens = [
-    makeToken({
-      surface: 'と',
-      headword: 'と',
-      reading: 'ト',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      pos2: '',
-      startPos: 0,
-      endPos: 1,
-      frequencyRank: 4,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === 'と',
-      getJlptLevel: (text) => (text === 'と' ? 'N5' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  assert.equal(result[0]?.isKnown, true);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
 });
 
 test('annotateTokens keeps known status on standalone particles when the known-word cache contains them', () => {
@@ -2131,183 +1669,6 @@ test('annotateTokens does not mark standalone connective particles as N+1', () =
   assert.equal(result[1]?.isNPlusOneTarget, false);
   assert.equal(result[1]?.frequencyRank, undefined);
   assert.equal(result[1]?.jlptLevel, undefined);
-});
-
-test('annotateTokens keeps known status while clearing other annotations for rhetorical もんか grammar particle phrases', () => {
-  const tokens = [
-    makeToken({
-      surface: 'もんか',
-      headword: 'もんか',
-      reading: 'モンカ',
-      partOfSpeech: PartOfSpeech.noun,
-      pos1: '名詞|助詞',
-      pos2: '非自立|副助詞／並立助詞／終助詞',
-      startPos: 0,
-      endPos: 3,
-      frequencyRank: 69629,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === 'もんか',
-      getJlptLevel: (text) => (text === 'もんか' ? 'N2' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  assert.equal(result[0]?.isKnown, true);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
-});
-
-test('annotateTokens keeps known status while clearing other annotations for bare くれ auxiliary fragments', () => {
-  const tokens = [
-    makeToken({
-      surface: 'くれ',
-      headword: '暮れ',
-      reading: 'クレ',
-      partOfSpeech: PartOfSpeech.noun,
-      pos1: '名詞',
-      pos2: '一般',
-      startPos: 0,
-      endPos: 2,
-      frequencyRank: 12877,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === '暮れ',
-      getJlptLevel: (text) => (text === '暮れ' ? 'N3' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  assert.equal(result[0]?.isKnown, true);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
-});
-
-test('annotateTokens keeps known status while clearing other annotations for aru existence verbs', () => {
-  const tokens = [
-    makeToken({
-      surface: '有る',
-      headword: '有る',
-      reading: 'アル',
-      partOfSpeech: PartOfSpeech.verb,
-      pos1: '動詞',
-      pos2: '自立',
-      startPos: 0,
-      endPos: 2,
-      frequencyRank: 8447,
-      isKnown: true,
-      isNPlusOneTarget: true,
-      isNameMatch: true,
-      jlptLevel: 'N5',
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === '有る' || text === 'ある',
-      getJlptLevel: (text) => (text === '有る' || text === 'ある' ? 'N5' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  assert.equal(result[0]?.surface, '有る');
-  assert.equal(result[0]?.headword, '有る');
-  assert.equal(result[0]?.isKnown, true);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  // Name matches take precedence over the annotation noise filter.
-  assert.equal(result[0]?.isNameMatch, true);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
-});
-
-test('annotateTokens keeps known status while clearing other annotations for standalone quote particle and auxiliary grammar terms', () => {
-  const tokens = [
-    makeToken({
-      surface: 'って',
-      headword: 'って',
-      reading: 'ッテ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      pos2: '',
-      startPos: 0,
-      endPos: 2,
-      frequencyRank: 28,
-    }),
-    makeToken({
-      surface: 'べき',
-      headword: 'べき',
-      reading: 'ベキ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      pos2: '',
-      startPos: 2,
-      endPos: 4,
-      frequencyRank: 268,
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === 'って' || text === 'べき',
-      getJlptLevel: (text) => (text === 'って' || text === 'べき' ? 'N3' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  for (const token of result) {
-    assert.equal(token.isKnown, true, token.surface);
-    assert.equal(token.isNPlusOneTarget, false, token.surface);
-    assert.equal(token.frequencyRank, undefined, token.surface);
-    assert.equal(token.jlptLevel, undefined, token.surface);
-  }
-});
-
-test('annotateTokens keeps known status while clearing other annotations from standalone あ interjections without POS tags', () => {
-  const tokens = [
-    makeToken({
-      surface: 'あ',
-      headword: 'あ',
-      reading: 'あ',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '',
-      pos2: '',
-      startPos: 0,
-      endPos: 1,
-      isKnown: true,
-      isNPlusOneTarget: true,
-      frequencyRank: 522,
-      jlptLevel: 'N5',
-    }),
-  ];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      isKnownWord: (text) => text === 'あ',
-      getJlptLevel: (text) => (text === 'あ' ? 'N5' : null),
-    }),
-    { minSentenceWordsForNPlusOne: 1 },
-  );
-
-  assert.equal(result[0]?.surface, 'あ');
-  assert.equal(result[0]?.headword, 'あ');
-  assert.equal(result[0]?.reading, 'あ');
-  assert.equal(result[0]?.isKnown, true);
-  assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
 });
 
 test('annotateTokens keeps known status while clearing other annotations from expressive subtitle interjections without POS tags', () => {

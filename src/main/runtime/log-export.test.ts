@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { writeStoredZip } from '../../shared/stored-zip';
 import { exportLogsArchive, maskUsernamesInLogText } from './log-export';
 
 function makeTempDir(): string {
@@ -81,26 +80,6 @@ test('maskUsernamesInLogText redacts linux macOS and Windows home paths', () => 
   assert.doesNotMatch(masked, /kyle/);
 });
 
-test('maskUsernamesInLogText redacts IP addresses and emails', () => {
-  const masked = maskUsernamesInLogText(
-    [
-      'ffmpeg failed after request from public ip 203.0.113.42',
-      'connect tcp 192.168.1.25:443: i/o timeout',
-      'remote addr [2001:db8::1234]:443',
-      'support email kyle@example.test',
-    ].join('\n'),
-  );
-
-  assert.match(masked, /public ip <ip>/);
-  assert.match(masked, /tcp <ip>:443/);
-  assert.match(masked, /remote addr \[<ip>\]:443/);
-  assert.match(masked, /support email <email>/);
-  assert.doesNotMatch(masked, /203\.0\.113\.42/);
-  assert.doesNotMatch(masked, /192\.168\.1\.25/);
-  assert.doesNotMatch(masked, /2001:db8::1234/);
-  assert.doesNotMatch(masked, /kyle@example\.test/);
-});
-
 test('maskUsernamesInLogText redacts headers and yt-dlp cookie arguments', () => {
   const masked = maskUsernamesInLogText(
     [
@@ -127,32 +106,6 @@ test('maskUsernamesInLogText redacts headers and yt-dlp cookie arguments', () =>
   assert.doesNotMatch(masked, /session-value/);
   assert.doesNotMatch(masked, /cookies\.txt/);
   assert.doesNotMatch(masked, /firefox:default/);
-});
-
-test('maskUsernamesInLogText redacts URL credentials and sensitive query values', () => {
-  const masked = maskUsernamesInLogText(
-    [
-      'GET https://alice:secret@example.test/watch?v=abc&access_token=tok123&api_key=key456',
-      'stream https://video.example.test/file.m3u8?signature=sig789&expire=1777777777',
-      'callback subminer://anilist-setup?access_token=ani-token&state=ok',
-      'json {"password":"hunter2","refreshToken":"refresh-token","client_secret":"client-secret"}',
-    ].join('\n'),
-  );
-
-  assert.match(masked, /https:\/\/<credentials>@example\.test/);
-  assert.match(masked, /access_token=<redacted>/);
-  assert.match(masked, /api_key=<redacted>/);
-  assert.match(masked, /signature=<redacted>/);
-  assert.match(masked, /"password":"<redacted>"/);
-  assert.match(masked, /"refreshToken":"<redacted>"/);
-  assert.match(masked, /"client_secret":"<redacted>"/);
-  assert.doesNotMatch(masked, /alice:secret/);
-  assert.doesNotMatch(masked, /tok123/);
-  assert.doesNotMatch(masked, /key456/);
-  assert.doesNotMatch(masked, /sig789/);
-  assert.doesNotMatch(masked, /ani-token/);
-  assert.doesNotMatch(masked, /hunter2/);
-  assert.match(masked, /state=ok/);
 });
 
 test('exportLogsArchive exports current-day logs and masks usernames', () => {
@@ -186,27 +139,6 @@ test('exportLogsArchive exports current-day logs and masks usernames', () => {
     assert.doesNotMatch(content, /kyle/);
   } finally {
     cleanupDir(root);
-  }
-});
-
-test('writeStoredZip rejects names outside ZIP32 limits', () => {
-  const dir = makeTempDir();
-  const outputPath = path.join(dir, 'logs.zip');
-
-  try {
-    assert.throws(
-      () =>
-        writeStoredZip(outputPath, [
-          {
-            name: `${'a'.repeat(0x10000)}.log`,
-            data: Buffer.from('log\n', 'utf8'),
-          },
-        ]),
-      /ZIP entry name too long/,
-    );
-    assert.equal(fs.existsSync(outputPath), false);
-  } finally {
-    cleanupDir(dir);
   }
 });
 

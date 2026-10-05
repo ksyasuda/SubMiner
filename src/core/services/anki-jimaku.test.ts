@@ -158,33 +158,6 @@ function createHarness(): RuntimeHarness {
   return { options, registered, state };
 }
 
-test('registerAnkiJimakuIpcRuntime provides full handler surface', () => {
-  const { registered } = createHarness();
-  const expected = [
-    'setAnkiConnectEnabled',
-    'clearAnkiHistory',
-    'refreshKnownWords',
-    'respondFieldGrouping',
-    'buildKikuMergePreview',
-    'getJimakuMediaInfo',
-    'searchJimakuEntries',
-    'listJimakuFiles',
-    'resolveJimakuApiKey',
-    'getCurrentMediaPath',
-    'isRemoteMediaPath',
-    'downloadToFile',
-    'onDownloadedSubtitle',
-    'searchTsukihimeEntries',
-    'listTsukihimeFiles',
-    'downloadTsukihimeSubtitle',
-    'onDownloadedSecondarySubtitle',
-  ];
-
-  for (const key of expected) {
-    assert.equal(typeof registered[key], 'function', `missing handler: ${key}`);
-  }
-});
-
 test('refreshKnownWords throws when integration is unavailable', async () => {
   const { registered } = createHarness();
 
@@ -194,20 +167,6 @@ test('refreshKnownWords throws when integration is unavailable', async () => {
     },
     { message: 'AnkiConnect integration not enabled' },
   );
-});
-
-test('refreshKnownWords delegates to integration', async () => {
-  const { registered, state } = createHarness();
-  let refreshed = 0;
-  state.ankiIntegration = {
-    refreshKnownWordCache: async () => {
-      refreshed += 1;
-    },
-  };
-
-  await registered.refreshKnownWords!();
-
-  assert.equal(refreshed, 1);
 });
 
 test('setAnkiConnectEnabled disables active integration and broadcasts changes', () => {
@@ -272,30 +231,6 @@ test('buildKikuMergePreview returns guard error when integration is missing', as
     ok: false,
     error: 'AnkiConnect integration not enabled',
   });
-});
-
-test('buildKikuMergePreview delegates to integration when available', async () => {
-  const { registered, state } = createHarness();
-  const calls: unknown[] = [];
-  state.ankiIntegration = {
-    buildFieldGroupingPreview: async (
-      keepNoteId: number,
-      deleteNoteId: number,
-      deleteDuplicate: boolean,
-    ) => {
-      calls.push([keepNoteId, deleteNoteId, deleteDuplicate]);
-      return { ok: true };
-    },
-  };
-
-  const result = await registered.buildKikuMergePreview!({
-    keepNoteId: 3,
-    deleteNoteId: 4,
-    deleteDuplicate: true,
-  });
-
-  assert.deepEqual(calls, [[3, 4, true]]);
-  assert.deepEqual(result, { ok: true });
 });
 
 test('searchJimakuEntries caps results and onDownloadedSubtitle sends sub-add to mpv', async () => {

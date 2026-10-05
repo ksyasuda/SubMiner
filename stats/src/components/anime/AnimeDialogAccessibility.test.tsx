@@ -1,48 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Window } from 'happy-dom';
 import { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { apiClient } from '../../lib/api-client';
 import type { AnimeLibraryItem } from '../../types/stats';
 import { AnimeMergeDialog } from './AnimeMergeDialog';
 import { LibraryEntryPicker } from './LibraryEntryPicker';
-
-interface TestWindow extends Window {
-  IS_REACT_ACT_ENVIRONMENT?: boolean;
-}
-
-function installDom(): () => void {
-  const previousWindow = globalThis.window;
-  const previousDocument = globalThis.document;
-  const previousHTMLElement = globalThis.HTMLElement;
-  const previousIsReactActEnvironment = (
-    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
-  ).IS_REACT_ACT_ENVIRONMENT;
-  const window = new Window() as TestWindow;
-
-  Object.defineProperty(globalThis, 'window', { value: window, configurable: true });
-  Object.defineProperty(globalThis, 'document', { value: window.document, configurable: true });
-  Object.defineProperty(globalThis, 'HTMLElement', {
-    value: window.HTMLElement,
-    configurable: true,
-  });
-  (
-    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
-  ).IS_REACT_ACT_ENVIRONMENT = true;
-
-  return () => {
-    Object.defineProperty(globalThis, 'window', { value: previousWindow, configurable: true });
-    Object.defineProperty(globalThis, 'document', { value: previousDocument, configurable: true });
-    Object.defineProperty(globalThis, 'HTMLElement', {
-      value: previousHTMLElement,
-      configurable: true,
-    });
-    (
-      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
-    ).IS_REACT_ACT_ENVIRONMENT = previousIsReactActEnvironment;
-  };
-}
+import { installDom } from '../../test-utils/dom';
 
 function libraryItem(animeId: number, title: string): AnimeLibraryItem {
   return {

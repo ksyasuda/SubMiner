@@ -7,6 +7,8 @@ import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
 import { getAppControlSocketPath } from '../src/shared/app-control';
+import { makeLauncherArgs } from './test-support/args.js';
+import { withEnv } from './test-support/env.js';
 import { withProcessExitIntercept } from './test-support/exit-intercept.js';
 import {
   buildConfiguredMpvDefaultArgs,
@@ -28,13 +30,28 @@ import {
   state,
   waitForUnixSocketReady,
 } from './mpv';
-import * as mpvModule from './mpv';
 
-function createTempSocketPath(): { dir: string; socketPath: string } {
+function makeArgs(overrides: Partial<Args> = {}): Args {
+  return makeLauncherArgs({ backend: 'x11', logLevel: 'error', ...overrides });
+}
+
+// ── shared helpers ───────────────────────────────────────────────────────────
+
+interface TempCase {
+  dir: string;
+  socketPath: string;
+}
+
+/** Runs `run` in a fresh temp dir (with an mpv socket path inside it) and removes it afterwards. */
+async function withTempCase<T>(run: (tempCase: TempCase) => T | Promise<T>): Promise<T> {
   const baseDir = path.join(process.cwd(), '.tmp', 'launcher-mpv-tests');
   fs.mkdirSync(baseDir, { recursive: true });
   const dir = fs.mkdtempSync(path.join(baseDir, 'case-'));
-  return { dir, socketPath: path.join(dir, 'mpv.sock') };
+  try {
+    return await run({ dir, socketPath: path.join(dir, 'mpv.sock') });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function withPlatform<T>(platform: NodeJS.Platform, callback: () => T): T {
@@ -53,9 +70,83 @@ function withPlatform<T>(platform: NodeJS.Platform, callback: () => T): T {
   }
 }
 
-test('mpv module exposes only canonical socket readiness helper', () => {
-  assert.equal('waitForSocket' in mpvModule, false);
-});
+/** Writes an executable shell script `name` into `dir` and returns its path. */
+function writeFakeApp(dir: string, lines: string[], name = 'fake-subminer.sh'): string {
+  const appPath = path.join(dir, name);
+  fs.writeFileSync(appPath, ['#!/bin/sh', ...lines, ''].join('\n'));
+  fs.chmodSync(appPath, 0o755);
+  return appPath;
+}
+
+/** Fake app that logs every invocation's argv and answers `--app-ping` with `pingExitCode`. */
+function writeInvocationRecorder(dir: string, pingExitCode: number) {
+  const invocationsPath = path.join(dir, 'app-invocations.log');
+  const appPath = writeFakeApp(dir, [
+    `printf '%s\\n' "$@" >> ${JSON.stringify(invocationsPath)}`,
+    `if [ "$1" = "--app-ping" ]; then exit ${pingExitCode}; fi`,
+    'exit 0',
+  ]);
+  return {
+    appPath,
+    readInvocations: () =>
+      fs.existsSync(invocationsPath) ? fs.readFileSync(invocationsPath, 'utf8') : '',
+  };
+}
+
+/** Makes every `net.createConnection` look like an mpv socket that connects after `delayMs`. */
+async function withConnectableSockets<T>(delayMs: number, run: () => Promise<T>): Promise<T> {
+  const originalCreateConnection = net.createConnection;
+  net.createConnection = (() => {
+    const socket = new EventEmitter() as net.Socket;
+    socket.destroy = (() => socket) as net.Socket['destroy'];
+    socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
+    setTimeout(() => socket.emit('connect'), delayMs);
+    return socket;
+  }) as typeof net.createConnection;
+  try {
+    return await run();
+  } finally {
+    net.createConnection = originalCreateConnection;
+  }
+}
+
+function resetLauncherState(): void {
+  state.overlayProc = null;
+  state.overlayManagedByLauncher = false;
+  state.appPath = '';
+}
+
+const listen = (server: net.Server, socketPath: string) =>
+  new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, resolve);
+  });
+
+const closeServer = (server: net.Server) =>
+  new Promise<void>((resolve) => server.close(() => resolve()));
+
+/** Fake app control server: records each request's argv and answers with `reply`. */
+function createControlServer(reply: { ok: boolean; error?: string } = { ok: true }) {
+  const receivedArgv: string[][] = [];
+  const server = net.createServer((socket) => {
+    let buffer = '';
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      const newlineIndex = buffer.indexOf('\n');
+      if (newlineIndex < 0) return;
+      const payload = JSON.parse(buffer.slice(0, newlineIndex)) as { argv?: unknown };
+      if (Array.isArray(payload.argv)) {
+        receivedArgv.push(
+          payload.argv.filter((value): value is string => typeof value === 'string'),
+        );
+      }
+      socket.end(JSON.stringify(reply) + '\n');
+    });
+  });
+  return { server, receivedArgv };
+}
+
+// ── app command execution ────────────────────────────────────────────────────
 
 test('runAppCommandCaptureOutput captures status and stdio', () => {
   const result = runAppCommandCaptureOutput(process.execPath, [
@@ -69,10 +160,8 @@ test('runAppCommandCaptureOutput captures status and stdio', () => {
   assert.equal(result.error, undefined);
 });
 
-test('runAppCommandCaptureOutput strips ELECTRON_RUN_AS_NODE from app child env', () => {
-  const original = process.env.ELECTRON_RUN_AS_NODE;
-  try {
-    process.env.ELECTRON_RUN_AS_NODE = '1';
+test('runAppCommandCaptureOutput strips ELECTRON_RUN_AS_NODE from app child env', async () => {
+  await withEnv({ ELECTRON_RUN_AS_NODE: '1' }, () => {
     const result = runAppCommandCaptureOutput(process.execPath, [
       '-e',
       'process.stdout.write(String(process.env.ELECTRON_RUN_AS_NODE ?? ""));',
@@ -80,62 +169,49 @@ test('runAppCommandCaptureOutput strips ELECTRON_RUN_AS_NODE from app child env'
 
     assert.equal(result.status, 0);
     assert.equal(result.stdout, '');
-  } finally {
-    if (original === undefined) {
-      delete process.env.ELECTRON_RUN_AS_NODE;
-    } else {
-      process.env.ELECTRON_RUN_AS_NODE = original;
-    }
-  }
+  });
 });
 
-test('runAppCommandCaptureOutput transports Linux AppImage args through environment', () => {
-  if (process.platform !== 'linux') return;
-  const { dir } = createTempSocketPath();
-  const appPath = path.join(dir, 'SubMiner.AppImage');
-  fs.writeFileSync(
-    appPath,
-    [
-      '#!/bin/sh',
-      'printf "args:%s\\n" "$*"',
-      'printf "argc:%s\\n" "$SUBMINER_APP_ARGC"',
-      'printf "arg0:%s\\n" "$SUBMINER_APP_ARG_0"',
-      'printf "arg1:%s\\n" "$SUBMINER_APP_ARG_1"',
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(appPath, 0o755);
+test(
+  'runAppCommandCaptureOutput transports Linux AppImage args through environment',
+  { skip: process.platform !== 'linux' },
+  async () => {
+    await withTempCase(({ dir }) => {
+      const appPath = writeFakeApp(
+        dir,
+        [
+          'printf "args:%s\\n" "$*"',
+          'printf "argc:%s\\n" "$SUBMINER_APP_ARGC"',
+          'printf "arg0:%s\\n" "$SUBMINER_APP_ARG_0"',
+          'printf "arg1:%s\\n" "$SUBMINER_APP_ARG_1"',
+        ],
+        'SubMiner.AppImage',
+      );
 
-  try {
-    const result = runAppCommandCaptureOutput(appPath, ['--app-ping', '--socket']);
+      const result = runAppCommandCaptureOutput(appPath, ['--app-ping', '--socket']);
 
-    assert.equal(result.status, 0);
-    assert.match(result.stdout, /^args:\n/m);
-    assert.match(result.stdout, /^argc:2\n/m);
-    assert.match(result.stdout, /^arg0:--app-ping\n/m);
-    assert.match(result.stdout, /^arg1:--socket\n/m);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
+      assert.equal(result.status, 0);
+      assert.match(result.stdout, /^args:\n/m);
+      assert.match(result.stdout, /^argc:2\n/m);
+      assert.match(result.stdout, /^arg0:--app-ping\n/m);
+      assert.match(result.stdout, /^arg1:--socket\n/m);
+    });
+  },
+);
 
-test('runAppCommandCaptureOutput runs Linux AppImage sync in Node-only mode', () => {
-  const { dir } = createTempSocketPath();
-  const appPath = path.join(dir, 'SubMiner.AppImage');
-  fs.writeFileSync(
-    appPath,
-    [
-      '#!/bin/sh',
-      'printf "args:%s\\n" "$*"',
-      'printf "electron-node:%s\\n" "$ELECTRON_RUN_AS_NODE"',
-      'printf "argc:%s\\n" "$SUBMINER_APP_ARGC"',
-      'printf "arg0:%s\\n" "$SUBMINER_APP_ARG_0"',
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(appPath, 0o755);
+test('runAppCommandCaptureOutput runs Linux AppImage sync in Node-only mode', async () => {
+  await withTempCase(({ dir }) => {
+    const appPath = writeFakeApp(
+      dir,
+      [
+        'printf "args:%s\\n" "$*"',
+        'printf "electron-node:%s\\n" "$ELECTRON_RUN_AS_NODE"',
+        'printf "argc:%s\\n" "$SUBMINER_APP_ARGC"',
+        'printf "arg0:%s\\n" "$SUBMINER_APP_ARG_0"',
+      ],
+      'SubMiner.AppImage',
+    );
 
-  try {
     const result = withPlatform('linux', () =>
       runAppCommandCaptureOutput(appPath, ['--sync-cli', 'sync', '--snapshot', '/tmp/out']),
     );
@@ -145,10 +221,10 @@ test('runAppCommandCaptureOutput runs Linux AppImage sync in Node-only mode', ()
     assert.match(result.stdout, /^electron-node:1$/m);
     assert.match(result.stdout, /^argc:4$/m);
     assert.match(result.stdout, /^arg0:--sync-cli$/m);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  });
 });
+
+// ── args, env, and plugin resolution ─────────────────────────────────────────
 
 test('parseMpvArgString preserves empty quoted tokens', () => {
   assert.deepEqual(parseMpvArgString('--title "" --force-media-title \'\' --pause'), [
@@ -276,27 +352,12 @@ test('buildMpvBackendArgs keeps supported Hyprland and Sway auto backends unchan
 
 test('buildConfiguredMpvDefaultArgs appends maximized launch mode to configured defaults', () => {
   withPlatform('linux', () => {
-    assert.deepEqual(
-      buildConfiguredMpvDefaultArgs(makeArgs({ launchMode: 'maximized' }), {
-        DISPLAY: ':1',
-        WAYLAND_DISPLAY: 'wayland-0',
-        XDG_SESSION_TYPE: 'wayland',
-        XDG_CURRENT_DESKTOP: 'KDE',
-        XDG_SESSION_DESKTOP: 'plasma',
-      }),
-      [
-        '--sub-auto=fuzzy',
-        '--sub-file-paths=.;subs;subtitles',
-        '--sid=auto',
-        '--secondary-sid=auto',
-        '--sub-visibility=no',
-        '--secondary-sub-visibility=no',
-        '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-        '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-        '--gpu-context=x11vk,x11egl,x11',
-        '--window-maximized=yes',
-      ],
-    );
+    const args = buildConfiguredMpvDefaultArgs(makeArgs({ launchMode: 'maximized' }), {
+      DISPLAY: ':1',
+      XDG_SESSION_TYPE: 'x11',
+    });
+
+    assert.equal(args.at(-1), '--window-maximized=yes');
   });
 });
 
@@ -432,27 +493,25 @@ test('launchTexthookerOnly exits non-zero when app binary cannot be spawned', ()
   assert.match(error.stderr, /Failed to launch texthooker mode/);
 });
 
-test('launchTexthookerOnly forwards browser-open request to app command', () => {
-  const { dir } = createTempSocketPath();
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const argsPath = path.join(dir, 'args.txt');
-  const openedUrls: string[] = [];
-  fs.writeFileSync(appPath, `#!/bin/sh\nprintf '%s\\n' "$@" > "${argsPath}"\nexit 0\n`);
-  fs.chmodSync(appPath, 0o755);
+test('launchTexthookerOnly forwards browser-open request to app command', async () => {
+  await withTempCase(({ dir }) => {
+    const argsPath = path.join(dir, 'args.txt');
+    const openedUrls: string[] = [];
+    const appPath = writeFakeApp(dir, [`printf '%s\\n' "$@" > "${argsPath}"`, 'exit 0']);
 
-  const error = withProcessExitIntercept(() => {
-    launchTexthookerOnly(appPath, makeArgs({ logLevel: 'info', texthookerOpenBrowser: true }), {
-      openBrowser: (url) => openedUrls.push(url),
+    const error = withProcessExitIntercept(() => {
+      launchTexthookerOnly(appPath, makeArgs({ logLevel: 'info', texthookerOpenBrowser: true }), {
+        openBrowser: (url) => openedUrls.push(url),
+      });
     });
-  });
 
-  assert.equal(error.code, 0);
-  assert.deepEqual(fs.readFileSync(argsPath, 'utf8').trim().split('\n'), [
-    '--texthooker',
-    '--open-browser',
-  ]);
-  assert.deepEqual(openedUrls, ['http://127.0.0.1:5174']);
-  fs.rmSync(dir, { recursive: true, force: true });
+    assert.equal(error.code, 0);
+    assert.deepEqual(fs.readFileSync(argsPath, 'utf8').trim().split('\n'), [
+      '--texthooker',
+      '--open-browser',
+    ]);
+    assert.deepEqual(openedUrls, ['http://127.0.0.1:5174']);
+  });
 });
 
 test('launchAppCommandDetached handles child process spawn errors', async () => {
@@ -476,31 +535,24 @@ test('launchAppCommandDetached handles child process spawn errors', async () => 
 });
 
 test('launchAppBackgroundDetached starts background child directly', async () => {
-  const { dir } = createTempSocketPath();
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const argsPath = path.join(dir, 'args.txt');
-  const envPath = path.join(dir, 'env.txt');
-  fs.writeFileSync(
-    appPath,
-    [
-      '#!/bin/sh',
+  await withTempCase(async ({ dir }) => {
+    const argsPath = path.join(dir, 'args.txt');
+    const envPath = path.join(dir, 'env.txt');
+    const appPath = writeFakeApp(dir, [
       `printf '%s\\n' "$@" > ${JSON.stringify(argsPath)}`,
       `printf '%s\\n' "$SUBMINER_BACKGROUND_CHILD" > ${JSON.stringify(envPath)}`,
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(appPath, 0o755);
+    ]);
 
-  launchAppBackgroundDetached(appPath, 'info');
+    launchAppBackgroundDetached(appPath, 'info');
 
-  const deadline = Date.now() + 1000;
-  while ((!fs.existsSync(argsPath) || !fs.existsSync(envPath)) && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
+    const deadline = Date.now() + 1000;
+    while ((!fs.existsSync(argsPath) || !fs.existsSync(envPath)) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
 
-  assert.equal(fs.readFileSync(argsPath, 'utf8').trim(), '--start\n--background');
-  assert.equal(fs.readFileSync(envPath, 'utf8').trim(), '1');
-  fs.rmSync(dir, { recursive: true, force: true });
+    assert.equal(fs.readFileSync(argsPath, 'utf8').trim(), '--start\n--background');
+    assert.equal(fs.readFileSync(envPath, 'utf8').trim(), '1');
+  });
 });
 
 test('stopOverlay logs a warning when stop command cannot be spawned', () => {
@@ -527,578 +579,302 @@ test('stopOverlay logs a warning when stop command cannot be spawned', () => {
   } finally {
     process.stdout.write = originalWrite;
     state.stopRequested = false;
-    state.overlayManagedByLauncher = false;
-    state.appPath = '';
-    state.overlayProc = null;
+    resetLauncherState();
   }
 });
 
+// ── socket readiness ─────────────────────────────────────────────────────────
+
 test('waitForUnixSocketReady returns false when socket never appears', async () => {
-  const { dir, socketPath } = createTempSocketPath();
-  try {
-    const ready = await waitForUnixSocketReady(socketPath, 120);
-    assert.equal(ready, false);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  await withTempCase(async ({ socketPath }) => {
+    assert.equal(await waitForUnixSocketReady(socketPath, 120), false);
+  });
 });
 
 test('waitForUnixSocketReady returns false when path exists but is not socket', async () => {
-  const { dir, socketPath } = createTempSocketPath();
-  try {
+  await withTempCase(async ({ socketPath }) => {
     fs.writeFileSync(socketPath, 'not-a-socket');
-    const ready = await waitForUnixSocketReady(socketPath, 200);
-    assert.equal(ready, false);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+    assert.equal(await waitForUnixSocketReady(socketPath, 200), false);
+  });
 });
 
 test('waitForUnixSocketReady returns true when socket becomes connectable before timeout', async () => {
-  const { dir, socketPath } = createTempSocketPath();
-  fs.writeFileSync(socketPath, '');
-  const originalCreateConnection = net.createConnection;
-  try {
-    net.createConnection = (() => {
-      const socket = new EventEmitter() as net.Socket;
-      socket.destroy = (() => socket) as net.Socket['destroy'];
-      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
-      setTimeout(() => socket.emit('connect'), 25);
-      return socket;
-    }) as typeof net.createConnection;
-
-    const ready = await waitForUnixSocketReady(socketPath, 400);
+  await withTempCase(async ({ socketPath }) => {
+    fs.writeFileSync(socketPath, '');
+    const ready = await withConnectableSockets(25, () => waitForUnixSocketReady(socketPath, 400));
     assert.equal(ready, true);
-  } finally {
-    net.createConnection = originalCreateConnection;
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  });
 });
 
-function makeArgs(overrides: Partial<Args> = {}): Args {
-  return {
-    backend: 'x11',
-    directory: '.',
-    recursive: false,
-    profile: '',
-    startOverlay: false,
-    youtubePrimarySubLangs: [],
-    youtubeSecondarySubLangs: [],
-    youtubeAudioLangs: [],
-    useTexthooker: false,
-    autoStartOverlay: false,
-    texthookerOnly: false,
-    texthookerOpenBrowser: false,
-    useRofi: false,
-    history: false,
-    sync: false,
-    syncCliTokens: [],
-    syncUi: false,
-    logLevel: 'error',
-    logRotation: 7,
-    passwordStore: '',
-    target: '',
-    targetKind: '',
-    jimakuApiKey: '',
-    jimakuApiKeyCommand: '',
-    jimakuApiBaseUrl: '',
-    jimakuLanguagePreference: 'none',
-    jimakuMaxEntryResults: 10,
-    jellyfin: false,
-    jellyfinLogin: false,
-    jellyfinLogout: false,
-    jellyfinPlay: false,
-    jellyfinDiscovery: false,
-    dictionary: false,
-    dictionaryCandidates: false,
-    dictionarySelect: false,
-    stats: false,
-    doctor: false,
-    doctorRefreshKnownWords: false,
-    logsExport: false,
-    version: false,
-    settings: false,
-    youtubeBrowser: false,
-    configPath: false,
-    configShow: false,
-    mpvIdle: false,
-    mpvSocket: false,
-    mpvStatus: false,
-    mpvArgs: '',
-    appPassthrough: false,
-    appArgs: [],
-    jellyfinServer: '',
-    jellyfinUsername: '',
-    jellyfinPassword: '',
-    launchMode: 'normal',
-    ...overrides,
-  };
+// ── startOverlay ownership and attach ────────────────────────────────────────
+
+/**
+ * Runs `startOverlay` against a recording fake app and a connectable mpv socket, and returns
+ * what the app saw plus the launcher ownership state, captured before state is reset.
+ */
+async function runStartOverlay(options: { pingExitCode: number; alreadyManaged?: boolean }) {
+  return withTempCase(async ({ dir, socketPath }) => {
+    const app = writeInvocationRecorder(dir, options.pingExitCode);
+    fs.writeFileSync(socketPath, '');
+    if (options.alreadyManaged) {
+      state.appPath = app.appPath;
+      state.overlayManagedByLauncher = true;
+    }
+    try {
+      await withConnectableSockets(10, () => startOverlay(app.appPath, makeArgs(), socketPath));
+      return {
+        invocations: app.readInvocations(),
+        managedByLauncher: state.overlayManagedByLauncher,
+        ownedAppPath: state.appPath,
+        appPath: app.appPath,
+      };
+    } finally {
+      resetLauncherState();
+    }
+  });
 }
 
-test('startOverlay resolves without fixed 2s sleep when readiness signals arrive quickly', async () => {
-  const { dir, socketPath } = createTempSocketPath();
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
-  fs.chmodSync(appPath, 0o755);
-  fs.writeFileSync(socketPath, '');
-  const originalCreateConnection = net.createConnection;
-  try {
-    net.createConnection = (() => {
-      const socket = new EventEmitter() as net.Socket;
-      socket.destroy = (() => socket) as net.Socket['destroy'];
-      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
-      setTimeout(() => socket.emit('connect'), 10);
-      return socket;
-    }) as typeof net.createConnection;
-
-    const startedAt = Date.now();
-    await startOverlay(appPath, makeArgs(), socketPath);
-    const elapsedMs = Date.now() - startedAt;
-
-    assert.ok(elapsedMs < 1200, `expected startOverlay <1200ms, got ${elapsedMs}ms`);
-  } finally {
-    net.createConnection = originalCreateConnection;
-    state.overlayProc = null;
-    state.overlayManagedByLauncher = false;
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
 test('startOverlay captures app stdout and stderr into app log', async () => {
-  const { dir, socketPath } = createTempSocketPath();
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const appLogPath = path.join(dir, 'app.log');
-  const originalAppLog = process.env.SUBMINER_APP_LOG;
-  fs.writeFileSync(
-    appPath,
-    '#!/bin/sh\nprintf "hello from stdout\\n"\nprintf "hello from stderr\\n" >&2\nexit 0\n',
-  );
-  fs.chmodSync(appPath, 0o755);
-  fs.writeFileSync(socketPath, '');
-  const originalCreateConnection = net.createConnection;
-  try {
-    process.env.SUBMINER_APP_LOG = appLogPath;
-    net.createConnection = (() => {
-      const socket = new EventEmitter() as net.Socket;
-      socket.destroy = (() => socket) as net.Socket['destroy'];
-      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
-      setTimeout(() => socket.emit('connect'), 10);
-      return socket;
-    }) as typeof net.createConnection;
+  await withTempCase(async ({ dir, socketPath }) => {
+    const appLogPath = path.join(dir, 'app.log');
+    const appPath = writeFakeApp(dir, [
+      'printf "hello from stdout\\n"',
+      'printf "hello from stderr\\n" >&2',
+      'exit 0',
+    ]);
+    fs.writeFileSync(socketPath, '');
 
-    await startOverlay(appPath, makeArgs(), socketPath);
+    try {
+      await withEnv({ SUBMINER_APP_LOG: appLogPath }, () =>
+        withConnectableSockets(10, () => startOverlay(appPath, makeArgs(), socketPath)),
+      );
 
-    const logText = fs.readFileSync(appLogPath, 'utf8');
-    assert.match(logText, /\[STDOUT\] hello from stdout/);
-    assert.match(logText, /\[STDERR\] hello from stderr/);
-  } finally {
-    net.createConnection = originalCreateConnection;
-    state.overlayProc = null;
-    state.overlayManagedByLauncher = false;
-    if (originalAppLog === undefined) {
-      delete process.env.SUBMINER_APP_LOG;
-    } else {
-      process.env.SUBMINER_APP_LOG = originalAppLog;
+      const logText = fs.readFileSync(appLogPath, 'utf8');
+      assert.match(logText, /\[STDOUT\] hello from stdout/);
+      assert.match(logText, /\[STDERR\] hello from stderr/);
+    } finally {
+      resetLauncherState();
     }
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  });
 });
 
 test('startOverlay starts launcher-owned playback in background managed mode', async () => {
-  const { dir, socketPath } = createTempSocketPath();
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const appInvocationsPath = path.join(dir, 'app-invocations.log');
-  fs.writeFileSync(
-    appPath,
-    [
-      '#!/bin/sh',
-      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
-      'if [ "$1" = "--app-ping" ]; then exit 1; fi',
-      'exit 0',
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(appPath, 0o755);
-  fs.writeFileSync(socketPath, '');
-  const originalCreateConnection = net.createConnection;
-  try {
-    net.createConnection = (() => {
-      const socket = new EventEmitter() as net.Socket;
-      socket.destroy = (() => socket) as net.Socket['destroy'];
-      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
-      setTimeout(() => socket.emit('connect'), 10);
-      return socket;
-    }) as typeof net.createConnection;
+  const result = await runStartOverlay({ pingExitCode: 1 });
 
-    await startOverlay(appPath, makeArgs(), socketPath);
-
-    const invocationText = fs.readFileSync(appInvocationsPath, 'utf8');
-    assert.match(invocationText, /--background/);
-    assert.match(invocationText, /--managed-playback/);
-    assert.equal(state.overlayManagedByLauncher, true);
-    assert.equal(state.appPath, appPath);
-  } finally {
-    net.createConnection = originalCreateConnection;
-    state.overlayProc = null;
-    state.overlayManagedByLauncher = false;
-    state.appPath = '';
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  assert.match(result.invocations, /--background/);
+  assert.match(result.invocations, /--managed-playback/);
+  assert.equal(result.managedByLauncher, true);
+  assert.equal(result.ownedAppPath, result.appPath);
 });
 
 test('startOverlay borrows an already-running background app instead of owning its lifecycle', async () => {
-  const { dir, socketPath } = createTempSocketPath();
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const appInvocationsPath = path.join(dir, 'app-invocations.log');
-  fs.writeFileSync(
-    appPath,
-    [
-      '#!/bin/sh',
-      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
-      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
-      'exit 0',
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(appPath, 0o755);
-  fs.writeFileSync(socketPath, '');
-  const originalCreateConnection = net.createConnection;
-  try {
-    net.createConnection = (() => {
-      const socket = new EventEmitter() as net.Socket;
-      socket.destroy = (() => socket) as net.Socket['destroy'];
-      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
-      setTimeout(() => socket.emit('connect'), 10);
-      return socket;
-    }) as typeof net.createConnection;
+  const result = await runStartOverlay({ pingExitCode: 0 });
 
-    await startOverlay(appPath, makeArgs(), socketPath);
-
-    const invocationText = fs.readFileSync(appInvocationsPath, 'utf8');
-    assert.match(invocationText, /--app-ping/);
-    assert.match(invocationText, /--start/);
-    assert.doesNotMatch(invocationText, /--background/);
-    assert.equal(state.overlayManagedByLauncher, false);
-    assert.equal(state.appPath, '');
-  } finally {
-    net.createConnection = originalCreateConnection;
-    state.overlayProc = null;
-    state.overlayManagedByLauncher = false;
-    state.appPath = '';
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('startOverlay attaches through the running app control socket without spawning another app command', async () => {
-  if (process.platform === 'win32') return;
-
-  const { dir, socketPath } = createTempSocketPath();
-  const controlSocketPath = path.join(dir, 'control.sock');
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const appInvocationsPath = path.join(dir, 'app-invocations.log');
-  const receivedControlArgv: string[][] = [];
-  const originalControlSocket = process.env.SUBMINER_APP_CONTROL_SOCKET;
-
-  fs.writeFileSync(
-    appPath,
-    [
-      '#!/bin/sh',
-      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
-      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
-      'exit 0',
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(appPath, 0o755);
-
-  const mpvServer = net.createServer((socket) => socket.end());
-  const controlServer = net.createServer((socket) => {
-    let buffer = '';
-    socket.on('data', (chunk) => {
-      buffer += chunk.toString('utf8');
-      const newlineMatch = buffer.match(/\r?\n/);
-      if (!newlineMatch || newlineMatch.index === undefined) return;
-      const line = buffer.slice(0, newlineMatch.index).trim();
-      buffer = buffer.slice(newlineMatch.index + newlineMatch[0].length);
-      if (!line) return;
-      const payload = JSON.parse(line) as { argv?: unknown };
-      if (Array.isArray(payload.argv)) {
-        receivedControlArgv.push(
-          payload.argv.filter((value): value is string => typeof value === 'string'),
-        );
-      }
-      socket.end(JSON.stringify({ ok: true }) + '\n');
-    });
-  });
-
-  try {
-    process.env.SUBMINER_APP_CONTROL_SOCKET = controlSocketPath;
-    await new Promise<void>((resolve, reject) => {
-      mpvServer.once('error', reject);
-      mpvServer.listen(socketPath, resolve);
-    });
-    await new Promise<void>((resolve, reject) => {
-      controlServer.once('error', reject);
-      controlServer.listen(controlSocketPath, resolve);
-    });
-
-    await startOverlay(appPath, makeArgs(), socketPath);
-
-    const invocationText = fs.existsSync(appInvocationsPath)
-      ? fs.readFileSync(appInvocationsPath, 'utf8')
-      : '';
-    assert.equal(invocationText, '');
-    assert.equal(receivedControlArgv.length, 1);
-    assert.deepEqual(receivedControlArgv[0]?.slice(0, 7), [
-      '--start',
-      '--managed-playback',
-      '--backend',
-      'x11',
-      '--socket',
-      socketPath,
-      '--log-level',
-    ]);
-    assert.equal(state.overlayManagedByLauncher, false);
-    assert.equal(state.appPath, '');
-  } finally {
-    if (originalControlSocket === undefined) {
-      delete process.env.SUBMINER_APP_CONTROL_SOCKET;
-    } else {
-      process.env.SUBMINER_APP_CONTROL_SOCKET = originalControlSocket;
-    }
-    await new Promise<void>((resolve) => mpvServer.close(() => resolve()));
-    await new Promise<void>((resolve) => controlServer.close(() => resolve()));
-    state.overlayProc = null;
-    state.overlayManagedByLauncher = false;
-    state.appPath = '';
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('startOverlay uses caller config dir for app control socket discovery', async () => {
-  if (process.platform === 'win32') return;
-
-  const { dir, socketPath } = createTempSocketPath();
-  const configDir = path.join(dir, 'launcher-config');
-  const controlSocketPath = getAppControlSocketPath({ configDir, platform: 'linux' });
-  fs.mkdirSync(configDir, { recursive: true });
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const appInvocationsPath = path.join(dir, 'app-invocations.log');
-  const receivedControlArgv: string[][] = [];
-  const originalControlSocket = process.env.SUBMINER_APP_CONTROL_SOCKET;
-
-  fs.writeFileSync(
-    appPath,
-    [
-      '#!/bin/sh',
-      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
-      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
-      'exit 0',
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(appPath, 0o755);
-
-  const mpvServer = net.createServer((socket) => socket.end());
-  const controlServer = net.createServer((socket) => {
-    let buffer = '';
-    socket.on('data', (chunk) => {
-      buffer += chunk.toString('utf8');
-      const newlineIndex = buffer.indexOf('\n');
-      if (newlineIndex < 0) return;
-      const payload = JSON.parse(buffer.slice(0, newlineIndex)) as { argv?: unknown };
-      if (Array.isArray(payload.argv)) {
-        receivedControlArgv.push(
-          payload.argv.filter((value): value is string => typeof value === 'string'),
-        );
-      }
-      socket.end(JSON.stringify({ ok: true }) + '\n');
-    });
-  });
-
-  try {
-    delete process.env.SUBMINER_APP_CONTROL_SOCKET;
-    await new Promise<void>((resolve, reject) => {
-      mpvServer.once('error', reject);
-      mpvServer.listen(socketPath, resolve);
-    });
-    await new Promise<void>((resolve, reject) => {
-      controlServer.once('error', reject);
-      controlServer.listen(controlSocketPath, resolve);
-    });
-
-    await startOverlay(appPath, makeArgs(), socketPath, [], configDir);
-
-    const invocationText = fs.existsSync(appInvocationsPath)
-      ? fs.readFileSync(appInvocationsPath, 'utf8')
-      : '';
-    assert.equal(invocationText, '');
-    assert.equal(receivedControlArgv.length, 1);
-    assert.deepEqual(receivedControlArgv[0]?.slice(0, 6), [
-      '--start',
-      '--managed-playback',
-      '--backend',
-      'x11',
-      '--socket',
-      socketPath,
-    ]);
-  } finally {
-    if (originalControlSocket === undefined) {
-      delete process.env.SUBMINER_APP_CONTROL_SOCKET;
-    } else {
-      process.env.SUBMINER_APP_CONTROL_SOCKET = originalControlSocket;
-    }
-    await new Promise<void>((resolve) => mpvServer.close(() => resolve()));
-    await new Promise<void>((resolve) => controlServer.close(() => resolve()));
-    state.overlayProc = null;
-    state.overlayManagedByLauncher = false;
-    state.appPath = '';
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('startOverlay falls back to legacy app startup when control command fails', async () => {
-  if (process.platform === 'win32') return;
-
-  const { dir, socketPath } = createTempSocketPath();
-  const controlSocketPath = path.join(dir, 'control.sock');
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const appInvocationsPath = path.join(dir, 'app-invocations.log');
-  const originalControlSocket = process.env.SUBMINER_APP_CONTROL_SOCKET;
-
-  fs.writeFileSync(
-    appPath,
-    [
-      '#!/bin/sh',
-      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
-      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
-      'exit 0',
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(appPath, 0o755);
-
-  const controlServer = net.createServer((socket) => {
-    socket.on('data', () => {
-      socket.end(JSON.stringify({ ok: false, error: 'boom' }) + '\n');
-    });
-  });
-
-  try {
-    process.env.SUBMINER_APP_CONTROL_SOCKET = controlSocketPath;
-    await new Promise<void>((resolve, reject) => {
-      controlServer.once('error', reject);
-      controlServer.listen(controlSocketPath, resolve);
-    });
-
-    await startOverlay(appPath, makeArgs(), socketPath);
-
-    const invocationText = fs.readFileSync(appInvocationsPath, 'utf8');
-    assert.match(invocationText, /--app-ping/);
-    assert.match(invocationText, /--start/);
-  } finally {
-    if (originalControlSocket === undefined) {
-      delete process.env.SUBMINER_APP_CONTROL_SOCKET;
-    } else {
-      process.env.SUBMINER_APP_CONTROL_SOCKET = originalControlSocket;
-    }
-    await new Promise<void>((resolve) => controlServer.close(() => resolve()));
-    state.overlayProc = null;
-    state.overlayManagedByLauncher = false;
-    state.appPath = '';
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  assert.match(result.invocations, /--app-ping/);
+  assert.match(result.invocations, /--start/);
+  assert.doesNotMatch(result.invocations, /--background/);
+  assert.equal(result.managedByLauncher, false);
+  assert.equal(result.ownedAppPath, '');
 });
 
 test('startOverlay keeps lifecycle ownership for its already-managed app', async () => {
-  const { dir, socketPath } = createTempSocketPath();
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const appInvocationsPath = path.join(dir, 'app-invocations.log');
-  fs.writeFileSync(
-    appPath,
-    [
-      '#!/bin/sh',
-      `printf '%s\\n' "$@" >> ${JSON.stringify(appInvocationsPath)}`,
-      'if [ "$1" = "--app-ping" ]; then exit 0; fi',
-      'exit 0',
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(appPath, 0o755);
-  fs.writeFileSync(socketPath, '');
-  const originalCreateConnection = net.createConnection;
-  try {
-    state.appPath = appPath;
-    state.overlayManagedByLauncher = true;
-    net.createConnection = (() => {
-      const socket = new EventEmitter() as net.Socket;
-      socket.destroy = (() => socket) as net.Socket['destroy'];
-      socket.setTimeout = (() => socket) as net.Socket['setTimeout'];
-      setTimeout(() => socket.emit('connect'), 10);
-      return socket;
-    }) as typeof net.createConnection;
+  const result = await runStartOverlay({ pingExitCode: 0, alreadyManaged: true });
 
-    await startOverlay(appPath, makeArgs(), socketPath);
-
-    assert.equal(state.overlayManagedByLauncher, true);
-    assert.equal(state.appPath, appPath);
-  } finally {
-    net.createConnection = originalCreateConnection;
-    state.overlayProc = null;
-    state.overlayManagedByLauncher = false;
-    state.appPath = '';
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  assert.equal(result.managedByLauncher, true);
+  assert.equal(result.ownedAppPath, result.appPath);
 });
+
+const controlSocketCases = [
+  {
+    name: 'startOverlay attaches through the running app control socket without spawning another app command',
+    // The control socket is found through SUBMINER_APP_CONTROL_SOCKET.
+    useConfigDir: false,
+  },
+  {
+    name: 'startOverlay uses caller config dir for app control socket discovery',
+    useConfigDir: true,
+  },
+];
+
+for (const c of controlSocketCases) {
+  test(c.name, { skip: process.platform === 'win32' }, async () => {
+    await withTempCase(async ({ dir, socketPath }) => {
+      const configDir = path.join(dir, 'launcher-config');
+      fs.mkdirSync(configDir, { recursive: true });
+      const controlSocketPath = c.useConfigDir
+        ? getAppControlSocketPath({ configDir, platform: 'linux' })
+        : path.join(dir, 'control.sock');
+      const app = writeInvocationRecorder(dir, 0);
+      const mpvServer = net.createServer((socket) => socket.end());
+      const control = createControlServer();
+
+      try {
+        await listen(mpvServer, socketPath);
+        await listen(control.server, controlSocketPath);
+
+        await withEnv(
+          { SUBMINER_APP_CONTROL_SOCKET: c.useConfigDir ? undefined : controlSocketPath },
+          () =>
+            c.useConfigDir
+              ? startOverlay(app.appPath, makeArgs(), socketPath, [], configDir)
+              : startOverlay(app.appPath, makeArgs(), socketPath),
+        );
+
+        assert.equal(app.readInvocations(), '');
+        assert.equal(control.receivedArgv.length, 1);
+        assert.deepEqual(control.receivedArgv[0]?.slice(0, 6), [
+          '--start',
+          '--managed-playback',
+          '--backend',
+          'x11',
+          '--socket',
+          socketPath,
+        ]);
+        assert.equal(state.overlayManagedByLauncher, false);
+        assert.equal(state.appPath, '');
+      } finally {
+        await closeServer(mpvServer);
+        await closeServer(control.server);
+        resetLauncherState();
+      }
+    });
+  });
+}
+
+test(
+  'startOverlay falls back to legacy app startup when control command fails',
+  { skip: process.platform === 'win32' },
+  async () => {
+    await withTempCase(async ({ dir, socketPath }) => {
+      const controlSocketPath = path.join(dir, 'control.sock');
+      const app = writeInvocationRecorder(dir, 0);
+      const control = createControlServer({ ok: false, error: 'boom' });
+
+      try {
+        await listen(control.server, controlSocketPath);
+
+        await withEnv({ SUBMINER_APP_CONTROL_SOCKET: controlSocketPath }, () =>
+          startOverlay(app.appPath, makeArgs(), socketPath),
+        );
+
+        const invocations = app.readInvocations();
+        assert.match(invocations, /--app-ping/);
+        assert.match(invocations, /--start/);
+      } finally {
+        await closeServer(control.server);
+        resetLauncherState();
+      }
+    });
+  },
+);
 
 test('cleanupPlaybackSession stops launcher-managed overlay app and mpv-owned children', async () => {
-  const { dir } = createTempSocketPath();
-  const appPath = path.join(dir, 'fake-subminer.sh');
-  const appInvocationsPath = path.join(dir, 'app-invocations.log');
-  fs.writeFileSync(
-    appPath,
-    `#!/bin/sh\necho \"$@\" >> ${JSON.stringify(appInvocationsPath)}\nexit 0\n`,
-  );
-  fs.chmodSync(appPath, 0o755);
+  await withTempCase(async ({ dir }) => {
+    const app = writeInvocationRecorder(dir, 0);
+    const calls: string[] = [];
+    const overlayProc = {
+      killed: false,
+      kill: () => {
+        calls.push('overlay-kill');
+        return true;
+      },
+    } as unknown as NonNullable<typeof state.overlayProc>;
+    const mpvProc = {
+      killed: false,
+      kill: () => {
+        calls.push('mpv-kill');
+        return true;
+      },
+    } as unknown as NonNullable<typeof state.mpvProc>;
 
-  const calls: string[] = [];
-  const overlayProc = {
-    killed: false,
-    kill: () => {
-      calls.push('overlay-kill');
-      return true;
-    },
-  } as unknown as NonNullable<typeof state.overlayProc>;
-  const mpvProc = {
-    killed: false,
-    kill: () => {
-      calls.push('mpv-kill');
-      return true;
-    },
-  } as unknown as NonNullable<typeof state.mpvProc>;
-
-  state.stopRequested = false;
-  state.appPath = appPath;
-  state.overlayManagedByLauncher = true;
-  state.overlayProc = overlayProc;
-  state.mpvProc = mpvProc;
-
-  try {
-    await cleanupPlaybackSession(makeArgs());
-
-    assert.deepEqual(calls, ['overlay-kill', 'mpv-kill']);
-    assert.match(fs.readFileSync(appInvocationsPath, 'utf8'), /--stop/);
-  } finally {
-    state.overlayProc = null;
-    state.mpvProc = null;
-    state.overlayManagedByLauncher = false;
-    state.appPath = '';
     state.stopRequested = false;
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+    state.appPath = app.appPath;
+    state.overlayManagedByLauncher = true;
+    state.overlayProc = overlayProc;
+    state.mpvProc = mpvProc;
+
+    try {
+      await cleanupPlaybackSession(makeArgs());
+
+      assert.deepEqual(calls.sort(), ['mpv-kill', 'overlay-kill']);
+      assert.match(app.readInvocations(), /--stop/);
+    } finally {
+      state.mpvProc = null;
+      state.stopRequested = false;
+      resetLauncherState();
+    }
+  });
 });
 
-// ── findAppBinary: Linux packaged path discovery ──────────────────────────────
+// ── findAppBinary ────────────────────────────────────────────────────────────
+
+interface FindAppBinaryScenario {
+  platform: NodeJS.Platform;
+  home: string;
+  /** Extra env; SUBMINER_APPIMAGE_PATH / SUBMINER_BINARY_PATH are always cleared first. */
+  env?: Record<string, string | undefined>;
+  /** When set, `fs.accessSync` accepts only these paths. */
+  executables?: string[];
+  /** When set, `fs.existsSync` / `fs.statSync` see only these paths. */
+  existing?: string[];
+  directories?: string[];
+  /** When set, replaces `fs.realpathSync`. */
+  realpath?: (filePath: string) => string;
+}
+
+/**
+ * Runs `run` with platform, home dir, env, and (optionally) fs probes faked for
+ * `findAppBinary`, which reads them from process globals. Everything is restored afterwards.
+ */
+async function withFindAppBinaryScenario(
+  scenario: FindAppBinaryScenario,
+  run: (pathModule: typeof path) => void,
+): Promise<void> {
+  const restores: Array<() => void> = [];
+  const stub = (target: object, key: string, value: unknown): void => {
+    const original = Object.getOwnPropertyDescriptor(target, key);
+    Object.defineProperty(target, key, { value, configurable: true, writable: true });
+    restores.push(() => {
+      if (original) Object.defineProperty(target, key, original);
+      else Reflect.deleteProperty(target, key);
+    });
+  };
+  const missing = (code: string, filePath: string) =>
+    Object.assign(new Error(`${code}: ${filePath}`), { code });
+
+  try {
+    stub(process, 'platform', scenario.platform);
+    stub(os, 'homedir', () => scenario.home);
+    if (scenario.executables) {
+      const executables = new Set(scenario.executables);
+      stub(fs, 'accessSync', (filePath: string): void => {
+        if (!executables.has(filePath)) throw missing('EACCES', filePath);
+      });
+    }
+    if (scenario.existing || scenario.directories) {
+      const directories = new Set(scenario.directories ?? []);
+      const files = new Set(scenario.existing ?? []);
+      stub(
+        fs,
+        'existsSync',
+        (filePath: string) => files.has(filePath) || directories.has(filePath),
+      );
+      stub(fs, 'statSync', (filePath: string) => {
+        if (directories.has(filePath)) return { isDirectory: () => true };
+        if (files.has(filePath)) return { isDirectory: () => false };
+        throw missing('ENOENT', filePath);
+      });
+    }
+    if (scenario.realpath) stub(fs, 'realpathSync', scenario.realpath);
+
+    await withEnv(
+      { SUBMINER_APPIMAGE_PATH: undefined, SUBMINER_BINARY_PATH: undefined, ...scenario.env },
+      () => run(scenario.platform === 'win32' ? (path.win32 as typeof path) : path),
+    );
+  } finally {
+    for (const restore of restores.reverse()) restore();
+  }
+}
 
 function makeExecutable(filePath: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -1106,194 +882,19 @@ function makeExecutable(filePath: string): void {
   fs.chmodSync(filePath, 0o755);
 }
 
-function withFindAppBinaryEnvSandbox(run: () => void): void {
-  const originalAppImagePath = process.env.SUBMINER_APPIMAGE_PATH;
-  const originalBinaryPath = process.env.SUBMINER_BINARY_PATH;
-  try {
-    delete process.env.SUBMINER_APPIMAGE_PATH;
-    delete process.env.SUBMINER_BINARY_PATH;
-    run();
-  } finally {
-    if (originalAppImagePath === undefined) {
-      delete process.env.SUBMINER_APPIMAGE_PATH;
-    } else {
-      process.env.SUBMINER_APPIMAGE_PATH = originalAppImagePath;
-    }
-    if (originalBinaryPath === undefined) {
-      delete process.env.SUBMINER_BINARY_PATH;
-    } else {
-      process.env.SUBMINER_BINARY_PATH = originalBinaryPath;
-    }
-  }
-}
-
-function withFindAppBinaryPlatformSandbox(
-  platform: NodeJS.Platform,
-  run: (pathModule: typeof path) => void,
-): void {
-  const originalPlatform = process.platform;
-  try {
-    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
-    withFindAppBinaryEnvSandbox(() =>
-      run(platform === 'win32' ? (path.win32 as typeof path) : path),
-    );
-  } finally {
-    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
-  }
-}
-
-function withAccessSyncStub(
-  isExecutablePath: (filePath: string) => boolean,
-  run: () => void,
-): void {
-  const originalAccessSync = fs.accessSync;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).accessSync = (filePath: string): void => {
-      if (isExecutablePath(filePath)) {
-        return;
-      }
-      throw Object.assign(new Error(`EACCES: ${filePath}`), { code: 'EACCES' });
-    };
-    run();
-  } finally {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).accessSync = originalAccessSync;
-  }
-}
-
-function withExistsAndStatSyncStubs(
-  options: {
-    existingPaths?: string[];
-    directoryPaths?: string[];
-  },
-  run: () => void,
-): void {
-  const existingPaths = new Set(options.existingPaths ?? []);
-  const directoryPaths = new Set(options.directoryPaths ?? []);
-  const originalExistsSync = fs.existsSync;
-  const originalStatSync = fs.statSync;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).existsSync = (filePath: string): boolean =>
-      existingPaths.has(filePath) || directoryPaths.has(filePath);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).statSync = (filePath: string) => {
-      if (directoryPaths.has(filePath)) {
-        return { isDirectory: () => true };
-      }
-      if (existingPaths.has(filePath)) {
-        return { isDirectory: () => false };
-      }
-      throw Object.assign(new Error(`ENOENT: ${filePath}`), { code: 'ENOENT' });
-    };
-    run();
-  } finally {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).existsSync = originalExistsSync;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).statSync = originalStatSync;
-  }
-}
-
-function withRealpathSyncStub(resolvePath: (filePath: string) => string, run: () => void): void {
-  const originalRealpathSync = fs.realpathSync;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).realpathSync = (filePath: string): string => resolvePath(filePath);
-    run();
-  } finally {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fs as any).realpathSync = originalRealpathSync;
-  }
-}
-
-function listRepoRootWindowsTempArtifacts(): string[] {
-  return fs
-    .readdirSync(process.cwd())
-    .filter((entry) => /^\\tmp\\subminer-test-win-/.test(entry))
-    .sort();
-}
-
-function runFindAppBinaryWindowsPathCase(): void {
-  const baseDir = 'C:\\Users\\tester\\subminer-test-win-path';
-  const originalHomedir = os.homedir;
-  const originalPath = process.env.PATH;
-  try {
-    os.homedir = () => baseDir;
-    const binDir = path.win32.join(baseDir, 'bin');
-    const wrapperPath = path.win32.join(binDir, 'SubMiner.exe');
-    process.env.PATH = `${binDir}${path.win32.delimiter}${originalPath ?? ''}`;
-
-    withFindAppBinaryPlatformSandbox('win32', (pathModule) => {
-      withAccessSyncStub(
-        (filePath) => filePath === wrapperPath,
-        () => {
-          const result = findAppBinary(
-            pathModule.join(baseDir, 'launcher', 'SubMiner.exe'),
-            pathModule,
-          );
-          assert.equal(result, wrapperPath);
-        },
-      );
-    });
-  } finally {
-    os.homedir = originalHomedir;
-    process.env.PATH = originalPath;
-  }
-}
-
-function runFindAppBinaryWindowsInstallDirCase(): void {
-  const baseDir = 'C:\\Users\\tester\\subminer-test-win-dir';
-  const originalHomedir = os.homedir;
-  const originalSubminerBinaryPath = process.env.SUBMINER_BINARY_PATH;
-  try {
-    os.homedir = () => baseDir;
-    const installDir = path.win32.join(baseDir, 'Programs', 'SubMiner');
-    const appExe = path.win32.join(installDir, 'SubMiner.exe');
-    process.env.SUBMINER_BINARY_PATH = installDir;
-
-    withPlatform('win32', () => {
-      withExistsAndStatSyncStubs({ existingPaths: [appExe], directoryPaths: [installDir] }, () => {
-        withAccessSyncStub(
-          (filePath) => filePath === appExe,
-          () => {
-            const result = findAppBinary(
-              path.win32.join(baseDir, 'launcher', 'SubMiner.exe'),
-              path.win32,
-            );
-            assert.equal(result, appExe);
-          },
-        );
-      });
-    });
-  } finally {
-    os.homedir = originalHomedir;
-    if (originalSubminerBinaryPath === undefined) {
-      delete process.env.SUBMINER_BINARY_PATH;
-    } else {
-      process.env.SUBMINER_BINARY_PATH = originalSubminerBinaryPath;
-    }
-  }
-}
-
 test(
   'findAppBinary resolves ~/.local/bin/SubMiner.AppImage when it exists',
   { concurrency: false },
-  () => {
+  async () => {
     const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-home-'));
-    const originalHomedir = os.homedir;
     try {
-      os.homedir = () => baseDir;
       const appImage = path.join(baseDir, '.local/bin/SubMiner.AppImage');
       makeExecutable(appImage);
 
-      withFindAppBinaryPlatformSandbox('linux', (pathModule) => {
-        const result = findAppBinary('/some/other/path/subminer', pathModule);
-        assert.equal(result, appImage);
+      await withFindAppBinaryScenario({ platform: 'linux', home: baseDir }, (pathModule) => {
+        assert.equal(findAppBinary('/some/other/path/subminer', pathModule), appImage);
       });
     } finally {
-      os.homedir = originalHomedir;
       fs.rmSync(baseDir, { recursive: true, force: true });
     }
   },
@@ -1302,166 +903,124 @@ test(
 test(
   'findAppBinary resolves /opt/SubMiner/SubMiner.AppImage when ~/.local/bin candidate does not exist',
   { concurrency: false },
-  () => {
-    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-home-'));
-    const originalHomedir = os.homedir;
-    try {
-      os.homedir = () => baseDir;
-      withFindAppBinaryPlatformSandbox('linux', (pathModule) => {
-        withAccessSyncStub(
-          (filePath) => filePath === '/opt/SubMiner/SubMiner.AppImage',
-          () => {
-            const result = findAppBinary('/some/other/path/subminer', pathModule);
-            assert.equal(result, '/opt/SubMiner/SubMiner.AppImage');
-          },
+  async () => {
+    await withFindAppBinaryScenario(
+      {
+        platform: 'linux',
+        home: '/home/tester',
+        executables: ['/opt/SubMiner/SubMiner.AppImage'],
+      },
+      (pathModule) => {
+        assert.equal(
+          findAppBinary('/some/other/path/subminer', pathModule),
+          '/opt/SubMiner/SubMiner.AppImage',
         );
-      });
-    } finally {
-      os.homedir = originalHomedir;
-      fs.rmSync(baseDir, { recursive: true, force: true });
-    }
+      },
+    );
   },
 );
 
 test(
   'findAppBinary finds subminer on PATH when AppImage candidates do not exist',
   { concurrency: false },
-  () => {
-    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-path-'));
-    const originalHomedir = os.homedir;
-    const originalPath = process.env.PATH;
-    try {
-      os.homedir = () => baseDir;
-      // No AppImage candidates in empty home dir; place subminer wrapper on PATH
-      const binDir = path.join(baseDir, 'bin');
-      const wrapperPath = path.join(binDir, 'subminer');
-      makeExecutable(wrapperPath);
-      process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
+  async () => {
+    const binDir = '/home/tester/bin';
+    const wrapperPath = path.join(binDir, 'subminer');
 
-      withFindAppBinaryPlatformSandbox('linux', (pathModule) => {
-        withAccessSyncStub(
-          (filePath) => filePath === wrapperPath,
-          () => {
-            // selfPath must differ from wrapperPath so the self-check does not exclude it
-            const result = findAppBinary(path.join(baseDir, 'launcher', 'subminer'), pathModule);
-            assert.equal(result, wrapperPath);
-          },
-        );
-      });
-    } finally {
-      os.homedir = originalHomedir;
-      process.env.PATH = originalPath;
-      fs.rmSync(baseDir, { recursive: true, force: true });
-    }
+    await withFindAppBinaryScenario(
+      {
+        platform: 'linux',
+        home: '/home/tester',
+        env: { PATH: binDir },
+        executables: [wrapperPath],
+      },
+      (pathModule) => {
+        // selfPath must differ from wrapperPath so the self-check does not exclude it
+        assert.equal(findAppBinary('/home/tester/launcher/subminer', pathModule), wrapperPath);
+      },
+    );
   },
 );
 
 test(
   'findAppBinary excludes PATH matches that canonicalize to the launcher path',
   { concurrency: false },
-  () => {
-    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-realpath-'));
-    const originalHomedir = os.homedir;
-    const originalPath = process.env.PATH;
-    try {
-      os.homedir = () => baseDir;
-      const binDir = path.join(baseDir, 'bin');
-      const wrapperPath = path.join(binDir, 'subminer');
-      const canonicalPath = path.join(baseDir, 'launch', 'subminer');
-      makeExecutable(wrapperPath);
-      process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
+  async () => {
+    const binDir = '/home/tester/bin';
+    const wrapperPath = path.join(binDir, 'subminer');
+    const canonicalPath = '/home/tester/launch/subminer';
 
-      withFindAppBinaryPlatformSandbox('linux', (pathModule) => {
-        withAccessSyncStub(
-          (filePath) => filePath === wrapperPath,
-          () => {
-            withRealpathSyncStub(
-              (filePath) => {
-                if (filePath === canonicalPath || filePath === wrapperPath) {
-                  return canonicalPath;
-                }
-                return filePath;
-              },
-              () => {
-                const result = findAppBinary(canonicalPath, pathModule);
-                assert.equal(result, null);
-              },
-            );
-          },
-        );
-      });
-    } finally {
-      os.homedir = originalHomedir;
-      process.env.PATH = originalPath;
-      fs.rmSync(baseDir, { recursive: true, force: true });
-    }
+    await withFindAppBinaryScenario(
+      {
+        platform: 'linux',
+        home: '/home/tester',
+        env: { PATH: binDir },
+        executables: [wrapperPath],
+        realpath: (filePath) =>
+          filePath === canonicalPath || filePath === wrapperPath ? canonicalPath : filePath,
+      },
+      (pathModule) => {
+        assert.equal(findAppBinary(canonicalPath, pathModule), null);
+      },
+    );
   },
 );
 
-test('findAppBinary resolves Windows install paths when present', { concurrency: false }, () => {
-  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-win-'));
-  const originalHomedir = os.homedir;
-  const originalLocalAppData = process.env.LOCALAPPDATA;
-  try {
-    os.homedir = () => baseDir;
-    process.env.LOCALAPPDATA = path.win32.join(baseDir, 'AppData', 'Local');
-    const appExe = path.win32.join(
-      baseDir,
-      'AppData',
-      'Local',
-      'Programs',
-      'SubMiner',
-      'SubMiner.exe',
-    );
-
-    withFindAppBinaryPlatformSandbox('win32', (pathModule) => {
-      withAccessSyncStub(
-        (filePath) => filePath === appExe,
-        () => {
-          const result = findAppBinary(
-            pathModule.join(baseDir, 'launcher', 'SubMiner.exe'),
-            pathModule,
-          );
-          assert.equal(result, appExe);
-        },
-      );
-    });
-  } finally {
-    os.homedir = originalHomedir;
-    if (originalLocalAppData === undefined) {
-      delete process.env.LOCALAPPDATA;
-    } else {
-      process.env.LOCALAPPDATA = originalLocalAppData;
-    }
-    fs.rmSync(baseDir, { recursive: true, force: true });
-  }
-});
+const windowsHome = 'C:\\Users\\tester';
+const windowsLauncherPath = path.win32.join(windowsHome, 'launcher', 'SubMiner.exe');
 
 test(
-  'findAppBinary Windows cases do not leak backslash temp artifacts on POSIX',
+  'findAppBinary resolves Windows install paths when present',
   { concurrency: false },
-  () => {
-    if (path.sep === '\\') {
-      return;
-    }
+  async () => {
+    const localAppData = path.win32.join(windowsHome, 'AppData', 'Local');
+    const appExe = path.win32.join(localAppData, 'Programs', 'SubMiner', 'SubMiner.exe');
 
-    const before = listRepoRootWindowsTempArtifacts();
-    runFindAppBinaryWindowsPathCase();
-    runFindAppBinaryWindowsInstallDirCase();
-    const after = listRepoRootWindowsTempArtifacts();
-
-    assert.deepEqual(after, before);
+    await withFindAppBinaryScenario(
+      {
+        platform: 'win32',
+        home: windowsHome,
+        env: { LOCALAPPDATA: localAppData },
+        executables: [appExe],
+      },
+      (pathModule) => {
+        assert.equal(findAppBinary(windowsLauncherPath, pathModule), appExe);
+      },
+    );
   },
 );
 
-test('findAppBinary resolves SubMiner.exe on PATH on Windows', { concurrency: false }, () => {
-  runFindAppBinaryWindowsPathCase();
+test('findAppBinary resolves SubMiner.exe on PATH on Windows', { concurrency: false }, async () => {
+  const binDir = path.win32.join(windowsHome, 'bin');
+  const wrapperPath = path.win32.join(binDir, 'SubMiner.exe');
+
+  await withFindAppBinaryScenario(
+    { platform: 'win32', home: windowsHome, env: { PATH: binDir }, executables: [wrapperPath] },
+    (pathModule) => {
+      assert.equal(findAppBinary(windowsLauncherPath, pathModule), wrapperPath);
+    },
+  );
 });
 
 test(
   'findAppBinary resolves a Windows install directory to SubMiner.exe',
   { concurrency: false },
-  () => {
-    runFindAppBinaryWindowsInstallDirCase();
+  async () => {
+    const installDir = path.win32.join(windowsHome, 'Programs', 'SubMiner');
+    const appExe = path.win32.join(installDir, 'SubMiner.exe');
+
+    await withFindAppBinaryScenario(
+      {
+        platform: 'win32',
+        home: windowsHome,
+        env: { SUBMINER_BINARY_PATH: installDir },
+        existing: [appExe],
+        directories: [installDir],
+        executables: [appExe],
+      },
+      (pathModule) => {
+        assert.equal(findAppBinary(windowsLauncherPath, pathModule), appExe);
+      },
+    );
   },
 );

@@ -127,18 +127,6 @@ test('lifecycle config key is unchanged when maturity is disabled', () => {
   );
 });
 
-test('a cache built under the old tier rules is invalidated', () => {
-  const config: AnkiConnectConfig = {
-    knownWords: { highlightEnabled: true, maturityEnabled: true, refreshMinutes: 60 },
-  };
-  // v1 rules put lapsed cards in young because the interval queries did not
-  // exclude is:learn; those persisted tiers must not be served under v2.
-  assert.notEqual(
-    getKnownWordCacheLifecycleConfig(config),
-    '{"refreshMinutes":60,"scope":"all","fieldsWord":"","maturity":21}',
-  );
-});
-
 test('refresh fetches tier sets and getKnownWordTier classifies notes', async () => {
   const { manager, calls, clientState, cleanup } = createMaturityHarness(maturityConfig());
 

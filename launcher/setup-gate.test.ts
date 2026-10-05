@@ -3,104 +3,90 @@ import assert from 'node:assert/strict';
 import { ensureLauncherSetupReady, waitForSetupCompletion } from './setup-gate';
 import type { SetupState } from '../src/shared/setup-state';
 
-const commandLineSetupDefaults = {
-  bunInstallStatus: 'unknown',
-  launcherInstallStatus: 'unknown',
-  launcherInstallPath: null,
-} satisfies Pick<SetupState, 'bunInstallStatus' | 'launcherInstallStatus' | 'launcherInstallPath'>;
+/** An in-progress setup state; tests override only the fields that matter. */
+function makeState(overrides: Partial<SetupState> = {}): SetupState {
+  return {
+    version: 4,
+    status: 'in_progress',
+    completedAt: null,
+    completionSource: null,
+    yomitanSetupMode: null,
+    lastSeenYomitanDictionaryCount: 0,
+    pluginInstallStatus: 'unknown',
+    pluginInstallPathSummary: null,
+    windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+    windowsMpvShortcutLastStatus: 'unknown',
+    bunInstallStatus: 'unknown',
+    launcherInstallStatus: 'unknown',
+    launcherInstallPath: null,
+    ...overrides,
+  };
+}
 
-test('waitForSetupCompletion resolves completed and cancelled states', async () => {
-  const sequence: Array<SetupState | null> = [
-    null,
-    {
-      version: 4,
-      status: 'in_progress',
-      completedAt: null,
-      completionSource: null,
-      yomitanSetupMode: null,
-      lastSeenYomitanDictionaryCount: 0,
-      pluginInstallStatus: 'unknown',
-      pluginInstallPathSummary: null,
-      windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-      windowsMpvShortcutLastStatus: 'unknown',
-      ...commandLineSetupDefaults,
-    },
-    {
-      version: 4,
-      status: 'completed',
-      completedAt: '2026-03-07T00:00:00.000Z',
-      completionSource: 'user',
-      yomitanSetupMode: 'internal',
-      lastSeenYomitanDictionaryCount: 1,
-      pluginInstallStatus: 'skipped',
-      pluginInstallPathSummary: null,
-      windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-      windowsMpvShortcutLastStatus: 'skipped',
-      ...commandLineSetupDefaults,
-    },
-  ];
+function completedState(overrides: Partial<SetupState> = {}): SetupState {
+  return makeState({
+    status: 'completed',
+    completedAt: '2026-03-07T00:00:00.000Z',
+    completionSource: 'user',
+    yomitanSetupMode: 'internal',
+    lastSeenYomitanDictionaryCount: 1,
+    ...overrides,
+  });
+}
 
-  const result = await waitForSetupCompletion({
-    readSetupState: () => sequence.shift() ?? null,
+const cancelledState = () => makeState({ status: 'cancelled' });
+
+/** Deterministic clock: every `now()` advances 100ms and `sleep` returns immediately. */
+function fakeClock() {
+  let value = 0;
+  return {
     sleep: async () => undefined,
-    now: (() => {
-      let value = 0;
-      return () => (value += 100);
-    })(),
+    now: () => (value += 100),
     timeoutMs: 5_000,
     pollIntervalMs: 100,
-  });
+  };
+}
 
-  assert.equal(result, 'completed');
-});
+/** Reader that serves `states` in order, then repeats the last one; counts its reads. */
+function sequenceReader(states: Array<SetupState | null>) {
+  const reader = {
+    reads: 0,
+    read: (): SetupState | null => states[Math.min(reader.reads++, states.length - 1)] ?? null,
+  };
+  return reader;
+}
+
+for (const c of [
+  { name: 'completed', last: completedState(), expected: 'completed' },
+  { name: 'cancelled', last: cancelledState(), expected: 'cancelled' },
+] as const) {
+  test(`waitForSetupCompletion resolves ${c.name} state after polling through earlier states`, async () => {
+    const reader = sequenceReader([null, makeState(), c.last]);
+
+    const result = await waitForSetupCompletion({
+      readSetupState: reader.read,
+      ...fakeClock(),
+    });
+
+    assert.equal(result, c.expected);
+    assert.equal(reader.reads, 3);
+  });
+}
 
 test('ensureLauncherSetupReady launches setup app and resumes only after completion', async () => {
   const calls: string[] = [];
-  let reads = 0;
+  const reader = sequenceReader([
+    null,
+    makeState(),
+    completedState({ pluginInstallStatus: 'installed', pluginInstallPathSummary: '/tmp/mpv' }),
+  ]);
 
   const ready = await ensureLauncherSetupReady({
-    readSetupState: () => {
-      reads += 1;
-      if (reads === 1) return null;
-      if (reads === 2) {
-        return {
-          version: 4,
-          status: 'in_progress',
-          completedAt: null,
-          completionSource: null,
-          yomitanSetupMode: null,
-          lastSeenYomitanDictionaryCount: 0,
-          pluginInstallStatus: 'unknown',
-          pluginInstallPathSummary: null,
-          windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-          windowsMpvShortcutLastStatus: 'unknown',
-          ...commandLineSetupDefaults,
-        };
-      }
-      return {
-        version: 4,
-        status: 'completed',
-        completedAt: '2026-03-07T00:00:00.000Z',
-        completionSource: 'user',
-        yomitanSetupMode: 'internal',
-        lastSeenYomitanDictionaryCount: 1,
-        pluginInstallStatus: 'installed',
-        pluginInstallPathSummary: '/tmp/mpv',
-        windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-        windowsMpvShortcutLastStatus: 'installed',
-        ...commandLineSetupDefaults,
-      };
-    },
+    readSetupState: reader.read,
     launchSetupApp: () => {
       calls.push('launch');
     },
-    sleep: async () => undefined,
-    now: (() => {
-      let value = 0;
-      return () => (value += 100);
-    })(),
-    timeoutMs: 5_000,
-    pollIntervalMs: 100,
+    ...fakeClock(),
   });
 
   assert.equal(ready, true);
@@ -116,10 +102,7 @@ test('ensureLauncherSetupReady bypasses setup gate when external yomitan is conf
     launchSetupApp: () => {
       calls.push('launch');
     },
-    sleep: async () => undefined,
-    now: () => 0,
-    timeoutMs: 5_000,
-    pollIntervalMs: 100,
+    ...fakeClock(),
   });
 
   assert.equal(ready, true);
@@ -129,76 +112,47 @@ test('ensureLauncherSetupReady bypasses setup gate when external yomitan is conf
 test('ensureLauncherSetupReady waits for finish after legacy mpv plugin removal', async () => {
   const calls: string[] = [];
   let legacyPluginInstalled = true;
-  let reads = 0;
+  // The completion timestamp moves forward once the setup app has finished.
+  const reader = sequenceReader([
+    completedState({ yomitanSetupMode: null, lastSeenYomitanDictionaryCount: 0 }),
+    completedState({ yomitanSetupMode: null, lastSeenYomitanDictionaryCount: 0 }),
+    completedState({
+      completedAt: '2026-05-12T14:40:00.000Z',
+      yomitanSetupMode: null,
+      lastSeenYomitanDictionaryCount: 0,
+    }),
+  ]);
 
   const ready = await ensureLauncherSetupReady({
-    readSetupState: () => {
-      reads += 1;
-      return {
-        version: 4,
-        status: 'completed',
-        completedAt: reads < 3 ? '2026-03-07T00:00:00.000Z' : '2026-05-12T14:40:00.000Z',
-        completionSource: 'user',
-        yomitanSetupMode: null,
-        lastSeenYomitanDictionaryCount: 0,
-        pluginInstallStatus: 'unknown',
-        pluginInstallPathSummary: null,
-        windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-        windowsMpvShortcutLastStatus: 'unknown',
-        ...commandLineSetupDefaults,
-      };
-    },
+    readSetupState: reader.read,
     hasLegacyMpvPlugin: () => legacyPluginInstalled,
     launchSetupApp: () => {
       calls.push('launch');
       legacyPluginInstalled = false;
     },
-    sleep: async () => undefined,
-    now: (() => {
-      let value = 0;
-      return () => (value += 100);
-    })(),
-    timeoutMs: 5_000,
-    pollIntervalMs: 100,
+    ...fakeClock(),
   });
 
   assert.equal(ready, true);
   assert.deepEqual(calls, ['launch']);
-  assert.equal(reads >= 3, true);
+  assert.equal(reader.reads >= 3, true);
 });
 
 test('ensureLauncherSetupReady lets users continue without removing a legacy mpv plugin', async () => {
   const calls: string[] = [];
-  let reads = 0;
+  const reader = sequenceReader([
+    completedState({ lastSeenYomitanDictionaryCount: 2 }),
+    completedState({ lastSeenYomitanDictionaryCount: 2 }),
+    completedState({ completedAt: '2026-05-12T14:30:00.000Z', lastSeenYomitanDictionaryCount: 2 }),
+  ]);
 
   const ready = await ensureLauncherSetupReady({
-    readSetupState: () => {
-      reads += 1;
-      return {
-        version: 4,
-        status: 'completed',
-        completedAt: reads < 3 ? '2026-03-07T00:00:00.000Z' : '2026-05-12T14:30:00.000Z',
-        completionSource: 'user',
-        yomitanSetupMode: 'internal',
-        lastSeenYomitanDictionaryCount: 2,
-        pluginInstallStatus: 'unknown',
-        pluginInstallPathSummary: null,
-        windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-        windowsMpvShortcutLastStatus: 'unknown',
-        ...commandLineSetupDefaults,
-      };
-    },
+    readSetupState: reader.read,
     hasLegacyMpvPlugin: () => true,
     launchSetupApp: () => {
       calls.push('launch');
     },
-    sleep: async () => undefined,
-    now: (() => {
-      let value = 0;
-      return () => (value += 100);
-    })(),
-    timeoutMs: 5_000,
-    pollIntervalMs: 100,
+    ...fakeClock(),
   });
 
   assert.equal(ready, true);
@@ -207,90 +161,30 @@ test('ensureLauncherSetupReady lets users continue without removing a legacy mpv
 
 test('ensureLauncherSetupReady fails on timeout/cancelled state', async () => {
   const result = await ensureLauncherSetupReady({
-    readSetupState: () => ({
-      version: 4,
-      status: 'cancelled',
-      completedAt: null,
-      completionSource: null,
-      yomitanSetupMode: null,
-      lastSeenYomitanDictionaryCount: 0,
-      pluginInstallStatus: 'unknown',
-      pluginInstallPathSummary: null,
-      windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-      windowsMpvShortcutLastStatus: 'unknown',
-      ...commandLineSetupDefaults,
-    }),
+    readSetupState: cancelledState,
     launchSetupApp: () => undefined,
-    sleep: async () => undefined,
-    now: (() => {
-      let value = 0;
-      return () => (value += 100);
-    })(),
-    timeoutMs: 5_000,
-    pollIntervalMs: 100,
+    ...fakeClock(),
   });
 
   assert.equal(result, false);
 });
 
 test('ensureLauncherSetupReady ignores stale cancelled state after launching setup app', async () => {
-  let reads = 0;
+  const reader = sequenceReader([
+    cancelledState(),
+    cancelledState(),
+    makeState(),
+    completedState({
+      completionSource: 'legacy_auto_detected',
+      pluginInstallStatus: 'installed',
+      pluginInstallPathSummary: '/tmp/mpv',
+    }),
+  ]);
 
   const result = await ensureLauncherSetupReady({
-    readSetupState: () => {
-      reads += 1;
-      if (reads <= 2) {
-        return {
-          version: 4,
-          status: 'cancelled',
-          completedAt: null,
-          completionSource: null,
-          yomitanSetupMode: null,
-          lastSeenYomitanDictionaryCount: 0,
-          pluginInstallStatus: 'unknown',
-          pluginInstallPathSummary: null,
-          windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-          windowsMpvShortcutLastStatus: 'unknown',
-          ...commandLineSetupDefaults,
-        };
-      }
-      if (reads === 3) {
-        return {
-          version: 4,
-          status: 'in_progress',
-          completedAt: null,
-          completionSource: null,
-          yomitanSetupMode: null,
-          lastSeenYomitanDictionaryCount: 0,
-          pluginInstallStatus: 'unknown',
-          pluginInstallPathSummary: null,
-          windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-          windowsMpvShortcutLastStatus: 'unknown',
-          ...commandLineSetupDefaults,
-        };
-      }
-      return {
-        version: 4,
-        status: 'completed',
-        completedAt: '2026-03-07T00:00:00.000Z',
-        completionSource: 'legacy_auto_detected',
-        yomitanSetupMode: 'internal',
-        lastSeenYomitanDictionaryCount: 1,
-        pluginInstallStatus: 'installed',
-        pluginInstallPathSummary: '/tmp/mpv',
-        windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
-        windowsMpvShortcutLastStatus: 'unknown',
-        ...commandLineSetupDefaults,
-      };
-    },
+    readSetupState: reader.read,
     launchSetupApp: () => undefined,
-    sleep: async () => undefined,
-    now: (() => {
-      let value = 0;
-      return () => (value += 100);
-    })(),
-    timeoutMs: 5_000,
-    pollIntervalMs: 100,
+    ...fakeClock(),
   });
 
   assert.equal(result, true);

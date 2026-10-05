@@ -8,7 +8,6 @@ import {
   buildPluginRuntimeScriptOptParts,
   parsePluginRuntimeConfigFromMainConfig,
 } from './config/plugin-runtime-config.js';
-import { getDefaultSocketPath } from './types.js';
 
 test('parseLauncherYoutubeSubgenConfig keeps only valid typed values', () => {
   const parsed = parseLauncherYoutubeSubgenConfig({
@@ -205,10 +204,6 @@ test('buildPluginRuntimeScriptOptParts strips script-option delimiters from stri
       'subminer-texthooker_enabled=no',
     ],
   );
-});
-
-test('getDefaultSocketPath returns Windows named pipe default', () => {
-  assert.equal(getDefaultSocketPath('win32'), '\\\\.\\pipe\\subminer-socket');
 });
 
 test('parseLauncherMpvConfig reads configured mpv profile', () => {

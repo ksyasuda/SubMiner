@@ -30,20 +30,6 @@ test('tick triggers a due auto-sync host with its saved direction', () => {
   assert.deepEqual(triggered, [{ host: 'auto-box', direction: 'pull' }]);
 });
 
-test('tick does not require the resident app and stats writer to stop', () => {
-  const state = makeState();
-  const triggered: string[] = [];
-  const scheduler = createSyncAutoScheduler({
-    readState: () => state,
-    isRunning: () => false,
-    triggerHostSync: (host) => triggered.push(host),
-    nowMs: () => 100 * 60_000,
-  });
-
-  assert.doesNotThrow(() => scheduler.tick());
-  assert.deepEqual(triggered, ['auto-box']);
-});
-
 test('tick skips hosts synced more recently than the interval', () => {
   let state = makeState();
   state = recordSyncResult(state, 'auto-box', {

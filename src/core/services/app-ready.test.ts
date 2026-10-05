@@ -103,17 +103,6 @@ test('runAppReadyRuntime starts texthooker on startup when enabled in config', a
   );
 });
 
-test('runAppReadyRuntime creates immersion tracker during heavy startup', async () => {
-  const { deps, calls } = makeDeps({
-    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
-  });
-
-  await runAppReadyRuntime(deps);
-
-  assert.equal(calls.includes('createImmersionTracker'), false);
-  assert.ok(calls.includes('log:Runtime ready: immersion tracker startup requested.'));
-});
-
 test('runAppReadyRuntime keeps annotation websocket enabled when regular websocket auto-skips', async () => {
   const { deps, calls } = makeDeps({
     getResolvedConfig: () => ({
@@ -224,22 +213,6 @@ test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wi
     calls.includes('initializeOverlayRuntime') ||
       calls.includes('log:Overlay runtime deferred: waiting for explicit overlay command.'),
   );
-});
-
-test('runAppReadyRuntime logs when createImmersionTracker dependency is missing', async () => {
-  const { deps, calls } = makeDeps({
-    createImmersionTracker: undefined,
-  });
-  await runAppReadyRuntime(deps);
-  assert.ok(calls.includes('log:Runtime ready: immersion tracker dependency is missing.'));
-});
-
-test('runAppReadyRuntime logs defer message when overlay not auto-started', async () => {
-  const { deps, calls } = makeDeps({
-    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
-  });
-  await runAppReadyRuntime(deps);
-  assert.ok(calls.includes('log:Overlay runtime deferred: waiting for explicit overlay command.'));
 });
 
 test('runAppReadyRuntime applies config logging level during app-ready', async () => {

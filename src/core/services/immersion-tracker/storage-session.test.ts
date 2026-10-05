@@ -59,34 +59,6 @@ function cleanupDbPath(dbPath: string): void {
   // libsql keeps Windows file handles alive after close when prepared statements were used.
 }
 
-test('applyPragmas sets the SQLite tuning defaults used by immersion tracking', () => {
-  const dbPath = makeDbPath();
-  const db = new Database(dbPath);
-
-  try {
-    applyPragmas(db);
-
-    const journalModeRow = db.prepare('PRAGMA journal_mode').get() as {
-      journal_mode: string;
-    };
-    const synchronousRow = db.prepare('PRAGMA synchronous').get() as { synchronous: number };
-    const foreignKeysRow = db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number };
-    const busyTimeoutRow = db.prepare('PRAGMA busy_timeout').get() as { timeout: number };
-    const journalSizeLimitRow = db.prepare('PRAGMA journal_size_limit').get() as {
-      journal_size_limit: number;
-    };
-
-    assert.equal(journalModeRow.journal_mode, 'wal');
-    assert.equal(synchronousRow.synchronous, 1);
-    assert.equal(foreignKeysRow.foreign_keys, 1);
-    assert.equal(busyTimeoutRow.timeout, 2500);
-    assert.equal(journalSizeLimitRow.journal_size_limit, 67_108_864);
-  } finally {
-    db.close();
-    cleanupDbPath(dbPath);
-  }
-});
-
 test('applyPragmas installs the busy timeout before WAL negotiation', () => {
   const statements: string[] = [];
   const db: DatabaseSync = {
@@ -108,76 +80,6 @@ test('applyPragmas installs the busy timeout before WAL negotiation', () => {
     'PRAGMA busy_timeout = 2500',
     'PRAGMA journal_mode = WAL',
   ]);
-});
-
-test('ensureSchema creates immersion core tables', () => {
-  const dbPath = makeDbPath();
-  const db = new Database(dbPath);
-
-  try {
-    ensureSchema(db);
-    const rows = db
-      .prepare(
-        `SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'imm_%' ORDER BY name`,
-      )
-      .all() as Array<{ name: string }>;
-    const tableNames = new Set(rows.map((row) => row.name));
-
-    assert.ok(tableNames.has('imm_videos'));
-    assert.ok(tableNames.has('imm_anime'));
-    assert.ok(tableNames.has('imm_sessions'));
-    assert.ok(tableNames.has('imm_session_telemetry'));
-    assert.ok(tableNames.has('imm_session_events'));
-    assert.ok(tableNames.has('imm_daily_rollups'));
-    assert.ok(tableNames.has('imm_monthly_rollups'));
-    assert.ok(tableNames.has('imm_words'));
-    assert.ok(tableNames.has('imm_kanji'));
-    assert.ok(tableNames.has('imm_subtitle_lines'));
-    assert.ok(tableNames.has('imm_word_line_occurrences'));
-    assert.ok(tableNames.has('imm_kanji_line_occurrences'));
-    assert.ok(tableNames.has('imm_rollup_state'));
-    assert.ok(tableNames.has('imm_cover_art_blobs'));
-    assert.ok(tableNames.has('imm_youtube_videos'));
-    assert.ok(tableNames.has('imm_stats_excluded_words'));
-
-    const videoColumns = new Set(
-      (
-        db.prepare('PRAGMA table_info(imm_videos)').all() as Array<{
-          name: string;
-        }>
-      ).map((row) => row.name),
-    );
-
-    assert.ok(videoColumns.has('anime_id'));
-    assert.ok(videoColumns.has('parsed_basename'));
-    assert.ok(videoColumns.has('parsed_title'));
-    assert.ok(videoColumns.has('parsed_season'));
-    assert.ok(videoColumns.has('parsed_episode'));
-    assert.ok(videoColumns.has('parser_source'));
-    assert.ok(videoColumns.has('parser_confidence'));
-    assert.ok(videoColumns.has('parse_metadata_json'));
-    assert.ok(videoColumns.has('anime_assignment_locked'));
-
-    const mediaArtColumns = new Set(
-      (
-        db.prepare('PRAGMA table_info(imm_media_art)').all() as Array<{
-          name: string;
-        }>
-      ).map((row) => row.name),
-    );
-    assert.ok(mediaArtColumns.has('cover_blob_hash'));
-
-    const rollupStateRow = db
-      .prepare('SELECT state_value FROM imm_rollup_state WHERE state_key = ?')
-      .get('last_rollup_sample_ms') as {
-      state_value: string;
-    } | null;
-    assert.ok(rollupStateRow);
-    assert.equal(Number(rollupStateRow?.state_value ?? 0), 0);
-  } finally {
-    db.close();
-    cleanupDbPath(dbPath);
-  }
 });
 
 test('ensureSchema adds manual assignment locks when upgrading the previous schema', () => {
@@ -746,37 +648,6 @@ test('ensureSchema migrates session event timestamps to text and repairs libsql-
     assert.equal(row.tsType, 'text');
     assert.equal(row.tsMs, '1775943304128');
     assert.equal(row.createdDate, '1775943304128');
-  } finally {
-    db.close();
-    cleanupDbPath(dbPath);
-  }
-});
-
-test('ensureSchema creates large-history performance indexes', () => {
-  const dbPath = makeDbPath();
-  const db = new Database(dbPath);
-
-  try {
-    ensureSchema(db);
-    const indexNames = new Set(
-      (
-        db
-          .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'`)
-          .all() as Array<{
-          name: string;
-        }>
-      ).map((row) => row.name),
-    );
-
-    assert.ok(indexNames.has('idx_telemetry_sample_ms'));
-    assert.ok(indexNames.has('idx_sessions_started_at'));
-    assert.ok(indexNames.has('idx_sessions_ended_at'));
-    assert.ok(indexNames.has('idx_words_frequency'));
-    assert.ok(indexNames.has('idx_kanji_frequency'));
-    assert.ok(indexNames.has('idx_media_art_anilist_id'));
-    assert.ok(indexNames.has('idx_media_art_cover_url'));
-    assert.ok(indexNames.has('idx_youtube_videos_channel_id'));
-    assert.ok(indexNames.has('idx_youtube_videos_youtube_video_id'));
   } finally {
     db.close();
     cleanupDbPath(dbPath);

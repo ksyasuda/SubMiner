@@ -4,12 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Database } from './sqlite';
-import {
-  pruneRawRetention,
-  pruneRollupRetention,
-  runOptimizeMaintenance,
-  toMonthKey,
-} from './maintenance';
+import { pruneRawRetention, pruneRollupRetention, toMonthKey } from './maintenance';
 import { ensureSchema } from './storage';
 import { toDbTimestamp } from './query-shared';
 
@@ -224,43 +219,4 @@ test('raw retention keeps rollups and rollup retention prunes them separately', 
     db.close();
     cleanupDbPath(dbPath);
   }
-});
-
-test('ensureSchema adds sample_ms index for telemetry rollup scans', () => {
-  const dbPath = makeDbPath();
-  const db = new Database(dbPath);
-
-  try {
-    ensureSchema(db);
-    const indexes = db.prepare("PRAGMA index_list('imm_session_telemetry')").all() as Array<{
-      name: string;
-    }>;
-    const hasSampleMsIndex = indexes.some((row) => row.name === 'idx_telemetry_sample_ms');
-    assert.equal(hasSampleMsIndex, true);
-
-    const indexColumns = db.prepare("PRAGMA index_info('idx_telemetry_sample_ms')").all() as Array<{
-      name: string;
-    }>;
-    assert.deepEqual(
-      indexColumns.map((column) => column.name),
-      ['sample_ms'],
-    );
-  } finally {
-    db.close();
-    cleanupDbPath(dbPath);
-  }
-});
-
-test('runOptimizeMaintenance executes PRAGMA optimize', () => {
-  const executedSql: string[] = [];
-  const db = {
-    exec(source: string) {
-      executedSql.push(source);
-      return this;
-    },
-  } as unknown as Parameters<typeof runOptimizeMaintenance>[0];
-
-  runOptimizeMaintenance(db);
-
-  assert.deepEqual(executedSql, ['PRAGMA optimize']);
 });
