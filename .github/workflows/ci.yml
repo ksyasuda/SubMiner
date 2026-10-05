@@ -60,7 +60,12 @@ jobs:
 
       - name: Install mpv and ffmpeg (Windows)
         if: runner.os == 'Windows'
-        run: choco install mpv ffmpeg -y --no-progress
+        run: |
+          choco install mpv ffmpeg -y --no-progress
+          # The mpv package adds no shim, so put its directory on PATH for later steps.
+          mpv_exe="$(find /c/ProgramData/chocolatey/lib /c/ProgramData/chocolatey/bin "/c/Program Files" /c/tools -maxdepth 6 -iname mpv.exe 2>/dev/null | head -n 1)"
+          test -n "$mpv_exe"
+          cygpath -w "$(dirname "$mpv_exe")" >> "$GITHUB_PATH"
 
       - name: Install dependencies
         run: |

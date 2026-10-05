@@ -14,7 +14,8 @@ export function applyEnvDelta(base: NodeJS.ProcessEnv, ...deltas: EnvDelta[]): N
 
 /** Terminates a child and waits for it to exit, escalating to SIGKILL after `graceMs`. */
 export async function stopProcess(child: ChildProcess, graceMs = 5_000): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return;
+  // A child that never spawned (missing binary) has no pid and never emits exit.
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
   const exited = once(child, 'exit');
   child.kill();
   const timer = setTimeout(() => child.kill('SIGKILL'), graceMs);

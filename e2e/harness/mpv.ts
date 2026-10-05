@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { once } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
 import type { E2eDisplay } from './display';
@@ -14,13 +15,13 @@ export type MpvClient = {
 
 type MpvReply = { request_id?: number; error?: string; data?: unknown };
 
-export function startMpv(options: {
+export async function startMpv(options: {
   socketPath: string;
   mediaPath: string;
   subtitlePath: string;
   logPath: string;
   display: E2eDisplay;
-}): ChildProcess {
+}): Promise<ChildProcess> {
   const log = fs.openSync(options.logPath, 'w');
   const child = spawn(
     'mpv',
@@ -40,6 +41,12 @@ export function startMpv(options: {
     { env: applyEnvDelta(process.env, options.display.env), stdio: ['ignore', log, log] },
   );
   fs.closeSync(log);
+  await Promise.race([
+    once(child, 'spawn'),
+    once(child, 'error').then(([error]) => {
+      throw new Error(`Could not start mpv (${String(error)}). Is it on PATH?`);
+    }),
+  ]);
   return child;
 }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
-import type { CdpPage } from './harness/cdp';
+import { connectCdpPage, listCdpTargets, type CdpPage } from './harness/cdp';
 import { FAKE_ANKI_DECK, FAKE_ANKI_MODEL } from './harness/fake-anki';
 import { FIXTURE_CUES } from './harness/fixtures';
 import { OVERLAY_PAGE, startE2eSession, type E2eSession } from './harness/session';
@@ -141,11 +141,27 @@ test(
       `document.querySelector('[data-subminer-yomitan-popup-visible="true"]') !== null`,
       { description: 'overlay to mark the Yomitan popup visible' },
     );
-    const popup = await session.openPage('popup.html');
-    const entry = await popup.waitFor<string>(
-      `document.body.innerText.includes('weather') && document.body.innerText`,
-      { description: 'popup to show the fixture dictionary entry' },
-    );
+    // Yomitan keeps more than one popup frame around, so read whichever
+    // one holds the entry instead of trusting target order.
+    let seen: string[] = [];
+    const entry = await waitUntil(
+      async () => {
+        const targets = (await listCdpTargets(session.cdpPort)).filter((target) =>
+          target.url.includes('popup.html'),
+        );
+        seen = [];
+        for (const target of targets) {
+          const frame = await connectCdpPage(target);
+          const text = await frame.evaluate<string>('document.body?.innerText ?? ""');
+          frame.close();
+          seen.push(text);
+        }
+        return seen.find((text) => text.includes('weather'));
+      },
+      { description: 'a popup frame to show the fixture dictionary entry' },
+    ).catch((error: unknown) => {
+      throw new Error(`Popup frames held: ${JSON.stringify(seen)}`, { cause: error });
+    });
     await overlay.send('Input.dispatchKeyEvent', { type: 'keyUp', ...shift });
     assert.match(entry, /天気/);
   },

@@ -246,7 +246,7 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
     settings.close();
     await stopProcess(seeder.child);
 
-    const mpvProcess = startMpv({
+    const mpvProcess = await startMpv({
       socketPath: mpvSocketPath,
       mediaPath,
       subtitlePath,
