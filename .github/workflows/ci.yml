@@ -26,10 +26,6 @@ jobs:
       run:
         shell: bash
     env:
-      # os.tmpdir() follows these, which puts the kept session logs somewhere uploadable.
-      TMPDIR: ${{ runner.temp }}/e2e
-      TEMP: ${{ runner.temp }}/e2e
-      TMP: ${{ runner.temp }}/e2e
       SUBMINER_E2E_KEEP: '1'
     steps:
       - name: Checkout
@@ -43,8 +39,12 @@ jobs:
         with:
           bun-version: 1.3.5
 
-      - name: Create temp directory
-        run: mkdir -p "$TMPDIR"
+      - name: Point temp files at an uploadable directory
+        run: |
+          # os.tmpdir() follows these, so the kept session logs land under runner.temp.
+          dir="$RUNNER_TEMP/e2e"
+          mkdir -p "$dir"
+          { echo "TMPDIR=$dir"; echo "TEMP=$dir"; echo "TMP=$dir"; } >> "$GITHUB_ENV"
 
       - name: Install mpv and ffmpeg (Linux)
         if: runner.os == 'Linux'
