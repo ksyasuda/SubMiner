@@ -324,6 +324,42 @@ test('buildFirstRunSetupHtml reports a broken included runtime in the optional l
   );
 });
 
+// The AppImage catalog test OCRs this fresh-install state and fails on "not installed".
+test('buildFirstRunSetupHtml labels a missing launcher without error-message wording', () => {
+  const html = buildFirstRunSetupHtml({
+    configReady: true,
+    dictionaryCount: 0,
+    canFinish: false,
+    externalYomitanConfigured: false,
+    pluginStatus: 'required',
+    pluginInstallPathSummary: null,
+    mpvExecutablePath: '',
+    mpvExecutablePathStatus: 'blank',
+    windowsMpvShortcuts: {
+      supported: false,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
+    commandLineLauncher: createCommandLineLauncherSnapshot({
+      bun: {
+        status: 'ready',
+        commandPath: '/tmp/.mount_SubMiner/resources/bun',
+        version: '1.3.0',
+        installMethod: null,
+        installCommand: null,
+        message: null,
+      },
+    }),
+    message: null,
+  });
+
+  assert.match(html, /<span class="badge warn">Not set up<\/span>/);
+  assert.doesNotMatch(html, /not installed/i);
+});
+
 test('buildFirstRunSetupHtml disables launcher install when no target is installable', () => {
   const html = buildFirstRunSetupHtml({
     configReady: true,
