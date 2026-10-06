@@ -95,7 +95,10 @@ async function start(): Promise<void> {
     ankiUrl: session.anki.url,
     target: session.target,
   };
-  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+  // The state file grants main-process code evaluation via inspectorUrl, so keep it
+  // owner-only (mode applies on create, hence the rm of any stale file first).
+  fs.rmSync(stateFile, { force: true });
+  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), { mode: 0o600 });
   console.log(JSON.stringify(state, null, 2));
 
   await new Promise<void>((resolve) => {

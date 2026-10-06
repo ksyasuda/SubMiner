@@ -103,8 +103,8 @@ function resolveElectronBinary(): string {
 }
 
 // Electron announces its main-process inspector on stderr; `offset` skips earlier launches.
-function readInspectorUrl(logPath: string, offset: number): string | null {
-  const tail = fs.readFileSync(logPath, 'utf8').slice(offset);
+function readInspectorUrl(logPath: string, byteOffset: number): string | null {
+  const tail = fs.readFileSync(logPath).subarray(byteOffset).toString('utf8');
   return /Debugger listening on (ws:\/\/\S+)/.exec(tail)?.[1] ?? null;
 }
 

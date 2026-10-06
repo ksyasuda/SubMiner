@@ -63,18 +63,23 @@ async function showCue(cue: (typeof FIXTURE_CUES)[number]): Promise<RenderedToke
           errorToast: document.getElementById('overlayErrorToast')?.textContent,
         }))()`,
       );
-      const main = await session.mainProcess();
-      const windows = await main.evaluate<string>(
-        `JSON.stringify(process.mainModule.require('electron').BrowserWindow.getAllWindows().map((w) => ({
-          id: w.id,
-          title: w.getTitle(),
-          url: w.webContents.getURL().split('/').pop(),
-          visible: w.isVisible(),
-          loading: w.webContents.isLoading(),
-          documentLoaded: w.__subminerOverlayDocumentLoaded,
-          contentReady: w.__subminerOverlayContentReady,
-        })))`,
-      );
+      // Diagnostics must not replace the cue failure if the inspector is gone too.
+      const windows = await session
+        .mainProcess()
+        .then((main) =>
+          main.evaluate<string>(
+            `JSON.stringify(process.mainModule.require('electron').BrowserWindow.getAllWindows().map((w) => ({
+              id: w.id,
+              title: w.getTitle(),
+              url: w.webContents.getURL().split('/').pop(),
+              visible: w.isVisible(),
+              loading: w.webContents.isLoading(),
+              documentLoaded: w.__subminerOverlayDocumentLoaded,
+              contentReady: w.__subminerOverlayContentReady,
+            })))`,
+          ),
+        )
+        .catch((inspectorError: unknown) => `unavailable (${String(inspectorError)})`);
       const targets = (await listCdpTargets(session.cdpPort))
         .filter((t) => t.type === 'page')
         .map((t) => t.url.split('/').pop());
