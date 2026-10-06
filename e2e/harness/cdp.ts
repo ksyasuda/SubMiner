@@ -61,15 +61,18 @@ export async function listCdpTargets(port: number): Promise<CdpTarget[]> {
   return (await response.json()) as CdpTarget[];
 }
 
-export async function connectCdpPage(target: CdpTarget): Promise<CdpPage> {
-  const socket = new WebSocket(target.webSocketDebuggerUrl);
+export function connectCdpPage(target: CdpTarget): Promise<CdpPage> {
+  return connectCdp(target.webSocketDebuggerUrl, target.url);
+}
+
+/** Connects to any DevTools endpoint: a renderer page or Electron's main-process inspector. */
+export async function connectCdp(webSocketDebuggerUrl: string, label: string): Promise<CdpPage> {
+  const socket = new WebSocket(webSocketDebuggerUrl);
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener('open', () => resolve(), { once: true });
-    socket.addEventListener(
-      'error',
-      () => reject(new Error(`CDP connection to ${target.url} failed`)),
-      { once: true },
-    );
+    socket.addEventListener('error', () => reject(new Error(`CDP connection to ${label} failed`)), {
+      once: true,
+    });
   });
 
   const pending = new Map<number, (reply: CdpReply) => void>();
@@ -112,7 +115,8 @@ export async function connectCdpPage(target: CdpTarget): Promise<CdpPage> {
   };
 
   await send('Runtime.enable');
-  await send('Log.enable');
+  // The Node inspector behind Electron's main process has no Log domain.
+  await send('Log.enable').catch(() => undefined);
 
   return {
     send,

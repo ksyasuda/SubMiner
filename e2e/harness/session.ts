@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { connectCdpPage, listCdpTargets, type CdpPage } from './cdp';
+import { connectCdp, connectCdpPage, listCdpTargets, type CdpPage } from './cdp';
 import { startDisplay, type E2eDisplay } from './display';
 import { FAKE_ANKI_DECK, FAKE_ANKI_MODEL, startFakeAnki, type FakeAnki } from './fake-anki';
 import { buildFixtureDictionary, generateFixtureClip, writeFixtureSubtitles } from './fixtures';
@@ -43,6 +43,8 @@ export type E2eSession = {
   root: string;
   display: E2eDisplay['kind'];
   cdpPort: number;
+  /** DevTools endpoint of the Electron main process (Node inspector). */
+  inspectorUrl: string;
   mpvSocketPath: string;
   /** How to start a process that talks to this isolated instance. */
   target: AppTarget;
@@ -50,6 +52,8 @@ export type E2eSession = {
   anki: FakeAnki;
   /** Connects to the first window or frame whose URL contains `urlPart`, waiting for it to exist. */
   openPage: (urlPart: string) => Promise<CdpPage>;
+  /** Evaluates in the main process; reach modules via `process.mainModule.require`. */
+  mainProcess: () => Promise<CdpPage>;
   /** Runs a CLI command (e.g. `--mine-sentence`) against the running instance. */
   runAppCommand: (...args: string[]) => Promise<void>;
   dispose: () => Promise<void>;
@@ -95,6 +99,12 @@ function resolveElectronBinary(): string {
   const binary: unknown = require('electron');
   if (typeof binary !== 'string') throw new Error('Could not resolve the Electron binary path');
   return binary;
+}
+
+// Electron announces its main-process inspector on stderr; `offset` skips earlier launches.
+function readInspectorUrl(logPath: string, offset: number): string | null {
+  const tail = fs.readFileSync(logPath, 'utf8').slice(offset);
+  return /Debugger listening on (ws:\/\/\S+)/.exec(tail)?.[1] ?? null;
 }
 
 function readDevToolsPort(portFile: string): number | null {
@@ -208,13 +218,17 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
     if (process.platform === 'linux' && process.env.CI) electronArgs.push('--no-sandbox');
     const target: AppTarget = { env, electronArgs, logPath: path.join(root, 'app-stdio.log') };
 
-    const launchApp = async (args: string[]): Promise<{ child: ChildProcess; cdpPort: number }> => {
-      // With port 0 Chromium picks a free port and records it in the profile dir.
+    const launchApp = async (
+      args: string[],
+    ): Promise<{ child: ChildProcess; cdpPort: number; inspectorUrl: string }> => {
+      // With port 0 Chromium and Node each pick a free port; Chromium records
+      // its port in the profile dir, Node prints its endpoint to stderr.
       const portFile = path.join(userDataDir, 'DevToolsActivePort');
       fs.rmSync(portFile, { force: true });
+      const logOffset = fs.existsSync(target.logPath) ? fs.statSync(target.logPath).size : 0;
       const child = spawnApp(
         target,
-        ['--remote-debugging-port=0'],
+        ['--remote-debugging-port=0', '--inspect=0'],
         [...args, '--log-level', 'debug'],
       );
       const stop = () => stopProcess(child);
@@ -228,7 +242,10 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
         },
         { description: 'SubMiner DevTools port', timeoutMs: 30_000 },
       );
-      return { child, cdpPort };
+      const inspectorUrl = await waitUntil(() => readInspectorUrl(target.logPath, logOffset), {
+        description: 'SubMiner main-process inspector endpoint',
+      });
+      return { child, cdpPort, inspectorUrl };
     };
 
     // First boot: import the fixture dictionary through Yomitan's settings page.
@@ -287,12 +304,18 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
       root,
       display: display.kind,
       cdpPort: app.cdpPort,
+      inspectorUrl: app.inspectorUrl,
       mpvSocketPath,
       target,
       mpv,
       anki,
       openPage: async (urlPart) => {
         const page = await openPage(app.cdpPort, urlPart);
+        pages.push(page);
+        return page;
+      },
+      mainProcess: async () => {
+        const page = await connectCdp(app.inspectorUrl, 'main process');
         pages.push(page);
         return page;
       },

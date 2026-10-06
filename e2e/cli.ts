@@ -2,7 +2,7 @@
 // (or by an agent) without touching the real desktop:
 //
 //   bun run e2e start                      boot and stay up until `stop` or Ctrl-C
-//   bun run e2e eval <page> <expression>   evaluate JS in a window, print the JSON result
+//   bun run e2e eval <page> <expression>   evaluate JS in a window (or "main" for the main process)
 //   bun run e2e shot <page> <file.png>     save a screenshot of a window
 //   bun run e2e mpv <command> [args...]    send an mpv IPC command (args parsed as JSON)
 //   bun run e2e app <args...>              run a SubMiner CLI command against the instance
@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { connectCdpPage, listCdpTargets } from './harness/cdp';
+import { connectCdp, connectCdpPage, listCdpTargets } from './harness/cdp';
 import { connectMpv } from './harness/mpv';
 import { OVERLAY_PAGE, runAppCommand, startE2eSession, type AppTarget } from './harness/session';
 import { waitUntil } from './harness/wait';
@@ -23,6 +23,7 @@ type SessionState = {
   root: string;
   display: string;
   cdpPort: number;
+  inspectorUrl: string;
   mpvSocketPath: string;
   ankiUrl: string;
   target: AppTarget;
@@ -54,11 +55,8 @@ function parseJsonOrString(value: string): unknown {
   }
 }
 
-async function withPage<T>(
-  state: SessionState,
-  pageName: string,
-  use: (page: Awaited<ReturnType<typeof connectCdpPage>>) => Promise<T>,
-): Promise<T> {
+async function connectNamedPage(state: SessionState, pageName: string) {
+  if (pageName === 'main') return connectCdp(state.inspectorUrl, 'main process');
   const urlPart = pageName === 'overlay' ? OVERLAY_PAGE : pageName;
   const targets = await listCdpTargets(state.cdpPort);
   const target = targets.find((candidate) => candidate.url.includes(urlPart));
@@ -66,7 +64,15 @@ async function withPage<T>(
     const open = targets.map((candidate) => `  ${candidate.type} ${candidate.url.slice(0, 100)}`);
     throw new Error(`No window matches "${pageName}". Open targets:\n${open.join('\n')}`);
   }
-  const page = await connectCdpPage(target);
+  return connectCdpPage(target);
+}
+
+async function withPage<T>(
+  state: SessionState,
+  pageName: string,
+  use: (page: Awaited<ReturnType<typeof connectCdpPage>>) => Promise<T>,
+): Promise<T> {
+  const page = await connectNamedPage(state, pageName);
   try {
     return await use(page);
   } finally {
@@ -84,6 +90,7 @@ async function start(): Promise<void> {
     root: session.root,
     display: session.display,
     cdpPort: session.cdpPort,
+    inspectorUrl: session.inspectorUrl,
     mpvSocketPath: session.mpvSocketPath,
     ankiUrl: session.anki.url,
     target: session.target,

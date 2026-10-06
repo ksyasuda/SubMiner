@@ -63,8 +63,26 @@ async function showCue(cue: (typeof FIXTURE_CUES)[number]): Promise<RenderedToke
           errorToast: document.getElementById('overlayErrorToast')?.textContent,
         }))()`,
       );
+      const main = await session.mainProcess();
+      const windows = await main.evaluate<string>(
+        `JSON.stringify(process.mainModule.require('electron').BrowserWindow.getAllWindows().map((w) => ({
+          id: w.id,
+          title: w.getTitle(),
+          url: w.webContents.getURL().split('/').pop(),
+          visible: w.isVisible(),
+          loading: w.webContents.isLoading(),
+          documentLoaded: w.__subminerOverlayDocumentLoaded,
+          contentReady: w.__subminerOverlayContentReady,
+        })))`,
+      );
+      const targets = (await listCdpTargets(session.cdpPort))
+        .filter((t) => t.type === 'page')
+        .map((t) => t.url.split('/').pop());
       const log = overlay.console.slice(-20).join('\n');
-      throw new Error(`Overlay state: ${state}\nRenderer console:\n${log}`, { cause: error });
+      throw new Error(
+        `Overlay state: ${state}\nMain windows: ${windows}\nPage targets: ${JSON.stringify(targets)}\nRenderer console:\n${log}`,
+        { cause: error },
+      );
     });
 }
 
