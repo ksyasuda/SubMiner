@@ -9,3 +9,79 @@ on:
 jobs:
   build-test-audit:
     uses: ./.github/workflows/quality-gate.yml
+
+  # Boots the built app with a real mpv on each platform. Kept outside the
+  # reusable quality gate so releases do not depend on it while the lane is new.
+  e2e:
+    name: E2E (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      SUBMINER_E2E_KEEP: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Point temp files at an uploadable directory
+        run: |
+          # os.tmpdir() follows these, so the kept session logs land under runner.temp.
+          dir="$RUNNER_TEMP/e2e"
+          mkdir -p "$dir"
+          { echo "TMPDIR=$dir"; echo "TEMP=$dir"; echo "TMP=$dir"; } >> "$GITHUB_ENV"
+
+      - name: Install mpv and ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Only Ubuntu sources are needed; unrelated runner repositories can be unavailable.
+          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          sudo apt-get "${apt_sources[@]}" update
+          sudo apt-get "${apt_sources[@]}" install -y mpv ffmpeg xvfb
+
+      - name: Install mpv and ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install mpv ffmpeg
+
+      - name: Install mpv and ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install mpv ffmpeg -y --no-progress
+          # The mpv package adds no shim, so put its directory on PATH for later steps.
+          mpv_exe="$(find /c/ProgramData/chocolatey/lib /c/ProgramData/chocolatey/bin "/c/Program Files" /c/tools -maxdepth 6 -iname mpv.exe 2>/dev/null | head -n 1)"
+          test -n "$mpv_exe"
+          cygpath -w "$(dirname "$mpv_exe")" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: |
+          bun install --frozen-lockfile
+          cd stats && bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: End-to-end suite
+        run: bun run test:e2e
+
+      - name: Upload session logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs-${{ matrix.os }}
+          path: ${{ runner.temp }}/e2e/subminer-e2e-*/*.log
+          if-no-files-found: ignore

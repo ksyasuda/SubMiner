@@ -12,6 +12,7 @@ paths=(
   ".prettierrc.json"
   ".github"
   "build"
+  "e2e"
   "launcher"
   "scripts"
   "src"

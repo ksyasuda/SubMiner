@@ -3,7 +3,7 @@
 # Verification
 
 Status: active  
-Last verified: 2026-08-13
+Last verified: 2026-10-05
 Owner: Kyle Yasuda  
 Read when: selecting the right verification lane for a change
 
@@ -58,6 +58,8 @@ bun run docs:build
 - Launcher/plugin: `bun run test:launcher` or `bun run test:env`
 - Runtime-compat / compiled behavior after `bun run build`: `bun run test:runtime:compat`
 - Stats dashboard UI: `bun run test:stats`
+- Overlay, renderer, mpv, or mining behavior that unit tests cannot show: `bun run build`,
+  then `bun run test:e2e` (see [Headless End-to-End Harness](#headless-end-to-end-harness))
 - Build/release scripts (`scripts/**`): `bun run test:scripts`
 - Packaging: build the platform package, then run `bun run test:package <resources-directory>`.
   On headless Linux: `xvfb-run -a bun run test:package release/linux-unpacked/resources`.
@@ -92,6 +94,54 @@ bun run docs:build
   stale ownership state, releases the conflict, and verifies a clean retry.
 - This is not a full Electron UI startup check. It does not require a display and
   makes no claims about renderer, window, tray, or mpv behavior.
+
+## Headless End-to-End Harness
+
+`bun run test:e2e` boots the built app against a real mpv and asserts on what the
+overlay renders and what reaches AnkiConnect. Use it instead of a live desktop test
+whenever the behavior does not depend on a specific compositor.
+
+- Needs an existing `bun run build`, plus `mpv` and `ffmpeg` on `PATH` (and `Xvfb` on
+  Linux). It is not part of `test:fast` or the handoff gate. The `e2e` job in
+  `.github/workflows/ci.yml` runs it on Linux, macOS, and Windows for pull requests and
+  `main`, outside the reusable quality gate, and uploads the session logs when it fails.
+- Every run is sandboxed in a temp dir: its own config and Electron profile, mpv IPC
+  socket, and a fake AnkiConnect on a free port. It never touches the user's running
+  SubMiner, Anki, or stats database. It is not offline: the app still asks AniList for
+  cover art matching the clip's title.
+- Media is synthetic: an ffmpeg test-pattern clip, a three-cue Japanese `.srt`, and a
+  tiny Yomitan dictionary covering those cues (`e2e/harness/fixtures.ts`). The harness
+  imports the dictionary on a first boot, then restarts the app for the scenario.
+- Display: Linux runs everything inside a private Xvfb server, so no window reaches the
+  desktop. macOS and Windows have no offscreen display server, so windows open in the
+  current session there; `SUBMINER_E2E_DISPLAY=host` forces the same on Linux. The
+  CI job runs all three. On macOS and Windows the app pre-creates a hidden modal window
+  that loads the same renderer document, so window matching must include the
+  `layer=visible` query (`OVERLAY_PAGE`).
+- The app is driven over the Chrome DevTools Protocol (DOM queries, input events,
+  per-window screenshots), mpv over its JSON IPC socket, and app commands through the
+  normal CLI handoff (`--mine-sentence`, `--toggle-subtitle-sidebar`, ...).
+- Scenarios live in `e2e/*.e2e.test.ts` and share one session per file through
+  `startE2eSession()`. Pass `config` to override settings for a scenario file.
+- On a failed startup the temp dir is kept and its path is in the error. Set
+  `SUBMINER_E2E_KEEP=1` to keep it after any run (`app-stdio.log`, `app.log`, `mpv.log`).
+
+For exploratory checks, keep one session up and poke at it:
+
+```bash
+bun run e2e start &                 # prints the session JSON, stays up until stopped
+bun run e2e mpv seek 2 absolute+exact
+bun run e2e eval overlay 'document.getElementById("subtitleRoot").textContent'
+bun run e2e shot overlay /tmp/overlay.png
+bun run e2e app --mine-sentence
+bun run e2e anki                    # AnkiConnect requests received so far
+bun run e2e stop
+```
+
+Out of scope: compositor-specific behavior (Hyprland placement, stacking, fullscreen,
+click-through), real GPU video output, and global shortcuts. Xvfb runs without a window
+manager or compositor, so the transparent overlay is not composited over the video;
+check overlay visuals with per-window screenshots, and use the live desktop for the rest.
 
 ## Dependency Audit Policy
 
