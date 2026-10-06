@@ -17,13 +17,52 @@ function useSession(): Promise<Started> {
   started ??= (async () => {
     const session = await startE2eSession();
     try {
-      return { session, overlay: await session.openPage(OVERLAY_PAGE) };
+      const overlay = await session.openPage(OVERLAY_PAGE);
+      await installDeliveryTaps(session, overlay);
+      return { session, overlay };
     } catch (error) {
       await session.dispose();
       throw error;
     }
   })();
   return started;
+}
+
+// Records every subtitle message main sends and every one the overlay's preload
+// receives, so a line that never renders can be placed on one side or the other.
+async function installDeliveryTaps(session: E2eSession, overlay: CdpPage): Promise<void> {
+  const main = await session.mainProcess();
+  await main.evaluate(
+    `(() => {
+      globalThis.__e2eSent = [];
+      for (const w of process.mainModule.require('electron').BrowserWindow.getAllWindows()) {
+        const send = w.webContents.send.bind(w.webContents);
+        w.webContents.send = (channel, ...args) => {
+          if (channel.includes('subtitle')) {
+            globalThis.__e2eSent.push(w.id + ':' + channel + ':' + (args[0]?.text ?? ''));
+          }
+          return send(channel, ...args);
+        };
+      }
+      return true;
+    })()`,
+  );
+  await overlay.evaluate(
+    `(() => {
+      window.__e2eReceived = [];
+      window.electronAPI.onSubtitle((data) => {
+        window.__e2eReceived.push(data.text + ':' + (data.tokens ? data.tokens.length : 'null'));
+      });
+      return true;
+    })()`,
+  );
+}
+
+async function describeDelivery(session: E2eSession, overlay: CdpPage): Promise<string> {
+  const main = await session.mainProcess();
+  const sent = await main.evaluate<string>('JSON.stringify(globalThis.__e2eSent)');
+  const received = await overlay.evaluate<string>('JSON.stringify(window.__e2eReceived)');
+  return `Main sent: ${sent}\nOverlay received: ${received}`;
 }
 
 after(async () => {
@@ -80,7 +119,7 @@ async function showCue(cue: (typeof FIXTURE_CUES)[number]): Promise<RenderedToke
         .map((t) => t.url.split('/').pop());
       const log = overlay.console.slice(-20).join('\n');
       throw new Error(
-        `Overlay state: ${state}\nMain windows: ${windows}\nPage targets: ${JSON.stringify(targets)}\nRenderer console:\n${log}`,
+        `Overlay state: ${state}\nMain windows: ${windows}\nPage targets: ${JSON.stringify(targets)}\n${await describeDelivery(session, overlay)}\nRenderer console:\n${log}`,
         { cause: error },
       );
     });
