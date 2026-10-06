@@ -96,9 +96,10 @@ async function start(): Promise<void> {
     target: session.target,
   };
   // The state file grants main-process code evaluation via inspectorUrl, so keep it
-  // owner-only (mode applies on create, hence the rm of any stale file first).
+  // owner-only. 'wx' creates it exclusively: it fails rather than follow a symlink
+  // planted in the shared temp dir after the stale file is removed.
   fs.rmSync(stateFile, { force: true });
-  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), { mode: 0o600 });
+  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), { mode: 0o600, flag: 'wx' });
   console.log(JSON.stringify(state, null, 2));
 
   await new Promise<void>((resolve) => {
