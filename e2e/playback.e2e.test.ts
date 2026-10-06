@@ -52,15 +52,19 @@ async function showCue(cue: (typeof FIXTURE_CUES)[number]): Promise<RenderedToke
       { description: `overlay to render "${cue.text}" tokenized` },
     )
     .catch(async (error: unknown) => {
-      // Say what the overlay was showing instead, and whether it was being painted.
+      // Say what the overlay was showing, what main thinks the line is, and
+      // what the renderer logged, so a dropped update can be placed.
       const state = await overlay.evaluate<string>(
-        `JSON.stringify({
+        `(async () => JSON.stringify({
           visibility: document.visibilityState,
           text: document.getElementById('subtitleRoot').textContent,
-          html: document.getElementById('subtitleRoot').innerHTML.slice(0, 300),
-        })`,
+          html: document.getElementById('subtitleRoot').innerHTML.slice(0, 200),
+          mainLine: (await window.electronAPI.getCurrentSubtitle())?.text,
+          errorToast: document.getElementById('overlayErrorToast')?.textContent,
+        }))()`,
       );
-      throw new Error(`Overlay state: ${state}`, { cause: error });
+      const log = overlay.console.slice(-20).join('\n');
+      throw new Error(`Overlay state: ${state}\nRenderer console:\n${log}`, { cause: error });
     });
 }
 

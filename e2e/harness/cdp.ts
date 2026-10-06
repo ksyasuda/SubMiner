@@ -14,6 +14,8 @@ export type CdpPage = {
   evaluate: <T>(expression: string) => Promise<T>;
   /** Polls an expression until it is truthy and returns that value. */
   waitFor: <T>(expression: string, options: WaitOptions) => Promise<Truthy<T>>;
+  /** Console output and uncaught exceptions seen since connecting, oldest first. */
+  console: string[];
   /** PNG of the page as rendered by Chromium; needs no OS screen-capture permission. */
   screenshot: () => Promise<Buffer>;
   close: () => void;
@@ -21,9 +23,33 @@ export type CdpPage = {
 
 type CdpReply = {
   id?: number;
+  method?: string;
+  params?: Record<string, unknown>;
   error?: { message: string };
   result?: Record<string, unknown>;
 };
+
+type RemoteObject = { value?: unknown; description?: string };
+
+// Renders a console/exception event as one log line.
+function formatConsoleEvent(method: string, params: Record<string, unknown>): string | null {
+  if (method === 'Runtime.consoleAPICalled') {
+    const args = Array.isArray(params.args) ? (params.args as RemoteObject[]) : [];
+    const text = args.map((arg) => arg.description ?? JSON.stringify(arg.value)).join(' ');
+    return `console.${String(params.type)}: ${text}`;
+  }
+  if (method === 'Runtime.exceptionThrown') {
+    const details = params.exceptionDetails as
+      | { text?: string; exception?: RemoteObject }
+      | undefined;
+    return `exception: ${details?.exception?.description ?? details?.text ?? 'unknown'}`;
+  }
+  if (method === 'Log.entryAdded') {
+    const entry = params.entry as { level?: string; source?: string; text?: string } | undefined;
+    return `${String(entry?.source)}.${String(entry?.level)}: ${String(entry?.text)}`;
+  }
+  return null;
+}
 
 type EvaluateResult = {
   result: { value?: unknown };
@@ -47,10 +73,17 @@ export async function connectCdpPage(target: CdpTarget): Promise<CdpPage> {
   });
 
   const pending = new Map<number, (reply: CdpReply) => void>();
+  const consoleLines: string[] = [];
   let nextId = 1;
   socket.addEventListener('message', (event) => {
     const reply: CdpReply = JSON.parse(String(event.data));
-    if (reply.id === undefined) return;
+    if (reply.id === undefined) {
+      if (reply.method) {
+        const line = formatConsoleEvent(reply.method, reply.params ?? {});
+        if (line) consoleLines.push(line);
+      }
+      return;
+    }
     pending.get(reply.id)?.(reply);
     pending.delete(reply.id);
   });
@@ -78,9 +111,13 @@ export async function connectCdpPage(target: CdpTarget): Promise<CdpPage> {
     return reply.result.value as T;
   };
 
+  await send('Runtime.enable');
+  await send('Log.enable');
+
   return {
     send,
     evaluate,
+    console: consoleLines,
     waitFor: <T>(expression: string, options: WaitOptions) =>
       waitUntil(() => evaluate<T>(expression), options),
     screenshot: async () => {

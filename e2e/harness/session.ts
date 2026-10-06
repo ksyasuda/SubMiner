@@ -196,7 +196,8 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
       },
       unset: [...display.env.unset, 'ELECTRON_RUN_AS_NODE'],
     };
-    const electronArgs = ['--password-store=basic'];
+    // --enable-logging routes renderer console output into the app log too.
+    const electronArgs = ['--password-store=basic', '--enable-logging=stderr'];
     // Outside Hyprland/Sway the app re-spawns itself detached onto the X11
     // backend. Start it there directly so the process we spawn is the app.
     if (shouldForceX11ElectronBackend(applyEnvDelta(process.env, env))) {
