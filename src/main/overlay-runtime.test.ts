@@ -131,6 +131,26 @@ for (const platform of ['darwin', 'win32'] as const) {
   });
 }
 
+test('sendToActiveOverlayWindow delivers to a modal window created for the send', () => {
+  // ready-to-show can fire before the document loads, and Electron still reports
+  // isLoading() inside did-finish-load; only did-stop-loading sees the settled state.
+  const modal = new FakeOverlayWindow({ ...LOADING_BLANK_WINDOW, documentLoaded: false });
+  const h = createHarness({ createModal: () => modal });
+
+  assert.equal(
+    h.runtime.sendToActiveOverlayWindow(
+      'media-timing-review:open',
+      { reviewId: 'r1' },
+      { restoreOnModalClose: 'media-timing-review', preferModalWindow: true },
+    ),
+    true,
+  );
+  modal.emitReadyToShow();
+  assert.deepEqual(modal.sent, []);
+  modal.finishLoad();
+  assert.deepEqual(modal.sent, [['media-timing-review:open', { reviewId: 'r1' }]]);
+});
+
 test('primeModalWindow leaves Linux modal creation lazy', () => {
   const h = createHarness({ createModal: () => new FakeOverlayWindow(), platform: 'linux' });
 

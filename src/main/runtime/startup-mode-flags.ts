@@ -2,7 +2,7 @@ import type { CliArgs } from '../../cli/args';
 import {
   isHeadlessInitialCommand,
   isStandaloneTexthookerCommand,
-  shouldRunYomitanOnlyStartup,
+  shouldRunDictionarySettingsOnlyStartup,
 } from '../../cli/args';
 
 export function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
@@ -20,7 +20,7 @@ export function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
     ),
     shouldSkipHeavyStartup: Boolean(
       initialArgs &&
-      (shouldRunYomitanOnlyStartup(initialArgs) ||
+      (shouldRunDictionarySettingsOnlyStartup(initialArgs) ||
         initialArgs.settings ||
         initialArgs.stats ||
         initialArgs.dictionary ||

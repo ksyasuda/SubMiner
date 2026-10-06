@@ -4,9 +4,11 @@ import { createMpvInputForwarding } from './mpv-input-forwarding';
 import { MPV_MOUSE_BUTTON_BY_BUTTON, wheelEventToMpvWheel } from '../../shared/mpv-input-bindings';
 import { dispatchConfiguredMpvCommand } from '../utils/mpv-command-dispatch';
 import {
-  YOMITAN_POPUP_HIDDEN_EVENT,
-  YOMITAN_POPUP_SHOWN_EVENT,
+  registerDictionaryPopupVisibilityListener,
+  HACHIDORI_HOST_SELECTOR,
   YOMITAN_POPUP_COMMAND_EVENT,
+  YOMITAN_POPUP_HOST_SELECTOR,
+  isLookupPopupOpen,
   isYomitanPopupVisible,
   isYomitanPopupIframe,
 } from '../yomitan-popup.js';
@@ -80,6 +82,8 @@ export function createKeyboardHandlers(
     if (target.closest('.modal')) return true;
     if (ctx.dom.subtitleContainer.contains(target)) return true;
     if (isYomitanPopupIframe(target)) return true;
+    // Hachidori's popup lives in a shadow root, so its events arrive retargeted to the host.
+    if (target.closest(`${YOMITAN_POPUP_HOST_SELECTOR}, ${HACHIDORI_HOST_SELECTOR}`)) return true;
     if (target.closest && target.closest('iframe.yomitan-popup, iframe[id^="yomitan-popup"]'))
       return true;
     return false;
@@ -106,11 +110,13 @@ export function createKeyboardHandlers(
   }
 
   // Overlay UI that handles its own mouse input (menus, sidebar, notifications, controls).
+  // Hachidori's popup lives in the overlay document, unlike Yomitan's iframe, so its
+  // wheel events reach these handlers retargeted to its host.
   function isOverlayControlTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Element)) return false;
     return Boolean(
       target.closest(
-        '.modal, .notification-history, .overlay-notification-stack, button, a, input, select, textarea',
+        `.modal, .notification-history, .overlay-notification-stack, button, a, input, select, textarea, ${YOMITAN_POPUP_HOST_SELECTOR}, ${HACHIDORI_HOST_SELECTOR}`,
       ),
     );
   }
@@ -122,8 +128,7 @@ export function createKeyboardHandlers(
       !ctx.state.playlistBrowserModalOpen &&
       !ctx.state.youtubePickerModalOpen &&
       !ctx.state.subtitleSidebarModalOpen &&
-      !ctx.state.yomitanPopupVisible &&
-      !isYomitanPopupVisible(document) &&
+      !isLookupPopupOpen(ctx.state, document) &&
       !isInteractiveTarget(target)
     );
   }
@@ -1088,7 +1093,7 @@ export function createKeyboardHandlers(
       subtree: true,
     });
 
-    window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
+    registerDictionaryPopupVisibilityListener('hidden', () => {
       clearNativeSubtitleSelection();
       if (!ctx.state.keyboardDrivenModeEnabled) {
         syncKeyboardTokenSelection();
@@ -1096,7 +1101,7 @@ export function createKeyboardHandlers(
       }
       restoreOverlayKeyboardFocus();
     });
-    window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
+    registerDictionaryPopupVisibilityListener('shown', () => {
       if (!ctx.state.keyboardDrivenModeEnabled) {
         return;
       }
@@ -1260,7 +1265,7 @@ export function createKeyboardHandlers(
         return;
       }
 
-      if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
+      if (isLookupPopupOpen(ctx.state, document)) {
         if (handleYomitanPopupKeybind(e)) {
           e.preventDefault();
           return;

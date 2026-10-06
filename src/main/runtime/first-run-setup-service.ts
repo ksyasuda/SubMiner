@@ -1,7 +1,10 @@
 import fs from 'node:fs';
+import type { HachidoriHostStatus } from '../../shared/hachidori-sharing';
 import {
   createDefaultSetupState,
   getDefaultConfigFilePaths,
+  getSetupStateDictionaryBackend,
+  hasCompletedSetupForBackend,
   getSetupStatePath,
   isSetupCompleted,
   readSetupState,
@@ -11,6 +14,7 @@ import {
   type SetupState,
 } from '../../shared/setup-state';
 import type { CliArgs } from '../../cli/args';
+import type { DictionaryBackend } from '../../types/config';
 import type {
   InstalledFirstRunPluginCandidate,
   LegacyMpvPluginRemovalResult,
@@ -28,6 +32,8 @@ export interface SetupWindowsMpvShortcutSnapshot {
 }
 
 export interface SetupStatusSnapshot {
+  dictionaryBackend: DictionaryBackend;
+  hachidoriHost?: HachidoriHostStatus;
   configReady: boolean;
   dictionaryCount: number;
   canFinish: boolean;
@@ -72,6 +78,7 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.togglePrimarySubtitleBar ||
     args.launchMpv ||
     args.yomitan ||
+    args.hachidori ||
     args.settings ||
     args.show ||
     args.hide ||
@@ -205,6 +212,8 @@ function createUnsupportedCommandLineLauncherSnapshot(): CommandLineLauncherSnap
 }
 
 export function getFirstRunSetupCompletionMessage(snapshot: {
+  dictionaryBackend?: DictionaryBackend;
+  hachidoriHost?: HachidoriHostStatus;
   configReady: boolean;
   dictionaryCount: number;
   externalYomitanConfigured: boolean;
@@ -213,8 +222,18 @@ export function getFirstRunSetupCompletionMessage(snapshot: {
   if (!snapshot.configReady) {
     return 'Create or provide the config file before finishing setup.';
   }
+  if (
+    snapshot.hachidoriHost?.kind === 'disconnected' ||
+    snapshot.hachidoriHost?.kind === 'unavailable'
+  ) {
+    return snapshot.hachidoriHost.message;
+  }
+  if (snapshot.hachidoriHost?.kind === 'connected' && snapshot.dictionaryCount < 1) {
+    return 'Install at least one dictionary on the linked Hachidori host, then refresh status.';
+  }
   if (!snapshot.externalYomitanConfigured && snapshot.dictionaryCount < 1) {
-    return 'Install at least one Yomitan dictionary before finishing setup.';
+    const name = snapshot.dictionaryBackend === 'hachidori' ? 'Hachidori' : 'Yomitan';
+    return `Install at least one ${name} dictionary before finishing setup.`;
   }
   return null;
 }
@@ -222,15 +241,38 @@ export function getFirstRunSetupCompletionMessage(snapshot: {
 async function resolveYomitanSetupStatus(deps: {
   configFilePaths: { jsoncPath: string; jsonPath: string };
   getYomitanDictionaryCount: () => Promise<number>;
+  getDictionaryBackend?: () => DictionaryBackend;
+  getHachidoriHostStatus?: () => Promise<HachidoriHostStatus>;
   isExternalYomitanConfigured?: () => boolean;
 }): Promise<{
   configReady: boolean;
   dictionaryCount: number;
   externalYomitanConfigured: boolean;
+  hachidoriHost?: HachidoriHostStatus;
 }> {
   const configReady =
     fs.existsSync(deps.configFilePaths.jsoncPath) || fs.existsSync(deps.configFilePaths.jsonPath);
-  const externalYomitanConfigured = deps.isExternalYomitanConfigured?.() ?? false;
+  const externalYomitanConfigured =
+    deps.getDictionaryBackend?.() !== 'hachidori' &&
+    (deps.isExternalYomitanConfigured?.() ?? false);
+
+  const hachidoriHost =
+    deps.getDictionaryBackend?.() === 'hachidori'
+      ? await deps.getHachidoriHostStatus?.().catch(
+          (error: unknown): HachidoriHostStatus => ({
+            kind: 'unavailable',
+            message: error instanceof Error ? error.message : 'Hachidori is unavailable.',
+          }),
+        )
+      : undefined;
+  if (hachidoriHost && hachidoriHost.kind !== 'local') {
+    return {
+      configReady,
+      externalYomitanConfigured: false,
+      hachidoriHost,
+      dictionaryCount: hachidoriHost.kind === 'connected' ? hachidoriHost.dictionaryCount : 0,
+    };
+  }
 
   if (configReady && externalYomitanConfigured) {
     return {
@@ -242,6 +284,7 @@ async function resolveYomitanSetupStatus(deps: {
 
   return {
     configReady,
+    hachidoriHost,
     dictionaryCount: await deps.getYomitanDictionaryCount(),
     externalYomitanConfigured,
   };
@@ -251,6 +294,8 @@ export function createFirstRunSetupService(deps: {
   platform?: NodeJS.Platform;
   configDir: string;
   getYomitanDictionaryCount: () => Promise<number>;
+  getDictionaryBackend?: () => DictionaryBackend;
+  getHachidoriHostStatus?: () => Promise<HachidoriHostStatus>;
   isExternalYomitanConfigured?: () => boolean;
   detectPluginInstalled: () => boolean | Promise<boolean>;
   detectLegacyMpvPluginCandidates?: () =>
@@ -283,8 +328,47 @@ export function createFirstRunSetupService(deps: {
   const isWindows = (deps.platform ?? process.platform) === 'win32';
   let completed = false;
 
-  const readState = (): SetupState => readSetupState(setupStatePath) ?? createDefaultSetupState();
+  const getDictionaryBackend = () => deps.getDictionaryBackend?.() ?? 'yomitan';
+  const readStoredState = (): SetupState =>
+    readSetupState(setupStatePath) ?? createDefaultSetupState();
+  // The file records one backend's status at a time. Project it onto the active
+  // backend: a backend that finished before stays completed, any other stays
+  // incomplete until its own dictionaries are ready.
+  const projectState = (stored: SetupState): SetupState => {
+    const backend = getDictionaryBackend();
+    const finishedBefore = hasCompletedSetupForBackend(stored, backend);
+    // Legacy files carry their completion only as the recorded status; keep it.
+    const storedBackend = getSetupStateDictionaryBackend(stored);
+    const completedDictionaryBackends = [
+      ...new Set([
+        ...(stored.completedDictionaryBackends ?? []),
+        ...(stored.status === 'completed' ? [storedBackend] : []),
+      ]),
+    ];
+    if (storedBackend === backend) return { ...stored, completedDictionaryBackends };
+    return {
+      ...stored,
+      dictionaryBackend: backend,
+      completedDictionaryBackends,
+      status: finishedBefore ? 'completed' : 'incomplete',
+      completedAt: finishedBefore ? stored.completedAt : null,
+      completionSource: finishedBefore ? (stored.completionSource ?? 'user') : null,
+      yomitanSetupMode: finishedBefore ? 'internal' : null,
+      lastSeenYomitanDictionaryCount: 0,
+    };
+  };
+  const readState = (): SetupState => projectState(readStoredState());
   const writeState = (state: SetupState): SetupState => {
+    const backend = getDictionaryBackend();
+    const others = (state.completedDictionaryBackends ?? []).filter((entry) => entry !== backend);
+    state = {
+      ...state,
+      dictionaryBackend: backend,
+      completedDictionaryBackends:
+        state.status === 'completed'
+          ? [...others, backend]
+          : (state.completedDictionaryBackends ?? []),
+    };
     writeSetupState(setupStatePath, state);
     completed = state.status === 'completed';
     deps.onStateChanged?.(state);
@@ -292,10 +376,12 @@ export function createFirstRunSetupService(deps: {
   };
 
   const buildSnapshot = async (state: SetupState, message: string | null = null) => {
-    const { configReady, dictionaryCount, externalYomitanConfigured } =
+    const { configReady, dictionaryCount, externalYomitanConfigured, hachidoriHost } =
       await resolveYomitanSetupStatus({
         configFilePaths,
         getYomitanDictionaryCount: deps.getYomitanDictionaryCount,
+        getDictionaryBackend,
+        getHachidoriHostStatus: deps.getHachidoriHostStatus,
         isExternalYomitanConfigured: deps.isExternalYomitanConfigured,
       });
     const pluginInstalled = await deps.detectPluginInstalled();
@@ -314,6 +400,8 @@ export function createFirstRunSetupService(deps: {
       installedWindowsMpvShortcuts,
     );
     return {
+      dictionaryBackend: getDictionaryBackend(),
+      hachidoriHost,
       configReady,
       dictionaryCount,
       canFinish: isYomitanSetupSatisfied({
@@ -353,11 +441,19 @@ export function createFirstRunSetupService(deps: {
 
   return {
     ensureSetupStateInitialized: async () => {
-      const state = readState();
-      const { configReady, dictionaryCount, externalYomitanConfigured } =
+      const stored = readStoredState();
+      // Persist the active backend stamp so the launcher can tell which backend
+      // the running app gates playback on.
+      const state =
+        getSetupStateDictionaryBackend(stored) === getDictionaryBackend()
+          ? stored
+          : writeState(projectState(stored));
+      const { configReady, dictionaryCount, externalYomitanConfigured, hachidoriHost } =
         await resolveYomitanSetupStatus({
           configFilePaths,
           getYomitanDictionaryCount: deps.getYomitanDictionaryCount,
+          getDictionaryBackend,
+          getHachidoriHostStatus: deps.getHachidoriHostStatus,
           isExternalYomitanConfigured: deps.isExternalYomitanConfigured,
         });
       const canFinish = isYomitanSetupSatisfied({
@@ -365,7 +461,11 @@ export function createFirstRunSetupService(deps: {
         dictionaryCount,
         externalYomitanConfigured,
       });
-      if (isSetupCompleted(state) && canFinish) {
+      // A linked host is usually still connecting at startup, so an unreachable host
+      // says nothing about its dictionaries; only a reachable empty host reopens setup.
+      const hostUnreachable =
+        hachidoriHost?.kind === 'disconnected' || hachidoriHost?.kind === 'unavailable';
+      if (isSetupCompleted(state) && (canFinish || (configReady && hostUnreachable))) {
         completed = true;
         return refreshWithState(state);
       }

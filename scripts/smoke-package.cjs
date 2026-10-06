@@ -22,39 +22,6 @@ const timeout = setTimeout(() => {
   app.exit(1);
 }, 60_000);
 
-const STATIC_TYPES = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.css': 'text/css',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-  '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf',
-  '.json': 'application/json',
-};
-
-// The stats dashboard is served by the stats HTTP server in the app, so load it
-// over loopback HTTP from the packaged stats/dist and treat missing static
-// assets as failures. API routes are not part of this smoke and may 404.
-function serveStatsDist(root, failedRequests) {
-  const server = http.createServer((req, res) => {
-    const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
-    const relative = pathname === '/' ? 'index.html' : pathname.slice(1);
-    try {
-      const body = fs.readFileSync(path.join(root, relative));
-      res.writeHead(200, {
-        'Content-Type': STATIC_TYPES[path.extname(relative)] ?? 'application/octet-stream',
-      });
-      res.end(body);
-    } catch {
-      if (!pathname.startsWith('/api/')) failedRequests.push(`${req.url}: missing static asset`);
-      res.writeHead(404).end();
-    }
-  });
-  server.listen(0, '127.0.0.1');
-  return server;
-}
-
 async function smoke() {
   await app.whenReady();
   const packagedRequire = createRequire(path.join(archive, 'package.json'));
@@ -83,6 +50,10 @@ async function smoke() {
     { allowFileAccess: true },
   );
   assert(extension.id, 'Yomitan extension failed to load');
+  const hachidori = await session
+    .fromPartition('persist:hachidori')
+    .extensions.loadExtension(path.join(resources, 'hachidori'), { allowFileAccess: true });
+  assert(hachidori.id, 'Hachidori extension failed to load');
   const failedRequests = [];
   session.defaultSession.webRequest.onErrorOccurred(
     { urls: ['file://*/*', 'http://127.0.0.1/*'] },
@@ -93,9 +64,7 @@ async function smoke() {
         failedRequests.push(`${details.url}: ${details.error}`);
     },
   );
-  const statsServer = serveStatsDist(path.join(archive, 'stats', 'dist'), failedRequests);
-  await once(statsServer, 'listening');
-  for (const ui of ['renderer', 'settings', 'syncui', 'stats']) {
+  for (const ui of ['renderer', 'settings', 'syncui']) {
     const win = new BrowserWindow({
       show: false,
       webPreferences: {
@@ -104,25 +73,52 @@ async function smoke() {
       },
     });
     try {
-      if (ui === 'stats') {
-        await win.loadURL(`http://127.0.0.1:${statsServer.address().port}/`);
-        // Let in-flight font requests settle before the window goes away.
-        await win.webContents.executeJavaScript('document.fonts.ready.then(() => true)');
-      } else {
-        await win.loadFile(path.join(archive, `dist/${ui}/index.html`));
-        const loaded = await win.webContents.executeJavaScript(
-          `document.fonts.load('400 16px "M PLUS 1"', '日本語').then(fonts => fonts.length > 0 && fonts.every(font => font.status === 'loaded'))`,
-        );
-        assert(loaded, `${ui}: shared Japanese font failed to load`);
-      }
+      await win.loadFile(path.join(archive, `dist/${ui}/index.html`));
+      const loaded = await win.webContents.executeJavaScript(
+        `document.fonts.load('400 16px "M PLUS 1"', '日本語').then(fonts => fonts.length > 0 && fonts.every(font => font.status === 'loaded'))`,
+      );
+      assert(loaded, `${ui}: shared Japanese font failed to load`);
     } finally {
       win.destroy();
     }
   }
-  statsServer.close();
+  // The stats dashboard uses HTTP for both assets and API requests in the app.
+  const { ImmersionTrackerService } = packagedRequire(
+    './dist/core/services/immersion-tracker-service.js',
+  );
+  const { createStatsApp, startNodeHttpServer } = packagedRequire(
+    './dist/core/services/stats-server.js',
+  );
+  const tracker = new ImmersionTrackerService({ dbPath: path.join(isolatedData, 'stats.db') });
+  const statsConfig = { port: 0, staticDir: path.join(archive, 'stats/dist'), tracker };
+  let statsHttp;
+  const statsServer = await startNodeHttpServer(
+    createStatsApp(tracker, statsConfig),
+    statsConfig,
+    (listener) => (statsHttp = http.createServer(listener)),
+  );
+  const statsWindow = new BrowserWindow({ show: false });
+  try {
+    const url = `http://127.0.0.1:${statsHttp.address().port}`;
+    session.defaultSession.webRequest.onCompleted({ urls: [`${url}/*`] }, (details) => {
+      if (details.statusCode >= 400) failedRequests.push(`${details.url}: ${details.statusCode}`);
+    });
+    await statsWindow.loadURL(url);
+    // Let in-flight font requests settle before the window goes away.
+    await statsWindow.webContents.executeJavaScript('document.fonts.ready.then(() => true)');
+    for (const endpoint of ['overview', 'sessions']) {
+      const response = await fetch(`${url}/api/stats/${endpoint}`);
+      assert.equal(response.status, 200, `Stats ${endpoint} request failed`);
+      await response.json();
+    }
+  } finally {
+    statsWindow.destroy();
+    await statsServer.close();
+    tracker.destroy();
+  }
   assert.deepEqual(failedRequests, [], 'Packaged UI resources failed to load');
   console.log(
-    'Package smoke passed: SQLite, platform FFI, texthooker, Yomitan loading, UI pages, shared Japanese font.',
+    'Package smoke passed: SQLite, platform FFI, texthooker, both dictionary extensions, UI pages, stats HTTP, shared Japanese font.',
   );
 }
 

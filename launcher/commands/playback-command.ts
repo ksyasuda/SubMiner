@@ -26,7 +26,10 @@ import {
   readSetupState,
 } from '../../src/shared/setup-state.js';
 import { detectInstalledFirstRunPluginCandidates } from '../../src/main/runtime/first-run-setup-plugin.js';
-import { hasLauncherExternalYomitanProfileConfig } from '../config.js';
+import {
+  hasLauncherExternalYomitanProfileConfig,
+  loadLauncherDictionaryBackend,
+} from '../config.js';
 
 const SETUP_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const SETUP_POLL_INTERVAL_MS = 500;
@@ -115,6 +118,9 @@ async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promis
   const configDir = getLauncherConfigDir();
   const statePath = getSetupStatePath(configDir);
   const ready = await ensureLauncherSetupReady({
+    dictionaryBackend: loadLauncherDictionaryBackend(),
+    isAppRunning: () => isRunningAppControlServerAvailable(args.logLevel, configDir),
+    warn: (message) => log('warn', args.logLevel, message),
     readSetupState: () => readSetupState(statePath),
     isExternalYomitanConfigured: () => hasLauncherExternalYomitanProfileConfig(),
     hasLegacyMpvPlugin: () =>

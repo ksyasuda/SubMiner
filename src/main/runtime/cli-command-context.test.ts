@@ -52,6 +52,7 @@ function createDeps() {
       runUpdateCommand: async () => {},
       runEnsureLinuxRuntimePluginAssetsCommand: async () => {},
       runYoutubePlaybackFlow: async () => {},
+      openHachidoriSettings: () => {},
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},
       openSyncUiWindow: () => {},

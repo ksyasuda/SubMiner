@@ -1,3 +1,4 @@
+import { requestHachidoriSharing } from './core/services/tokenizer/yomitan-parser-runtime';
 /*
   SubMiner - All-in-one sentence mining overlay
   Copyright (C) 2026 sudacode
@@ -33,6 +34,14 @@ import {
   screen,
 } from 'electron';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
+import {
+  createHachidoriExtensionRuntime,
+  getHachidoriSession,
+} from './core/services/hachidori-extension';
+import {
+  DICTIONARY_EXTERNAL_LINK_CHANNEL,
+  parseDictionaryExternalUrl,
+} from './shared/dictionary-external-link';
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { readMpvInputBindings } from './main/runtime/mpv-input-bindings';
 import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
@@ -388,6 +397,7 @@ import {
   installLauncher as installCommandLineLauncher,
   refreshManagedCommandLineLauncher,
 } from './main/runtime/command-line-launcher';
+import { applyLoginShellPath } from './main/runtime/login-shell-path';
 import {
   createWindowsMpvLaunchDeps,
   getConfiguredWindowsMpvPathStatus,
@@ -901,14 +911,34 @@ const {
   appState,
   appLifecycleApp,
 } = bootServices;
+// Backend changes take effect on restart; windows and parser must share one session.
+const activeDictionaryBackend = configService.getConfig().dictionaryBackend;
+const hachidoriExtensionRuntime = createHachidoriExtensionRuntime(USER_DATA_PATH);
+let hachidoriSettingsWindow: BrowserWindow | null = null;
+let inactiveYomitanExtension: Extension | null = null;
+let inactiveYomitanSettingsWindow: BrowserWindow | null = null;
+let inactiveYomitanLoad: Promise<Extension | null> | null = null;
 let pendingSubtitleMiningContext: SubtitleMiningContext | null = null;
 const configSettingsFields = buildConfigSettingsRegistry(DEFAULT_CONFIG);
+
+ipcMain.handle(DICTIONARY_EXTERNAL_LINK_CHANNEL, async (event, value: unknown) => {
+  if (
+    activeDictionaryBackend !== 'hachidori' ||
+    event.senderFrame !== event.sender.mainFrame ||
+    !overlayManager.getOverlayWindows().some((window) => window.webContents === event.sender)
+  ) {
+    throw new Error('Dictionary links are only available from the active overlay');
+  }
+  await shell.openExternal(parseDictionaryExternalUrl(value));
+});
 
 function getOverlayForegroundSeparateWindows(): BrowserWindow[] {
   return [
     appState.configSettingsWindow,
     appState.syncUiWindow,
     appState.yomitanSettingsWindow,
+    hachidoriSettingsWindow,
+    inactiveYomitanSettingsWindow,
     appState.anilistSetupWindow,
     appState.jellyfinSetupWindow,
     appState.firstRunSetupWindow,
@@ -1006,6 +1036,8 @@ const {
 } = statsServerRuntime;
 
 function requestAppQuit(): void {
+  destroyYomitanSettingsWindow(hachidoriSettingsWindow);
+  destroyYomitanSettingsWindow(inactiveYomitanSettingsWindow);
   destroyYomitanSettingsWindow(appState.yomitanSettingsWindow);
   appState.yomitanSettingsWindow = null;
   destroyStatsWindow();
@@ -1462,21 +1494,45 @@ const resolveWindowsMpvShortcutRuntimePaths = () =>
     appDataDir: app.getPath('appData'),
     desktopDir: app.getPath('desktop'),
   });
-const createCommandLineLauncherRuntimeOptions = () => ({
-  platform: process.platform,
-  env: process.env,
-  homeDir: os.homedir(),
-  localAppData: process.env.LOCALAPPDATA,
-  userProfile: process.env.USERPROFILE,
-  cwd: process.cwd(),
-  resourcesPath: process.resourcesPath,
-  appExePath: process.execPath,
-  appVersion: app.getVersion(),
-  bundledBunPath: app.isPackaged
-    ? path.join(process.resourcesPath, 'bun', process.platform === 'win32' ? 'bun.exe' : 'bun')
-    : undefined,
-});
+// Finder/Dock launches inherit launchd's minimal PATH; pick up the user's shell PATH so
+// launcher/Bun detection and spawned tools match what their terminal sees.
+const loginShellPathReady: Promise<void> =
+  process.platform === 'darwin'
+    ? applyLoginShellPath({ env: process.env })
+        .then((applied) => {
+          if (!applied) logger.warn('Login shell PATH was empty; using inherited PATH');
+        })
+        .catch((error) => {
+          logger.warn('Failed to read login shell PATH; using inherited PATH', error);
+        })
+    : Promise.resolve();
+const createCommandLineLauncherRuntimeOptions = async () => {
+  await loginShellPathReady;
+  return {
+    platform: process.platform,
+    env: process.env,
+    homeDir: os.homedir(),
+    localAppData: process.env.LOCALAPPDATA,
+    userProfile: process.env.USERPROFILE,
+    cwd: process.cwd(),
+    resourcesPath: process.resourcesPath,
+    appExePath: process.execPath,
+    appVersion: app.getVersion(),
+    bundledBunPath: app.isPackaged
+      ? path.join(process.resourcesPath, 'bun', process.platform === 'win32' ? 'bun.exe' : 'bun')
+      : undefined,
+  };
+};
 const firstRunSetupService = createFirstRunSetupService({
+  getDictionaryBackend: () => activeDictionaryBackend,
+  getHachidoriHostStatus: async () => {
+    await ensureYomitanExtensionLoaded();
+    return requestHachidoriSharing(
+      { type: 'hd_sharing_status' },
+      getYomitanParserRuntimeDeps(),
+      logger,
+    );
+  },
   platform: process.platform,
   configDir: CONFIG_DIR,
   getYomitanDictionaryCount: async () => {
@@ -1549,10 +1605,10 @@ const firstRunSetupService = createFirstRunSetupService({
         shell.writeShortcutLink(shortcutPath, operation, details),
     });
   },
-  detectCommandLineLauncher: () =>
-    detectCommandLineLauncher(createCommandLineLauncherRuntimeOptions()),
+  detectCommandLineLauncher: async () =>
+    detectCommandLineLauncher(await createCommandLineLauncherRuntimeOptions()),
   installBun: async () => {
-    const snapshot = await installCommandLineBun(createCommandLineLauncherRuntimeOptions());
+    const snapshot = await installCommandLineBun(await createCommandLineLauncherRuntimeOptions());
     return {
       ok: snapshot.status === 'ready',
       message:
@@ -1563,7 +1619,9 @@ const firstRunSetupService = createFirstRunSetupService({
     };
   },
   installCommandLineLauncher: async () => {
-    const snapshot = await installCommandLineLauncher(createCommandLineLauncherRuntimeOptions());
+    const snapshot = await installCommandLineLauncher(
+      await createCommandLineLauncherRuntimeOptions(),
+    );
     const ok = snapshot.status === 'ready' || snapshot.status === 'not_on_path';
     return {
       ok,
@@ -2052,7 +2110,24 @@ function isExplicitMpvSeekCommand(command: readonly (string | number)[]): boolea
   return command[0] === 'seek' || command[0] === 'sub-seek';
 }
 
+function getMpvPauseCommandValue(command: readonly (string | number)[]): 'yes' | 'no' | null {
+  if ((command[0] !== 'set_property' && command[0] !== 'set') || command[1] !== 'pause') {
+    return null;
+  }
+  return command[2] === 'yes' || command[2] === 'no' ? command[2] : null;
+}
+
 function sendRendererMpvCommand(rawCommand: (string | number)[]): void {
+  // Overlay auto-pause releases (popup closed, hover left) must not resume playback
+  // behind an open timing review; the review applies them when it closes. A pause
+  // request during the review keeps playback paused after it closes.
+  const pauseValue = getMpvPauseCommandValue(rawCommand);
+  if (pauseValue === 'no' && mediaTimingReviewRuntime.deferPlaybackResume()) {
+    return;
+  }
+  if (pauseValue === 'yes') {
+    mediaTimingReviewRuntime.cancelPlaybackResume();
+  }
   const command =
     resolveSanitizedSubtitleSeekCommand(
       rawCommand,
@@ -2118,6 +2193,7 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     subtitleProcessingController.preCacheTokenization(text, data);
   },
   hasCachedTokenization: (text) => subtitleProcessingController.hasCachedSubtitle(text),
+  getCacheGeneration: () => subtitleProcessingController.getCacheGeneration(),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
   onParsedSubtitleCuesChanged: (cues, sourceKey) => {
@@ -2302,6 +2378,11 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
     applyAnkiRuntimeConfigPatch: (patch) => {
       if (appState.ankiIntegration) {
         appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+      }
+      if (activeDictionaryBackend === 'hachidori' && appState.yomitanExt) {
+        void syncYomitanDefaultProfileAnkiServer().catch((error: unknown) =>
+          logger.error('Failed to auto-populate Hachidori Anki settings', error),
+        );
       }
     },
     invalidateTokenizationCache: () => {
@@ -2654,8 +2735,11 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     return await importYomitanDictionaryFromZip(zipPath, getYomitanParserRuntimeDeps(), {
       error: (message, ...args) => logger.error(message, ...args),
       info: (message, ...args) => logger.info(message, ...args),
+      warn: (message, ...args) => logger.warn(message, ...args),
     });
   },
+  dictionaryImportReplacesExisting: () =>
+    getYomitanParserRuntimeDeps().getYomitanExt()?.name === 'Hachidori',
   deleteYomitanDictionary: async (dictionaryTitle) => {
     if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
       yomitanProfilePolicy.logSkippedWrite(
@@ -3540,6 +3624,8 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
     return {
       configReady: snapshot.configReady,
       dictionaryCount: snapshot.dictionaryCount,
+      dictionaryBackend: snapshot.dictionaryBackend,
+      hachidoriHost: snapshot.hachidoriHost,
       canFinish: snapshot.canFinish,
       externalYomitanConfigured: snapshot.externalYomitanConfigured,
       pluginStatus: snapshot.pluginStatus,
@@ -3555,6 +3641,33 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   buildSetupHtml: (model) => buildFirstRunSetupHtml(model),
   parseSubmissionUrl: (rawUrl) => parseFirstRunSetupSubmissionUrl(rawUrl),
   handleAction: async (submission: FirstRunSetupSubmission) => {
+    if (
+      submission.action === 'link-hachidori-host' ||
+      submission.action === 'unlink-hachidori-host'
+    ) {
+      try {
+        if (activeDictionaryBackend !== 'hachidori')
+          throw new Error('Select Hachidori and restart SubMiner before linking a host.');
+        await ensureYomitanExtensionLoaded();
+        const status = await requestHachidoriSharing(
+          submission.action === 'link-hachidori-host'
+            ? { type: 'hd_sharing_client_link', address: submission.address }
+            : { type: 'hd_sharing_client_unlink' },
+          getYomitanParserRuntimeDeps(),
+          logger,
+        );
+        firstRunSetupMessage =
+          status.kind === 'local'
+            ? 'Using dictionaries installed in SubMiner.'
+            : status.kind === 'connected'
+              ? `Linked to ${status.name}. Anki mining stays in SubMiner.`
+              : status.message;
+      } catch (error) {
+        firstRunSetupMessage =
+          error instanceof Error ? error.message : 'Could not update the dictionary host.';
+      }
+      return;
+    }
     if (submission.action === 'remove-legacy-plugin') {
       const snapshot = await firstRunSetupService.removeLegacyMpvPlugin();
       firstRunSetupMessage = snapshot.message;
@@ -3595,8 +3708,8 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       return;
     }
     if (submission.action === 'open-yomitan-settings') {
-      firstRunSetupMessage = openYomitanSettings()
-        ? 'Opened Yomitan settings. Install dictionaries, then refresh status.'
+      firstRunSetupMessage = openDictionarySettings()
+        ? `Opened ${activeDictionaryBackend === 'hachidori' ? 'Hachidori' : 'Yomitan'} settings. Install dictionaries, then refresh status.`
         : 'Yomitan settings are unavailable while external read-only profile mode is enabled.';
       return;
     }
@@ -5271,6 +5384,41 @@ function initializeOverlayRuntime(): void {
 }
 
 function openYomitanSettings(): boolean {
+  if (activeDictionaryBackend === 'hachidori') {
+    if (configService.getConfig().yomitan.externalProfilePath.trim()) {
+      logger.warn('Yomitan settings unavailable while using read-only external-profile mode.');
+      return false;
+    }
+    inactiveYomitanLoad ??= inactiveYomitanExtension
+      ? Promise.resolve(inactiveYomitanExtension)
+      : loadYomitanExtensionCore({
+          userDataPath: USER_DATA_PATH,
+          getYomitanParserWindow: () => null,
+          setYomitanParserWindow: () => {},
+          setYomitanParserReadyPromise: () => {},
+          setYomitanParserInitPromise: () => {},
+          setYomitanExtension: (extension) => {
+            inactiveYomitanExtension = extension;
+          },
+          setYomitanSession: () => {},
+        }).finally(() => {
+          inactiveYomitanLoad = null;
+        });
+    void (
+      inactiveYomitanExtension ? Promise.resolve(inactiveYomitanExtension) : inactiveYomitanLoad
+    )
+      .then((extension) =>
+        openYomitanSettingsWindow({
+          yomitanExt: extension,
+          getExistingWindow: () => inactiveYomitanSettingsWindow,
+          setWindow: (window) => {
+            inactiveYomitanSettingsWindow = window;
+          },
+        }),
+      )
+      .catch((error: unknown) => logger.error('Failed to open Yomitan settings', error));
+    return true;
+  }
   if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
     const message = 'Yomitan settings unavailable while using read-only external-profile mode.';
     logger.warn(
@@ -5281,6 +5429,39 @@ function openYomitanSettings(): boolean {
   }
   openYomitanSettingsHandler();
   return true;
+}
+
+function openHachidoriSettings(): void {
+  void (
+    activeDictionaryBackend === 'hachidori'
+      ? ensureYomitanExtensionLoaded()
+      : hachidoriExtensionRuntime.ensureLoaded()
+  )
+    .then((extension) =>
+      openYomitanSettingsWindow({
+        backend: 'hachidori',
+        yomitanExt: extension,
+        yomitanSession: getHachidoriSession(),
+        getExistingWindow: () => hachidoriSettingsWindow,
+        setWindow: (window) => {
+          hachidoriSettingsWindow = window;
+        },
+        onWindowClosed: () => {
+          if (activeDictionaryBackend === 'hachidori' && appState.yomitanParserWindow) {
+            clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
+          }
+        },
+      }),
+    )
+    .catch((error: unknown) => logger.error('Failed to open Hachidori settings', error));
+}
+
+function openDictionarySettings(): boolean {
+  if (activeDictionaryBackend === 'hachidori') {
+    openHachidoriSettings();
+    return true;
+  }
+  return openYomitanSettings();
 }
 
 const { exportLogsFromTray } = createLogExportTrayRuntime({
@@ -5310,7 +5491,7 @@ const {
       getConfiguredShortcuts: () => getConfiguredShortcutsHandler(),
       registerGlobalShortcutsCore,
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
-      openYomitanSettings: () => openYomitanSettings(),
+      openYomitanSettings: () => openDictionarySettings(),
       isDev,
       getMainWindow: () => overlayManager.getMainWindow(),
     }),
@@ -5815,7 +5996,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
       },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
-      openYomitanSettings: () => openYomitanSettings(),
+      openYomitanSettings: () => openDictionarySettings(),
       // Overlay lookups carry no cue context of their own; fall back to snapshotting the
       // live mpv sub timings at lookup time so media generation clips the mined line even
       // when extraction finishes long after playback has moved on.
@@ -6262,6 +6443,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     },
     runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
     ensureBackgroundStatsServer: () => ensureBackgroundStatsServer(),
+    openHachidoriSettings: () => openHachidoriSettings(),
     openYomitanSettings: () => openYomitanSettings(),
     openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
     openSyncUiWindow: () => openSyncUiWindowHandler(),
@@ -6398,7 +6580,7 @@ runAndApplyStartupState();
 void app.whenReady().then(() => {
   void takePendingLauncherMigrationPath(async (pendingLauncherPath) => {
     const acknowledgedPaths = await refreshManagedCommandLineLauncher({
-      ...createCommandLineLauncherRuntimeOptions(),
+      ...(await createCommandLineLauncherRuntimeOptions()),
       additionalLauncherPaths: pendingLauncherPath ? [pendingLauncherPath] : [],
     });
     return pendingLauncherPath !== undefined && acknowledgedPaths.includes(pendingLauncherPath);
@@ -6438,7 +6620,8 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
         overlayVisibilityComposer.setOverlayDebugVisualizationEnabled(enabled),
       isOverlayVisible: (windowKind) =>
         windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
-      getYomitanSession: () => appState.yomitanSession,
+      getYomitanSession: () =>
+        activeDictionaryBackend === 'hachidori' ? getHachidoriSession() : appState.yomitanSession,
       tryHandleOverlayShortcutLocalFallback: (input) =>
         overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
@@ -6526,6 +6709,8 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
       openFirstRunSetupWindow: (force?: boolean) => openFirstRunSetupWindow(force),
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
+      getDictionaryBackend: () => activeDictionaryBackend,
+      openHachidoriSettings: () => openHachidoriSettings(),
       openYomitanSettings: () => openYomitanSettings(),
       openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
       openSyncUiWindow: () => openSyncUiWindowHandler(),
@@ -6571,12 +6756,28 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
   });
 const yomitanProfilePolicy = createYomitanProfilePolicy({
-  externalProfilePath: configService.getConfig().yomitan.externalProfilePath,
+  externalProfilePath:
+    activeDictionaryBackend === 'yomitan'
+      ? configService.getConfig().yomitan.externalProfilePath
+      : '',
   logInfo: (message) => logger.info(message),
 });
 const configuredExternalYomitanProfilePath = yomitanProfilePolicy.externalProfilePath;
 const yomitanExtensionRuntime = createYomitanExtensionRuntime({
-  loadYomitanExtensionCore,
+  loadYomitanExtensionCore: async (deps) => {
+    if (activeDictionaryBackend === 'yomitan') return loadYomitanExtensionCore(deps);
+    try {
+      const extension = await hachidoriExtensionRuntime.ensureLoaded();
+      deps.setYomitanExtension(extension);
+      deps.setYomitanSession(getHachidoriSession());
+      return extension;
+    } catch (error) {
+      logger.error('Failed to load Hachidori extension:', error);
+      deps.setYomitanExtension(null);
+      deps.setYomitanSession(null);
+      return null;
+    }
+  },
   userDataPath: USER_DATA_PATH,
   externalProfilePath: configuredExternalYomitanProfilePath,
   getYomitanParserWindow: () => appState.yomitanParserWindow,

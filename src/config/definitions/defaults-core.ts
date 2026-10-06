@@ -2,6 +2,7 @@ import { ResolvedConfig } from '../../types/config';
 
 export const CORE_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
+  | 'dictionaryBackend'
   | 'subtitlePosition'
   | 'keybindings'
   | 'websocket'
@@ -18,6 +19,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'notifications'
   | 'auto_start_overlay'
 > = {
+  dictionaryBackend: 'yomitan',
   subtitlePosition: { yPercent: 10 },
   keybindings: [],
   websocket: {

@@ -82,6 +82,13 @@ export function buildCoreConfigOptionRegistry(
 
   return [
     {
+      path: 'dictionaryBackend',
+      kind: 'enum',
+      enumValues: ['yomitan', 'hachidori'],
+      defaultValue: defaultConfig.dictionaryBackend,
+      description: 'Dictionary lookup backend. Restart SubMiner after changing this setting.',
+    },
+    {
       path: 'logging.level',
       kind: 'enum',
       enumValues: ['debug', 'info', 'warn', 'error'],

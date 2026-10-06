@@ -378,6 +378,11 @@ const forwardedAppArgsCases: Array<{
     argv: () => ['settings'],
     expected: () => '--settings\n',
   },
+  ...['--settings', '--yomitan', '--hachidori'].map((flag) => ({
+    name: `launcher ${flag} forwards the matching app settings command`,
+    argv: () => [flag],
+    expected: () => `${flag}\n`,
+  })),
   {
     name: 'launcher youtube command forwards the YouTube browser flag and log level',
     argv: () => ['yt', '--log-level', 'debug'],
@@ -562,3 +567,43 @@ test(
     });
   },
 );
+
+test('external Yomitan profile remains available while a running app awaits a backend switch', () => {
+  withSandbox(({ env, writeConfigFile }) => {
+    writeConfigFile('config.jsonc', {
+      dictionaryBackend: 'hachidori',
+      yomitan: { externalProfilePath: '/external/yomitan-profile' },
+    });
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--eval',
+        `
+      import assert from 'node:assert/strict';
+      import { hasLauncherExternalYomitanProfileConfig } from './launcher/config.ts';
+      import { ensureLauncherSetupReady } from './launcher/setup-gate.ts';
+      import { createDefaultSetupState } from './src/shared/setup-state.ts';
+      for (const running of [true, false]) {
+        let launches = 0;
+        let tick = 0;
+        const ready = await ensureLauncherSetupReady({
+          dictionaryBackend: 'hachidori',
+          isAppRunning: async () => running,
+          readSetupState: () => ({ ...createDefaultSetupState(), dictionaryBackend: 'yomitan' }),
+          isExternalYomitanConfigured: hasLauncherExternalYomitanProfileConfig,
+          launchSetupApp: () => { launches += 1; },
+          sleep: async () => {},
+          now: () => tick++,
+          timeoutMs: 2,
+          pollIntervalMs: 1,
+        });
+        assert.equal(ready, running);
+        assert.equal(launches, running ? 0 : 1);
+      }
+    `,
+      ],
+      { cwd: process.cwd(), env, encoding: 'utf8', timeout: LAUNCHER_RUN_TIMEOUT_MS },
+    );
+    assert.equal(result.status, 0, result.stderr);
+  });
+});

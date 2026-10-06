@@ -217,6 +217,7 @@ export interface CliCommandRuntimeServiceDepsParams {
   ui: {
     openFirstRunSetup: CliCommandDepsRuntimeOptions['ui']['openFirstRunSetup'];
     openYomitanSettings: CliCommandDepsRuntimeOptions['ui']['openYomitanSettings'];
+    openHachidoriSettings: CliCommandDepsRuntimeOptions['ui']['openHachidoriSettings'];
     openConfigSettingsWindow: CliCommandDepsRuntimeOptions['ui']['openConfigSettingsWindow'];
     openSyncUiWindow: CliCommandDepsRuntimeOptions['ui']['openSyncUiWindow'];
     openYoutubeBrowserWindow: CliCommandDepsRuntimeOptions['ui']['openYoutubeBrowserWindow'];
@@ -431,6 +432,7 @@ export function createCliCommandRuntimeServiceDeps(
     ui: {
       openFirstRunSetup: params.ui.openFirstRunSetup,
       openYomitanSettings: params.ui.openYomitanSettings,
+      openHachidoriSettings: params.ui.openHachidoriSettings,
       openConfigSettingsWindow: params.ui.openConfigSettingsWindow,
       openSyncUiWindow: params.ui.openSyncUiWindow,
       openYoutubeBrowserWindow: params.ui.openYoutubeBrowserWindow,

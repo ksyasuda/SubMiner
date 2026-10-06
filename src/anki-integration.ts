@@ -1807,6 +1807,9 @@ export class AnkiIntegration {
     request: Omit<MediaTimingReviewRequest, 'audioPadding' | 'maxMediaDuration'>,
   ): Promise<MediaTimingReviewDecision> {
     if (this.config.media?.reviewTiming !== true || !this.mediaTimingReviewCallback) {
+      log.debug(
+        `[media-timing] review skipped: reviewTiming=${String(this.config.media?.reviewTiming)} callback=${this.mediaTimingReviewCallback ? 'set' : 'missing'}`,
+      );
       return { action: 'use-original' };
     }
     return await this.mediaTimingReviewCallback({

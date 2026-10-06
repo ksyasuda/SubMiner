@@ -8,9 +8,11 @@ import type {
   WordCardKind,
 } from '../types/anki';
 import { resolveWordCardKind } from './note-field-utils';
+import { STATS_MINING_TAG } from '../shared/anki-source';
 
 export interface NoteUpdateWorkflowNoteInfo {
   noteId: number;
+  tags?: string[];
   fields: Record<string, { value: string }>;
 }
 
@@ -185,6 +187,10 @@ export class NoteUpdateWorkflow {
       }
 
       const noteInfo = notesInfo[0]!;
+      if (noteInfo.tags?.includes(STATS_MINING_TAG)) {
+        this.deps.appendKnownWordsFromNoteInfo(noteInfo);
+        return;
+      }
       const fields = this.deps.extractFields(noteInfo.fields);
       const config = this.deps.getConfig();
 
