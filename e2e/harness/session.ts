@@ -17,8 +17,9 @@ import {
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 
-/** URL fragments identifying the app's windows among the CDP targets. */
-export const OVERLAY_PAGE = 'renderer/index.html';
+/** URL fragments identifying the app's windows among the CDP targets. The modal
+ * window loads the same document with `layer=modal`, so the layer is required. */
+export const OVERLAY_PAGE = 'renderer/index.html?layer=visible';
 const YOMITAN_SETTINGS_PAGE = 'settings.html';
 
 type JsonObject = { [key: string]: JsonValue };
