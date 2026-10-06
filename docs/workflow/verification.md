@@ -115,8 +115,9 @@ whenever the behavior does not depend on a specific compositor.
 - Display: Linux runs everything inside a private Xvfb server, so no window reaches the
   desktop. macOS and Windows have no offscreen display server, so windows open in the
   current session there; `SUBMINER_E2E_DISPLAY=host` forces the same on Linux. The
-  macOS path passes in CI. Windows boots and renders the first line, then the overlay
-  stops updating, so its CI job is marked experimental and does not fail the workflow.
+  CI job runs all three. On macOS and Windows the app pre-creates a hidden modal window
+  that loads the same renderer document, so window matching must include the
+  `layer=visible` query (`OVERLAY_PAGE`).
 - The app is driven over the Chrome DevTools Protocol (DOM queries, input events,
   per-window screenshots), mpv over its JSON IPC socket, and app commands through the
   normal CLI handoff (`--mine-sentence`, `--toggle-subtitle-sidebar`, ...).

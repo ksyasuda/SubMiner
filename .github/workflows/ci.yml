@@ -17,15 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        experimental: [false]
-        include:
-          # The overlay stops updating after the first line on Windows runners;
-          # keep the job visible without failing the workflow until that is solved.
-          - os: windows-latest
-            experimental: true
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental }}
     timeout-minutes: 30
     permissions:
       contents: read
