@@ -62,7 +62,44 @@ async function describeDelivery(session: E2eSession, overlay: CdpPage): Promise<
   const main = await session.mainProcess();
   const sent = await main.evaluate<string>('JSON.stringify(globalThis.__e2eSent)');
   const received = await overlay.evaluate<string>('JSON.stringify(window.__e2eReceived)');
-  return `Main sent: ${sent}\nOverlay received: ${received}`;
+  // Probe the other main-to-renderer paths so a dead one can be told from a filtered one.
+  await overlay.evaluate(
+    `(() => {
+      window.__e2eProbe = { runtimeOptions: 0, exec: 0 };
+      window.electronAPI.onRuntimeOptionsChanged(() => { window.__e2eProbe.runtimeOptions += 1; });
+      return true;
+    })()`,
+  );
+  const frame = await main.evaluate<string>(
+    `(async () => {
+      const { BrowserWindow } = process.mainModule.require('electron');
+      const w = BrowserWindow.getAllWindows().find((w) => w.getTitle() === 'SubMiner Overlay');
+      const wc = w.webContents;
+      wc.send('runtime-options:changed', []);
+      wc.mainFrame.send('subtitle:set', { text: '__frame_probe__', tokens: null });
+      let exec = 'ok';
+      try {
+        await wc.executeJavaScript('window.__e2eProbe.exec += 1');
+      } catch (error) {
+        exec = String(error);
+      }
+      return JSON.stringify({
+        exec,
+        crashed: wc.isCrashed(),
+        processId: wc.getProcessId(),
+        frame: { url: wc.mainFrame.url, processId: wc.mainFrame.processId, frames: wc.mainFrame.frames.length },
+        focused: w.isFocused(),
+        minimized: w.isMinimized(),
+        opacity: w.getOpacity(),
+        bounds: w.getBounds(),
+      });
+    })()`,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
+  const probe = await overlay.evaluate<string>(
+    'JSON.stringify({ probe: window.__e2eProbe, received: window.__e2eReceived, href: location.href })',
+  );
+  return `Main sent: ${sent}\nOverlay received: ${received}\nMain probe: ${frame}\nOverlay after probe: ${probe}`;
 }
 
 after(async () => {
