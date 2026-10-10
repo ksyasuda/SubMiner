@@ -34,7 +34,7 @@ subminer jellyfin -p       # fzf picker; `jf` is an alias for `jellyfin`
 subminer -R jellyfin -p    # rofi picker
 ```
 
-Sign in first. Playback resumes from Jellyfin's saved position, and watch progress syncs back the same way it does for casting, whether or not discovery is on. See [Launcher script](/launcher-script) for the other `jellyfin` subcommands.
+Sign in first. Playback resumes from Jellyfin's saved position, and watch progress syncs back the same way it does for casting, whether or not discovery is on. If SubMiner is already running, the picker uses it and leaves it running. Otherwise the launcher starts SubMiner and quits it when you close mpv, the same as playing a local file. See [Launcher script](/launcher-script) for the other `jellyfin` subcommands.
 
 ## Options
 

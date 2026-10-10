@@ -24,11 +24,14 @@ import {
 import { loadLauncherJellyfinConfig } from './config.js';
 import { resolveLauncherMainConfigPath } from './config/shared-config-reader.js';
 import {
+  adoptLauncherStartedApp,
+  isAppManagedByLauncher,
   runAppCommandWithInheritLogged,
   runAppCommandCaptureOutput,
   launchAppBackgroundDetached,
   launchMpvIdleDetached,
   resolveLauncherRuntimePluginPath,
+  waitForUnixSocketClosed,
   waitForUnixSocketReady,
 } from './mpv.js';
 import { ensureLinuxRuntimePluginAvailable } from './runtime-plugin-preflight.js';
@@ -53,6 +56,10 @@ type JellyfinPlayMenuDeps = {
   launchMpvIdleDetached: typeof launchMpvIdleDetached;
   resolveLauncherRuntimePluginPath: typeof resolveLauncherRuntimePluginPath;
   runAppCommandWithInheritLogged: typeof runAppCommandWithInheritLogged;
+  isAppManagedByLauncher: typeof isAppManagedByLauncher;
+  runAppCommandCaptureOutput: typeof runAppCommandCaptureOutput;
+  waitForUnixSocketClosed: typeof waitForUnixSocketClosed;
+  exitProcess: (code: number) => never;
   log: typeof log;
 };
 
@@ -76,6 +83,10 @@ const defaultJellyfinPlayMenuDeps: JellyfinPlayMenuDeps = {
   launchMpvIdleDetached,
   resolveLauncherRuntimePluginPath,
   runAppCommandWithInheritLogged,
+  isAppManagedByLauncher,
+  runAppCommandCaptureOutput,
+  waitForUnixSocketClosed,
+  exitProcess: (code) => process.exit(code),
   log,
 };
 
@@ -436,6 +447,7 @@ async function requestJellyfinReplyFromApp(
         `${label}: starting app in the background, then retrying command`,
       );
       launchAppBackgroundDetached(appPath, args.logLevel);
+      adoptLauncherStartedApp(appPath, args);
       // A cold start (an AppImage mount, first-run setup) can take a while to claim the instance
       // lock, so keep retrying until the app takes the command or the request deadline passes.
       const startDeadline = nowMs() + timeoutMs;
@@ -1050,5 +1062,22 @@ export async function runJellyfinPlayMenuWithDeps(
   const forwarded = ['--start', '--jellyfin-play', `--jellyfin-item-id=${itemId}`];
   if (shouldForwardLogLevel(args.logLevel)) forwarded.push('--log-level', args.logLevel);
   if (args.passwordStore) forwarded.push('--password-store', args.passwordStore);
-  deps.runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, 'jellyfin-play');
+  if (!deps.isAppManagedByLauncher()) {
+    // A running app keeps running after playback; a cold `--start --jellyfin-play` makes the app
+    // quit with mpv on its own.
+    deps.runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, 'jellyfin-play');
+  }
+  // The picker started the app, so this playback owns it, as with local playback: hand over the
+  // item, wait for mpv to close, then exit, which stops the app.
+  const handoff = deps.runAppCommandCaptureOutput(appPath, forwarded);
+  if (handoff.status !== 0) {
+    fail(handoff.error?.message || handoff.stderr.trim() || 'Failed to start Jellyfin playback.');
+  }
+  deps.log(
+    'debug',
+    args.logLevel,
+    'jellyfin-play: waiting for mpv to close before stopping the app',
+  );
+  await deps.waitForUnixSocketClosed(mpvSocketPath);
+  return deps.exitProcess(0);
 }

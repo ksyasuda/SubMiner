@@ -57,6 +57,16 @@ async function runPlayMenu(options: {
       handoff.appArgs = appArgs;
       throw new HandoffComplete();
     },
+    isAppManagedByLauncher: () => false,
+    runAppCommandCaptureOutput: () => {
+      throw new Error('unexpected owned-app handoff');
+    },
+    waitForUnixSocketClosed: async () => {
+      throw new Error('unexpected wait for mpv to close');
+    },
+    exitProcess: () => {
+      throw new Error('unexpected exit');
+    },
     log: () => {},
     ...options.overrides,
   };
@@ -92,6 +102,34 @@ test('Jellyfin playback reuses a ready mpv socket instead of launching idle mpv'
 
   assert.deepEqual(launches, []);
   assert.deepEqual(appArgs, ['--start', '--jellyfin-play', '--jellyfin-item-id=item-123']);
+});
+
+test('Jellyfin playback in an app the picker started waits for mpv to close before exiting', async () => {
+  const events: string[] = [];
+  const { appArgs } = await runPlayMenu({
+    socketReady: true,
+    overrides: {
+      isAppManagedByLauncher: () => true,
+      runAppCommandCaptureOutput: (_appPath, appArgs) => {
+        events.push(`handoff ${appArgs.join(' ')}`);
+        return { status: 0, stdout: '', stderr: '' };
+      },
+      waitForUnixSocketClosed: async (socketPath) => {
+        events.push(`wait ${socketPath}`);
+      },
+      exitProcess: (code) => {
+        events.push(`exit ${code}`);
+        throw new HandoffComplete();
+      },
+    },
+  });
+
+  assert.equal(appArgs, null);
+  assert.deepEqual(events, [
+    'handoff --start --jellyfin-play --jellyfin-item-id=item-123',
+    'wait /tmp/subminer.sock',
+    'exit 0',
+  ]);
 });
 
 test('parseJellyfinAppReply maps library and item replies to picker entries', () => {
