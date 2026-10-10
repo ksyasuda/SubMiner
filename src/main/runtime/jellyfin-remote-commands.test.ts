@@ -9,6 +9,12 @@ import {
   type JellyfinRemotePlayHandlerDeps,
 } from './jellyfin-remote-commands';
 
+const noopReporter = {
+  reportPlaying: async () => {},
+  reportProgress: async () => {},
+  reportStopped: async () => {},
+};
+
 test('getConfiguredJellyfinSession returns null for incomplete config', () => {
   assert.equal(
     getConfiguredJellyfinSession({
@@ -122,7 +128,11 @@ test('createHandleJellyfinRemotePlay logs and skips payload without item id', as
 
 test('createHandleJellyfinRemotePlay ignores duplicate play for active item', async () => {
   const { handlePlay, played } = makePlayHandler({
-    getActivePlayback: () => ({ itemId: 'item-1', playMethod: 'DirectPlay' }),
+    getActivePlayback: () => ({
+      itemId: 'item-1',
+      playMethod: 'DirectPlay',
+      reporter: noopReporter,
+    }),
   });
 
   await handlePlay({ ItemIds: ['item-1'] });
@@ -207,6 +217,7 @@ test('createHandleJellyfinRemoteGeneralCommand mutates active playback indices',
   const playback: ActiveJellyfinRemotePlaybackState = {
     itemId: 'item-1',
     playMethod: 'DirectPlay',
+    reporter: noopReporter,
     audioStreamIndex: null,
     subtitleStreamIndex: null,
   };

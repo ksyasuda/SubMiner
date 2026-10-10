@@ -1,6 +1,7 @@
 import type { JellyfinAuthSession, JellyfinPlaybackPlan } from '../../core/services/jellyfin';
 import type { JellyfinConfig } from '../../types';
 import type { MpvRuntimeClientLike } from '../../core/services/mpv';
+import type { JellyfinPlaybackReporterLike } from './jellyfin-remote-commands';
 
 type JellyfinClientInfo = {
   clientName: string;
@@ -10,6 +11,7 @@ type JellyfinClientInfo = {
 
 type ActivePlaybackState = {
   itemId: string;
+  reporter: JellyfinPlaybackReporterLike;
   mediaSourceId: undefined;
   audioStreamIndex?: number | null;
   subtitleStreamIndex?: number | null;
@@ -134,16 +136,12 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
   }) => void | Promise<void>;
   setActivePlayback: (state: ActivePlaybackState) => void;
   setLastProgressAtMs: (value: number) => void;
-  reportPlaying: (payload: {
-    itemId: string;
-    mediaSourceId: undefined;
-    playMethod: 'DirectPlay' | 'Transcode';
-    positionTicks?: number;
-    isPaused?: boolean;
-    audioStreamIndex?: number | null;
-    subtitleStreamIndex?: number | null;
-    eventName: 'start';
-  }) => void;
+  // Reports go out as the device and account that started this playback, for CLI play and
+  // casting alike, so Jellyfin keeps the resume point and played state either way.
+  createPlaybackReporter: (params: {
+    session: JellyfinAuthSession;
+    clientInfo: JellyfinClientInfo;
+  }) => JellyfinPlaybackReporterLike;
   showMpvOsd: (text: string) => void;
   recordJellyfinPlaybackMetadata?: (
     metadata: JellyfinPlaybackStatsMetadata,
@@ -210,8 +208,13 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
         itemId: params.itemId,
       }),
     );
+    const reporter = deps.createPlaybackReporter({
+      session: params.session,
+      clientInfo: params.clientInfo,
+    });
     deps.setActivePlayback({
       itemId: params.itemId,
+      reporter,
       mediaSourceId: undefined,
       audioStreamIndex: plan.audioStreamIndex,
       subtitleStreamIndex: plan.subtitleStreamIndex,
@@ -237,7 +240,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     );
     deps.showVisibleOverlay();
 
-    deps.reportPlaying({
+    void reporter.reportPlaying({
       itemId: params.itemId,
       mediaSourceId: undefined,
       playMethod,

@@ -514,18 +514,18 @@ In external-profile mode, SubMiner only reads the profile. It does not open its 
 
 Log in to a Jellyfin server, browse libraries, and play or cast to SubMiner. Login tokens are stored encrypted, not in this file. See [Jellyfin integration](/jellyfin-integration).
 
-| Key                                 | Default                          | What it does                                    |
-| ----------------------------------- | -------------------------------- | ----------------------------------------------- |
-| `jellyfin.enabled`                  | `false`                          | Enable Jellyfin                                 |
-| `jellyfin.serverUrl`                | `""`                             | Server URL, for example `http://localhost:8096` |
-| `jellyfin.username`                 | `""`                             | Default username for `subminer jellyfin -l`     |
-| `jellyfin.remoteControlEnabled`     | `true`                           | Let Jellyfin apps cast to SubMiner              |
-| `jellyfin.remoteControlAutoConnect` | `true`                           | Connect the cast session on startup             |
-| `jellyfin.autoAnnounce`             | `false`                          | Announce SubMiner as a cast target on connect   |
-| `jellyfin.pullPictures`             | `false`                          | Fetch posters for launcher pickers              |
-| `jellyfin.iconCacheDir`             | `"/tmp/subminer-jellyfin-icons"` | Poster cache folder                             |
-| `jellyfin.directPlayPreferred`      | `true`                           | Try direct play before transcoding              |
-| `jellyfin.transcodeVideoCodec`      | `"h264"`                         | Codec requested when transcoding                |
+| Key                                 | Default                          | What it does                                                                            |
+| ----------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------- |
+| `jellyfin.enabled`                  | `false`                          | Enable Jellyfin                                                                         |
+| `jellyfin.serverUrl`                | `""`                             | Server URL, for example `http://localhost:8096`                                         |
+| `jellyfin.username`                 | `""`                             | Default username for `subminer jellyfin -l`                                             |
+| `jellyfin.remoteControlEnabled`     | `true`                           | Let Jellyfin apps cast to SubMiner                                                      |
+| `jellyfin.remoteControlAutoConnect` | `true`                           | Connect the cast session on startup (also needs `startupWarmups.jellyfinRemoteSession`) |
+| `jellyfin.autoAnnounce`             | `false`                          | Announce SubMiner as a cast target on connect                                           |
+| `jellyfin.pullPictures`             | `false`                          | Fetch posters for launcher pickers                                                      |
+| `jellyfin.iconCacheDir`             | `"/tmp/subminer-jellyfin-icons"` | Poster cache folder                                                                     |
+| `jellyfin.directPlayPreferred`      | `true`                           | Try direct play before transcoding                                                      |
+| `jellyfin.transcodeVideoCodec`      | `"h264"`                         | Codec requested when transcoding                                                        |
 
 ### Discord rich presence
 

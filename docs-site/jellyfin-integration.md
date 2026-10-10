@@ -14,7 +14,7 @@ SubMiner stores an encrypted session token, not your password, and turns the int
 
 ## Casting from Jellyfin
 
-After you sign in, SubMiner connects to Jellyfin at startup and shows up in the cast ("Play on") menu under your computer's hostname. To connect for the current session only, tick **Jellyfin Discovery** in the tray menu.
+After you sign in, tick **Jellyfin Discovery** in the tray menu. SubMiner then shows up in the cast ("Play on") menu under your computer's hostname until it quits. To connect every time SubMiner starts, turn on `startupWarmups.jellyfinRemoteSession` and leave `remoteControlAutoConnect` on.
 
 1. In the Jellyfin web or mobile app, start playing an episode.
 2. Open the cast menu and pick your computer.
@@ -34,20 +34,20 @@ subminer jellyfin -p       # fzf picker; `jf` is an alias for `jellyfin`
 subminer -R jellyfin -p    # rofi picker
 ```
 
-Sign in first. See [Launcher script](/launcher-script) for the other `jellyfin` subcommands.
+Sign in first. Playback resumes from Jellyfin's saved position, and watch progress syncs back the same way it does for casting, whether or not discovery is on. See [Launcher script](/launcher-script) for the other `jellyfin` subcommands.
 
 ## Options
 
 All options are under **Settings > Integrations > Jellyfin**, or `jellyfin` in `config.jsonc`. See [Configuration](/configuration#jellyfin) for the full list and defaults.
 
-| Key                        | What it does                                                         |
-| -------------------------- | -------------------------------------------------------------------- |
-| `enabled`                  | Turns the integration on. Set for you when you sign in.              |
-| `serverUrl`                | Your Jellyfin server. Filled in when you sign in.                    |
-| `remoteControlEnabled`     | Lets SubMiner act as a cast target.                                  |
-| `remoteControlAutoConnect` | Connects at startup. Turn off to start discovery from the tray.      |
-| `autoAnnounce`             | Re-announces the device on connect. Try it if SubMiner appears late. |
-| `transcodeVideoCodec`      | Video codec requested when Jellyfin transcodes.                      |
+| Key                        | What it does                                                           |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `enabled`                  | Turns the integration on. Set for you when you sign in.                |
+| `serverUrl`                | Your Jellyfin server. Filled in when you sign in.                      |
+| `remoteControlEnabled`     | Lets SubMiner act as a cast target.                                    |
+| `remoteControlAutoConnect` | Connects at startup when `startupWarmups.jellyfinRemoteSession` is on. |
+| `autoAnnounce`             | Re-announces the device on connect. Try it if SubMiner appears late.   |
+| `transcodeVideoCodec`      | Video codec requested when Jellyfin transcodes.                        |
 
 For headless setups, `SUBMINER_JELLYFIN_ACCESS_TOKEN` and `SUBMINER_JELLYFIN_USER_ID` supply a session without the sign-in window. Treat the token store and `config.jsonc` as secrets.
 

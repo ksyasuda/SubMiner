@@ -1,7 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   buildForwardedJellyfinAppArgs,
@@ -11,24 +9,15 @@ import {
   hasStoredJellyfinSession,
   parseEpisodePathFromDisplay,
   parseJellyfinErrorFromAppOutput,
-  parseJellyfinItemsFromAppOutput,
-  parseJellyfinLibrariesFromAppOutput,
+  parseJellyfinAppReply,
+  parseJellyfinItemsReply,
+  parseJellyfinLibrariesReply,
   parseJellyfinPreviewAuthResponse,
-  readUtf8FileAppendedSince,
   runJellyfinPlayMenuWithDeps,
   shouldRetryWithStartForNoRunningInstance,
 } from './jellyfin.js';
 import { makeLauncherArgs } from './test-support/args.js';
 import { withEnv } from './test-support/env.js';
-
-function withTempDir<T>(fn: (dir: string) => T): T {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jellyfin-test-'));
-  try {
-    return fn(dir);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
 
 class HandoffComplete extends Error {}
 
@@ -105,41 +94,43 @@ test('Jellyfin playback reuses a ready mpv socket instead of launching idle mpv'
   assert.deepEqual(appArgs, ['--start', '--jellyfin-play', '--jellyfin-item-id=item-123']);
 });
 
-test('parseJellyfinLibrariesFromAppOutput parses prefixed library lines', () => {
-  const parsed = parseJellyfinLibrariesFromAppOutput(`
-[subminer] - 2026-03-01 13:10:34 - INFO - [main] Jellyfin library: Anime [lib1] (tvshows)
-[subminer] - 2026-03-01 13:10:35 - INFO - [main] Jellyfin library: Movies [lib2] (movies)
-`);
-
-  assert.deepEqual(parsed, [
+test('parseJellyfinAppReply maps library and item replies to picker entries', () => {
+  const libraries = parseJellyfinAppReply(
+    JSON.stringify({
+      libraries: [
+        { id: 'lib1', name: 'Anime', collectionType: 'tvshows' },
+        { id: 'lib1', name: 'Duplicate', collectionType: 'tvshows' },
+        { name: 'No id' },
+      ],
+    }),
+  );
+  assert.ok(libraries?.ok);
+  assert.deepEqual(parseJellyfinLibrariesReply(libraries.payload), [
     { id: 'lib1', name: 'Anime', kind: 'tvshows' },
-    { id: 'lib2', name: 'Movies', kind: 'movies' },
   ]);
+
+  const items = parseJellyfinAppReply(
+    JSON.stringify({ items: [{ id: 'movie-1', title: 'Movie [Alt]', type: 'Movie' }] }),
+  );
+  assert.ok(items?.ok);
+  assert.deepEqual(parseJellyfinItemsReply(items.payload), [
+    { id: 'movie-1', name: 'Movie [Alt]', type: 'Movie', display: 'Movie [Alt]' },
+  ]);
+  assert.equal(parseJellyfinLibrariesReply(items.payload), null);
 });
 
-test('parseJellyfinItemsFromAppOutput parses item title/id/type tuples', () => {
-  const parsed = parseJellyfinItemsFromAppOutput(`
-[subminer] - 2026-03-01 13:10:34 - INFO - [main] Jellyfin item: Solo Leveling S01E10 [item-10] (Episode)
-[subminer] - 2026-03-01 13:10:35 - INFO - [main] Jellyfin item: Movie [Alt] [movie-1] (Movie)
-`);
-
-  assert.deepEqual(parsed, [
-    {
-      id: 'item-10',
-      name: 'Solo Leveling S01E10',
-      type: 'Episode',
-      display: 'Solo Leveling S01E10',
-    },
-    {
-      id: 'movie-1',
-      name: 'Movie [Alt]',
-      type: 'Movie',
-      display: 'Movie [Alt]',
-    },
-  ]);
+test('parseJellyfinAppReply surfaces app errors and rejects partial files', () => {
+  assert.deepEqual(
+    parseJellyfinAppReply(
+      JSON.stringify({ error: 'Missing Jellyfin session. Run --jellyfin-login first.' }),
+    ),
+    { ok: false, error: 'Missing Jellyfin session. Run `subminer jellyfin -l` to log in again.' },
+  );
+  assert.equal(parseJellyfinAppReply(''), null);
+  assert.equal(parseJellyfinAppReply('{"libraries": ['), null);
 });
 
-test('buildForwardedJellyfinAppArgs forces app log level for parseable list output', () => {
+test('buildForwardedJellyfinAppArgs appends server, password store, and log level', () => {
   const forwarded = buildForwardedJellyfinAppArgs(
     {
       jellyfinServer: 'https://jf.example.test/',
@@ -184,13 +175,11 @@ test('parseJellyfinErrorFromAppOutput extracts main runtime error lines', () => 
 });
 
 test('parseJellyfinPreviewAuthResponse parses valid structured response payload', () => {
-  const parsed = parseJellyfinPreviewAuthResponse(
-    JSON.stringify({
-      serverUrl: 'http://pve-main:8096/',
-      accessToken: 'token-123',
-      userId: 'user-1',
-    }),
-  );
+  const parsed = parseJellyfinPreviewAuthResponse({
+    serverUrl: 'http://pve-main:8096/',
+    accessToken: 'token-123',
+    userId: 'user-1',
+  });
 
   assert.deepEqual(parsed, {
     serverUrl: 'http://pve-main:8096',
@@ -199,17 +188,13 @@ test('parseJellyfinPreviewAuthResponse parses valid structured response payload'
   });
 });
 
-test('parseJellyfinPreviewAuthResponse returns null for invalid payloads', () => {
-  assert.equal(parseJellyfinPreviewAuthResponse(''), null);
-  assert.equal(parseJellyfinPreviewAuthResponse('{not json}'), null);
+test('parseJellyfinPreviewAuthResponse returns null without a token', () => {
   assert.equal(
-    parseJellyfinPreviewAuthResponse(
-      JSON.stringify({
-        serverUrl: 'http://pve-main:8096',
-        accessToken: '',
-        userId: 'user-1',
-      }),
-    ),
+    parseJellyfinPreviewAuthResponse({
+      serverUrl: 'http://pve-main:8096',
+      accessToken: '',
+      userId: 'user-1',
+    }),
     null,
   );
 });
@@ -236,22 +221,6 @@ test('shouldRetryWithStartForNoRunningInstance matches expected app lifecycle er
     ),
     false,
   );
-});
-
-test('readUtf8FileAppendedSince treats offset as bytes and survives multibyte logs', () => {
-  withTempDir((root) => {
-    const logPath = path.join(root, 'SubMiner.log');
-    const prefix = '[subminer] こんにちは\n';
-    const suffix = '[subminer] Jellyfin library: Movies [lib2] (movies)\n';
-    fs.writeFileSync(logPath, `${prefix}${suffix}`, 'utf8');
-
-    const byteOffset = Buffer.byteLength(prefix, 'utf8');
-    const fromByteOffset = readUtf8FileAppendedSince(logPath, byteOffset);
-    assert.match(fromByteOffset, /Jellyfin library: Movies \[lib2\] \(movies\)/);
-
-    const fromBeyondEnd = readUtf8FileAppendedSince(logPath, byteOffset + 9999);
-    assert.match(fromBeyondEnd, /Jellyfin library: Movies \[lib2\] \(movies\)/);
-  });
 });
 
 test('parseEpisodePathFromDisplay extracts series and season from episode display titles', () => {

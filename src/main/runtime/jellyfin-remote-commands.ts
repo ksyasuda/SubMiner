@@ -1,5 +1,18 @@
+import type { JellyfinTimelinePlaybackState } from '../../core/services/jellyfin-playback-reporter';
+
+type JellyfinTimelineReport = (state: JellyfinTimelinePlaybackState) => Promise<unknown>;
+
+export type JellyfinPlaybackReporterLike = {
+  reportPlaying: JellyfinTimelineReport;
+  reportProgress: JellyfinTimelineReport;
+  reportStopped: JellyfinTimelineReport;
+};
+
 export type ActiveJellyfinRemotePlaybackState = {
   itemId: string;
+  // Bound at launch to the session that started playback, so reports flow for CLI play and
+  // casting alike, independent of the cast-control websocket.
+  reporter: JellyfinPlaybackReporterLike;
   mediaSourceId?: string;
   audioStreamIndex?: number | null;
   subtitleStreamIndex?: number | null;
