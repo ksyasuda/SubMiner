@@ -436,8 +436,13 @@ async function requestJellyfinReplyFromApp(
         `${label}: starting app in the background, then retrying command`,
       );
       launchAppBackgroundDetached(appPath, args.logLevel);
-      await sleep(1000);
-      attempt = runOnce();
+      // A cold start (an AppImage mount, first-run setup) can take a while to claim the instance
+      // lock, so keep retrying until the app takes the command or the request deadline passes.
+      const startDeadline = nowMs() + timeoutMs;
+      do {
+        await sleep(1000);
+        attempt = runOnce();
+      } while (shouldRetryWithStartForNoRunningInstance(attempt.error) && nowMs() < startDeadline);
     }
     // A written reply is authoritative; the exit status and log lines only explain a missing one.
     const earlyReply = readJellyfinAppReply(responsePath);
