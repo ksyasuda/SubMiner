@@ -433,6 +433,9 @@ async function requestJellyfinReplyFromApp(
       await sleep(1000);
       attempt = runOnce();
     }
+    // A written reply is authoritative; the exit status and log lines only explain a missing one.
+    const earlyReply = readJellyfinAppReply(responsePath);
+    if (earlyReply) return earlyReply;
     if (attempt.status !== 0) {
       return { ok: false, error: attempt.error || attempt.output.trim() || `${label} failed.` };
     }

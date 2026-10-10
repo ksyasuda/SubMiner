@@ -44,6 +44,8 @@ export interface JellyfinPlaybackReporterOptions {
   logWarn?: (message: string, details?: unknown) => void;
 }
 
+const JELLYFIN_REPORT_TIMEOUT_MS = 5000;
+
 function clampVolume(value: number | undefined): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 100;
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -127,6 +129,9 @@ export class JellyfinPlaybackReporter {
           Authorization: this.authHeader,
         },
         body: JSON.stringify(payload),
+        // The stop report waits for in-flight progress reports, so a hung request must not
+        // hold it back indefinitely.
+        signal: AbortSignal.timeout(JELLYFIN_REPORT_TIMEOUT_MS),
       });
       this.noteRequestOutcome(path, response.ok ? null : `HTTP ${response.status}`);
       return response.ok;
