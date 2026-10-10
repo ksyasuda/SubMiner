@@ -26,7 +26,7 @@ import { resolveLauncherMainConfigPath } from './config/shared-config-reader.js'
 import {
   runAppCommandWithInheritLogged,
   runAppCommandCaptureOutput,
-  launchAppStartDetached,
+  launchAppBackgroundDetached,
   launchMpvIdleDetached,
   resolveLauncherRuntimePluginPath,
   waitForUnixSocketReady,
@@ -428,8 +428,14 @@ async function requestJellyfinReplyFromApp(
   try {
     let attempt = runOnce();
     if (shouldRetryWithStartForNoRunningInstance(attempt.error)) {
-      log('debug', args.logLevel, `${label}: starting app detached, then retrying command`);
-      launchAppStartDetached(appPath, args.logLevel);
+      // Start it the way `subminer app` does: the app outlives this picker and the playback, so it
+      // needs its tray to be visible and quittable.
+      log(
+        'debug',
+        args.logLevel,
+        `${label}: starting app in the background, then retrying command`,
+      );
+      launchAppBackgroundDetached(appPath, args.logLevel);
       await sleep(1000);
       attempt = runOnce();
     }
