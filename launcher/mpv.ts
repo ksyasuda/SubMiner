@@ -1121,6 +1121,21 @@ function clearOverlayManagedByLauncher(): void {
   state.overlayManagedByLauncher = false;
 }
 
+// For commands that start the app ahead of playback (the Jellyfin picker): the launcher now owns
+// it, as with local playback, and stops it when the launcher exits for any reason, including a
+// cancelled picker or Ctrl+C.
+export function adoptLauncherStartedApp(appPath: string, args: Args): void {
+  if (state.overlayManagedByLauncher) return;
+  markOverlayManagedByLauncher(appPath);
+  process.once('exit', () => stopManagedOverlayApp(args));
+  process.once('SIGINT', () => process.exit(130));
+  process.once('SIGTERM', () => process.exit(143));
+}
+
+export function isAppManagedByLauncher(): boolean {
+  return state.overlayManagedByLauncher;
+}
+
 function isAppAlreadyRunning(appPath: string, logLevel: LogLevel): boolean {
   const result = runSyncAppCommand(appPath, ['--app-ping'], false);
   if (result.error) {
@@ -1721,6 +1736,13 @@ export async function canConnectUnixSocket(socketPath: string): Promise<boolean>
     socket.once('error', () => finish(false));
     socket.setTimeout(400, () => finish(false));
   });
+}
+
+// Resolves once mpv stops accepting connections on its IPC socket, i.e. the player was closed.
+export async function waitForUnixSocketClosed(socketPath: string, pollMs = 1000): Promise<void> {
+  while (await canConnectUnixSocket(socketPath)) {
+    await sleep(pollMs);
+  }
 }
 
 export async function waitForUnixSocketReady(

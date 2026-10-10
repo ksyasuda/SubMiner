@@ -10,7 +10,8 @@ import type {
   JellyfinGroupEntry,
 } from './types.js';
 import { shouldForwardLogLevel } from './types.js';
-import { log, fail, getMpvLogPath } from './log.js';
+import type { JellyfinPreviewAuthPayload } from '../src/shared/jellyfin-cli-response.js';
+import { log, fail } from './log.js';
 import { nowMs } from './time.js';
 import { commandExists, resolvePathMaybe, sleep } from './util.js';
 import {
@@ -23,11 +24,14 @@ import {
 import { loadLauncherJellyfinConfig } from './config.js';
 import { resolveLauncherMainConfigPath } from './config/shared-config-reader.js';
 import {
+  adoptLauncherStartedApp,
+  isAppManagedByLauncher,
   runAppCommandWithInheritLogged,
   runAppCommandCaptureOutput,
-  launchAppStartDetached,
+  launchAppBackgroundDetached,
   launchMpvIdleDetached,
   resolveLauncherRuntimePluginPath,
+  waitForUnixSocketClosed,
   waitForUnixSocketReady,
 } from './mpv.js';
 import { ensureLinuxRuntimePluginAvailable } from './runtime-plugin-preflight.js';
@@ -52,6 +56,10 @@ type JellyfinPlayMenuDeps = {
   launchMpvIdleDetached: typeof launchMpvIdleDetached;
   resolveLauncherRuntimePluginPath: typeof resolveLauncherRuntimePluginPath;
   runAppCommandWithInheritLogged: typeof runAppCommandWithInheritLogged;
+  isAppManagedByLauncher: typeof isAppManagedByLauncher;
+  runAppCommandCaptureOutput: typeof runAppCommandCaptureOutput;
+  waitForUnixSocketClosed: typeof waitForUnixSocketClosed;
+  exitProcess: (code: number) => never;
   log: typeof log;
 };
 
@@ -75,6 +83,10 @@ const defaultJellyfinPlayMenuDeps: JellyfinPlayMenuDeps = {
   launchMpvIdleDetached,
   resolveLauncherRuntimePluginPath,
   runAppCommandWithInheritLogged,
+  isAppManagedByLauncher,
+  runAppCommandCaptureOutput,
+  waitForUnixSocketClosed,
+  exitProcess: (code) => process.exit(code),
   log,
 };
 
@@ -171,74 +183,75 @@ function stripAnsi(value: string): string {
   return value.replace(ANSI_ESCAPE_PATTERN, '');
 }
 
-function parseNamedJellyfinRecord(payload: string): {
-  name: string;
-  id: string;
-  type: string;
-} | null {
-  const typeClose = payload.lastIndexOf(')');
-  if (typeClose !== payload.length - 1) return null;
+// Reply the app writes to --jellyfin-response-path; see src/shared/jellyfin-cli-response.ts.
+export type JellyfinAppReply =
+  | { ok: true; payload: Record<string, unknown> }
+  | { ok: false; error: string };
 
-  const typeOpen = payload.lastIndexOf(' (');
-  if (typeOpen <= 0 || typeOpen >= typeClose) return null;
-
-  const idClose = payload.lastIndexOf(']', typeOpen);
-  if (idClose <= 0) return null;
-
-  const idOpen = payload.lastIndexOf(' [', idClose);
-  if (idOpen <= 0 || idOpen >= idClose) return null;
-
-  const name = payload.slice(0, idOpen).trim();
-  const id = payload.slice(idOpen + 2, idClose).trim();
-  const type = payload.slice(typeOpen + 2, typeClose).trim();
-  if (!name || !id || !type) return null;
-
-  return { name, id, type };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function parseJellyfinLibrariesFromAppOutput(output: string): JellyfinLibraryEntry[] {
+function readString(record: Record<string, unknown>, key: string): string {
+  const value = record[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+export function parseJellyfinAppReply(raw: string): JellyfinAppReply | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed)) return null;
+  const error = readString(parsed, 'error');
+  if (error) return { ok: false, error: normalizeJellyfinAppError(error) };
+  return { ok: true, payload: parsed };
+}
+
+export function parseJellyfinLibrariesReply(
+  payload: Record<string, unknown>,
+): JellyfinLibraryEntry[] | null {
+  if (!Array.isArray(payload.libraries)) return null;
   const libraries: JellyfinLibraryEntry[] = [];
   const seenIds = new Set<string>();
-
-  for (const rawLine of output.split(/\r?\n/)) {
-    const line = stripAnsi(rawLine);
-    const markerIndex = line.indexOf('Jellyfin library:');
-    if (markerIndex < 0) continue;
-    const payload = line.slice(markerIndex + 'Jellyfin library:'.length).trim();
-    const parsed = parseNamedJellyfinRecord(payload);
-    if (!parsed || seenIds.has(parsed.id)) continue;
-    seenIds.add(parsed.id);
+  for (const entry of payload.libraries) {
+    if (!isRecord(entry)) continue;
+    const id = readString(entry, 'id');
+    if (!id || seenIds.has(id)) continue;
+    seenIds.add(id);
     libraries.push({
-      id: parsed.id,
-      name: parsed.name,
-      kind: parsed.type,
+      id,
+      name: readString(entry, 'name') || 'Untitled',
+      kind: readString(entry, 'collectionType') || 'unknown',
     });
   }
-
   return libraries;
 }
 
-export function parseJellyfinItemsFromAppOutput(output: string): JellyfinItemEntry[] {
+export function parseJellyfinItemsReply(
+  payload: Record<string, unknown>,
+): JellyfinItemEntry[] | null {
+  if (!Array.isArray(payload.items)) return null;
   const items: JellyfinItemEntry[] = [];
   const seenIds = new Set<string>();
-
-  for (const rawLine of output.split(/\r?\n/)) {
-    const line = stripAnsi(rawLine);
-    const markerIndex = line.indexOf('Jellyfin item:');
-    if (markerIndex < 0) continue;
-    const payload = line.slice(markerIndex + 'Jellyfin item:'.length).trim();
-    const parsed = parseNamedJellyfinRecord(payload);
-    if (!parsed || seenIds.has(parsed.id)) continue;
-    seenIds.add(parsed.id);
-    items.push({
-      id: parsed.id,
-      name: parsed.name,
-      type: parsed.type,
-      display: parsed.name,
-    });
+  for (const entry of payload.items) {
+    if (!isRecord(entry)) continue;
+    const id = readString(entry, 'id');
+    if (!id || seenIds.has(id)) continue;
+    seenIds.add(id);
+    const title = readString(entry, 'title') || 'Untitled';
+    items.push({ id, name: title, type: readString(entry, 'type'), display: title });
   }
-
   return items;
+}
+
+function normalizeJellyfinAppError(message: string): string {
+  if (message.includes('Missing Jellyfin session')) {
+    return 'Missing Jellyfin session. Run `subminer jellyfin -l` to log in again.';
+  }
+  return message;
 }
 
 export function parseJellyfinErrorFromAppOutput(output: string): string {
@@ -260,41 +273,20 @@ export function parseJellyfinErrorFromAppOutput(output: string): string {
     }
 
     if (line.includes('Missing Jellyfin session')) {
-      return 'Missing Jellyfin session. Run `subminer jellyfin -l` to log in again.';
+      return normalizeJellyfinAppError(line);
     }
   }
   return '';
 }
 
-type JellyfinPreviewAuthResponse = {
-  serverUrl: string;
-  accessToken: string;
-  userId: string;
-};
-
-export function parseJellyfinPreviewAuthResponse(raw: string): JellyfinPreviewAuthResponse | null {
-  if (!raw || raw.trim().length === 0) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== 'object') return null;
-
-  const candidate = parsed as Record<string, unknown>;
-  const serverUrl = sanitizeServerUrl(
-    typeof candidate.serverUrl === 'string' ? candidate.serverUrl : '',
-  );
-  const accessToken = typeof candidate.accessToken === 'string' ? candidate.accessToken.trim() : '';
-  const userId = typeof candidate.userId === 'string' ? candidate.userId.trim() : '';
+export function parseJellyfinPreviewAuthResponse(
+  payload: Record<string, unknown>,
+): JellyfinPreviewAuthPayload | null {
+  const serverUrl = sanitizeServerUrl(readString(payload, 'serverUrl'));
+  const accessToken = readString(payload, 'accessToken');
+  const userId = readString(payload, 'userId');
   if (!serverUrl || !accessToken) return null;
-
-  return {
-    serverUrl,
-    accessToken,
-    userId,
-  };
+  return { serverUrl, accessToken, userId };
 }
 
 export function shouldRetryWithStartForNoRunningInstance(errorMessage: string): boolean {
@@ -310,19 +302,6 @@ export function hasStoredJellyfinSession(
   exists: (candidate: string) => boolean = fs.existsSync,
 ): boolean {
   return exists(deriveJellyfinTokenStorePath(configPath));
-}
-
-export function readUtf8FileAppendedSince(logPath: string, offsetBytes: number): string {
-  try {
-    const buffer = fs.readFileSync(logPath);
-    if (buffer.length === 0) return '';
-    const normalizedOffset =
-      Number.isFinite(offsetBytes) && offsetBytes >= 0 ? Math.floor(offsetBytes) : 0;
-    const startOffset = normalizedOffset > buffer.length ? 0 : normalizedOffset;
-    return buffer.subarray(startOffset).toString('utf8');
-  } catch {
-    return '';
-  }
 }
 
 export function parseEpisodePathFromDisplay(
@@ -421,145 +400,79 @@ export function buildForwardedJellyfinAppArgs(args: Args, appArgs: string[]): st
   return forwarded;
 }
 
-async function runAppJellyfinListCommand(
-  appPath: string,
-  args: Args,
-  appArgs: string[],
-  label: string,
-): Promise<string> {
-  const attempt = await runAppJellyfinCommand(appPath, args, appArgs, label);
-  if (attempt.status !== 0) {
-    const message = attempt.output.trim();
-    fail(message || `${label} failed.`);
+const JELLYFIN_APP_REPLY_TIMEOUT_MS = 60_000;
+const JELLYFIN_PREVIEW_AUTH_TIMEOUT_MS = 15_000;
+
+function readJellyfinAppReply(responsePath: string): JellyfinAppReply | null {
+  try {
+    return parseJellyfinAppReply(fs.readFileSync(responsePath, 'utf8'));
+  } catch {
+    return null;
   }
-  if (attempt.error) {
-    fail(attempt.error);
-  }
-  return attempt.output;
 }
 
-async function runAppJellyfinCommand(
+// Runs a Jellyfin command in the app and waits for the reply it writes to a temp file. The helper
+// process usually hands the command to an already-running instance and exits at once with no
+// output, so the reply file is the only result channel that works in both cases.
+async function requestJellyfinReplyFromApp(
   appPath: string,
   args: Args,
   appArgs: string[],
   label: string,
-): Promise<{ status: number; output: string; error: string; logOffset: number }> {
-  const forwardedBase = buildForwardedJellyfinAppArgs(args, appArgs);
+  timeoutMs: number,
+): Promise<JellyfinAppReply> {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jf-reply-'));
+  const responsePath = path.join(tmpDir, 'response.json');
+  const forwarded = buildForwardedJellyfinAppArgs(args, [
+    ...appArgs,
+    `--jellyfin-response-path=${responsePath}`,
+  ]);
 
-  const readLogAppendedSince = (offset: number): string => {
-    const logPath = getMpvLogPath();
-    return readUtf8FileAppendedSince(logPath, offset);
-  };
-
-  const hasCommandSignal = (output: string): boolean => {
-    if (label === 'jellyfin-libraries') {
-      return (
-        output.includes('Jellyfin library:') || output.includes('No Jellyfin libraries found.')
-      );
-    }
-    if (label === 'jellyfin-items') {
-      return (
-        output.includes('Jellyfin item:') ||
-        output.includes('No Jellyfin items found for the selected library/search.')
-      );
-    }
-    if (label === 'jellyfin-preview-auth') {
-      return output.includes('Jellyfin preview auth written.');
-    }
-    return output.trim().length > 0;
-  };
-
-  const runOnce = (): { status: number; output: string; error: string; logOffset: number } => {
-    const forwarded = [...forwardedBase];
-    const logPath = getMpvLogPath();
-    let logOffset = 0;
-    try {
-      if (fs.existsSync(logPath)) {
-        logOffset = fs.statSync(logPath).size;
-      }
-    } catch {
-      logOffset = 0;
-    }
+  const runOnce = (): { status: number; output: string; error: string } => {
     log('debug', args.logLevel, `${label}: launching app with args: ${forwarded.join(' ')}`);
     const result = runAppCommandCaptureOutput(appPath, forwarded);
     log('debug', args.logLevel, `${label}: app command exited with status ${result.status}`);
-    let output = `${result.stdout || ''}\n${result.stderr || ''}\n${readLogAppendedSince(logOffset)}`;
-    let error = parseJellyfinErrorFromAppOutput(output);
-
-    return { status: result.status, output, error, logOffset };
+    const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+    return { status: result.status, output, error: parseJellyfinErrorFromAppOutput(output) };
   };
 
-  let retriedAfterStart = false;
-  let attempt = runOnce();
-  if (shouldRetryWithStartForNoRunningInstance(attempt.error)) {
-    log('debug', args.logLevel, `${label}: starting app detached, then retrying command`);
-    launchAppStartDetached(appPath, args.logLevel);
-    await sleep(1000);
-    retriedAfterStart = true;
-    attempt = runOnce();
-  }
-
-  if (attempt.status === 0 && !attempt.error && !hasCommandSignal(attempt.output)) {
-    // When app is already running, command handling happens in the primary process and log
-    // lines can land slightly after the helper process exits.
-    const settleWindowMs = (() => {
-      if (label === 'jellyfin-items') {
-        return retriedAfterStart ? 45000 : 30000;
-      }
-      return retriedAfterStart ? 12000 : 4000;
-    })();
-    const settleDeadline = nowMs() + settleWindowMs;
-    const settleOffset = attempt.logOffset;
-    while (nowMs() < settleDeadline) {
-      await sleep(100);
-      const settledOutput = readLogAppendedSince(settleOffset);
-      if (!settledOutput.trim()) {
-        continue;
-      }
-      attempt.output = `${attempt.output}\n${settledOutput}`;
-      attempt.error = parseJellyfinErrorFromAppOutput(attempt.output);
-      if (attempt.error || hasCommandSignal(attempt.output)) {
-        break;
-      }
-    }
-  }
-
-  return attempt;
-}
-
-async function requestJellyfinPreviewAuthFromApp(
-  appPath: string,
-  args: Args,
-): Promise<JellyfinPreviewAuthResponse | null> {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jf-preview-auth-'));
-  const responsePath = path.join(tmpDir, 'response.json');
   try {
-    const attempt = await runAppJellyfinCommand(
-      appPath,
-      args,
-      ['--jellyfin-preview-auth', `--jellyfin-response-path=${responsePath}`],
-      'jellyfin-preview-auth',
-    );
-    if (attempt.status !== 0 || attempt.error) {
-      return null;
+    let attempt = runOnce();
+    if (shouldRetryWithStartForNoRunningInstance(attempt.error)) {
+      // Start it the way `subminer app` does: the app outlives this picker and the playback, so it
+      // needs its tray to be visible and quittable.
+      log(
+        'debug',
+        args.logLevel,
+        `${label}: starting app in the background, then retrying command`,
+      );
+      launchAppBackgroundDetached(appPath, args.logLevel);
+      adoptLauncherStartedApp(appPath, args);
+      // A cold start (an AppImage mount, first-run setup) can take a while to claim the instance
+      // lock, so keep retrying until the app takes the command or the request deadline passes.
+      const startDeadline = nowMs() + timeoutMs;
+      do {
+        await sleep(1000);
+        attempt = runOnce();
+      } while (shouldRetryWithStartForNoRunningInstance(attempt.error) && nowMs() < startDeadline);
+    }
+    // A written reply is authoritative; the exit status and log lines only explain a missing one.
+    const earlyReply = readJellyfinAppReply(responsePath);
+    if (earlyReply) return earlyReply;
+    if (attempt.status !== 0) {
+      return { ok: false, error: attempt.error || attempt.output.trim() || `${label} failed.` };
+    }
+    if (attempt.error) {
+      return { ok: false, error: attempt.error };
     }
 
-    const deadline = nowMs() + 4000;
+    const deadline = nowMs() + timeoutMs;
     while (nowMs() < deadline) {
-      try {
-        if (fs.existsSync(responsePath)) {
-          const raw = fs.readFileSync(responsePath, 'utf8');
-          const parsed = parseJellyfinPreviewAuthResponse(raw);
-          if (parsed) {
-            return parsed;
-          }
-        }
-      } catch {
-        // retry until timeout
-      }
+      const reply = readJellyfinAppReply(responsePath);
+      if (reply) return reply;
       await sleep(100);
     }
-    return null;
+    return { ok: false, error: `Timed out waiting for SubMiner to answer ${label}.` };
   } finally {
     try {
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -569,19 +482,57 @@ async function requestJellyfinPreviewAuthFromApp(
   }
 }
 
+async function requestJellyfinPreviewAuthFromApp(
+  appPath: string,
+  args: Args,
+): Promise<JellyfinPreviewAuthPayload | null> {
+  const reply = await requestJellyfinReplyFromApp(
+    appPath,
+    args,
+    ['--jellyfin-preview-auth'],
+    'jellyfin-preview-auth',
+    JELLYFIN_PREVIEW_AUTH_TIMEOUT_MS,
+  );
+  if (!reply.ok) {
+    log('debug', args.logLevel, `jellyfin-preview-auth: ${reply.error}`);
+    return null;
+  }
+  return parseJellyfinPreviewAuthResponse(reply.payload);
+}
+
+async function requestJellyfinListFromApp<T>(
+  appPath: string,
+  args: Args,
+  appArgs: string[],
+  label: string,
+  parse: (payload: Record<string, unknown>) => T[] | null,
+): Promise<T[]> {
+  const reply = await requestJellyfinReplyFromApp(
+    appPath,
+    args,
+    appArgs,
+    label,
+    JELLYFIN_APP_REPLY_TIMEOUT_MS,
+  );
+  if (!reply.ok) fail(reply.error);
+  const entries = parse(reply.payload);
+  if (!entries) fail(`Unexpected reply from SubMiner for ${label}.`);
+  return entries;
+}
+
 async function resolveJellyfinSelectionViaApp(
   appPath: string,
   args: Args,
   session: JellyfinSessionConfig,
   themePath: string | null = null,
 ): Promise<string> {
-  const listLibrariesOutput = await runAppJellyfinListCommand(
+  const libraries = await requestJellyfinListFromApp(
     appPath,
     args,
     ['--jellyfin-libraries'],
     'jellyfin-libraries',
+    parseJellyfinLibrariesReply,
   );
-  const libraries = parseJellyfinLibrariesFromAppOutput(listLibrariesOutput);
   if (libraries.length === 0) {
     fail('No Jellyfin libraries found.');
   }
@@ -655,8 +606,13 @@ async function resolveJellyfinSelectionViaApp(
     if (includeItemTypes) {
       itemArgs.push(`--jellyfin-include-item-types=${includeItemTypes}`);
     }
-    const output = await runAppJellyfinListCommand(appPath, args, itemArgs, 'jellyfin-items');
-    return parseJellyfinItemsFromAppOutput(output);
+    return requestJellyfinListFromApp(
+      appPath,
+      args,
+      itemArgs,
+      'jellyfin-items',
+      parseJellyfinItemsReply,
+    );
   };
 
   let rootItems =
@@ -1106,5 +1062,22 @@ export async function runJellyfinPlayMenuWithDeps(
   const forwarded = ['--start', '--jellyfin-play', `--jellyfin-item-id=${itemId}`];
   if (shouldForwardLogLevel(args.logLevel)) forwarded.push('--log-level', args.logLevel);
   if (args.passwordStore) forwarded.push('--password-store', args.passwordStore);
-  deps.runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, 'jellyfin-play');
+  if (!deps.isAppManagedByLauncher()) {
+    // A running app keeps running after playback; a cold `--start --jellyfin-play` makes the app
+    // quit with mpv on its own.
+    deps.runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, 'jellyfin-play');
+  }
+  // The picker started the app, so this playback owns it, as with local playback: hand over the
+  // item, wait for mpv to close, then exit, which stops the app.
+  const handoff = deps.runAppCommandCaptureOutput(appPath, forwarded);
+  if (handoff.status !== 0) {
+    fail(handoff.error?.message || handoff.stderr.trim() || 'Failed to start Jellyfin playback.');
+  }
+  deps.log(
+    'debug',
+    args.logLevel,
+    'jellyfin-play: waiting for mpv to close before stopping the app',
+  );
+  await deps.waitForUnixSocketClosed(mpvSocketPath);
+  return deps.exitProcess(0);
 }

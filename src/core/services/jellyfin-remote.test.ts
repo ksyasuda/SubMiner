@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildJellyfinTimelinePayload, JellyfinRemoteSessionService } from './jellyfin-remote';
+import { JellyfinRemoteSessionService } from './jellyfin-remote';
 
 class FakeWebSocket {
   private listeners: Record<string, Array<(...args: unknown[]) => void>> = {};
@@ -240,105 +240,6 @@ test('Jellyfin remote stop prevents further reconnect/network activity', () => {
   assert.equal(service.isConnected(), false);
 });
 
-test('reportProgress posts timeline payload and treats failure as non-fatal', async () => {
-  const sockets: FakeWebSocket[] = [];
-  const fetchCalls: Array<{ input: string; init: RequestInit }> = [];
-  let shouldFailTimeline = false;
-
-  const service = new JellyfinRemoteSessionService({
-    serverUrl: 'http://jellyfin.local',
-    accessToken: 'token-4',
-    deviceId: 'device-4',
-    webSocketFactory: () => {
-      const socket = new FakeWebSocket();
-      sockets.push(socket);
-      return socket as unknown as any;
-    },
-    fetchImpl: (async (input, init) => {
-      fetchCalls.push({ input: String(input), init: init ?? {} });
-      if (String(input).endsWith('/Sessions/Playing/Progress') && shouldFailTimeline) {
-        return new Response('boom', { status: 500 });
-      }
-      return new Response(null, { status: 200 });
-    }) as typeof fetch,
-  });
-
-  service.start();
-  sockets[0]!.emit('open');
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  const expectedPayload = buildJellyfinTimelinePayload({
-    itemId: 'movie-2',
-    positionTicks: 123456,
-    isPaused: true,
-    volumeLevel: 33,
-    audioStreamIndex: 1,
-    subtitleStreamIndex: 2,
-  });
-  const expectedPostedPayload = Object.fromEntries(
-    Object.entries(structuredClone(expectedPayload)).filter(([, value]) => value !== undefined),
-  );
-
-  const ok = await service.reportProgress({
-    itemId: 'movie-2',
-    positionTicks: 123456,
-    isPaused: true,
-    volumeLevel: 33,
-    audioStreamIndex: 1,
-    subtitleStreamIndex: 2,
-  });
-  shouldFailTimeline = true;
-  const failed = await service.reportProgress({
-    itemId: 'movie-2',
-    positionTicks: 999,
-  });
-
-  const timelineCall = fetchCalls.find((call) => call.input.endsWith('/Sessions/Playing/Progress'));
-  assert.ok(timelineCall);
-  assert.equal(ok, true);
-  assert.equal(failed, false);
-  assert.ok(typeof timelineCall.init.body === 'string');
-  assert.deepEqual(JSON.parse(String(timelineCall.init.body)), expectedPostedPayload);
-});
-
-test('timeline payload omits websocket-only event names', () => {
-  const payload = buildJellyfinTimelinePayload({
-    itemId: 'movie-2',
-    positionTicks: 123456,
-    eventName: 'TimeUpdate',
-  });
-
-  assert.equal('EventName' in payload, false);
-});
-
-test('reportStopped posts final position and explicit non-failed state', async () => {
-  const fetchCalls: Array<{ input: string; init: RequestInit }> = [];
-  const service = new JellyfinRemoteSessionService({
-    serverUrl: 'http://jellyfin.local',
-    accessToken: 'token-stop-payload',
-    deviceId: 'device-stop-payload',
-    webSocketFactory: () => new FakeWebSocket() as unknown as any,
-    fetchImpl: (async (input, init) => {
-      fetchCalls.push({ input: String(input), init: init ?? {} });
-      return new Response(null, { status: 200 });
-    }) as typeof fetch,
-  });
-
-  const ok = await service.reportStopped({
-    itemId: 'movie-stop',
-    positionTicks: 7654321,
-    failed: false,
-  });
-
-  const stoppedCall = fetchCalls.find((call) => call.input.endsWith('/Sessions/Playing/Stopped'));
-  assert.equal(ok, true);
-  assert.ok(stoppedCall);
-  assert.ok(typeof stoppedCall.init.body === 'string');
-  const posted = JSON.parse(String(stoppedCall.init.body));
-  assert.equal(posted.PositionTicks, 7654321);
-  assert.equal(posted.Failed, false);
-});
-
 test('advertiseNow validates server registration using Sessions endpoint', async () => {
   const sockets: FakeWebSocket[] = [];
   const calls: string[] = [];
@@ -449,34 +350,6 @@ test('reconnects when the server stops answering keep-alives', () => {
 
   timers.shift()!();
   assert.equal(sockets.length, 2);
-});
-
-test('warns once per failing timeline endpoint until it recovers', async () => {
-  const warnings: string[] = [];
-  let status = 400;
-
-  const service = new JellyfinRemoteSessionService({
-    serverUrl: 'http://jellyfin.local',
-    accessToken: 'token-warn',
-    deviceId: 'device-warn',
-    webSocketFactory: () => new FakeWebSocket() as unknown as any,
-    fetchImpl: (async () => new Response(null, { status })) as typeof fetch,
-    logWarn: (message) => {
-      warnings.push(message);
-    },
-  });
-  const state = { itemId: 'item-1', positionTicks: 10, playMethod: 'DirectPlay' };
-
-  assert.equal(await service.reportStopped(state), false);
-  assert.equal(await service.reportStopped(state), false);
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0]!, /Sessions\/Playing\/Stopped/);
-
-  status = 200;
-  assert.equal(await service.reportStopped(state), true);
-  status = 500;
-  assert.equal(await service.reportStopped(state), false);
-  assert.equal(warnings.length, 2);
 });
 
 test('ignores messages from a superseded socket', () => {

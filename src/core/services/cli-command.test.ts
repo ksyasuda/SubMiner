@@ -925,9 +925,10 @@ test('handleCliCommand runs jellyfin command dispatcher', async () => {
   const { deps, calls } = createDeps();
   handleCliCommand(makeArgs({ jellyfinLibraries: true }), 'initial', deps);
   handleCliCommand(makeArgs({ jellyfinSubtitles: true }), 'initial', deps);
+  handleCliCommand(makeArgs({ jellyfinPreviewAuth: true }), 'second-instance', deps);
   await new Promise((resolve) => setImmediate(resolve));
   const runJellyfinCallCount = calls.filter((value) => value === 'runJellyfinCommand').length;
-  assert.equal(runJellyfinCallCount, 2);
+  assert.equal(runJellyfinCallCount, 3);
 });
 
 test('handleCliCommand reports jellyfin command errors to OSD', async () => {

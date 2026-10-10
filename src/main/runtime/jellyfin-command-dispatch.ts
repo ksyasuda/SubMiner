@@ -1,4 +1,5 @@
 import type { CliArgs } from '../../cli/args';
+import type { JellyfinCliResponse } from '../../shared/jellyfin-cli-response';
 
 type JellyfinConfigBase = {
   serverUrl?: string;
@@ -40,8 +41,9 @@ export function createRunJellyfinCommandHandler<
     clientInfo: TClientInfo;
     jellyfinConfig: TConfig;
   }) => Promise<boolean>;
+  writeJellyfinResponse: (responsePath: string, response: JellyfinCliResponse) => void;
 }) {
-  return async (args: CliArgs): Promise<void> => {
+  const run = async (args: CliArgs): Promise<void> => {
     const jellyfinConfig = deps.getJellyfinConfig();
     const serverUrl =
       args.jellyfinServer?.trim() || jellyfinConfig.serverUrl || deps.defaultServerUrl;
@@ -95,6 +97,25 @@ export function createRunJellyfinCommandHandler<
       })
     ) {
       return;
+    }
+  };
+
+  // A launcher waiting on --jellyfin-response-path gets the failure reason instead of a timeout.
+  return async (args: CliArgs): Promise<void> => {
+    try {
+      await run(args);
+    } catch (error) {
+      const responsePath = args.jellyfinResponsePath?.trim();
+      if (responsePath) {
+        try {
+          deps.writeJellyfinResponse(responsePath, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        } catch {
+          // Keep the original failure; the launcher falls back to its timeout.
+        }
+      }
+      throw error;
     }
   };
 }

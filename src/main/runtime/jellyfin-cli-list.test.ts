@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHandleJellyfinListCommands } from './jellyfin-cli-list';
+import type { JellyfinCliResponse } from '../../shared/jellyfin-cli-response';
 
 const baseSession = {
   serverUrl: 'http://localhost',
@@ -24,7 +25,7 @@ test('list handler no-ops when no list command is set', async () => {
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
-    writeJellyfinPreviewAuth: () => {},
+    writeJellyfinResponse: () => {},
     logInfo: () => {},
   });
 
@@ -42,13 +43,14 @@ test('list handler no-ops when no list command is set', async () => {
   assert.equal(handled, false);
 });
 
-test('list handler logs libraries', async () => {
+test('list handler logs libraries and writes them to the response path', async () => {
   const logs: string[] = [];
+  const writes: Array<{ path: string; response: JellyfinCliResponse }> = [];
   const handler = createHandleJellyfinListCommands({
     listJellyfinLibraries: async () => [{ id: 'lib1', name: 'Anime', collectionType: 'tvshows' }],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
-    writeJellyfinPreviewAuth: () => {},
+    writeJellyfinResponse: (path, response) => writes.push({ path, response }),
     logInfo: (message) => logs.push(message),
   });
 
@@ -57,6 +59,7 @@ test('list handler logs libraries', async () => {
       jellyfinLibraries: true,
       jellyfinItems: false,
       jellyfinSubtitles: false,
+      jellyfinResponsePath: '/tmp/reply.json',
     } as never,
     session: baseSession,
     clientInfo: baseClientInfo,
@@ -65,6 +68,12 @@ test('list handler logs libraries', async () => {
 
   assert.equal(handled, true);
   assert.ok(logs.some((line) => line.includes('Jellyfin library: Anime [lib1] (tvshows)')));
+  assert.deepEqual(writes, [
+    {
+      path: '/tmp/reply.json',
+      response: { libraries: [{ id: 'lib1', name: 'Anime', collectionType: 'tvshows' }] },
+    },
+  ]);
 });
 
 test('list handler resolves items using default library id', async () => {
@@ -72,6 +81,7 @@ test('list handler resolves items using default library id', async () => {
   let usedRecursive: boolean | undefined;
   let usedIncludeItemTypes: string | undefined;
   const logs: string[] = [];
+  const writes: JellyfinCliResponse[] = [];
   const handler = createHandleJellyfinListCommands({
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async (_session, _clientInfo, params) => {
@@ -81,7 +91,7 @@ test('list handler resolves items using default library id', async () => {
       return [{ id: 'item1', title: 'Episode 1', type: 'Episode' }];
     },
     listJellyfinSubtitleTracks: async () => [],
-    writeJellyfinPreviewAuth: () => {},
+    writeJellyfinResponse: (_path, response) => writes.push(response),
     logInfo: (message) => logs.push(message),
   });
 
@@ -95,6 +105,7 @@ test('list handler resolves items using default library id', async () => {
       jellyfinLimit: 10,
       jellyfinRecursive: false,
       jellyfinIncludeItemTypes: 'Series,Movie,Folder',
+      jellyfinResponsePath: '/tmp/reply.json',
     } as never,
     session: baseSession,
     clientInfo: baseClientInfo,
@@ -108,6 +119,7 @@ test('list handler resolves items using default library id', async () => {
   assert.equal(usedRecursive, false);
   assert.equal(usedIncludeItemTypes, 'Series,Movie,Folder');
   assert.ok(logs.some((line) => line.includes('Jellyfin item: Episode 1 [item1] (Episode)')));
+  assert.deepEqual(writes, [{ items: [{ id: 'item1', title: 'Episode 1', type: 'Episode' }] }]);
 });
 
 test('list handler throws when items command has no library id', async () => {
@@ -115,7 +127,7 @@ test('list handler throws when items command has no library id', async () => {
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
-    writeJellyfinPreviewAuth: () => {},
+    writeJellyfinResponse: () => {},
     logInfo: () => {},
   });
 
@@ -144,7 +156,7 @@ test('list handler logs subtitle urls only when requested', async () => {
       { index: 1, deliveryUrl: 'http://localhost/sub1.srt', language: 'eng' },
       { index: 2, language: 'jpn' },
     ],
-    writeJellyfinPreviewAuth: () => {},
+    writeJellyfinResponse: () => {},
     logInfo: (message) => logs.push(message),
   });
 
@@ -170,7 +182,7 @@ test('list handler throws when subtitle command has no item id', async () => {
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
-    writeJellyfinPreviewAuth: () => {},
+    writeJellyfinResponse: () => {},
     logInfo: () => {},
   });
 
@@ -190,16 +202,13 @@ test('list handler throws when subtitle command has no item id', async () => {
 });
 
 test('list handler writes preview auth payload to response path', async () => {
-  const writes: Array<{
-    path: string;
-    payload: { serverUrl: string; accessToken: string; userId: string };
-  }> = [];
+  const writes: Array<{ path: string; payload: JellyfinCliResponse }> = [];
   const logs: string[] = [];
   const handler = createHandleJellyfinListCommands({
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
-    writeJellyfinPreviewAuth: (responsePath, payload) => {
+    writeJellyfinResponse: (responsePath, payload) => {
       writes.push({ path: responsePath, payload });
     },
     logInfo: (message) => logs.push(message),
@@ -234,7 +243,7 @@ test('list handler throws when preview auth command has no response path', async
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
-    writeJellyfinPreviewAuth: () => {},
+    writeJellyfinResponse: () => {},
     logInfo: () => {},
   });
 

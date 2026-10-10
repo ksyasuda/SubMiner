@@ -131,7 +131,11 @@ export {
   resolvePlaybackPlan as resolveJellyfinPlaybackPlanRuntime,
   ticksToSeconds as jellyfinTicksToSecondsRuntime,
 } from './jellyfin';
-export { buildJellyfinTimelinePayload, JellyfinRemoteSessionService } from './jellyfin-remote';
+export { JellyfinRemoteSessionService } from './jellyfin-remote';
+export {
+  buildJellyfinTimelinePayload,
+  JellyfinPlaybackReporter,
+} from './jellyfin-playback-reporter';
 export {
   broadcastRuntimeOptionsChangedRuntime,
   createOverlayManager,

@@ -53,7 +53,6 @@ export function createBuildReportJellyfinRemoteProgressMainDepsHandler(
   return (): JellyfinRemoteProgressReporterDeps => ({
     getActivePlayback: () => deps.getActivePlayback(),
     clearActivePlayback: () => deps.clearActivePlayback(),
-    getSession: () => deps.getSession(),
     getMpvClient: () => deps.getMpvClient(),
     getNow: () => deps.getNow(),
     getLastProgressAtMs: () => deps.getLastProgressAtMs(),
@@ -70,7 +69,6 @@ export function createBuildReportJellyfinRemoteStoppedMainDepsHandler(
   return (): JellyfinRemoteStoppedReporterDeps => ({
     getActivePlayback: () => deps.getActivePlayback(),
     clearActivePlayback: () => deps.clearActivePlayback(),
-    getSession: () => deps.getSession(),
     getMpvClient: () => deps.getMpvClient(),
     getNow: deps.getNow ? () => deps.getNow?.() ?? Date.now() : undefined,
     ticksPerSecond: deps.ticksPerSecond,

@@ -1,29 +1,5 @@
 import type { ActiveJellyfinRemotePlaybackState } from './jellyfin-remote-commands';
 
-type JellyfinRemoteSessionLike = {
-  isConnected: () => boolean;
-  reportProgress: (payload: {
-    itemId: string;
-    mediaSourceId?: string;
-    positionTicks: number;
-    isPaused: boolean;
-    playMethod: 'DirectPlay' | 'Transcode';
-    audioStreamIndex?: number | null;
-    subtitleStreamIndex?: number | null;
-    eventName: 'TimeUpdate';
-  }) => Promise<unknown>;
-  reportStopped: (payload: {
-    itemId: string;
-    mediaSourceId?: string;
-    positionTicks?: number;
-    failed?: boolean;
-    playMethod: 'DirectPlay' | 'Transcode';
-    audioStreamIndex?: number | null;
-    subtitleStreamIndex?: number | null;
-    eventName: 'stop';
-  }) => Promise<unknown>;
-};
-
 type MpvClientLike = {
   currentTimePos?: number;
   requestProperty?: (name: string) => Promise<unknown>;
@@ -160,7 +136,6 @@ export function createJellyfinRemoteReportTracker(): JellyfinRemoteReportTracker
 export type JellyfinRemoteProgressReporterDeps = {
   getActivePlayback: () => ActiveJellyfinRemotePlaybackState | null;
   clearActivePlayback: () => void;
-  getSession: () => JellyfinRemoteSessionLike | null;
   getMpvClient: () => MpvClientLike | null;
   getNow: () => number;
   getLastProgressAtMs: () => number;
@@ -179,9 +154,6 @@ export function createReportJellyfinRemoteProgressHandler(
   const report = async (force: boolean): Promise<void> => {
     const playback = deps.getActivePlayback();
     if (!playback) return;
-    const session = deps.getSession();
-    // Timeline posts are HTTP requests; keep them flowing while the remote websocket reconnects.
-    if (!session) return;
     const now = deps.getNow();
     try {
       const mpvClient = deps.getMpvClient();
@@ -201,7 +173,7 @@ export function createReportJellyfinRemoteProgressHandler(
         return;
       }
       const paused = await mpvClient?.requestProperty?.('pause');
-      await session.reportProgress({
+      await playback.reporter.reportProgress({
         itemId: playback.itemId,
         mediaSourceId: playback.mediaSourceId,
         positionTicks: secondsToJellyfinTicks(positionSeconds, deps.ticksPerSecond),
@@ -228,7 +200,6 @@ export function createReportJellyfinRemoteProgressHandler(
 export type JellyfinRemoteStoppedReporterDeps = {
   getActivePlayback: () => ActiveJellyfinRemotePlaybackState | null;
   clearActivePlayback: () => void;
-  getSession: () => JellyfinRemoteSessionLike | null;
   getMpvClient: () => MpvClientLike | null;
   getNow?: () => number;
   ticksPerSecond: number;
@@ -252,12 +223,6 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
     ) {
       return;
     }
-    const session = deps.getSession();
-    // Timeline posts are HTTP requests; keep them flowing while the remote websocket reconnects.
-    if (!session) {
-      deps.clearActivePlayback();
-      return;
-    }
     // Clear before any network call so progress ticks fired during the stop find nothing to
     // report, then let reports already in flight finish so none can arrive after the stop.
     deps.clearActivePlayback();
@@ -267,7 +232,7 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
       const positionSeconds = resolveReportablePositionSeconds(playback, observedPositionSeconds);
       const positionTicks = secondsToJellyfinTicks(positionSeconds, deps.ticksPerSecond);
       try {
-        await session.reportProgress({
+        await playback.reporter.reportProgress({
           itemId: playback.itemId,
           mediaSourceId: playback.mediaSourceId,
           positionTicks,
@@ -280,7 +245,7 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
       } catch (error) {
         deps.logDebug('Failed to report Jellyfin remote final progress', error);
       }
-      const reported = await session.reportStopped({
+      const reported = await playback.reporter.reportStopped({
         itemId: playback.itemId,
         mediaSourceId: playback.mediaSourceId,
         positionTicks,
