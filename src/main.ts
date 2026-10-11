@@ -101,8 +101,10 @@ import type {
   SessionActionDispatchRequest,
   SecondarySubMode,
   SubtitleData,
+  SubtitleCue,
   SubtitleMiningContext,
   SubtitlePosition,
+  SubtitleSidebarPlaybackState,
   WindowGeometry,
 } from './types';
 import { OPEN_ANKI_CARD_ACTION_ID } from './types';
@@ -2105,6 +2107,33 @@ const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime({
   logDebug: (message) => logger.debug(message),
 });
 let subtitleSidebarRequestedOpen = false;
+let subtitleSidebarCuesRef: SubtitleCue[] | null = null;
+let subtitleSidebarCuesRevision = 0;
+
+/**
+ * Cheap sidebar state polled ~12x/s while the sidebar is open. Reads only cached state, no
+ * mpv round-trips. `cuesRevision` bumps whenever a new parsed cue array is swapped in, so a
+ * re-parse of the same source still tells the renderer to fetch the full snapshot.
+ */
+function getSubtitleSidebarPlaybackState(): SubtitleSidebarPlaybackState {
+  if (appState.activeParsedSubtitleCues !== subtitleSidebarCuesRef) {
+    subtitleSidebarCuesRef = appState.activeParsedSubtitleCues;
+    subtitleSidebarCuesRevision += 1;
+  }
+  return {
+    sourceKey: JSON.stringify([
+      appState.activeParsedSubtitleMediaPath,
+      appState.activeParsedSubtitleSource,
+    ]),
+    cuesRevision: subtitleSidebarCuesRevision,
+    currentTimeSec: appState.mpvClient?.currentTimePos ?? null,
+    currentSubtitle: {
+      text: appState.currentSubText,
+      startTime: appState.mpvClient?.currentSubStart ?? null,
+      endTime: appState.mpvClient?.currentSubEnd ?? null,
+    },
+  };
+}
 const SEEK_THRESHOLD_SECONDS = 3;
 const EXPLICIT_SEEK_INTENT_TTL_MS = 2000;
 let explicitSeekIntentExpiresAtMs = 0;
@@ -6031,26 +6060,19 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getCurrentSubtitleRaw: () => appState.currentSubText,
       getCurrentSubtitleAss: () => appState.currentSubAssText,
       getSubtitleSidebarOpen: () => subtitleSidebarRequestedOpen,
+      getSubtitleSidebarPlaybackState: () => getSubtitleSidebarPlaybackState(),
+      // Full snapshot: resolves the active source over mpv IPC and re-parses it when it changed.
+      // The renderer fetches it on open, on source/cue changes, and on a slow fallback cadence.
       getSubtitleSidebarSnapshot: async () => {
-        const currentSubtitle = {
-          text: appState.currentSubText,
-          startTime: appState.mpvClient?.currentSubStart ?? null,
-          endTime: appState.mpvClient?.currentSubEnd ?? null,
-        };
-        const currentTimeSec = appState.mpvClient?.currentTimePos ?? null;
         const config = configService.getConfig().subtitleSidebar;
+        const cachedSnapshot = () => ({
+          ...getSubtitleSidebarPlaybackState(),
+          cues: appState.activeParsedSubtitleCues,
+          config,
+        });
         const client = appState.mpvClient;
         if (!client?.connected) {
-          return {
-            sourceKey: JSON.stringify([
-              appState.activeParsedSubtitleMediaPath,
-              appState.activeParsedSubtitleSource,
-            ]),
-            cues: appState.activeParsedSubtitleCues,
-            currentTimeSec,
-            currentSubtitle,
-            config,
-          };
+          return cachedSnapshot();
         }
 
         try {
@@ -6064,16 +6086,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             ]);
           const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
           if (!videoPath) {
-            return {
-              sourceKey: JSON.stringify([
-                appState.activeParsedSubtitleMediaPath,
-                appState.activeParsedSubtitleSource,
-              ]),
-              cues: appState.activeParsedSubtitleCues,
-              currentTimeSec,
-              currentSubtitle,
-              config,
-            };
+            return cachedSnapshot();
           }
           if (
             shouldUseCachedYoutubeParsedCues({
@@ -6082,16 +6095,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
               cachedCueCount: appState.activeParsedSubtitleCues.length,
             })
           ) {
-            return {
-              sourceKey: JSON.stringify([
-                appState.activeParsedSubtitleMediaPath,
-                appState.activeParsedSubtitleSource,
-              ]),
-              cues: appState.activeParsedSubtitleCues,
-              currentTimeSec,
-              currentSubtitle,
-              config,
-            };
+            return cachedSnapshot();
           }
 
           const resolvedSource = await resolveActiveSubtitleSidebarSourceHandler({
@@ -6102,30 +6106,12 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             videoPath,
           });
           if (!resolvedSource) {
-            return {
-              sourceKey: JSON.stringify([
-                appState.activeParsedSubtitleMediaPath,
-                appState.activeParsedSubtitleSource,
-              ]),
-              cues: appState.activeParsedSubtitleCues,
-              currentTimeSec,
-              currentSubtitle,
-              config,
-            };
+            return cachedSnapshot();
           }
 
           try {
             if (appState.activeParsedSubtitleSource === resolvedSource.sourceKey) {
-              return {
-                sourceKey: JSON.stringify([
-                  appState.activeParsedSubtitleMediaPath,
-                  appState.activeParsedSubtitleSource,
-                ]),
-                cues: appState.activeParsedSubtitleCues,
-                currentTimeSec,
-                currentSubtitle,
-                config,
-              };
+              return cachedSnapshot();
             }
 
             const content = await loadSubtitleSourceText(resolvedSource.path);
@@ -6133,30 +6119,12 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             appState.activeParsedSubtitleCues = cues;
             appState.activeParsedSubtitleSource = resolvedSource.sourceKey;
             appState.activeParsedSubtitleMediaPath = videoPath || null;
-            return {
-              sourceKey: JSON.stringify([
-                appState.activeParsedSubtitleMediaPath,
-                appState.activeParsedSubtitleSource,
-              ]),
-              cues,
-              currentTimeSec,
-              currentSubtitle,
-              config,
-            };
+            return cachedSnapshot();
           } finally {
             await resolvedSource.cleanup?.();
           }
         } catch {
-          return {
-            sourceKey: JSON.stringify([
-              appState.activeParsedSubtitleMediaPath,
-              appState.activeParsedSubtitleSource,
-            ]),
-            cues: appState.activeParsedSubtitleCues,
-            currentTimeSec,
-            currentSubtitle,
-            config,
-          };
+          return cachedSnapshot();
         }
       },
       getPlaybackPaused: () =>

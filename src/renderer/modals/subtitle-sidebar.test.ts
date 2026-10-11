@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { ElectronAPI, SubtitleSidebarSnapshot } from '../../types';
+import type {
+  ElectronAPI,
+  SubtitleSidebarPlaybackState,
+  SubtitleSidebarSnapshot,
+} from '../../types';
 import { createRendererState } from '../state.js';
 import {
   applySidebarCssDeclarations,
@@ -68,7 +72,12 @@ function createCueRow() {
 
 function createListStub() {
   return {
-    innerHTML: '',
+    get innerHTML() {
+      return '';
+    },
+    set innerHTML(_html: string) {
+      this.children.length = 0;
+    },
     children: [] as ReturnType<typeof createCueRow>[],
     appendChild(child: ReturnType<typeof createCueRow>) {
       child.offsetTop = this.children.length * child.clientHeight;
@@ -180,17 +189,20 @@ test.afterEach(() => {
 
 /**
  * Builds a sidebar modal over fake window/document/dom globals. The snapshot served to the
- * modal can be changed with `setSnapshot`. Globals are restored (and polling stopped) after
- * each test.
+ * modal (and the playback state derived from it) can be changed with `setSnapshot`; `poll`
+ * runs the next scheduled playback tick. Globals are restored after each test.
  */
 function createSidebarHarness(options: SidebarHarnessOptions = {}) {
   let snapshot: SubtitleSidebarSnapshot = {
     sourceKey: 'test-subtitles',
+    cuesRevision: 1,
     cues: options.cues ?? [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: options.currentSubtitle ?? { text: 'first', startTime: 1, endTime: 2 },
-    currentTimeSec: 'currentTimeSec' in options ? options.currentTimeSec : 1.1,
+    currentTimeSec: 'currentTimeSec' in options ? (options.currentTimeSec ?? null) : 1.1,
     config: { ...DEFAULT_SIDEBAR_CONFIG, ...options.config },
   };
+  const requests = { snapshot: 0, playback: 0 };
+  let nextPoll: (() => Promise<void>) | null = null;
 
   const mpvCommands: MpvCommand[] = [];
   const ignoreMouseCalls: Array<[boolean, { forward?: boolean } | undefined]> = [];
@@ -208,7 +220,15 @@ function createSidebarHarness(options: SidebarHarnessOptions = {}) {
       addEventListener: windowEvents.addEventListener,
       removeEventListener: windowEvents.removeEventListener,
       electronAPI: {
-        getSubtitleSidebarSnapshot: async () => snapshot,
+        getSubtitleSidebarSnapshot: async () => {
+          requests.snapshot += 1;
+          return snapshot;
+        },
+        getSubtitleSidebarPlaybackState: async (): Promise<SubtitleSidebarPlaybackState> => {
+          requests.playback += 1;
+          const { sourceKey, cuesRevision, currentTimeSec, currentSubtitle } = snapshot;
+          return { sourceKey, cuesRevision, currentTimeSec, currentSubtitle };
+        },
         getPlaybackPaused: async () => false,
         sendMpvCommand: (command: MpvCommand) => {
           mpvCommands.push(command);
@@ -281,11 +301,16 @@ function createSidebarHarness(options: SidebarHarnessOptions = {}) {
     onVisibilityChanged: (visible) => {
       visibilityChanges.push(visible);
     },
+    schedule: (callback) => {
+      nextPoll = callback;
+      return () => {
+        if (nextPoll === callback) nextPoll = null;
+      };
+    },
     ...options.modalOptions,
   });
 
   harnessCleanups.push(() => {
-    // Closing stops the snapshot poll so it cannot fire against the next test's globals.
     modal.closeSubtitleSidebarModal();
     modal.disposeDomEvents();
     restoreGlobals();
@@ -307,6 +332,13 @@ function createSidebarHarness(options: SidebarHarnessOptions = {}) {
     windowEvents,
     contentEvents,
     modalEvents,
+    requests,
+    /** Runs the pending playback poll tick, if one is scheduled. */
+    async poll() {
+      const tick = nextPoll;
+      nextPoll = null;
+      await tick?.();
+    },
     setSnapshot(patch: SnapshotPatch) {
       snapshot = { ...snapshot, ...patch, config: { ...snapshot.config, ...patch.config } };
     },
@@ -675,7 +707,7 @@ test('subtitle sidebar jumps to first resolved active cue, then resumes smooth a
     currentSubtitle: { text: 'line-9', startTime: 18, endTime: 19.5 },
     currentTimeSec: 18.1,
   });
-  await h.modal.refreshSubtitleSidebarSnapshot();
+  await h.poll();
 
   assert.equal(h.state.subtitleSidebarActiveCueIndex, 9);
   assert.equal(h.cueList.scrollTop, 260);
@@ -685,10 +717,92 @@ test('subtitle sidebar jumps to first resolved active cue, then resumes smooth a
     currentSubtitle: { text: 'line-10', startTime: 20, endTime: 21.5 },
     currentTimeSec: 20.1,
   });
-  await h.modal.refreshSubtitleSidebarSnapshot();
+  await h.poll();
 
   assert.equal(h.state.subtitleSidebarActiveCueIndex, 10);
   assert.deepEqual(h.cueList.scrollToCalls.at(-1), { top: 300, behavior: 'smooth' });
+});
+
+test('open subtitle sidebar follows playback from cheap polls without refetching cues or re-measuring', async () => {
+  let measurements = 0;
+  const h = createSidebarHarness({
+    cues: Array.from({ length: 4 }, (_, index) => ({
+      startTime: index * 2,
+      endTime: index * 2 + 1.5,
+      text: `line-${index}`,
+    })),
+    currentSubtitle: { text: 'line-0', startTime: 0, endTime: 1.5 },
+    currentTimeSec: 0.1,
+    config: { layout: 'embedded', maxWidth: 360 },
+    contentWidth: () => {
+      measurements += 1;
+      return 360;
+    },
+  });
+  await h.modal.openSubtitleSidebarModal();
+  const snapshotsAfterOpen = h.requests.snapshot;
+  const measurementsAfterOpen = measurements;
+
+  // Inside the lookahead window the upcoming cue activates before mpv reports its text.
+  h.setSnapshot({
+    currentSubtitle: { text: '', startTime: null, endTime: null },
+    currentTimeSec: 1.9,
+  });
+  await h.poll();
+  assert.equal(h.state.subtitleSidebarActiveCueIndex, 1);
+
+  h.setSnapshot({
+    currentSubtitle: { text: 'line-2', startTime: 4, endTime: 5.5 },
+    currentTimeSec: 4.1,
+  });
+  await h.poll();
+  assert.equal(h.state.subtitleSidebarActiveCueIndex, 2);
+  assert.equal(h.cueList.children[2]!.classList.contains('active'), true);
+  assert.equal(h.cueList.children[1]!.classList.contains('active'), false);
+
+  assert.equal(h.requests.playback, 2);
+  assert.equal(h.requests.snapshot, snapshotsAfterOpen);
+  assert.equal(measurements, measurementsAfterOpen);
+});
+
+for (const change of [
+  { name: 'subtitle source', patch: { sourceKey: 'other-subtitles' } },
+  { name: 'parsed cue revision', patch: { cuesRevision: 2 } },
+]) {
+  test(`open subtitle sidebar refetches and re-renders cues when the ${change.name} changes`, async () => {
+    const h = createSidebarHarness();
+    await h.modal.openSubtitleSidebarModal();
+    const snapshotsAfterOpen = h.requests.snapshot;
+
+    h.setSnapshot({
+      ...change.patch,
+      cues: [
+        { startTime: 1, endTime: 2, text: 'replacement' },
+        { startTime: 3, endTime: 4, text: 'second' },
+      ],
+    });
+    await h.poll();
+
+    assert.equal(h.requests.snapshot, snapshotsAfterOpen + 1);
+    assert.deepEqual(
+      h.cueList.children.map((row) => (row.children[1] as { textContent: string }).textContent),
+      ['replacement', 'second'],
+    );
+  });
+}
+
+test('open subtitle sidebar picks up changes main did not flag on a slow full-snapshot fallback', async () => {
+  const h = createSidebarHarness();
+  await h.modal.openSubtitleSidebarModal();
+  h.setSnapshot({ config: { enabled: false } });
+
+  for (let polls = 0; h.state.subtitleSidebarModalOpen && polls < 100; polls += 1) {
+    await h.poll();
+  }
+
+  assert.equal(h.state.subtitleSidebarModalOpen, false);
+  assert.equal(h.requests.snapshot, 2);
+  assert.ok(h.requests.playback > 1);
 });
 
 test('subtitle sidebar closes and resumes a hover pause', async () => {

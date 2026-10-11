@@ -55,6 +55,7 @@ import type {
   SubtitleData,
   SubtitleMiningContext,
   SubtitlePosition,
+  SubtitleSidebarPlaybackState,
   SubtitleSidebarSnapshot,
   SubtitleRendererStyleConfig,
   SubtitleStyleConfig,
@@ -477,6 +478,7 @@ export interface ElectronAPI {
   getCurrentSubtitleRaw: () => Promise<string>;
   getCurrentSubtitleAss: () => Promise<string>;
   getSubtitleSidebarSnapshot: () => Promise<SubtitleSidebarSnapshot>;
+  getSubtitleSidebarPlaybackState: () => Promise<SubtitleSidebarPlaybackState>;
   copySubtitleSidebarSelection: (text: string) => Promise<void>;
   getSubtitleSidebarOpen: () => Promise<boolean>;
   getPlaybackPaused: () => Promise<boolean | null>;

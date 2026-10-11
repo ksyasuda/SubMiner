@@ -86,7 +86,9 @@ function createControllerConfigFixture() {
 function createSubtitleSidebarSnapshotFixture(): SubtitleSidebarSnapshot {
   return {
     sourceKey: 'test-subtitles',
+    cuesRevision: 1,
     cues: [],
+    currentTimeSec: null,
     currentSubtitle: { text: '', startTime: null, endTime: null },
     config: {
       enabled: false,

@@ -226,15 +226,25 @@ export interface SubtitleData {
   endTime?: number | null;
 }
 
-export interface SubtitleSidebarSnapshot {
+/**
+ * Per-tick sidebar state, served from main's cached state without mpv round-trips. When
+ * `sourceKey` or `cuesRevision` differs from the last full snapshot's, the renderer fetches a
+ * new `SubtitleSidebarSnapshot`.
+ */
+export interface SubtitleSidebarPlaybackState {
   sourceKey: string | null;
-  cues: SubtitleCue[];
-  currentTimeSec?: number | null;
+  /** Bumps whenever main swaps in a different parsed cue array. */
+  cuesRevision: number;
+  currentTimeSec: number | null;
   currentSubtitle: {
     text: string;
     startTime: number | null;
     endTime: number | null;
   };
+}
+
+export interface SubtitleSidebarSnapshot extends SubtitleSidebarPlaybackState {
+  cues: SubtitleCue[];
   config: SubtitleSidebarSnapshotConfig;
 }
 
