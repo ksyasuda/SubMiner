@@ -403,11 +403,6 @@ export function createKeyboardHandlers(
     return e.ctrlKey || e.metaKey;
   }
 
-  function isKeyboardDrivenModeToggle(e: KeyboardEvent): boolean {
-    const isYKey = e.code === 'KeyY' || e.key.toLowerCase() === 'y';
-    return isPrimaryModifierPressed(e) && !e.altKey && e.shiftKey && isYKey && !e.repeat;
-  }
-
   function isLookupWindowToggle(e: KeyboardEvent): boolean {
     const isYKey = e.code === 'KeyY' || e.key.toLowerCase() === 'y';
     return isPrimaryModifierPressed(e) && !e.altKey && !e.shiftKey && isYKey && !e.repeat;
@@ -723,7 +718,10 @@ export function createKeyboardHandlers(
     return true;
   }
 
+  // Keyboard mode drives the visible overlay's subtitle words. The modal layer hides
+  // subtitles, so enabling it there only lets arrows/H/L seek mpv from behind a modal.
   function handleKeyboardModeToggleRequested(): void {
+    if (ctx.platform.isModalLayer) return;
     toggleKeyboardDrivenMode();
   }
 
@@ -1144,12 +1142,6 @@ export function createKeyboardHandlers(
         return;
       }
 
-      if (isKeyboardDrivenModeToggle(e) && ctx.platform.isModalLayer) {
-        e.preventDefault();
-        handleKeyboardModeToggleRequested();
-        return;
-      }
-
       if (isLookupWindowToggle(e)) {
         e.preventDefault();
         handleLookupWindowToggleRequested();
@@ -1162,16 +1154,8 @@ export function createKeyboardHandlers(
         }
       }
 
-      // Ahead of the keyboard-driven lookup controls: the changelog modal binds
-      // arrows/H/L for folding, and those would otherwise move the subtitle word
-      // selection (and seek mpv) behind the open modal.
       if (ctx.state.changelogModalOpen) {
         options.handleChangelogKeydown(e);
-        return;
-      }
-
-      if (handleKeyboardDrivenModeLookupControls(e)) {
-        e.preventDefault();
         return;
       }
 
@@ -1219,6 +1203,13 @@ export function createKeyboardHandlers(
 
       if (isTextEntryTarget(e.target)) {
         pendingSequence = null;
+        return;
+      }
+
+      // After open modals and text fields, which own arrows/H/L; before Yomitan popup
+      // keybinds so word navigation keeps working while the popup is open.
+      if (handleKeyboardDrivenModeLookupControls(e)) {
+        e.preventDefault();
         return;
       }
 
