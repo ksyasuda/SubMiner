@@ -520,8 +520,7 @@ export function createKeyboardHandlers(
       pendingSelectionAnchorAfterSubtitleSeek = null;
       resetSelectionToStartOnNextSubtitleSync = false;
       const shouldRefreshLookup =
-        pendingLookupRefreshAfterSubtitleSeek &&
-        (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document));
+        pendingLookupRefreshAfterSubtitleSeek && isLookupPopupOpen(ctx.state, document);
       pendingLookupRefreshAfterSubtitleSeek = false;
       if (shouldRefreshLookup) {
         queueMicrotask(() => {
@@ -713,7 +712,7 @@ export function createKeyboardHandlers(
     if (lookupScanFallbackTimer !== null) clearTimeout(lookupScanFallbackTimer);
     lookupScanFallbackTimer = setTimeout(() => {
       lookupScanFallbackTimer = null;
-      if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
+      if (isLookupPopupOpen(ctx.state, document)) {
         return;
       }
       // Dispatch directly on the selected token span; when overlay pointer-events are disabled,
@@ -743,13 +742,15 @@ export function createKeyboardHandlers(
   }
 
   function handleLookupWindowToggleRequested(): void {
-    if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
+    if (isLookupPopupOpen(ctx.state, document)) {
       closeLookupWindow();
       return;
     }
     triggerLookupForSelectedWord();
   }
 
+  // Also clears Hachidori attention without an open pane, so callers like the
+  // Kiku modal opener leave no popup state behind.
   function closeLookupWindow(): boolean {
     if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
       return false;
@@ -775,7 +776,7 @@ export function createKeyboardHandlers(
       return false;
     }
 
-    const popupVisible = ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document);
+    const popupVisible = isLookupPopupOpen(ctx.state, document);
     const result = moveKeyboardSelection(delta);
     if (result === 'no-words') {
       seekAdjacentSubtitleAndQueueSelection(delta, popupVisible);
@@ -796,7 +797,7 @@ export function createKeyboardHandlers(
     code: string,
     repeat: boolean = true,
   ): boolean {
-    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+    if (!isLookupPopupOpen(ctx.state, document)) {
       return false;
     }
     dispatchYomitanPopupKeydown(key, code, [], repeat);
@@ -804,7 +805,7 @@ export function createKeyboardHandlers(
   }
 
   function mineSelectedFromController(): boolean {
-    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+    if (!isLookupPopupOpen(ctx.state, document)) {
       return false;
     }
     dispatchYomitanPopupMineSelected();
@@ -812,7 +813,7 @@ export function createKeyboardHandlers(
   }
 
   function cyclePopupAudioSourceForController(direction: -1 | 1): boolean {
-    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+    if (!isLookupPopupOpen(ctx.state, document)) {
       return false;
     }
     dispatchYomitanPopupCycleAudioSource(direction);
@@ -820,7 +821,7 @@ export function createKeyboardHandlers(
   }
 
   function playCurrentAudioForController(): boolean {
-    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+    if (!isLookupPopupOpen(ctx.state, document)) {
       return false;
     }
     dispatchYomitanPopupPlayCurrentAudio();
@@ -828,7 +829,7 @@ export function createKeyboardHandlers(
   }
 
   function scrollPopupByController(deltaX: number, deltaY: number): boolean {
-    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+    if (!isLookupPopupOpen(ctx.state, document)) {
       return false;
     }
     dispatchYomitanPopupScrollBy(deltaX, deltaY);
@@ -855,7 +856,7 @@ export function createKeyboardHandlers(
       if (!ctx.state.keyboardDrivenModeEnabled) {
         return;
       }
-      if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+      if (!isLookupPopupOpen(ctx.state, document)) {
         return;
       }
       restoreOverlayKeyboardFocus();
@@ -900,7 +901,7 @@ export function createKeyboardHandlers(
     }
 
     const key = e.code;
-    const popupVisible = ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document);
+    const popupVisible = isLookupPopupOpen(ctx.state, document);
     if (key === 'ArrowLeft' || key === 'KeyH') {
       const result = moveKeyboardSelection(-1);
       if (result === 'start-boundary' || result === 'no-words') {

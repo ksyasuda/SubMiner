@@ -1288,6 +1288,31 @@ test('Hachidori attention without an open popup pane still forwards imported mpv
   }
 });
 
+test('keyboard mode: lookup toggle opens a lookup during Hachidori attention without a pane', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    ctx.state.keyboardSelectedWordIndex = 1;
+    handlers.syncKeyboardTokenSelection();
+    ctx.state.hachidoriReaderSeen = true;
+    ctx.state.yomitanPopupVisible = true;
+
+    handlers.handleLookupWindowToggleRequested();
+    await wait(0);
+
+    assert.equal(ctx.dom.subtitleRoot.classList.contains('has-selection'), true);
+    assert.deepEqual(
+      testGlobals.commandEvents.filter((event) => event.type === 'setVisible'),
+      [],
+    );
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
 test('configured subtitle-jump keybinding preserves pause when pause state is unknown', async () => {
   const { handlers, testGlobals } = createKeyboardHandlerHarness();
 
