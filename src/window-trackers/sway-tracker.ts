@@ -16,8 +16,13 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { execSync } from 'child_process';
 import { BaseWindowTracker } from './base-tracker';
+import {
+  createCoalescedTask,
+  execFileWithTimeout,
+  ProcessCommandLineCache,
+  type CommandRunner,
+} from './linux-poll';
 
 interface SwayRect {
   x: number;
@@ -38,22 +43,34 @@ interface SwayNode {
 export class SwayWindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private readonly targetMpvSocketPath: string | null;
+  private readonly runCommand: CommandRunner;
+  private readonly commandLines: ProcessCommandLineCache;
+  private stopped = false;
+  private readonly pollGeometry = createCoalescedTask(() => this.pollGeometryOnce());
 
-  constructor(targetMpvSocketPath?: string) {
+  constructor(targetMpvSocketPath?: string, runCommand: CommandRunner = execFileWithTimeout) {
     super();
     this.targetMpvSocketPath = targetMpvSocketPath?.trim() || null;
+    this.runCommand = runCommand;
+    this.commandLines = new ProcessCommandLineCache(runCommand);
   }
 
   start(): void {
-    this.pollInterval = setInterval(() => this.pollGeometry(), 250);
-    this.pollGeometry();
+    this.stopped = false;
+    this.pollInterval = setInterval(() => void this.pollGeometry(), 250);
+    void this.pollGeometry();
   }
 
   stop(): void {
+    this.stopped = true;
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+  }
+
+  override refreshNow(): Promise<void> {
+    return this.pollGeometry();
   }
 
   private collectMpvWindows(node: SwayNode): SwayNode[] {
@@ -77,56 +94,56 @@ export class SwayWindowTracker extends BaseWindowTracker {
     return windows;
   }
 
-  private findTargetSocketWindow(node: SwayNode): SwayNode | null {
+  private async findTargetSocketWindow(node: SwayNode): Promise<SwayNode | null> {
     const windows = this.collectMpvWindows(node);
     if (!this.targetMpvSocketPath) {
       return windows[0] || null;
     }
 
-    return windows.find((candidate) => this.isWindowForTargetSocket(candidate)) || null;
+    const commandLines = await this.commandLines.lookup(
+      windows.flatMap((window) => (window.pid ? [window.pid] : [])),
+    );
+    return (
+      windows.find((candidate) => {
+        const commandLine = candidate.pid ? commandLines.get(candidate.pid) : undefined;
+        return commandLine !== undefined && this.matchesTargetSocket(commandLine);
+      }) || null
+    );
   }
 
-  private isWindowForTargetSocket(node: SwayNode): boolean {
-    if (!node.pid) {
-      return false;
-    }
-
-    const commandLine = this.getWindowCommandLine(node.pid);
-    if (!commandLine) {
-      return false;
-    }
-
+  private matchesTargetSocket(commandLine: string): boolean {
     return (
       commandLine.includes(`--input-ipc-server=${this.targetMpvSocketPath}`) ||
       commandLine.includes(`--input-ipc-server ${this.targetMpvSocketPath}`)
     );
   }
 
-  private getWindowCommandLine(pid: number): string | null {
-    const commandLine = execSync(`ps -p ${pid} -o args=`, {
-      encoding: 'utf-8',
-    }).trim();
-    return commandLine || null;
-  }
+  private async pollGeometryOnce(): Promise<void> {
+    if (this.stopped) {
+      return;
+    }
 
-  private pollGeometry(): void {
+    let mpvWindow: SwayNode | null;
     try {
-      const output = execSync('swaymsg -t get_tree', { encoding: 'utf-8' });
-      const tree: SwayNode = JSON.parse(output);
-      const mpvWindow = this.findTargetSocketWindow(tree);
+      const tree = JSON.parse(await this.runCommand('swaymsg', ['-t', 'get_tree'])) as SwayNode;
+      mpvWindow = await this.findTargetSocketWindow(tree);
+    } catch {
+      // swaymsg/ps not available, timed out, or failed - keep the last geometry
+      return;
+    }
+    if (this.stopped) {
+      return;
+    }
 
-      if (mpvWindow && mpvWindow.rect) {
-        this.updateGeometry({
-          x: mpvWindow.rect.x,
-          y: mpvWindow.rect.y,
-          width: mpvWindow.rect.width,
-          height: mpvWindow.rect.height,
-        });
-      } else {
-        this.updateGeometry(null);
-      }
-    } catch (err) {
-      // swaymsg not available or failed - silent fail
+    if (mpvWindow && mpvWindow.rect) {
+      this.updateGeometry({
+        x: mpvWindow.rect.x,
+        y: mpvWindow.rect.y,
+        width: mpvWindow.rect.width,
+        height: mpvWindow.rect.height,
+      });
+    } else {
+      this.updateGeometry(null);
     }
   }
 }
