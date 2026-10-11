@@ -17,8 +17,13 @@
 */
 
 import * as net from 'net';
-import { execSync } from 'child_process';
 import { BaseWindowTracker } from './base-tracker';
+import {
+  createCoalescedTask,
+  execFileWithTimeout,
+  ProcessCommandLineCache,
+  type CommandRunner,
+} from './linux-poll';
 import { createLogger } from '../logger';
 import type { WindowGeometry } from '../types';
 
@@ -98,16 +103,20 @@ function isMpvClassName(value: string | undefined): boolean {
   return value.trim().toLowerCase().includes('mpv');
 }
 
-export function selectHyprlandMpvWindow(
-  clients: HyprlandClient[],
-  options: SelectHyprlandMpvWindowOptions,
-): HyprlandClient | null {
-  const visibleMpvWindows = clients.filter(
+function filterVisibleMpvWindows(clients: HyprlandClient[]): HyprlandClient[] {
+  return clients.filter(
     (client) =>
       (isMpvClassName(client.class) || isMpvClassName(client.initialClass)) &&
       client.mapped !== false &&
       client.hidden !== true,
   );
+}
+
+export function selectHyprlandMpvWindow(
+  clients: HyprlandClient[],
+  options: SelectHyprlandMpvWindowOptions,
+): HyprlandClient | null {
+  const visibleMpvWindows = filterVisibleMpvWindows(clients);
 
   if (!options.targetMpvSocketPath) {
     return preferActiveHyprlandWindow(visibleMpvWindows, options.activeWindowAddress);
@@ -221,20 +230,30 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
   private pollTimeouts: Array<ReturnType<typeof setTimeout>> = [];
   private eventSocket: net.Socket | null = null;
   private readonly targetMpvSocketPath: string | null;
+  private readonly runCommand: CommandRunner;
+  private readonly commandLines: ProcessCommandLineCache;
   private activeWindowAddress: string | null = null;
+  private stopped = false;
+  // Interval ticks, focus events, and geometry bursts all funnel through here,
+  // so a slow hyprctl never has more than one poll in flight.
+  private readonly pollGeometry = createCoalescedTask(() => this.pollGeometryOnce());
 
-  constructor(targetMpvSocketPath?: string) {
+  constructor(targetMpvSocketPath?: string, runCommand: CommandRunner = execFileWithTimeout) {
     super();
     this.targetMpvSocketPath = targetMpvSocketPath?.trim() || null;
+    this.runCommand = runCommand;
+    this.commandLines = new ProcessCommandLineCache(runCommand);
   }
 
   start(): void {
-    this.pollInterval = setInterval(() => this.pollGeometry(), 250);
-    this.pollGeometry();
+    this.stopped = false;
+    this.pollInterval = setInterval(() => void this.pollGeometry(), 250);
+    void this.pollGeometry();
     this.connectEventSocket();
   }
 
   stop(): void {
+    this.stopped = true;
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
@@ -247,6 +266,10 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
       this.eventSocket.destroy();
       this.eventSocket = null;
     }
+  }
+
+  override refreshNow(): Promise<void> {
+    return this.pollGeometry();
   }
 
   private connectEventSocket(): void {
@@ -297,10 +320,12 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
     if (name === 'activewindowv2') {
       const wasFocused = this.isTargetWindowFocused();
       this.activeWindowAddress = data || null;
-      this.pollGeometry();
-      if (this.isTargetWindowFocused() === wasFocused) {
-        this.onWindowFocusChange?.(this.isTargetWindowFocused());
-      }
+      void this.pollGeometry().then(() => {
+        // Re-emit unchanged focus so the overlay still refreshes its z-order.
+        if (!this.stopped && this.isTargetWindowFocused() === wasFocused) {
+          this.onWindowFocusChange?.(this.isTargetWindowFocused());
+        }
+      });
       return;
     }
 
@@ -320,7 +345,7 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
     this.pollTimeouts = [0, 50, 150, 300].map((delayMs) => {
       const pollTimeout = setTimeout(() => {
         this.pollTimeouts = this.pollTimeouts.filter((timeout) => timeout !== pollTimeout);
-        this.pollGeometry();
+        void this.pollGeometry();
       }, delayMs);
       return pollTimeout;
     });
@@ -329,56 +354,59 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
     }
   }
 
-  private pollGeometry(): void {
-    try {
-      const output = execSync('hyprctl -j clients', { encoding: 'utf-8' });
-      const clients = parseHyprctlClients(output);
-      if (!clients) {
-        this.updateGeometry(null);
-        return;
-      }
-      const mpvWindow = this.findTargetWindow(clients);
+  private async pollGeometryOnce(): Promise<void> {
+    if (this.stopped) {
+      return;
+    }
 
+    let mpvWindow: HyprlandClient | null;
+    let monitors: HyprlandMonitor[] | null = null;
+    try {
+      const clients = parseHyprctlClients(await this.runCommand('hyprctl', ['-j', 'clients']));
+      mpvWindow = clients ? await this.findTargetWindow(clients) : null;
       if (mpvWindow) {
-        const focused = !this.activeWindowAddress || mpvWindow.address === this.activeWindowAddress;
-        this.updateGeometry(
-          resolveHyprlandWindowGeometry(mpvWindow, this.getHyprlandMonitors(mpvWindow)),
-          focused,
-        );
-        this.updateTargetWindowFocused(focused);
-      } else {
-        this.updateGeometry(null);
+        monitors = await this.getHyprlandMonitors(mpvWindow);
       }
-    } catch (err) {
-      // hyprctl not available or failed - silent fail
+    } catch {
+      // hyprctl/ps not available, timed out, or failed - keep the last geometry
+      return;
+    }
+    if (this.stopped) {
+      return;
+    }
+
+    if (mpvWindow) {
+      const focused = !this.activeWindowAddress || mpvWindow.address === this.activeWindowAddress;
+      this.updateGeometry(resolveHyprlandWindowGeometry(mpvWindow, monitors), focused);
+      this.updateTargetWindowFocused(focused);
+    } else {
+      this.updateGeometry(null);
     }
   }
 
-  private findTargetWindow(clients: HyprlandClient[]): HyprlandClient | null {
+  private async findTargetWindow(clients: HyprlandClient[]): Promise<HyprlandClient | null> {
+    // Resolve command lines up front so window selection itself stays synchronous.
+    const commandLines = this.targetMpvSocketPath
+      ? await this.commandLines.lookup(
+          filterVisibleMpvWindows(clients).flatMap((client) => (client.pid ? [client.pid] : [])),
+        )
+      : null;
     return selectHyprlandMpvWindow(clients, {
       targetMpvSocketPath: this.targetMpvSocketPath,
       activeWindowAddress: this.activeWindowAddress,
-      getWindowCommandLine: (pid) => this.getWindowCommandLine(pid),
+      getWindowCommandLine: (pid) => commandLines?.get(pid) ?? null,
     });
   }
 
-  private getHyprlandMonitors(client: HyprlandClient): HyprlandMonitor[] | null {
+  private async getHyprlandMonitors(client: HyprlandClient): Promise<HyprlandMonitor[] | null> {
     if (!isHyprlandFullscreenClient(client)) {
       return null;
     }
 
     try {
-      const output = execSync('hyprctl -j monitors', { encoding: 'utf-8' });
-      return parseHyprctlMonitors(output);
+      return parseHyprctlMonitors(await this.runCommand('hyprctl', ['-j', 'monitors']));
     } catch {
       return null;
     }
-  }
-
-  private getWindowCommandLine(pid: number): string | null {
-    const commandLine = execSync(`ps -p ${pid} -o args=`, {
-      encoding: 'utf-8',
-    }).trim();
-    return commandLine || null;
   }
 }
