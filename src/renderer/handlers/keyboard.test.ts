@@ -153,6 +153,10 @@ function installKeyboardTestGlobals() {
   let selectionAddCount = 0;
 
   let popupVisible = false;
+  let hachidoriPaneOpen = false;
+  const hachidoriHost = {
+    shadowRoot: { querySelectorAll: () => [{ hidden: false }] },
+  };
 
   const popupIframe = {
     tagName: 'IFRAME',
@@ -287,7 +291,10 @@ function installKeyboardTestGlobals() {
         listeners.push(listener);
         documentListeners.set(type, listeners);
       },
-      querySelectorAll: () => {
+      querySelectorAll: (selector: string) => {
+        if (selector === HACHIDORI_HOST_SELECTOR) {
+          return hachidoriPaneOpen ? [hachidoriHost] : [];
+        }
         if (popupVisible) {
           return [popupIframe];
         }
@@ -456,6 +463,9 @@ function installKeyboardTestGlobals() {
     dispatchWindowEvent,
     setPopupVisible: (value: boolean) => {
       popupVisible = value;
+    },
+    setHachidoriPaneOpen: (value: boolean) => {
+      hachidoriPaneOpen = value;
     },
     setStatsToggleKey: (value: string) => {
       statsToggleKey = value;
@@ -1306,6 +1316,32 @@ test('keyboard mode: lookup toggle opens a lookup during Hachidori attention wit
     assert.deepEqual(
       testGlobals.commandEvents.filter((event) => event.type === 'setVisible'),
       [],
+    );
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: lookup toggle closes an open Hachidori pane after attention is released', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    // A selection drag leaves the pane open while the Yomitan-shaped visible marker clears.
+    ctx.state.hachidoriReaderSeen = true;
+    ctx.state.yomitanPopupVisible = false;
+    testGlobals.setHachidoriPaneOpen(true);
+
+    handlers.handleLookupWindowToggleRequested();
+    await wait(0);
+
+    assert.deepEqual(
+      testGlobals.commandEvents.filter(
+        (event) => event.type === 'setVisible' || event.type === 'clearActiveTextSource',
+      ),
+      [{ type: 'setVisible', visible: false }, { type: 'clearActiveTextSource' }],
     );
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;

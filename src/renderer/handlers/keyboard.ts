@@ -8,6 +8,7 @@ import {
   HACHIDORI_HOST_SELECTOR,
   YOMITAN_POPUP_COMMAND_EVENT,
   YOMITAN_POPUP_HOST_SELECTOR,
+  isHachidoriPopupOpen,
   isLookupPopupOpen,
   isYomitanPopupVisible,
   isYomitanPopupIframe,
@@ -749,10 +750,15 @@ export function createKeyboardHandlers(
     triggerLookupForSelectedWord();
   }
 
-  // Also clears Hachidori attention without an open pane, so callers like the
-  // Kiku modal opener leave no popup state behind.
+  // Closes any popup state: an open Hachidori pane (its attention may already be
+  // released) and attention without a pane, so callers like the Kiku modal
+  // opener leave nothing behind.
   function closeLookupWindow(): boolean {
-    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+    if (
+      !ctx.state.yomitanPopupVisible &&
+      !isYomitanPopupVisible(document) &&
+      !isHachidoriPopupOpen(document)
+    ) {
       return false;
     }
 
