@@ -32,8 +32,8 @@ export function createBuildHandleJellyfinListCommandsMainDepsHandler(
       deps.listJellyfinItems(session, clientInfo, params),
     listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
       deps.listJellyfinSubtitleTracks(session, clientInfo, itemId),
-    writeJellyfinPreviewAuth: (responsePath, payload) =>
-      deps.writeJellyfinPreviewAuth(responsePath, payload),
+    writeJellyfinResponse: (responsePath, response) =>
+      deps.writeJellyfinResponse(responsePath, response),
     logInfo: (message: string) => deps.logInfo(message),
   });
 }

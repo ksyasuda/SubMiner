@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { JellyfinPlaybackPlan } from '../../core/services/jellyfin';
+import type { JellyfinTimelinePlaybackState } from '../../core/services/jellyfin-playback-reporter';
 import { createPlayJellyfinItemInMpvHandler } from './jellyfin-playback-launch';
 
 type Deps = Parameters<typeof createPlayJellyfinItemInMpvHandler>[0];
@@ -46,7 +47,13 @@ function makeHarness(options: { plan?: Partial<JellyfinPlaybackPlan>; deps?: Par
   const commands: Array<Array<string | number>> = [];
   const events: string[] = [];
   const activeStates: Array<Parameters<Deps['setActivePlayback']>[0]> = [];
-  const reports: Array<Parameters<Deps['reportPlaying']>[0]> = [];
+  const reports: JellyfinTimelinePlaybackState[] = [];
+  const reporterParams: Array<Parameters<Deps['createPlaybackReporter']>[0]> = [];
+  const reporter = {
+    reportPlaying: async (state: JellyfinTimelinePlaybackState) => void reports.push(state),
+    reportProgress: async () => {},
+    reportStopped: async () => {},
+  };
 
   const handler = createPlayJellyfinItemInMpvHandler({
     ensureMpvConnectedForPlayback: async () => true,
@@ -67,7 +74,10 @@ function makeHarness(options: { plan?: Partial<JellyfinPlaybackPlan>; deps?: Par
       events.push(`active:${String(state.loadedMediaPath)}`);
     },
     setLastProgressAtMs: () => {},
-    reportPlaying: (payload) => reports.push(payload),
+    createPlaybackReporter: (params) => {
+      reporterParams.push(params);
+      return reporter;
+    },
     showMpvOsd: () => {},
     ...options.deps,
   });
@@ -77,6 +87,8 @@ function makeHarness(options: { plan?: Partial<JellyfinPlaybackPlan>; deps?: Par
     events,
     activeStates,
     reports,
+    reporter,
+    reporterParams,
     play: (params: Partial<PlayParams> = {}) =>
       handler({
         session: baseSession,
@@ -141,6 +153,8 @@ test('playback handler disables mpv subtitle selection, then loads media and rep
   assert.equal(harness.activeStates.length, 1);
   assert.equal(harness.activeStates[0]?.playMethod, 'DirectPlay');
   assert.equal(harness.activeStates[0]?.lastKnownPositionSeconds, 1.2);
+  assert.equal(harness.activeStates[0]?.reporter, harness.reporter);
+  assert.deepEqual(harness.reporterParams, [{ session: baseSession, clientInfo: baseClientInfo }]);
   assert.equal(harness.reports.length, 1);
   assert.equal(harness.reports[0]?.eventName, 'start');
   assert.equal(harness.reports[0]?.positionTicks, 12_000_000);

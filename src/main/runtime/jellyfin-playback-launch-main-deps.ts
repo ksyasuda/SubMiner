@@ -18,7 +18,7 @@ export function createBuildPlayJellyfinItemInMpvMainDepsHandler(
     preloadExternalSubtitles: (params) => deps.preloadExternalSubtitles(params),
     setActivePlayback: (state) => deps.setActivePlayback(state),
     setLastProgressAtMs: (value: number) => deps.setLastProgressAtMs(value),
-    reportPlaying: (payload) => deps.reportPlaying(payload),
+    createPlaybackReporter: (params) => deps.createPlaybackReporter(params),
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
     recordJellyfinPlaybackMetadata: deps.recordJellyfinPlaybackMetadata
       ? (metadata) => deps.recordJellyfinPlaybackMetadata!(metadata)

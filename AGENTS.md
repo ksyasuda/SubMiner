@@ -45,6 +45,7 @@ Start here, then leave this file.
 - Launcher/plugin: `bun run test:launcher` or `bun run test:env`
 - Runtime-compat / dist-sensitive: `bun run test:runtime:compat`
 - Stats dashboard UI (`stats/`): `bun run test:stats`
+- Overlay / renderer / mpv / mining behavior in the running app: `bun run build`, then `bun run test:e2e` (headless, sandboxed; `bun run e2e start` for exploratory checks)
 - Build/release scripts (`scripts/**`): `bun run test:scripts`
 - Internal docs, `AGENTS.md`, or repo skills: `bun run test:docs:kb`
 - User-facing `docs-site/`: `bun run docs:test`, then `bun run docs:build`

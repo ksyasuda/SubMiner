@@ -316,8 +316,9 @@ function installKeyboardTestGlobals() {
     shiftKey?: boolean;
     repeat?: boolean;
     target?: unknown;
-  }): void {
+  }): boolean {
     const listeners = documentListeners.get('keydown') ?? [];
+    let prevented = false;
     const keyboardEvent = {
       key: event.key,
       code: event.code,
@@ -326,12 +327,15 @@ function installKeyboardTestGlobals() {
       altKey: event.altKey ?? false,
       shiftKey: event.shiftKey ?? false,
       repeat: event.repeat ?? false,
-      preventDefault: () => {},
+      preventDefault: () => {
+        prevented = true;
+      },
       target: event.target ?? null,
     };
     for (const listener of listeners) {
       listener(keyboardEvent);
     }
+    return prevented;
   }
 
   function dispatchMousedown(event: {
@@ -485,6 +489,12 @@ function installKeyboardTestGlobals() {
           : null;
       return target;
     },
+    createTextInputTarget: () => {
+      const target = new TestElement();
+      target.tagName = 'INPUT';
+      target.closest = (selector: string) => (selector.includes('input') ? target : null);
+      return target;
+    },
     setGetSessionBindings: (value: () => Promise<CompiledSessionBinding[]>) => {
       getSessionBindingsImpl = value;
     },
@@ -514,6 +524,7 @@ function createKeyboardHandlerHarness() {
   let openControllerDebugCount = 0;
   let playlistBrowserKeydownCount = 0;
   let changelogKeydownCount = 0;
+  let jimakuKeydownCount = 0;
 
   const createWordNode = (left: number) => ({
     classList: createClassList(),
@@ -549,7 +560,10 @@ function createKeyboardHandlerHarness() {
     handleCharacterDictionaryKeydown: () => false,
     handleSubsyncKeydown: () => false,
     handleKikuKeydown: () => false,
-    handleJimakuKeydown: () => false,
+    handleJimakuKeydown: () => {
+      jimakuKeydownCount += 1;
+      return false;
+    },
     handleTsukihimeKeydown: () => false,
     handleMediaTimingReviewKeydown: () => {
       mediaTimingReviewKeydownCount += 1;
@@ -590,6 +604,7 @@ function createKeyboardHandlerHarness() {
     openControllerDebugCount: () => openControllerDebugCount,
     playlistBrowserKeydownCount: () => playlistBrowserKeydownCount,
     changelogKeydownCount: () => changelogKeydownCount,
+    jimakuKeydownCount: () => jimakuKeydownCount,
     setWordCount: (count: number) => {
       wordNodes = Array.from({ length: count }, (_, index) => createWordNode(10 + index * 70));
     },
@@ -1482,6 +1497,59 @@ test('keyboard mode: changelog modal handles h/l fold keys before lookup control
   }
 });
 
+const KEYBOARD_MODE_LOOKUP_KEYS = [
+  { key: 'h', code: 'KeyH' },
+  { key: 'l', code: 'KeyL' },
+  { key: 'ArrowLeft', code: 'ArrowLeft' },
+  { key: 'ArrowRight', code: 'ArrowRight' },
+];
+
+test('keyboard mode: an open modal receives h/l/arrows instead of lookup controls', async () => {
+  const { ctx, testGlobals, handlers, jimakuKeydownCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    ctx.state.jimakuModalOpen = true;
+    ctx.state.keyboardSelectedWordIndex = 1;
+    const titleInput = testGlobals.createTextInputTarget();
+
+    for (const key of KEYBOARD_MODE_LOOKUP_KEYS) {
+      const prevented = testGlobals.dispatchKeydown({ ...key, target: titleInput });
+      assert.equal(prevented, false, `${key.code} must reach the focused modal input`);
+    }
+    await wait(0);
+
+    assert.equal(jimakuKeydownCount(), KEYBOARD_MODE_LOOKUP_KEYS.length);
+    assert.equal(ctx.state.keyboardSelectedWordIndex, 1);
+    assert.deepEqual(testGlobals.mpvCommands, []);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: h/l/arrows typed into a text field are not consumed by lookup controls', async () => {
+  const { ctx, testGlobals, handlers, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    // No words means lookup controls would seek mpv to the adjacent subtitle.
+    setWordCount(0);
+    const input = testGlobals.createTextInputTarget();
+
+    for (const key of KEYBOARD_MODE_LOOKUP_KEYS) {
+      const prevented = testGlobals.dispatchKeydown({ ...key, target: input });
+      assert.equal(prevented, false, `${key.code} must reach the text field`);
+    }
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands, []);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: configured stats toggle works even while popup is open', async () => {
   const { handlers, testGlobals } = createKeyboardHandlerHarness();
 
@@ -1748,7 +1816,7 @@ test('keyboard mode: visible-layer Ctrl+Shift+Y should not be toggled by rendere
   }
 });
 
-test('keyboard mode: modal-layer Ctrl+Shift+Y still toggles via renderer keydown', async () => {
+test('keyboard mode: modal layer never enables keyboard mode', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
   try {
@@ -1756,9 +1824,10 @@ test('keyboard mode: modal-layer Ctrl+Shift+Y still toggles via renderer keydown
     ctx.platform.isModalLayer = true;
 
     testGlobals.dispatchKeydown({ key: 'Y', code: 'KeyY', ctrlKey: true, shiftKey: true });
-    assert.equal(ctx.state.keyboardDrivenModeEnabled, true);
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
 
-    testGlobals.dispatchKeydown({ key: 'Y', code: 'KeyY', ctrlKey: true, shiftKey: true });
+    // Controller toggle path.
+    handlers.handleKeyboardModeToggleRequested();
     assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;

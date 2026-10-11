@@ -1,4 +1,5 @@
 import type { CliArgs } from '../../cli/args';
+import type { JellyfinCliResponse } from '../../shared/jellyfin-cli-response';
 
 type JellyfinSession = {
   serverUrl: string;
@@ -15,12 +16,6 @@ type JellyfinClientInfo = {
 
 type JellyfinConfig = {
   defaultLibraryId: string;
-};
-
-type JellyfinPreviewAuthPayload = {
-  serverUrl: string;
-  accessToken: string;
-  userId: string;
 };
 
 export function createHandleJellyfinListCommands(deps: {
@@ -56,7 +51,7 @@ export function createHandleJellyfinListCommands(deps: {
       deliveryUrl?: string | null;
     }>
   >;
-  writeJellyfinPreviewAuth: (responsePath: string, payload: JellyfinPreviewAuthPayload) => void;
+  writeJellyfinResponse: (responsePath: string, response: JellyfinCliResponse) => void;
   logInfo: (message: string) => void;
 }) {
   return async (params: {
@@ -66,13 +61,13 @@ export function createHandleJellyfinListCommands(deps: {
     jellyfinConfig: JellyfinConfig;
   }): Promise<boolean> => {
     const { args, session, clientInfo, jellyfinConfig } = params;
+    const responsePath = args.jellyfinResponsePath?.trim();
 
     if (args.jellyfinPreviewAuth) {
-      const responsePath = args.jellyfinResponsePath?.trim();
       if (!responsePath) {
         throw new Error('Missing --jellyfin-response-path for --jellyfin-preview-auth.');
       }
-      deps.writeJellyfinPreviewAuth(responsePath, {
+      deps.writeJellyfinResponse(responsePath, {
         serverUrl: session.serverUrl,
         accessToken: session.accessToken,
         userId: session.userId,
@@ -83,6 +78,15 @@ export function createHandleJellyfinListCommands(deps: {
 
     if (args.jellyfinLibraries) {
       const libraries = await deps.listJellyfinLibraries(session, clientInfo);
+      if (responsePath) {
+        deps.writeJellyfinResponse(responsePath, {
+          libraries: libraries.map((library) => ({
+            id: library.id,
+            name: library.name,
+            collectionType: library.collectionType || library.type || 'unknown',
+          })),
+        });
+      }
       if (libraries.length === 0) {
         deps.logInfo('No Jellyfin libraries found.');
         return true;
@@ -109,6 +113,11 @@ export function createHandleJellyfinListCommands(deps: {
         recursive: args.jellyfinRecursive,
         includeItemTypes: args.jellyfinIncludeItemTypes,
       });
+      if (responsePath) {
+        deps.writeJellyfinResponse(responsePath, {
+          items: items.map((item) => ({ id: item.id, title: item.title, type: item.type })),
+        });
+      }
       if (items.length === 0) {
         deps.logInfo('No Jellyfin items found for the selected library/search.');
         return true;

@@ -35,6 +35,12 @@ export const testLanes: Record<string, TestLane> = {
     roots: ['scripts'],
     include: ['.test.ts'],
   },
+  // Boots the built app, mpv, and a fake AnkiConnect on an offscreen display.
+  // Slow and dependent on mpv/ffmpeg/Xvfb, so it stays out of test:fast.
+  e2e: {
+    roots: ['e2e'],
+    include: ['.e2e.test.ts'],
+  },
   stats: {
     roots: ['stats/src'],
     include: ['.test.ts', '.test.tsx'],

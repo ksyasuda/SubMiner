@@ -771,7 +771,8 @@ export function handleCliCommand(
     args.jellyfinItems ||
     args.jellyfinSubtitles ||
     args.jellyfinPlay ||
-    args.jellyfinRemoteAnnounce
+    args.jellyfinRemoteAnnounce ||
+    args.jellyfinPreviewAuth
   ) {
     runAsyncWithOsd(
       () => deps.runJellyfinCommand(args),

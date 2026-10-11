@@ -119,11 +119,27 @@ export async function promptOptionalJellyfinSearch(
   themePath: string | null = null,
 ): Promise<string> {
   if (useRofi && commandExists('rofi')) {
-    const rofiArgs = ['-dmenu', '-i', '-p', formatRofiPrompt('Jellyfin Search (optional)')];
+    // Input-only prompt: the shipped theme pins a tall window and has no message widget, so
+    // drop the listview (an empty row there reads as "no results") and show the hint instead.
+    const inputOnlyTheme =
+      'window { height: 0; } mainbox { children: [inputbar, message]; } ' +
+      'message { background-color: transparent; padding: 10px 18px 4px 18px; } ' +
+      'textbox { background-color: transparent; }';
+    const rofiArgs = [
+      '-dmenu',
+      '-i',
+      '-p',
+      formatRofiPrompt('Jellyfin Search (optional)'),
+      '-mesg',
+      'Type to search, or press Enter to browse all',
+    ];
     if (themePath) {
-      rofiArgs.push('-theme', themePath);
+      rofiArgs.push('-theme', themePath, '-theme-str', inputOnlyTheme);
     } else {
-      rofiArgs.push('-theme-str', 'configuration { font: "Noto Sans CJK JP Regular 8";}');
+      rofiArgs.push(
+        '-theme-str',
+        `configuration { font: "Noto Sans CJK JP Regular 8";} ${inputOnlyTheme}`,
+      );
     }
     const result = spawnSync('rofi', rofiArgs, {
       input: '\n',

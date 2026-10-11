@@ -44,7 +44,6 @@ export type JellyfinRemoteComposerOptions = ComposerInputs<{
   >[0]['jellyfinTicksToSeconds'];
   getActivePlayback: JellyfinRemoteGeneralMainDeps['getActivePlayback'];
   clearActivePlayback: JellyfinRemoteProgressMainDeps['clearActivePlayback'];
-  getSession: JellyfinRemoteProgressMainDeps['getSession'];
   getNow: JellyfinRemoteProgressMainDeps['getNow'];
   getLastProgressAtMs: Parameters<
     typeof createBuildReportJellyfinRemoteProgressMainDepsHandler
@@ -74,7 +73,6 @@ export function composeJellyfinRemoteHandlers(
     createBuildReportJellyfinRemoteProgressMainDepsHandler({
       getActivePlayback: options.getActivePlayback,
       clearActivePlayback: options.clearActivePlayback,
-      getSession: options.getSession,
       getMpvClient: options.getMpvClient,
       getNow: options.getNow,
       getLastProgressAtMs: options.getLastProgressAtMs,
@@ -87,7 +85,6 @@ export function composeJellyfinRemoteHandlers(
     createBuildReportJellyfinRemoteStoppedMainDepsHandler({
       getActivePlayback: options.getActivePlayback,
       clearActivePlayback: options.clearActivePlayback,
-      getSession: options.getSession,
       getMpvClient: options.getMpvClient,
       getNow: options.getNow,
       ticksPerSecond: options.ticksPerSecond,

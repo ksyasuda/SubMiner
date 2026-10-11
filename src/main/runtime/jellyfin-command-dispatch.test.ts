@@ -66,6 +66,7 @@ test('run jellyfin command returns after auth branch handles command', async () 
       calls.push('list');
       return false;
     },
+    writeJellyfinResponse: () => {},
     handlePlayCommand: async () => {
       calls.push('play');
       return false;
@@ -76,7 +77,8 @@ test('run jellyfin command returns after auth branch handles command', async () 
   assert.deepEqual(calls, ['auth']);
 });
 
-test('run jellyfin command throws when session missing after auth', async () => {
+test('run jellyfin command throws when session missing and writes the error reply', async () => {
+  const writes: Array<{ path: string; response: unknown }> = [];
   const run = createRunJellyfinCommandHandler({
     getJellyfinConfig: () => ({ serverUrl: '', accessToken: '', userId: '' }),
     defaultServerUrl: '',
@@ -84,10 +86,20 @@ test('run jellyfin command throws when session missing after auth', async () => 
     handleAuthCommands: async () => false,
     handleRemoteAnnounceCommand: async () => false,
     handleListCommands: async () => false,
+    writeJellyfinResponse: (path, response) => writes.push({ path, response }),
     handlePlayCommand: async () => false,
   });
 
-  await assert.rejects(() => run(createArgs()), /Missing Jellyfin session/);
+  await assert.rejects(
+    () => run(createArgs({ jellyfinResponsePath: '/tmp/reply.json' })),
+    /Missing Jellyfin session/,
+  );
+  assert.deepEqual(writes, [
+    {
+      path: '/tmp/reply.json',
+      response: { error: 'Missing Jellyfin session. Run --jellyfin-login first.' },
+    },
+  ]);
 });
 
 test('run jellyfin command dispatches remote/list/play in order until handled', async () => {
@@ -116,6 +128,7 @@ test('run jellyfin command dispatches remote/list/play in order until handled', 
       seenServerUrls.push(session.serverUrl);
       return true;
     },
+    writeJellyfinResponse: () => {},
     handlePlayCommand: async () => {
       calls.push('play');
       return false;

@@ -1,4 +1,5 @@
 import type { CliArgs } from '../../cli/args';
+import type { JellyfinCliResponse } from '../../shared/jellyfin-cli-response';
 
 type JellyfinConfigBase = {
   serverUrl?: string;
@@ -37,6 +38,7 @@ export type RunJellyfinCommandMainDeps<TClientInfo, TConfig extends JellyfinConf
     clientInfo: TClientInfo;
     jellyfinConfig: TConfig;
   }) => Promise<boolean>;
+  writeJellyfinResponse: (responsePath: string, response: JellyfinCliResponse) => void;
 };
 
 export function createBuildRunJellyfinCommandMainDepsHandler<
@@ -51,5 +53,7 @@ export function createBuildRunJellyfinCommandMainDepsHandler<
     handleRemoteAnnounceCommand: (args: CliArgs) => deps.handleRemoteAnnounceCommand(args),
     handleListCommands: (params) => deps.handleListCommands(params),
     handlePlayCommand: (params) => deps.handlePlayCommand(params),
+    writeJellyfinResponse: (responsePath, response) =>
+      deps.writeJellyfinResponse(responsePath, response),
   });
 }

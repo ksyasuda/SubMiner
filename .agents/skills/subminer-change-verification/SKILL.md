@@ -27,6 +27,7 @@ Do not use hidden wrapper commands. Verification commands are owned by `package.
 - Launcher or mpv plugin: `bun run test:launcher` or `bun run test:env`, based on the behavior changed
 - Runtime compatibility or dist-sensitive wiring: `bun run test:runtime:compat`
 - Stats dashboard: `bun run test:stats`
+- Overlay, renderer, mpv, or mining behavior in the running app: `bun run build`, then `bun run test:e2e`
 - Build/release scripts: `bun run test:scripts`
 
 For substantial changes, use the full gate documented in `AGENTS.md` and `docs/workflow/verification.md`.

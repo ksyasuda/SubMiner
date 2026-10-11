@@ -8,26 +8,31 @@ import {
   secondsToJellyfinTicks,
   shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
 } from './jellyfin-remote-playback';
-import type { ActiveJellyfinRemotePlaybackState } from './jellyfin-remote-commands';
+import type {
+  ActiveJellyfinRemotePlaybackState,
+  JellyfinPlaybackReporterLike,
+} from './jellyfin-remote-commands';
 
 type ProgressDeps = Parameters<typeof createReportJellyfinRemoteProgressHandler>[0];
 type StoppedDeps = Parameters<typeof createReportJellyfinRemoteStoppedHandler>[0];
-type Session = NonNullable<ReturnType<ProgressDeps['getSession']>>;
 
 const TICKS_PER_SECOND = 10_000_000;
+
+const makeReporter = (
+  overrides: Partial<JellyfinPlaybackReporterLike> = {},
+): JellyfinPlaybackReporterLike => ({
+  reportPlaying: async () => {},
+  reportProgress: async () => {},
+  reportStopped: async () => {},
+  ...overrides,
+});
 
 const makePlayback = (
   overrides: Partial<ActiveJellyfinRemotePlaybackState> = {},
 ): ActiveJellyfinRemotePlaybackState => ({
   itemId: 'item-1',
   playMethod: 'DirectPlay',
-  ...overrides,
-});
-
-const makeSession = (overrides: Partial<Session> = {}): Session => ({
-  isConnected: () => true,
-  reportProgress: async () => {},
-  reportStopped: async () => {},
+  reporter: makeReporter(),
   ...overrides,
 });
 
@@ -35,7 +40,6 @@ function makeProgressDeps(overrides: Partial<ProgressDeps> = {}): ProgressDeps {
   return {
     getActivePlayback: () => makePlayback(),
     clearActivePlayback: () => {},
-    getSession: () => makeSession(),
     getMpvClient: () => ({ requestProperty: async () => 1 }),
     getNow: () => 5000,
     getLastProgressAtMs: () => 0,
@@ -51,7 +55,6 @@ function makeStoppedDeps(overrides: Partial<StoppedDeps> = {}): StoppedDeps {
   return {
     getActivePlayback: () => makePlayback({ loadedMediaPath: 'https://stream.example/video.m3u8' }),
     clearActivePlayback: () => {},
-    getSession: () => makeSession(),
     getMpvClient: () => ({ currentTimePos: 0 }),
     ticksPerSecond: TICKS_PER_SECOND,
     logDebug: () => {},
@@ -69,29 +72,21 @@ test('shouldAutoLoadSecondarySubTrackForJellyfinPlayback suppresses generic seco
   assert.equal(shouldAutoLoadSecondarySubTrackForJellyfinPlayback(null, '/tmp/local.mkv'), true);
   assert.equal(
     shouldAutoLoadSecondarySubTrackForJellyfinPlayback(
-      { itemId: 'item-1', playMethod: 'DirectPlay', loadedMediaPath: null },
+      makePlayback({ loadedMediaPath: null }),
       'http://pve-main:8096/Videos/item/stream',
     ),
     false,
   );
   assert.equal(
     shouldAutoLoadSecondarySubTrackForJellyfinPlayback(
-      {
-        itemId: 'item-1',
-        playMethod: 'DirectPlay',
-        loadedMediaPath: 'http://pve-main:8096/Videos/item/stream',
-      },
+      makePlayback({ loadedMediaPath: 'http://pve-main:8096/Videos/item/stream' }),
       'http://pve-main:8096/Videos/item/stream',
     ),
     false,
   );
   assert.equal(
     shouldAutoLoadSecondarySubTrackForJellyfinPlayback(
-      {
-        itemId: 'item-1',
-        playMethod: 'DirectPlay',
-        loadedMediaPath: 'http://pve-main:8096/Videos/item/stream',
-      },
+      makePlayback({ loadedMediaPath: 'http://pve-main:8096/Videos/item/stream' }),
       '/tmp/local.mkv',
     ),
     true,
@@ -100,19 +95,21 @@ test('shouldAutoLoadSecondarySubTrackForJellyfinPlayback suppresses generic seco
 
 test('createReportJellyfinRemoteProgressHandler reports playback progress', async () => {
   let lastProgressAtMs = 0;
-  const reportPayloads: Array<{ itemId: string; positionTicks: number; isPaused: boolean }> = [];
+  const reportPayloads: Array<{ itemId: string; positionTicks?: number; isPaused?: boolean }> = [];
 
   const reportProgress = createReportJellyfinRemoteProgressHandler(
     makeProgressDeps({
-      getSession: () =>
-        makeSession({
-          reportProgress: async (payload) => {
-            reportPayloads.push({
-              itemId: payload.itemId,
-              positionTicks: payload.positionTicks,
-              isPaused: payload.isPaused,
-            });
-          },
+      getActivePlayback: () =>
+        makePlayback({
+          reporter: makeReporter({
+            reportProgress: async (payload) => {
+              reportPayloads.push({
+                itemId: payload.itemId,
+                positionTicks: payload.positionTicks,
+                isPaused: payload.isPaused,
+              });
+            },
+          }),
         }),
       getMpvClient: () => ({
         requestProperty: async (name: string) => (name === 'time-pos' ? 2.5 : true),
@@ -135,43 +132,18 @@ test('createReportJellyfinRemoteProgressHandler reports playback progress', asyn
   assert.equal(lastProgressAtMs, 5000);
 });
 
-test('createReportJellyfinRemoteProgressHandler reports while remote websocket is disconnected', async () => {
-  const reportPayloads: Array<{ positionTicks: number; isPaused: boolean }> = [];
-
-  const reportProgress = createReportJellyfinRemoteProgressHandler(
-    makeProgressDeps({
-      getSession: () =>
-        makeSession({
-          isConnected: () => false,
-          reportProgress: async (payload) => {
-            reportPayloads.push({
-              positionTicks: payload.positionTicks,
-              isPaused: payload.isPaused,
-            });
-          },
-        }),
-      getMpvClient: () => ({
-        currentTimePos: 42,
-        requestProperty: async (name: string) => (name === 'pause' ? false : 42),
-      }),
-    }),
-  );
-
-  await reportProgress(true);
-
-  assert.deepEqual(reportPayloads, [{ positionTicks: 420_000_000, isPaused: false }]);
-});
-
 test('createReportJellyfinRemoteProgressHandler normalizes mpv pause strings', async () => {
-  const reportPayloads: Array<{ isPaused: boolean }> = [];
+  const reportPayloads: Array<{ isPaused?: boolean }> = [];
 
   const reportProgress = createReportJellyfinRemoteProgressHandler(
     makeProgressDeps({
-      getSession: () =>
-        makeSession({
-          reportProgress: async (payload) => {
-            reportPayloads.push({ isPaused: payload.isPaused });
-          },
+      getActivePlayback: () =>
+        makePlayback({
+          reporter: makeReporter({
+            reportProgress: async (payload) => {
+              reportPayloads.push({ isPaused: payload.isPaused });
+            },
+          }),
         }),
       getMpvClient: () => ({
         requestProperty: async (name: string) => (name === 'pause' ? 'yes' : 3),
@@ -188,11 +160,13 @@ test('createReportJellyfinRemoteProgressHandler respects debounce interval', asy
   let called = false;
   const reportProgress = createReportJellyfinRemoteProgressHandler(
     makeProgressDeps({
-      getSession: () =>
-        makeSession({
-          reportProgress: async () => {
-            called = true;
-          },
+      getActivePlayback: () =>
+        makePlayback({
+          reporter: makeReporter({
+            reportProgress: async () => {
+              called = true;
+            },
+          }),
         }),
       getNow: () => 4000,
       getLastProgressAtMs: () => 3500,
@@ -207,18 +181,20 @@ test('createReportJellyfinRemoteProgressHandler reports mpv seek jumps during de
   let now = 5000;
   let lastProgressAtMs = 0;
   let position = 10;
-  const reportPayloads: Array<{ positionTicks: number; eventName: string }> = [];
+  const reportPayloads: Array<{ positionTicks?: number; eventName?: string }> = [];
 
   const reportProgress = createReportJellyfinRemoteProgressHandler(
     makeProgressDeps({
-      getSession: () =>
-        makeSession({
-          reportProgress: async (payload) => {
-            reportPayloads.push({
-              positionTicks: payload.positionTicks,
-              eventName: payload.eventName,
-            });
-          },
+      getActivePlayback: () =>
+        makePlayback({
+          reporter: makeReporter({
+            reportProgress: async (payload) => {
+              reportPayloads.push({
+                positionTicks: payload.positionTicks,
+                eventName: payload.eventName,
+              });
+            },
+          }),
         }),
       getMpvClient: () => ({
         currentTimePos: position,
@@ -253,20 +229,23 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
   } | null = null;
   const reportStopped = createReportJellyfinRemoteStoppedHandler(
     makeStoppedDeps({
-      getActivePlayback: () => makePlayback({ itemId: 'item-2', playMethod: 'Transcode' }),
+      getActivePlayback: () =>
+        makePlayback({
+          itemId: 'item-2',
+          playMethod: 'Transcode',
+          reporter: makeReporter({
+            reportStopped: async (payload) => {
+              stoppedPayload = {
+                itemId: payload.itemId,
+                positionTicks: payload.positionTicks,
+                failed: payload.failed,
+              };
+            },
+          }),
+        }),
       clearActivePlayback: () => {
         cleared = true;
       },
-      getSession: () =>
-        makeSession({
-          reportStopped: async (payload) => {
-            stoppedPayload = {
-              itemId: payload.itemId,
-              positionTicks: payload.positionTicks,
-              failed: payload.failed,
-            };
-          },
-        }),
       getMpvClient: () => ({
         currentTimePos: 12.5,
         requestProperty: async () => {
@@ -289,59 +268,24 @@ test('createReportJellyfinRemoteStoppedHandler clears aborted playback that neve
   let cleared = false;
   const reportStopped = createReportJellyfinRemoteStoppedHandler(
     makeStoppedDeps({
-      getActivePlayback: () => makePlayback({ loadedMediaPath: null }),
+      getActivePlayback: () =>
+        makePlayback({
+          loadedMediaPath: null,
+          reporter: makeReporter({
+            reportStopped: async () => {
+              throw new Error('should not report stopped for unloaded media');
+            },
+          }),
+        }),
       clearActivePlayback: () => {
         cleared = true;
       },
-      getSession: () =>
-        makeSession({
-          reportStopped: async () => {
-            throw new Error('should not report stopped for unloaded media');
-          },
-        }),
       getMpvClient: () => null,
     }),
   );
 
   await reportStopped();
 
-  assert.equal(cleared, true);
-});
-
-test('createReportJellyfinRemoteStoppedHandler reports stop while remote websocket is disconnected', async () => {
-  let cleared = false;
-  let stoppedPayload: {
-    itemId: string;
-    positionTicks?: number;
-    failed?: boolean;
-  } | null = null;
-  const reportStopped = createReportJellyfinRemoteStoppedHandler(
-    makeStoppedDeps({
-      clearActivePlayback: () => {
-        cleared = true;
-      },
-      getSession: () =>
-        makeSession({
-          isConnected: () => false,
-          reportStopped: async (payload) => {
-            stoppedPayload = {
-              itemId: payload.itemId,
-              positionTicks: payload.positionTicks,
-              failed: payload.failed,
-            };
-          },
-        }),
-      getMpvClient: () => ({ currentTimePos: 12.5 }),
-    }),
-  );
-
-  await reportStopped();
-
-  assert.deepEqual(stoppedPayload, {
-    itemId: 'item-1',
-    positionTicks: 125_000_000,
-    failed: false,
-  });
   assert.equal(cleared, true);
 });
 
@@ -354,19 +298,18 @@ test('createReportJellyfinRemoteStoppedHandler uses cached position after mpv un
         makePlayback({
           loadedMediaPath: 'https://stream.example/video.m3u8',
           lastKnownPositionSeconds: 72.25,
+          reporter: makeReporter({
+            reportProgress: async (payload) => {
+              calls.push({ event: 'progress', positionTicks: payload.positionTicks });
+            },
+            reportStopped: async (payload) => {
+              calls.push({ event: 'stopped', positionTicks: payload.positionTicks });
+            },
+          }),
         }),
       clearActivePlayback: () => {
         cleared = true;
       },
-      getSession: () =>
-        makeSession({
-          reportProgress: async (payload) => {
-            calls.push({ event: 'progress', positionTicks: payload.positionTicks });
-          },
-          reportStopped: async (payload) => {
-            calls.push({ event: 'stopped', positionTicks: payload.positionTicks });
-          },
-        }),
     }),
   );
 
@@ -423,16 +366,15 @@ test('createReportJellyfinRemoteStoppedHandler ignores startup stop churn before
         makePlayback({
           loadedMediaPath: 'https://stream.example/video.m3u8',
           stopReportsAfterMs: 20_000,
+          reporter: makeReporter({
+            reportStopped: async () => {
+              stopped = true;
+            },
+          }),
         }),
       clearActivePlayback: () => {
         cleared = true;
       },
-      getSession: () =>
-        makeSession({
-          reportStopped: async () => {
-            stopped = true;
-          },
-        }),
       getNow: () => 12_000,
     }),
   );
@@ -445,34 +387,28 @@ test('createReportJellyfinRemoteStoppedHandler ignores startup stop churn before
 
 test('createReportJellyfinRemoteStoppedHandler clears playback before reporting and waits for in-flight progress', async () => {
   const tracker = createJellyfinRemoteReportTracker();
-  let playback: { itemId: string; playMethod: 'DirectPlay'; loadedMediaPath: string } | null = {
-    itemId: 'item-1',
-    playMethod: 'DirectPlay',
-    loadedMediaPath: 'http://pve-main:8096/Videos/item-1/stream',
-  };
   const calls: string[] = [];
   let releaseProgress: () => void = () => undefined;
   const progressGate = new Promise<void>((resolve) => {
     releaseProgress = resolve;
   });
-  const session = {
-    isConnected: () => true,
-    reportProgress: async ({ eventName }: { eventName: string }) => {
-      calls.push(`progress:${eventName}:${playback ? 'active' : 'cleared'}`);
-      if (calls.length === 1) await progressGate;
-      return true;
-    },
-    reportStopped: async () => {
-      calls.push(`stopped:${playback ? 'active' : 'cleared'}`);
-      return true;
-    },
-  };
+  let playback: ActiveJellyfinRemotePlaybackState | null = makePlayback({
+    loadedMediaPath: 'http://pve-main:8096/Videos/item-1/stream',
+    reporter: makeReporter({
+      reportProgress: async ({ eventName }) => {
+        calls.push(`progress:${eventName}:${playback ? 'active' : 'cleared'}`);
+        if (calls.length === 1) await progressGate;
+      },
+      reportStopped: async () => {
+        calls.push(`stopped:${playback ? 'active' : 'cleared'}`);
+      },
+    }),
+  });
   const shared = {
     getActivePlayback: () => playback,
     clearActivePlayback: () => {
       playback = null;
     },
-    getSession: () => session,
     getMpvClient: () => ({ currentTimePos: 42 }),
     ticksPerSecond: 10_000_000,
     logDebug: () => undefined,

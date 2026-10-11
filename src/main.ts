@@ -58,6 +58,7 @@ import {
   shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
 } from './main/runtime/jellyfin-remote-playback';
 import { getAppControlSocketPath } from './shared/app-control';
+import { writeJellyfinCliResponse } from './shared/jellyfin-cli-response';
 import {
   type CancelLinuxMpvFullscreenOverlayRefreshBurst,
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
@@ -331,6 +332,7 @@ import {
   setOverlayDebugVisualizationEnabledRuntime,
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
   showMpvOsdRuntime,
+  JellyfinPlaybackReporter,
   tokenizeSubtitle as tokenizeSubtitleCore,
   triggerFieldGrouping as triggerFieldGroupingCore,
   upsertYomitanDictionarySettings,
@@ -409,6 +411,7 @@ import {
   DEFAULT_JELLYFIN_CLIENT_NAME,
   DEFAULT_JELLYFIN_CLIENT_VERSION,
   createHostDerivedJellyfinDeviceId,
+  resolveJellyfinRemoteDeviceName,
 } from './main/runtime/jellyfin-device-identity';
 import {
   clearJellyfinAuthSessionAndRefreshTray as clearJellyfinAuthSessionAndRefreshTrayRuntime,
@@ -3395,9 +3398,17 @@ const {
     setLastProgressAtMs: (value) => {
       jellyfinRemoteLastProgressAtMs = value;
     },
-    reportPlaying: (payload) => {
-      void appState.jellyfinRemoteSession?.reportPlaying(payload);
-    },
+    // Same device identity as the cast session, so Jellyfin attributes reports to one session.
+    createPlaybackReporter: ({ session, clientInfo }) =>
+      new JellyfinPlaybackReporter({
+        serverUrl: session.serverUrl,
+        accessToken: session.accessToken,
+        deviceId: clientInfo.deviceId,
+        clientName: clientInfo.clientName,
+        clientVersion: clientInfo.clientVersion,
+        deviceName: resolveJellyfinRemoteDeviceName({ hostName: os.hostname() }),
+        logWarn: (message, details) => logger.warn(message, details),
+      }),
     showMpvOsd: (text) => {
       overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Jellyfin' });
     },
@@ -3419,7 +3430,6 @@ const {
     clearActivePlayback: () => {
       activeJellyfinRemotePlayback = null;
     },
-    getSession: () => appState.jellyfinRemoteSession,
     getNow: () => Date.now(),
     getLastProgressAtMs: () => jellyfinRemoteLastProgressAtMs,
     setLastProgressAtMs: (value) => {
@@ -3448,10 +3458,7 @@ const {
       listJellyfinItemsRuntime(session, clientInfo, params),
     listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
       listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
-    writeJellyfinPreviewAuth: (responsePath, payload) => {
-      fs.mkdirSync(path.dirname(responsePath), { recursive: true });
-      fs.writeFileSync(responsePath, JSON.stringify(payload, null, 2), 'utf-8');
-    },
+    writeJellyfinResponse: writeJellyfinCliResponse,
     logInfo: (message) => logger.info(message),
   },
   handleJellyfinPlayCommandMainDeps: {
@@ -3488,6 +3495,7 @@ const {
   },
   runJellyfinCommandMainDeps: {
     defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl,
+    writeJellyfinResponse: writeJellyfinCliResponse,
   },
   maybeFocusExistingJellyfinSetupWindowMainDeps: {
     getSetupWindow: () => appState.jellyfinSetupWindow,

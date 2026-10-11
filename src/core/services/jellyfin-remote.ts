@@ -1,43 +1,9 @@
 import WebSocket from 'ws';
+import { JellyfinPlaybackReporter } from './jellyfin-playback-reporter';
 
 export interface JellyfinRemoteSessionMessage {
   MessageType?: string;
   Data?: unknown;
-}
-
-export interface JellyfinTimelinePlaybackState {
-  itemId: string;
-  mediaSourceId?: string;
-  positionTicks?: number;
-  playbackStartTimeTicks?: number;
-  isPaused?: boolean;
-  isMuted?: boolean;
-  canSeek?: boolean;
-  volumeLevel?: number;
-  playbackRate?: number;
-  playMethod?: string;
-  audioStreamIndex?: number | null;
-  subtitleStreamIndex?: number | null;
-  playlistItemId?: string | null;
-  eventName?: string;
-  failed?: boolean;
-}
-
-export interface JellyfinTimelinePayload {
-  ItemId: string;
-  MediaSourceId?: string;
-  PositionTicks: number;
-  PlaybackStartTimeTicks: number;
-  IsPaused: boolean;
-  IsMuted: boolean;
-  CanSeek: boolean;
-  VolumeLevel: number;
-  PlaybackRate: number;
-  PlayMethod: string;
-  AudioStreamIndex?: number | null;
-  SubtitleStreamIndex?: number | null;
-  PlaylistItemId?: string | null;
-  Failed?: boolean;
 }
 
 interface JellyfinRemoteSocket {
@@ -99,16 +65,6 @@ function normalizeServerUrl(serverUrl: string): string {
   return serverUrl.trim().replace(/\/+$/, '');
 }
 
-function clampVolume(value: number | undefined): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 100;
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-function normalizeTicks(value: number | undefined): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
-  return Math.max(0, Math.floor(value));
-}
-
 function parseMessageData(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
@@ -137,11 +93,6 @@ function parseInboundMessage(rawData: unknown): JellyfinRemoteSessionMessage | n
   }
 }
 
-function asNullableInteger(value: number | null | undefined): number | null {
-  if (typeof value !== 'number' || !Number.isInteger(value)) return null;
-  return value;
-}
-
 function createDefaultCapabilities(): {
   PlayableMediaTypes: string;
   SupportedCommands: string;
@@ -152,40 +103,6 @@ function createDefaultCapabilities(): {
     SupportedCommands:
       'Play,Playstate,PlayMediaSource,SetAudioStreamIndex,SetSubtitleStreamIndex,Mute,Unmute,SetVolume,DisplayContent',
     SupportsMediaControl: true,
-  };
-}
-
-function buildAuthorizationHeader(params: {
-  clientName: string;
-  deviceName: string;
-  clientVersion: string;
-  deviceId: string;
-  accessToken: string;
-}): string {
-  return `MediaBrowser Client="${params.clientName}", Device="${params.deviceName}", DeviceId="${params.deviceId}", Version="${params.clientVersion}", Token="${params.accessToken}"`;
-}
-
-export function buildJellyfinTimelinePayload(
-  state: JellyfinTimelinePlaybackState,
-): JellyfinTimelinePayload {
-  return {
-    ItemId: state.itemId,
-    MediaSourceId: state.mediaSourceId,
-    PositionTicks: normalizeTicks(state.positionTicks),
-    PlaybackStartTimeTicks: normalizeTicks(state.playbackStartTimeTicks),
-    IsPaused: state.isPaused === true,
-    IsMuted: state.isMuted === true,
-    CanSeek: state.canSeek !== false,
-    VolumeLevel: clampVolume(state.volumeLevel),
-    PlaybackRate:
-      typeof state.playbackRate === 'number' && Number.isFinite(state.playbackRate)
-        ? state.playbackRate
-        : 1,
-    PlayMethod: state.playMethod || 'DirectPlay',
-    AudioStreamIndex: asNullableInteger(state.audioStreamIndex),
-    SubtitleStreamIndex: asNullableInteger(state.subtitleStreamIndex),
-    PlaylistItemId: state.playlistItemId,
-    Failed: state.failed,
   };
 }
 
@@ -210,6 +127,8 @@ export class JellyfinRemoteSessionService {
     SupportsMediaControl: boolean;
   };
   private readonly authHeader: string;
+  // Shares this device's identity for capability posts; playback reports use their own reporter.
+  private readonly http: JellyfinPlaybackReporter;
   private readonly onConnected?: () => void;
   private readonly onDisconnected?: () => void;
   private readonly logWarn?: (message: string, details?: unknown) => void;
@@ -217,7 +136,6 @@ export class JellyfinRemoteSessionService {
   private keepAliveTimeoutMs: number;
   private keepAliveTimer: ReturnType<typeof setTimeout> | null = null;
   private lastInboundAtMs = 0;
-  private readonly failedRequestPaths = new Set<string>();
 
   private readonly reconnectBaseDelayMs: number;
   private readonly reconnectMaxDelayMs: number;
@@ -243,19 +161,20 @@ export class JellyfinRemoteSessionService {
       ...createDefaultCapabilities(),
       ...(options.capabilities ?? {}),
     };
-    const clientName = options.clientName || 'SubMiner';
-    const clientVersion = options.clientVersion || '0.1.0';
-    const deviceName = options.deviceName || clientName;
-    this.authHeader = buildAuthorizationHeader({
-      clientName,
-      deviceName,
-      clientVersion,
-      deviceId: this.deviceId,
+    this.logWarn = options.logWarn;
+    this.http = new JellyfinPlaybackReporter({
+      serverUrl: this.serverUrl,
       accessToken: this.accessToken,
+      deviceId: this.deviceId,
+      clientName: options.clientName,
+      clientVersion: options.clientVersion,
+      deviceName: options.deviceName,
+      fetchImpl: this.fetchImpl,
+      logWarn: this.logWarn,
     });
+    this.authHeader = this.http.authHeader;
     this.onConnected = options.onConnected;
     this.onDisconnected = options.onDisconnected;
-    this.logWarn = options.logWarn;
     this.now = options.getNow ?? Date.now;
     this.keepAliveTimeoutMs = Math.max(
       1000,
@@ -296,21 +215,6 @@ export class JellyfinRemoteSessionService {
   public async advertiseNow(): Promise<boolean> {
     await this.postCapabilities();
     return this.isRegisteredOnServer();
-  }
-
-  public async reportPlaying(state: JellyfinTimelinePlaybackState): Promise<boolean> {
-    return this.postTimeline('/Sessions/Playing', buildJellyfinTimelinePayload(state));
-  }
-
-  public async reportProgress(state: JellyfinTimelinePlaybackState): Promise<boolean> {
-    return this.postTimeline('/Sessions/Playing/Progress', buildJellyfinTimelinePayload(state));
-  }
-
-  public async reportStopped(state: JellyfinTimelinePlaybackState): Promise<boolean> {
-    return this.postTimeline('/Sessions/Playing/Stopped', {
-      ...buildJellyfinTimelinePayload(state),
-      Failed: state.failed === true,
-    });
   }
 
   private connectSocket(): void {
@@ -441,9 +345,9 @@ export class JellyfinRemoteSessionService {
 
   private async postCapabilities(): Promise<void> {
     const payload = this.capabilities;
-    const fullEndpointOk = await this.postJson('/Sessions/Capabilities/Full', payload);
+    const fullEndpointOk = await this.http.postJson('/Sessions/Capabilities/Full', payload);
     if (fullEndpointOk) return;
-    await this.postJson('/Sessions/Capabilities', payload);
+    await this.http.postJson('/Sessions/Capabilities', payload);
   }
 
   private async isRegisteredOnServer(): Promise<boolean> {
@@ -460,40 +364,6 @@ export class JellyfinRemoteSessionService {
     } catch {
       return false;
     }
-  }
-
-  private async postTimeline(path: string, payload: JellyfinTimelinePayload): Promise<boolean> {
-    return this.postJson(path, payload);
-  }
-
-  private async postJson(path: string, payload: unknown): Promise<boolean> {
-    try {
-      const response = await this.fetchImpl(`${this.serverUrl}${path}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: this.authHeader,
-        },
-        body: JSON.stringify(payload),
-      });
-      this.noteRequestOutcome(path, response.ok ? null : `HTTP ${response.status}`);
-      return response.ok;
-    } catch (error) {
-      this.noteRequestOutcome(path, error);
-      return false;
-    }
-  }
-
-  // Warn once per path while it keeps failing so a rejected stop report is visible in the
-  // log without a warning per progress tick.
-  private noteRequestOutcome(path: string, failure: unknown): void {
-    if (failure === null) {
-      this.failedRequestPaths.delete(path);
-      return;
-    }
-    if (this.failedRequestPaths.has(path)) return;
-    this.failedRequestPaths.add(path);
-    this.logWarn?.(`Jellyfin remote request failed: POST ${path}`, failure);
   }
 
   private handleInboundMessage(socket: JellyfinRemoteSocket, rawData: unknown): void {
