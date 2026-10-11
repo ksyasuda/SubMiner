@@ -63,7 +63,11 @@ the plugin artifact, persistent config, or session help.
 
 The subtitle sidebar consumes parsed cues through `SubtitleSidebarSnapshot`. Its `sourceKey`
 identifies the media and subtitle source so renderer selections are invalidated on source changes,
-including changes whose cue text and timings are identical. Native selection and clean clipboard
+including changes whose cue text and timings are identical. While open, the sidebar polls the
+cheap `SubtitleSidebarPlaybackState` (cached time, current line, `sourceKey`, `cuesRevision`; no
+mpv round-trips) every 80 ms for active-cue tracking. It fetches the full snapshot, which resolves
+the source over mpv IPC and carries every cue plus config, only on open, config reload, a
+`sourceKey`/`cuesRevision` change, and a ~2 s fallback. Native selection and clean clipboard
 serialization live in `src/renderer/modals/subtitle-sidebar-selection.ts`. Electron lets standard
 Copy input reach the renderer, where sidebar selection takes priority over the live-subtitle binding.
 The preload bridge writes selections through Electron's clipboard API so copying does not depend

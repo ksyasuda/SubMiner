@@ -256,6 +256,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleSidebarOpen),
   getSubtitleSidebarSnapshot: () =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleSidebarSnapshot),
+  getSubtitleSidebarPlaybackState: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleSidebarPlaybackState),
   copySubtitleSidebarSelection: async (text: unknown) => {
     if (typeof text !== 'string') throw new TypeError('Subtitle selection must be text.');
     clipboard.writeText(text);

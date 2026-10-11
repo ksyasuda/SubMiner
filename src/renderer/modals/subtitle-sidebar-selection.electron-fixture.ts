@@ -15,6 +15,7 @@ export async function setup() {
   const commands: unknown[] = [];
   const snapshot: SubtitleSidebarSnapshot = {
     sourceKey: 'episode-1:track-1',
+    cuesRevision: 1,
     cues: [
       { text: '最初の台詞', startTime: 0, endTime: 1 },
       { text: '同じ台詞\n二行目', startTime: 1, endTime: 2 },
@@ -39,6 +40,7 @@ export async function setup() {
   Object.defineProperty(window, 'electronAPI', {
     value: {
       getSubtitleSidebarSnapshot: async () => snapshot,
+      getSubtitleSidebarPlaybackState: async () => snapshot,
       getSessionBindings: async () => [
         {
           sourcePath: 'keybindings[0].key',
@@ -64,6 +66,7 @@ export async function setup() {
     } satisfies Pick<
       ElectronAPI,
       | 'getSubtitleSidebarSnapshot'
+      | 'getSubtitleSidebarPlaybackState'
       | 'getSessionBindings'
       | 'getConfiguredShortcuts'
       | 'getStatsToggleKey'

@@ -68,6 +68,7 @@ export const IPC_CHANNELS = {
     getCurrentSubtitleRaw: 'get-current-subtitle-raw',
     getCurrentSubtitleAss: 'get-current-subtitle-ass',
     getSubtitleSidebarSnapshot: 'get-subtitle-sidebar-snapshot',
+    getSubtitleSidebarPlaybackState: 'get-subtitle-sidebar-playback-state',
     getSubtitleSidebarOpen: 'get-subtitle-sidebar-open',
     getPlaybackPaused: 'get-playback-paused',
     getSubtitlePosition: 'get-subtitle-position',

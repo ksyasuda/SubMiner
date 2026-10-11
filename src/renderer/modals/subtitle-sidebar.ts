@@ -19,7 +19,11 @@ import {
 
 const MANUAL_SCROLL_HOLD_MS = 1500;
 const ACTIVE_CUE_LOOKAHEAD_SEC = 0.18;
-const SNAPSHOT_POLL_INTERVAL_MS = 80;
+// While open, the sidebar polls cheap cached playback state for active-cue tracking and only
+// fetches the full snapshot (mpv source resolution + every cue + config) when the source or
+// parsed cues changed, plus this fallback in case main missed a change.
+const PLAYBACK_POLL_INTERVAL_MS = 80;
+const FULL_SNAPSHOT_FALLBACK_POLLS = 25;
 const EMBEDDED_SIDEBAR_MIN_WIDTH_PX = 240;
 const EMBEDDED_SIDEBAR_MAX_RATIO = 0.45;
 const appliedSidebarCssKeys = new WeakMap<HTMLElement, Set<string>>();
@@ -206,9 +210,18 @@ export function createSubtitleSidebarModal(
     modalStateReader: Pick<ModalStateReader, 'isAnyModalOpen'>;
     onVisibilityChanged?: (visible: boolean) => void;
     shouldRestoreOpenOnStartup?: () => Promise<boolean>;
+    /** Schedules a poll tick and returns its cancel function. Defaults to `setTimeout`. */
+    schedule?: (callback: () => Promise<void>, delayMs: number) => () => void;
   },
 ) {
-  let snapshotPollInterval: ReturnType<typeof setTimeout> | null = null;
+  const schedule =
+    options.schedule ??
+    ((callback: () => Promise<void>, delayMs: number) => {
+      const timer = setTimeout(callback, delayMs);
+      return () => clearTimeout(timer);
+    });
+  let cancelPlaybackPoll: (() => void) | null = null;
+  let pollsSinceFullSnapshot = 0;
   let lastAppliedVideoMarginRatio: number | null = null;
   let subtitleSidebarHoverRequestId = 0;
   let disposeDomEvents: (() => void) | null = null;
@@ -218,6 +231,7 @@ export function createSubtitleSidebarModal(
   let subtitleSidebarPauseHeldByYomitanPopup = false;
   let lastSubtitleSidebarLookupCueIndex = -1;
   let subtitleSourceKey: string | null = null;
+  let subtitleCuesRevision: number | null = null;
 
   function restoreEmbeddedSidebarPassthrough(): void {
     syncOverlayMouseIgnoreState(ctx);
@@ -576,6 +590,8 @@ export function createSubtitleSidebarModal(
 
   async function refreshSnapshot(): Promise<SubtitleSidebarSnapshot> {
     const snapshot = await window.electronAPI.getSubtitleSidebarSnapshot();
+    pollsSinceFullSnapshot = 0;
+    subtitleCuesRevision = snapshot.cuesRevision;
     if (snapshot.sourceKey !== subtitleSourceKey) {
       clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
       lastSubtitleSidebarLookupCueIndex = -1;
@@ -590,8 +606,8 @@ export function createSubtitleSidebarModal(
       ctx.state.subtitleSidebarModalOpen = false;
       ctx.dom.subtitleSidebarModal.classList.add('hidden');
       ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'true');
-      stopSnapshotPolling();
-      updateActiveCue(null, snapshot.currentTimeSec ?? null);
+      stopPlaybackPolling();
+      updateActiveCue(null, snapshot.currentTimeSec);
       setStatus('Subtitle sidebar disabled in config.');
       syncEmbeddedSidebarLayout();
       if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
@@ -609,38 +625,49 @@ export function createSubtitleSidebarModal(
         renderCueList();
       }
     }
-    updateActiveCue(snapshot.currentSubtitle, snapshot.currentTimeSec ?? null);
+    updateActiveCue(snapshot.currentSubtitle, snapshot.currentTimeSec);
     syncEmbeddedSidebarLayout();
     return snapshot;
   }
 
-  function startSnapshotPolling(): void {
-    stopSnapshotPolling();
+  async function pollPlaybackOnce(): Promise<void> {
+    pollsSinceFullSnapshot += 1;
+    const playback = await window.electronAPI.getSubtitleSidebarPlaybackState();
+    if (
+      playback.sourceKey !== subtitleSourceKey ||
+      playback.cuesRevision !== subtitleCuesRevision ||
+      pollsSinceFullSnapshot >= FULL_SNAPSHOT_FALLBACK_POLLS
+    ) {
+      await refreshSnapshot();
+      return;
+    }
+    updateActiveCue(playback.currentSubtitle, playback.currentTimeSec);
+  }
+
+  function startPlaybackPolling(): void {
+    stopPlaybackPolling();
 
     const pollOnce = async (): Promise<void> => {
       try {
-        await refreshSnapshot();
+        await pollPlaybackOnce();
       } catch {
         // Keep polling; a transient IPC failure should not stop updates.
       }
 
       if (!ctx.state.subtitleSidebarModalOpen) {
-        snapshotPollInterval = null;
+        cancelPlaybackPoll = null;
         return;
       }
 
-      snapshotPollInterval = setTimeout(pollOnce, SNAPSHOT_POLL_INTERVAL_MS);
+      cancelPlaybackPoll = schedule(pollOnce, PLAYBACK_POLL_INTERVAL_MS);
     };
 
-    snapshotPollInterval = setTimeout(pollOnce, SNAPSHOT_POLL_INTERVAL_MS);
+    cancelPlaybackPoll = schedule(pollOnce, PLAYBACK_POLL_INTERVAL_MS);
   }
 
-  function stopSnapshotPolling(): void {
-    if (!snapshotPollInterval) {
-      return;
-    }
-    clearTimeout(snapshotPollInterval);
-    snapshotPollInterval = null;
+  function stopPlaybackPolling(): void {
+    cancelPlaybackPoll?.();
+    cancelPlaybackPoll = null;
   }
 
   async function openSubtitleSidebarModal(): Promise<void> {
@@ -664,7 +691,7 @@ export function createSubtitleSidebarModal(
     renderCueList();
     syncActiveCueClasses(-1);
     maybeAutoScrollActiveCue(-1, 'auto', true);
-    startSnapshotPolling();
+    startPlaybackPolling();
     syncEmbeddedSidebarLayout();
     restoreEmbeddedSidebarPassthrough();
     window.electronAPI.notifyOverlayModalOpened?.('subtitle-sidebar');
@@ -694,7 +721,7 @@ export function createSubtitleSidebarModal(
     ctx.state.subtitleSidebarModalOpen = false;
     ctx.dom.subtitleSidebarModal.classList.add('hidden');
     ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'true');
-    stopSnapshotPolling();
+    stopPlaybackPolling();
     syncEmbeddedSidebarLayout();
     if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove('interactive');

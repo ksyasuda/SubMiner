@@ -74,6 +74,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getCurrentSubtitleRaw: IpcDepsRuntimeOptions['getCurrentSubtitleRaw'];
   getCurrentSubtitleAss: IpcDepsRuntimeOptions['getCurrentSubtitleAss'];
   getSubtitleSidebarSnapshot?: IpcDepsRuntimeOptions['getSubtitleSidebarSnapshot'];
+  getSubtitleSidebarPlaybackState?: IpcDepsRuntimeOptions['getSubtitleSidebarPlaybackState'];
   getSubtitleSidebarOpen?: IpcDepsRuntimeOptions['getSubtitleSidebarOpen'];
   getPlaybackPaused: IpcDepsRuntimeOptions['getPlaybackPaused'];
   focusMainWindow?: IpcDepsRuntimeOptions['focusMainWindow'];
@@ -276,6 +277,7 @@ export function createMainIpcRuntimeServiceDeps(
     getCurrentSubtitleRaw: params.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: params.getCurrentSubtitleAss,
     getSubtitleSidebarSnapshot: params.getSubtitleSidebarSnapshot,
+    getSubtitleSidebarPlaybackState: params.getSubtitleSidebarPlaybackState,
     getSubtitleSidebarOpen: params.getSubtitleSidebarOpen,
     getPlaybackPaused: params.getPlaybackPaused,
     getSubtitlePosition: params.getSubtitlePosition,

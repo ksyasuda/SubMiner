@@ -12,6 +12,7 @@ import type {
   RuntimeOptionId,
   RuntimeOptionValue,
   SubtitleMiningContext,
+  SubtitleSidebarPlaybackState,
   SubtitleSidebarSnapshot,
   SubtitlePosition,
   SubsyncManualRunRequest,
@@ -79,6 +80,7 @@ export interface IpcServiceDeps {
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
   getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
+  getSubtitleSidebarPlaybackState?: () => SubtitleSidebarPlaybackState;
   getSubtitleSidebarOpen?: () => boolean;
   getPlaybackPaused: () => boolean | null | Promise<boolean | null>;
   getSubtitlePosition: () => unknown;
@@ -369,6 +371,7 @@ export interface IpcDepsRuntimeOptions {
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
   getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
+  getSubtitleSidebarPlaybackState?: () => SubtitleSidebarPlaybackState;
   getSubtitleSidebarOpen?: () => boolean;
   getPlaybackPaused: () => boolean | null | Promise<boolean | null>;
   getSubtitlePosition: () => unknown;
@@ -455,6 +458,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getCurrentSubtitleRaw: options.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: options.getCurrentSubtitleAss,
     getSubtitleSidebarSnapshot: options.getSubtitleSidebarSnapshot,
+    getSubtitleSidebarPlaybackState: options.getSubtitleSidebarPlaybackState,
     getSubtitleSidebarOpen: options.getSubtitleSidebarOpen ?? (() => false),
     getPlaybackPaused: options.getPlaybackPaused,
     getSubtitlePosition: options.getSubtitlePosition,
@@ -740,6 +744,13 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       throw new Error('Subtitle sidebar snapshot is unavailable.');
     }
     return await deps.getSubtitleSidebarSnapshot();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.getSubtitleSidebarPlaybackState, () => {
+    if (!deps.getSubtitleSidebarPlaybackState) {
+      throw new Error('Subtitle sidebar playback state is unavailable.');
+    }
+    return deps.getSubtitleSidebarPlaybackState();
   });
 
   ipc.handle(IPC_CHANNELS.request.getSubtitleSidebarOpen, () => {

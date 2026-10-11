@@ -156,6 +156,34 @@ test(
   },
 );
 
+test(
+  'open subtitle sidebar lists the parsed cues and follows playback',
+  { timeout: TEST_TIMEOUT_MS },
+  async () => {
+    const { session, overlay } = await useSession();
+    await showCue(FIXTURE_CUES[0]);
+    await session.runAppCommand('--toggle-subtitle-sidebar');
+    await overlay.waitFor(
+      `document.querySelectorAll('#subtitleSidebarList .subtitle-sidebar-item').length === ${FIXTURE_CUES.length}`,
+      { description: 'sidebar to list every fixture cue' },
+    );
+
+    for (const [index, cue] of FIXTURE_CUES.entries()) {
+      await session.mpv.command('seek', cue.at, 'absolute+exact');
+      await overlay.waitFor(
+        `document.querySelector('#subtitleSidebarList .subtitle-sidebar-item.active')?.dataset.index === '${index}'`,
+        { description: `sidebar to highlight cue ${index}` },
+      );
+    }
+
+    await session.runAppCommand('--toggle-subtitle-sidebar');
+    await overlay.waitFor(
+      `document.getElementById('subtitleSidebarModal').classList.contains('hidden')`,
+      { description: 'sidebar to close' },
+    );
+  },
+);
+
 // Runs last: it leaves the lookup popup open over the overlay.
 test(
   'holding Shift over a word opens the Yomitan popup with its dictionary entry',
