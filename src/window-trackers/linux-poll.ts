@@ -85,8 +85,9 @@ export class ProcessCommandLineCache {
 
   constructor(private readonly runCommand: CommandRunner) {}
 
-  // Rejects if `ps` fails for an uncached pid, so callers can treat it like any
-  // other failed poll.
+  // A pid whose `ps` call fails (e.g. it exited mid-poll) is left out of the
+  // result instead of failing the lookup. Empty results aren't cached, so that
+  // pid is retried on the next poll.
   async lookup(pids: readonly number[]): Promise<ReadonlyMap<number, string>> {
     const wanted = new Set(pids);
     for (const pid of this.commandLines.keys()) {
@@ -100,7 +101,7 @@ export class ProcessCommandLineCache {
         .filter((pid) => !this.commandLines.has(pid))
         .map(async (pid) => {
           const commandLine = (
-            await this.runCommand('ps', ['-p', String(pid), '-o', 'args='])
+            await this.runCommand('ps', ['-p', String(pid), '-o', 'args=']).catch(() => '')
           ).trim();
           if (commandLine) {
             this.commandLines.set(pid, commandLine);

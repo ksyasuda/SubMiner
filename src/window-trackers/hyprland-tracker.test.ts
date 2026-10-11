@@ -275,3 +275,23 @@ test('HyprlandWindowTracker reads each mpv command line once and re-reads after 
   await tracker.refreshNow();
   assert.deepEqual(psPids, ['10', '10']);
 });
+
+test('HyprlandWindowTracker still tracks mpv when ps fails for another pid, and retries that pid', async () => {
+  const psPids: string[] = [];
+  const tracker = new HyprlandWindowTracker('/tmp/subminer.sock', async (command, args) => {
+    if (command === 'hyprctl') {
+      return JSON.stringify([makeClient({ pid: 10 }), makeClient({ pid: 20 })]);
+    }
+    psPids.push(args[1]!);
+    if (args[1] === '20') {
+      throw new Error('ps exited 1');
+    }
+    return 'mpv --input-ipc-server=/tmp/subminer.sock video.mkv\n';
+  });
+
+  await tracker.refreshNow();
+  assert.equal(tracker.isTracking(), true);
+
+  await tracker.refreshNow();
+  assert.deepEqual(psPids.sort(), ['10', '20', '20']);
+});
