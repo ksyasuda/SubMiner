@@ -254,6 +254,29 @@ function createDirectPlayUrl(
   return `${session.serverUrl}/Videos/${itemId}/stream?${query.toString()}`;
 }
 
+/**
+ * Maps a playing stream URL of `itemId`, direct or transcoded, to its original file. Returns null
+ * when the URL is not that item's stream or carries no access token.
+ */
+export function toJellyfinOriginalStreamUrl(playbackUrl: string, itemId: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(playbackUrl);
+  } catch {
+    return null;
+  }
+  const at = url.pathname.toLowerCase().indexOf(`/videos/${itemId.toLowerCase()}/`);
+  if (!/^https?:$/.test(url.protocol) || !itemId || at < 0) return null;
+  const param = (pattern: RegExp) =>
+    [...url.searchParams].find(([key, value]) => pattern.test(key) && value)?.[1];
+  const accessToken = param(/^api_?key$/i);
+  if (!accessToken) return null;
+  const query = new URLSearchParams({ static: 'true', ApiKey: accessToken });
+  const mediaSourceId = param(/^mediasourceid$/i);
+  if (mediaSourceId) query.set('MediaSourceId', mediaSourceId);
+  return `${url.origin}${url.pathname.slice(0, at)}/Videos/${itemId}/stream?${query.toString()}`;
+}
+
 function createTranscodeUrl(
   session: JellyfinAuthSession,
   itemId: string,
