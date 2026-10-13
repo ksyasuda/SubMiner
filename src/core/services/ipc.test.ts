@@ -114,23 +114,15 @@ function createSubtitleSidebarSnapshotFixture(): SubtitleSidebarSnapshot {
 function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServiceDeps {
   return {
     onOverlayModalClosed: () => {},
-    openYomitanSettings: () => {},
-    quitApp: () => {},
     toggleDevTools: () => {},
-    getVisibleOverlayVisibility: () => false,
-    toggleVisibleOverlay: () => {},
     tokenizeCurrentSubtitle: async () => null,
     getCurrentSubtitleRaw: () => '',
-    getCurrentSubtitleAss: () => '',
     getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
     getPlaybackPaused: () => false,
     getSubtitlePosition: () => null,
     getSubtitleStyle: () => null,
     saveSubtitlePosition: () => {},
-    getMecabStatus: () => ({ available: false, enabled: false, path: null }),
-    setMecabEnabled: () => {},
     handleMpvCommand: () => {},
-    getKeybindings: () => [],
     getSessionBindings: () => [],
     getConfiguredShortcuts: () => ({}),
     dispatchSessionAction: async () => {},
@@ -139,23 +131,19 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     getOverlayNotificationPosition: () => 'top-right',
     getControllerConfig: () => createControllerConfigFixture(),
     saveControllerConfig: async () => {},
-    saveControllerPreference: async () => {},
     getSecondarySubMode: () => 'hover',
     getCurrentSecondarySub: () => '',
     focusMainWindow: () => {},
     activatePlaybackWindowForOverlayInteraction: () => false,
     runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
-    getAnkiConnectStatus: () => false,
     getRuntimeOptions: () => [],
     setRuntimeOption: () => ({ ok: true }),
-    cycleRuntimeOption: () => ({ ok: true }),
     reportOverlayContentBounds: () => {},
     getAnilistStatus: () => ({}),
     clearAnilistToken: () => {},
     openAnilistSetup: () => {},
     getAnilistQueueStatus: () => ({}),
     retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
-    appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
     getPlaylistBrowserSnapshot: async () => ({
       directoryPath: null,
       directoryAvailable: false,
@@ -312,26 +300,17 @@ test('registerIpcHandlers skips AniList update when manual mark watched has no a
 test('registerIpcHandlers rejects malformed runtime-option payloads', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const calls: Array<{ id: string; value: unknown }> = [];
-  const cycles: Array<{ id: string; direction: 1 | -1 }> = [];
   registerIpcHandlers(
     {
       onOverlayModalClosed: () => {},
-      openYomitanSettings: () => {},
-      quitApp: () => {},
       toggleDevTools: () => {},
-      getVisibleOverlayVisibility: () => false,
-      toggleVisibleOverlay: () => {},
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
-      getCurrentSubtitleAss: () => '',
       getPlaybackPaused: () => null,
       getSubtitlePosition: () => null,
       getSubtitleStyle: () => null,
       saveSubtitlePosition: () => {},
-      getMecabStatus: () => ({ available: false, enabled: false, path: null }),
-      setMecabEnabled: () => {},
       handleMpvCommand: () => {},
-      getKeybindings: () => [],
       getSessionBindings: () => [],
       getConfiguredShortcuts: () => ({}),
       dispatchSessionAction: async () => {},
@@ -340,19 +319,13 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       getOverlayNotificationPosition: () => 'top-right',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: () => {},
-      saveControllerPreference: () => {},
       getSecondarySubMode: () => 'hover',
       getCurrentSecondarySub: () => '',
       focusMainWindow: () => {},
       runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
-      getAnkiConnectStatus: () => false,
       getRuntimeOptions: () => [],
       setRuntimeOption: (id, value) => {
         calls.push({ id, value });
-        return { ok: true };
-      },
-      cycleRuntimeOption: (id, direction) => {
-        cycles.push({ id, direction });
         return { ok: true };
       },
       getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
@@ -362,7 +335,6 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       openAnilistSetup: () => {},
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
-      appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
       getPlaylistBrowserSnapshot: async () => ({
         directoryPath: null,
         directoryAvailable: false,
@@ -398,16 +370,6 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
     { id: 'anki.autoUpdateNewCards', value: true },
     { id: 'subtitle.annotation.jlpt', value: false },
   ]);
-
-  const cycleHandler = handlers.handle.get(IPC_CHANNELS.request.cycleRuntimeOption);
-  assert.ok(cycleHandler);
-  const invalidDirection = await cycleHandler!({}, 'anki.kikuFieldGrouping', 2);
-  assert.deepEqual(invalidDirection, {
-    ok: false,
-    error: 'Invalid runtime option cycle direction',
-  });
-  await cycleHandler!({}, 'anki.kikuFieldGrouping', -1);
-  assert.deepEqual(cycles, [{ id: 'anki.kikuFieldGrouping', direction: -1 }]);
 
   const getPlaybackPausedHandler = handlers.handle.get(IPC_CHANNELS.request.getPlaybackPaused);
   assert.ok(getPlaybackPausedHandler);
@@ -609,7 +571,6 @@ test('registerIpcHandlers records yomitan lookup when subtitle context recording
 test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const saves: unknown[] = [];
-  const controllerSaves: unknown[] = [];
   const closedModals: unknown[] = [];
   const openedModals: unknown[] = [];
   registerIpcHandlers(
@@ -620,14 +581,9 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       onOverlayModalOpened: (modal) => {
         openedModals.push(modal);
       },
-      openYomitanSettings: () => {},
-      quitApp: () => {},
       toggleDevTools: () => {},
-      getVisibleOverlayVisibility: () => false,
-      toggleVisibleOverlay: () => {},
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
-      getCurrentSubtitleAss: () => '',
       getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
       getPlaybackPaused: () => false,
       getSubtitlePosition: () => null,
@@ -635,10 +591,7 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       saveSubtitlePosition: (position) => {
         saves.push(position);
       },
-      getMecabStatus: () => ({ available: false, enabled: false, path: null }),
-      setMecabEnabled: () => {},
       handleMpvCommand: () => {},
-      getKeybindings: () => [],
       getSessionBindings: () => [],
       getConfiguredShortcuts: () => ({}),
       dispatchSessionAction: async () => {},
@@ -647,24 +600,18 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       getOverlayNotificationPosition: () => 'top-right',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: () => {},
-      saveControllerPreference: (update) => {
-        controllerSaves.push(update);
-      },
       getSecondarySubMode: () => 'hover',
       getCurrentSecondarySub: () => '',
       focusMainWindow: () => {},
       runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
-      getAnkiConnectStatus: () => false,
       getRuntimeOptions: () => [],
       setRuntimeOption: () => ({ ok: true }),
-      cycleRuntimeOption: () => ({ ok: true }),
       reportOverlayContentBounds: () => {},
       getAnilistStatus: () => ({}),
       clearAnilistToken: () => {},
       openAnilistSetup: () => {},
       getAnilistQueueStatus: () => ({}),
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
-      appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
       getPlaylistBrowserSnapshot: async () => ({
         directoryPath: null,
         directoryAvailable: false,
@@ -696,96 +643,6 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   handlers.on.get(IPC_CHANNELS.command.overlayModalOpened)!({}, 'subsync');
   handlers.on.get(IPC_CHANNELS.command.overlayModalOpened)!({}, 'runtime-options');
   assert.deepEqual(openedModals, ['subsync', 'runtime-options']);
-});
-
-test('registerIpcHandlers awaits saveControllerPreference through request-response IPC', async () => {
-  const { registrar, handlers } = createFakeIpcRegistrar();
-  const controllerSaves: unknown[] = [];
-  registerIpcHandlers(
-    {
-      onOverlayModalClosed: () => {},
-      openYomitanSettings: () => {},
-      quitApp: () => {},
-      toggleDevTools: () => {},
-      getVisibleOverlayVisibility: () => false,
-      toggleVisibleOverlay: () => {},
-      tokenizeCurrentSubtitle: async () => null,
-      getCurrentSubtitleRaw: () => '',
-      getCurrentSubtitleAss: () => '',
-      getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
-      getPlaybackPaused: () => false,
-      getSubtitlePosition: () => null,
-      getSubtitleStyle: () => null,
-      saveSubtitlePosition: () => {},
-      getMecabStatus: () => ({ available: false, enabled: false, path: null }),
-      setMecabEnabled: () => {},
-      handleMpvCommand: () => {},
-      getKeybindings: () => [],
-      getSessionBindings: () => [],
-      getConfiguredShortcuts: () => ({}),
-      dispatchSessionAction: async () => {},
-      getStatsToggleKey: () => 'Backquote',
-      getMarkWatchedKey: () => 'KeyW',
-      getOverlayNotificationPosition: () => 'top-right',
-      getControllerConfig: () => createControllerConfigFixture(),
-      saveControllerConfig: async () => {},
-      saveControllerPreference: async (update) => {
-        await Promise.resolve();
-        controllerSaves.push(update);
-      },
-      getSecondarySubMode: () => 'hover',
-      getCurrentSecondarySub: () => '',
-      focusMainWindow: () => {},
-      runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
-      getAnkiConnectStatus: () => false,
-      getRuntimeOptions: () => [],
-      setRuntimeOption: () => ({ ok: true }),
-      cycleRuntimeOption: () => ({ ok: true }),
-      reportOverlayContentBounds: () => {},
-      getAnilistStatus: () => ({}),
-      clearAnilistToken: () => {},
-      openAnilistSetup: () => {},
-      getAnilistQueueStatus: () => ({}),
-      retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
-      appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
-      getPlaylistBrowserSnapshot: async () => ({
-        directoryPath: null,
-        directoryAvailable: false,
-        directoryStatus: '',
-        directoryItems: [],
-        playlistItems: [],
-        playingIndex: null,
-        currentFilePath: null,
-      }),
-      appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok' }),
-      playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
-      removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
-      movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
-      onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
-    },
-    registrar,
-  );
-
-  const saveHandler = handlers.handle.get(IPC_CHANNELS.command.saveControllerPreference);
-  assert.ok(saveHandler);
-
-  await assert.rejects(async () => {
-    await saveHandler!({}, { preferredGamepadId: 12 });
-  }, /Invalid controller preference payload/);
-  await saveHandler!(
-    {},
-    {
-      preferredGamepadId: 'pad-1',
-      preferredGamepadLabel: 'Pad 1',
-    },
-  );
-
-  assert.deepEqual(controllerSaves, [
-    {
-      preferredGamepadId: 'pad-1',
-      preferredGamepadLabel: 'Pad 1',
-    },
-  ]);
 });
 
 test('registerIpcHandlers accepts per-controller profile config updates', async () => {
@@ -973,76 +830,6 @@ test('registerIpcHandlers forwards valid overlay notification actions', () => {
     { notificationId: 'subminer-update-available', actionId: 'install-update', noteId: undefined },
     { notificationId: 'anki-update-progress', actionId: 'open-anki-card', noteId: 42 },
   ]);
-});
-
-test('registerIpcHandlers rejects malformed controller preference payloads', async () => {
-  const { registrar, handlers } = createFakeIpcRegistrar();
-  registerIpcHandlers(
-    {
-      onOverlayModalClosed: () => {},
-      openYomitanSettings: () => {},
-      quitApp: () => {},
-      toggleDevTools: () => {},
-      getVisibleOverlayVisibility: () => false,
-      toggleVisibleOverlay: () => {},
-      tokenizeCurrentSubtitle: async () => null,
-      getCurrentSubtitleRaw: () => '',
-      getCurrentSubtitleAss: () => '',
-      getSubtitleSidebarSnapshot: async () => createSubtitleSidebarSnapshotFixture(),
-      getPlaybackPaused: () => false,
-      getSubtitlePosition: () => null,
-      getSubtitleStyle: () => null,
-      saveSubtitlePosition: () => {},
-      getMecabStatus: () => ({ available: false, enabled: false, path: null }),
-      setMecabEnabled: () => {},
-      handleMpvCommand: () => {},
-      getKeybindings: () => [],
-      getSessionBindings: () => [],
-      getConfiguredShortcuts: () => ({}),
-      dispatchSessionAction: async () => {},
-      getStatsToggleKey: () => 'Backquote',
-      getMarkWatchedKey: () => 'KeyW',
-      getOverlayNotificationPosition: () => 'top-right',
-      getControllerConfig: () => createControllerConfigFixture(),
-      saveControllerConfig: async () => {},
-      saveControllerPreference: async () => {},
-      getSecondarySubMode: () => 'hover',
-      getCurrentSecondarySub: () => '',
-      focusMainWindow: () => {},
-      runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
-      getAnkiConnectStatus: () => false,
-      getRuntimeOptions: () => [],
-      setRuntimeOption: () => ({ ok: true }),
-      cycleRuntimeOption: () => ({ ok: true }),
-      reportOverlayContentBounds: () => {},
-      getAnilistStatus: () => ({}),
-      clearAnilistToken: () => {},
-      openAnilistSetup: () => {},
-      getAnilistQueueStatus: () => ({}),
-      retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
-      appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
-      getPlaylistBrowserSnapshot: async () => ({
-        directoryPath: null,
-        directoryAvailable: false,
-        directoryStatus: '',
-        directoryItems: [],
-        playlistItems: [],
-        playingIndex: null,
-        currentFilePath: null,
-      }),
-      appendPlaylistBrowserFile: async () => ({ ok: true, message: 'ok' }),
-      playPlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
-      removePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
-      movePlaylistBrowserIndex: async () => ({ ok: true, message: 'ok' }),
-      onYoutubePickerResolve: async () => ({ ok: true, message: 'ok' }),
-    },
-    registrar,
-  );
-
-  const saveHandler = handlers.handle.get(IPC_CHANNELS.command.saveControllerPreference);
-  await assert.rejects(async () => {
-    await saveHandler!({}, { preferredGamepadId: 12 });
-  }, /Invalid controller preference payload/);
 });
 
 test('registerIpcHandlers exposes character dictionary selection handlers', async () => {

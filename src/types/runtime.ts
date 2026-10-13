@@ -58,7 +58,6 @@ import type {
   SubtitleSidebarPlaybackState,
   SubtitleSidebarSnapshot,
   SubtitleRendererStyleConfig,
-  SubtitleStyleConfig,
 } from './subtitle';
 import type {
   RuntimeOptionApplyResult,
@@ -298,11 +297,6 @@ export interface ControllerConfig {
   profiles?: Record<string, ControllerProfileConfig>;
 }
 
-export interface ControllerPreferenceUpdate {
-  preferredGamepadId: string;
-  preferredGamepadLabel: string;
-}
-
 export type ControllerConfigUpdate = ControllerConfig;
 
 export interface ControllerDeviceInfo {
@@ -471,28 +465,20 @@ export interface ElectronAPI {
     options?: Pick<OverlayNotificationAction, 'noteId'>,
   ) => void;
   onNotificationHistoryToggle: (callback: () => void) => void;
-  onVisibility: (callback: (visible: boolean) => void) => void;
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
-  getOverlayVisibility: () => Promise<boolean>;
   getCurrentSubtitle: () => Promise<SubtitleData>;
   getCurrentSubtitleRaw: () => Promise<string>;
-  getCurrentSubtitleAss: () => Promise<string>;
   getSubtitleSidebarSnapshot: () => Promise<SubtitleSidebarSnapshot>;
   getSubtitleSidebarPlaybackState: () => Promise<SubtitleSidebarPlaybackState>;
   copySubtitleSidebarSelection: (text: string) => Promise<void>;
   getSubtitleSidebarOpen: () => Promise<boolean>;
   getPlaybackPaused: () => Promise<boolean | null>;
-  onSubtitleAss: (callback: (assText: string) => void) => void;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   reportOverlayInteractive: (interactive: boolean) => void;
-  openYomitanSettings: () => void;
   recordYomitanLookup: (context?: SubtitleMiningContext | null) => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
-  getMecabStatus: () => Promise<MecabStatus>;
-  setMecabEnabled: (enabled: boolean) => void;
   sendMpvCommand: (command: (string | number)[]) => void;
-  getKeybindings: () => Promise<Keybinding[]>;
   getMpvInputBindings: () => Promise<MpvInputBindingsSnapshot>;
   getSessionBindings: () => Promise<CompiledSessionBinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
@@ -506,7 +492,6 @@ export interface ElectronAPI {
   markActiveVideoWatched: () => Promise<boolean>;
   getControllerConfig: () => Promise<ResolvedControllerConfig>;
   saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;
-  saveControllerPreference: (update: ControllerPreferenceUpdate) => Promise<void>;
   getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;
   jimakuSearchEntries: (query: JimakuSearchQuery) => Promise<JimakuApiResponse<JimakuEntry[]>>;
   jimakuListFiles: (query: JimakuFilesQuery) => Promise<JimakuApiResponse<JimakuFileEntry[]>>;
@@ -519,13 +504,8 @@ export interface ElectronAPI {
   ) => Promise<TsukihimeApiResponse<TsukihimeSubtitleFile[]>>;
   tsukihimeDownloadFile: (query: TsukihimeDownloadQuery) => Promise<TsukihimeDownloadResult>;
   tsukihimeGetSecondaryLanguages: () => Promise<string[]>;
-  quitApp: () => void;
   toggleDevTools: () => void;
-  toggleOverlay: () => void;
   toggleStatsOverlay: () => void;
-  getAnkiConnectStatus: () => Promise<boolean>;
-  setAnkiConnectEnabled: (enabled: boolean) => void;
-  clearAnkiConnectHistory: () => void;
   onSecondarySub: (callback: (text: string) => void) => void;
   onSecondarySubMode: (callback: (mode: SecondarySubMode) => void) => void;
   getSecondarySubMode: () => Promise<SecondarySubMode>;
@@ -551,7 +531,6 @@ export interface ElectronAPI {
     id: RuntimeOptionId,
     value: RuntimeOptionValue,
   ) => Promise<RuntimeOptionApplyResult>;
-  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => Promise<RuntimeOptionApplyResult>;
   onRuntimeOptionsChanged: (callback: (options: RuntimeOptionState[]) => void) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenSessionHelp: (callback: (payload: SessionHelpOpenPayload) => void) => void;
@@ -590,7 +569,6 @@ export interface ElectronAPI {
   ) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
-  appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (path: string) => Promise<PlaylistBrowserMutationResult>;
   playPlaylistBrowserIndex: (index: number) => Promise<PlaylistBrowserMutationResult>;

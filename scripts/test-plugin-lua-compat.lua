@@ -1,6 +1,5 @@
 local MODULE_PATHS = {
 	"plugin/subminer/bootstrap.lua",
-	"plugin/subminer/hover.lua",
 	"plugin/subminer/environment.lua",
 	"plugin/subminer/version.lua",
 }

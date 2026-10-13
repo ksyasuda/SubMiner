@@ -25,22 +25,15 @@ export const IPC_CHANNELS = {
   command: {
     setIgnoreMouseEvents: 'set-ignore-mouse-events',
     overlayModalClosed: 'overlay:modal-closed',
-    openYomitanSettings: 'open-yomitan-settings',
     recordYomitanLookup: 'record-yomitan-lookup',
-    quitApp: 'quit-app',
     youtubePickerResolve: 'youtube:picker-resolve',
     toggleDevTools: 'toggle-dev-tools',
-    toggleOverlay: 'toggle-overlay',
     saveSubtitlePosition: 'save-subtitle-position',
     statsNativeConfirmDialog: 'stats:native-confirm-dialog',
     statsNativeDialogOpened: 'stats:native-dialog-opened',
     statsNativeDialogClosed: 'stats:native-dialog-closed',
     saveControllerConfig: 'save-controller-config',
-    saveControllerPreference: 'save-controller-preference',
-    setMecabEnabled: 'set-mecab-enabled',
     mpvCommand: 'mpv-command',
-    setAnkiConnectEnabled: 'set-anki-connect-enabled',
-    clearAnkiConnectHistory: 'clear-anki-connect-history',
     refreshKnownWords: 'anki:refresh-known-words',
     kikuFieldGroupingRespond: 'kiku:field-grouping-respond',
     reportOverlayContentBounds: 'overlay-content-bounds:report',
@@ -63,18 +56,14 @@ export const IPC_CHANNELS = {
     downloadSubtitleGenerationVadModel: 'subtitle-generation:download-vad',
     setSubtitleGenerationVadEnabled: 'subtitle-generation:set-vad-enabled',
     cancelSubtitleGeneration: 'subtitle-generation:cancel',
-    getVisibleOverlayVisibility: 'get-visible-overlay-visibility',
     getCurrentSubtitle: 'get-current-subtitle',
     getCurrentSubtitleRaw: 'get-current-subtitle-raw',
-    getCurrentSubtitleAss: 'get-current-subtitle-ass',
     getSubtitleSidebarSnapshot: 'get-subtitle-sidebar-snapshot',
     getSubtitleSidebarPlaybackState: 'get-subtitle-sidebar-playback-state',
     getSubtitleSidebarOpen: 'get-subtitle-sidebar-open',
     getPlaybackPaused: 'get-playback-paused',
     getSubtitlePosition: 'get-subtitle-position',
     getSubtitleStyle: 'get-subtitle-style',
-    getMecabStatus: 'get-mecab-status',
-    getKeybindings: 'get-keybindings',
     getMpvInputBindings: 'get-mpv-input-bindings',
     getSessionBindings: 'get-session-bindings',
     getConfigShortcuts: 'get-config-shortcuts',
@@ -88,10 +77,8 @@ export const IPC_CHANNELS = {
     focusMainWindow: 'focus-main-window',
     activatePlaybackWindowForOverlayInteraction: 'overlay:activate-playback-window',
     runSubsyncManual: 'subsync:run-manual',
-    getAnkiConnectStatus: 'get-anki-connect-status',
     getRuntimeOptions: 'runtime-options:get',
     setRuntimeOption: 'runtime-options:set',
-    cycleRuntimeOption: 'runtime-options:cycle',
     getAnilistStatus: 'anilist:get-status',
     clearAnilistToken: 'anilist:clear-token',
     openAnilistSetup: 'anilist:open-setup',
@@ -103,7 +90,6 @@ export const IPC_CHANNELS = {
     getCharacterDictionaryManagerSnapshot: 'character-dictionary:get-manager-snapshot',
     removeCharacterDictionaryManagedEntry: 'character-dictionary:remove-managed-entry',
     moveCharacterDictionaryManagedEntry: 'character-dictionary:move-managed-entry',
-    appendClipboardVideoToQueue: 'clipboard:append-video-to-queue',
     getPlaylistBrowserSnapshot: 'playlist-browser:get-snapshot',
     appendPlaylistBrowserFile: 'playlist-browser:append-file',
     playPlaylistBrowserIndex: 'playlist-browser:play-index',
@@ -153,9 +139,7 @@ export const IPC_CHANNELS = {
     subtitleGenerationProgress: 'subtitle-generation:progress',
     subtitleSet: 'subtitle:set',
     overlayPointerRecoveryRequest: 'overlay:pointer-recovery-request',
-    subtitleVisibility: 'mpv:subVisibility',
     subtitlePositionSet: 'subtitle-position:set',
-    subtitleAssSet: 'subtitle-ass:set',
     secondarySubtitleSet: 'secondary-subtitle:set',
     secondarySubtitleMode: 'secondary-subtitle:mode',
     subsyncOpenManual: 'subsync:open-manual',
@@ -195,11 +179,6 @@ export const IPC_CHANNELS = {
 export type RuntimeOptionsSetRequest = {
   id: RuntimeOptionId;
   value: RuntimeOptionValue;
-};
-
-export type RuntimeOptionsCycleRequest = {
-  id: RuntimeOptionId;
-  direction: 1 | -1;
 };
 
 export type OverlayContentBoundsReportRequest = {

@@ -123,7 +123,6 @@ export interface MpvIpcClientDeps extends MpvIpcClientProtocolDeps {}
 export interface MpvIpcClientEventMap {
   'connection-change': { connected: boolean };
   'subtitle-change': { text: string; isOverlayVisible: boolean };
-  'subtitle-ass-change': { text: string };
   'subtitle-timing': { text: string; start: number; end: number };
   'time-pos-change': { time: number };
   'duration-change': { duration: number };
@@ -416,9 +415,6 @@ export class MpvIpcClient implements MpvClient {
       isVisibleOverlayVisible: () => this.deps.isVisibleOverlayVisible(),
       emitSubtitleChange: (payload) => {
         this.emit('subtitle-change', payload);
-      },
-      emitSubtitleAssChange: (payload) => {
-        this.emit('subtitle-ass-change', payload);
       },
       emitSubtitleTiming: (payload) => {
         this.emit('subtitle-timing', payload);

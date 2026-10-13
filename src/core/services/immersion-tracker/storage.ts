@@ -9,7 +9,7 @@ import { ensureLexicalDailyRollupTables, markLexicalDailyRollupsReady } from './
 import { isVocabularyStatsRowVisible, type VocabularyVisibilityRow } from './vocabulary-visibility';
 import { SCHEMA_VERSION } from './types';
 import type { QueuedWrite, VideoMetadata, YoutubeVideoMetadata } from './types';
-import { toDbMs, toDbTimestamp } from './query-shared';
+import { toDbTimestamp } from './query-shared';
 
 export interface TrackerPreparedStatements {
   telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;

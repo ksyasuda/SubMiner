@@ -40,8 +40,6 @@ const { ipcMain } = electron;
 const logger = createLogger('main:anki-jimaku-ipc');
 
 export interface AnkiJimakuIpcDeps {
-  setAnkiConnectEnabled: (enabled: boolean) => void;
-  clearAnkiHistory: () => void;
   refreshKnownWords: () => Promise<void> | void;
   respondFieldGrouping: (choice: KikuFieldGroupingChoice) => void;
   buildKikuMergePreview: (request: KikuMergePreviewRequest) => Promise<KikuMergePreviewResponse>;
@@ -77,15 +75,6 @@ export function registerAnkiJimakuIpcHandlers(
   deps: AnkiJimakuIpcDeps,
   ipc: IpcMainRegistrar = ipcMain,
 ): void {
-  ipc.on(IPC_CHANNELS.command.setAnkiConnectEnabled, (_event: unknown, enabled: unknown) => {
-    if (typeof enabled !== 'boolean') return;
-    deps.setAnkiConnectEnabled(enabled);
-  });
-
-  ipc.on(IPC_CHANNELS.command.clearAnkiConnectHistory, () => {
-    deps.clearAnkiHistory();
-  });
-
   ipc.on(IPC_CHANNELS.command.refreshKnownWords, async () => {
     await deps.refreshKnownWords();
   });

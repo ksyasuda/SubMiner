@@ -29,8 +29,6 @@ function createDeps(overrides: Partial<Deps> = {}): Deps {
     onSubtitleChange: () => {},
     refreshDiscordPresence: () => {},
 
-    setCurrentSubAssText: () => {},
-    broadcastSubtitleAss: () => {},
     broadcastSecondarySubtitle: () => {},
 
     updateCurrentMediaPath: () => {},

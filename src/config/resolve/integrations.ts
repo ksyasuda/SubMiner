@@ -94,27 +94,6 @@ export function applyIntegrationConfig(context: ResolveContext): void {
     if (isObject(src.anilist.characterDictionary)) {
       const characterDictionary = src.anilist.characterDictionary;
 
-      const refreshTtlHours = asNumber(characterDictionary.refreshTtlHours);
-      if (refreshTtlHours !== undefined) {
-        const normalized = Math.min(24 * 365, Math.max(1, Math.floor(refreshTtlHours)));
-        if (normalized !== refreshTtlHours) {
-          warn(
-            'anilist.characterDictionary.refreshTtlHours',
-            characterDictionary.refreshTtlHours,
-            normalized,
-            'Out of range; clamped to 1..8760 hours.',
-          );
-        }
-        resolved.anilist.characterDictionary.refreshTtlHours = normalized;
-      } else if (characterDictionary.refreshTtlHours !== undefined) {
-        warn(
-          'anilist.characterDictionary.refreshTtlHours',
-          characterDictionary.refreshTtlHours,
-          resolved.anilist.characterDictionary.refreshTtlHours,
-          'Expected number.',
-        );
-      }
-
       const maxLoaded = asNumber(characterDictionary.maxLoaded);
       if (maxLoaded !== undefined) {
         const normalized = Math.min(20, Math.max(1, Math.floor(maxLoaded)));
@@ -133,28 +112,6 @@ export function applyIntegrationConfig(context: ResolveContext): void {
           characterDictionary.maxLoaded,
           resolved.anilist.characterDictionary.maxLoaded,
           'Expected number.',
-        );
-      }
-
-      const evictionPolicyRaw = asString(characterDictionary.evictionPolicy);
-      if (evictionPolicyRaw !== undefined) {
-        const evictionPolicy = evictionPolicyRaw.trim().toLowerCase();
-        if (evictionPolicy === 'disable' || evictionPolicy === 'delete') {
-          resolved.anilist.characterDictionary.evictionPolicy = evictionPolicy;
-        } else {
-          warn(
-            'anilist.characterDictionary.evictionPolicy',
-            characterDictionary.evictionPolicy,
-            resolved.anilist.characterDictionary.evictionPolicy,
-            "Expected one of: 'disable', 'delete'.",
-          );
-        }
-      } else if (characterDictionary.evictionPolicy !== undefined) {
-        warn(
-          'anilist.characterDictionary.evictionPolicy',
-          characterDictionary.evictionPolicy,
-          resolved.anilist.characterDictionary.evictionPolicy,
-          'Expected string.',
         );
       }
 

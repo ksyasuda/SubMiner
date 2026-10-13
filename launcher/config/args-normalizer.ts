@@ -10,7 +10,6 @@ import type {
   LogLevel,
 } from '../types.js';
 import {
-  DEFAULT_JIMAKU_API_BASE_URL,
   DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS,
   DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS,
 } from '../types.js';
@@ -125,11 +124,6 @@ export function createDefaultArgs(
     recursive: false,
     profile: mpvConfig.profile ?? '',
     startOverlay: false,
-    jimakuApiKey: process.env.SUBMINER_JIMAKU_API_KEY || '',
-    jimakuApiKeyCommand: process.env.SUBMINER_JIMAKU_API_KEY_COMMAND || '',
-    jimakuApiBaseUrl: process.env.SUBMINER_JIMAKU_API_BASE_URL || DEFAULT_JIMAKU_API_BASE_URL,
-    jimakuLanguagePreference: launcherConfig.jimakuLanguagePreference || 'ja',
-    jimakuMaxEntryResults: launcherConfig.jimakuMaxEntryResults || 10,
     jellyfin: false,
     jellyfinLogin: false,
     jellyfinLogout: false,
@@ -183,15 +177,6 @@ export function createDefaultArgs(
     target: '',
     targetKind: '',
   };
-
-  if (launcherConfig.jimakuApiKey) parsed.jimakuApiKey = launcherConfig.jimakuApiKey;
-  if (launcherConfig.jimakuApiKeyCommand)
-    parsed.jimakuApiKeyCommand = launcherConfig.jimakuApiKeyCommand;
-  if (launcherConfig.jimakuApiBaseUrl) parsed.jimakuApiBaseUrl = launcherConfig.jimakuApiBaseUrl;
-  if (launcherConfig.jimakuLanguagePreference)
-    parsed.jimakuLanguagePreference = launcherConfig.jimakuLanguagePreference;
-  if (launcherConfig.jimakuMaxEntryResults !== undefined)
-    parsed.jimakuMaxEntryResults = launcherConfig.jimakuMaxEntryResults;
 
   return parsed;
 }

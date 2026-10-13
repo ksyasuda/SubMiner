@@ -1,19 +1,14 @@
 import * as fs from 'fs';
-import { AnkiIntegration } from '../../anki-integration';
-import { mergeAiConfig } from '../../ai/config';
+import type { AnkiIntegration } from '../../anki-integration';
 import {
-  AiConfig,
   TsukihimeApiResponse,
   TsukihimeConfig,
-  AnkiConnectConfig,
   JimakuApiResponse,
   JimakuEntry,
   JimakuFileEntry,
   JimakuLanguagePreference,
   JimakuMediaInfo,
   KikuFieldGroupingChoice,
-  KikuFieldGroupingRequestData,
-  OverlayNotificationPayload,
 } from '../../types';
 import { sortJimakuFiles } from '../../jimaku/utils';
 import {
@@ -35,41 +30,13 @@ interface MpvClientLike {
   request?: (command: unknown[]) => Promise<{ data?: unknown }>;
 }
 
-interface RuntimeOptionsManagerLike {
-  getEffectiveAnkiConnectConfig: (config?: AnkiConnectConfig) => AnkiConnectConfig;
-}
-
-interface SubtitleTimingTrackerLike {
-  cleanup: () => void;
-}
-
 export interface AnkiJimakuIpcRuntimeOptions {
-  patchAnkiConnectEnabled: (enabled: boolean) => void;
   getResolvedConfig: () => {
-    ankiConnect?: AnkiConnectConfig;
-    ai?: AiConfig;
     tsukihime?: TsukihimeConfig;
     secondarySub?: { secondarySubLanguages?: string[] };
   };
-  getRuntimeOptionsManager: () => RuntimeOptionsManagerLike | null;
-  getSubtitleTimingTracker: () => SubtitleTimingTrackerLike | null;
   getMpvClient: () => MpvClientLike | null;
   getAnkiIntegration: () => AnkiIntegration | null;
-  setAnkiIntegration: (integration: AnkiIntegration | null) => void;
-  getKnownWordCacheStatePath: () => string;
-  getCachedMediaPath?: (
-    currentVideoPath: string,
-    kind: 'audio' | 'video',
-  ) => Promise<string | null>;
-  shouldRequireRemoteMediaCache?: () => boolean;
-  getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined;
-  showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
-  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
-  dismissOverlayNotification?: (id: string) => void;
-  createFieldGroupingCallback: () => (
-    data: KikuFieldGroupingRequestData,
-  ) => Promise<KikuFieldGroupingChoice>;
-  broadcastRuntimeOptionsChanged: () => void;
   getFieldGroupingResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
   setFieldGroupingResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   parseMediaInfo: (mediaPath: string | null) => JimakuMediaInfo;
@@ -135,58 +102,6 @@ export function registerAnkiJimakuIpcRuntime(
   registerHandlers: RegisterAnkiJimakuIpcRuntimeHandler,
 ): void {
   registerHandlers({
-    setAnkiConnectEnabled: (enabled) => {
-      options.patchAnkiConnectEnabled(enabled);
-      const config = options.getResolvedConfig();
-      const subtitleTimingTracker = options.getSubtitleTimingTracker();
-      const mpvClient = options.getMpvClient();
-      const ankiIntegration = options.getAnkiIntegration();
-
-      if (enabled && !ankiIntegration && subtitleTimingTracker && mpvClient) {
-        const runtimeOptionsManager = options.getRuntimeOptionsManager();
-        const effectiveAnkiConfig = runtimeOptionsManager
-          ? runtimeOptionsManager.getEffectiveAnkiConnectConfig(config.ankiConnect)
-          : config.ankiConnect;
-        const integration = new AnkiIntegration(
-          effectiveAnkiConfig as never,
-          subtitleTimingTracker as never,
-          mpvClient as never,
-          (text: string) => {
-            if (mpvClient) {
-              mpvClient.send({
-                command: ['show-text', text, '3000'],
-              });
-            }
-          },
-          options.showDesktopNotification,
-          options.createFieldGroupingCallback(),
-          options.getKnownWordCacheStatePath(),
-          mergeAiConfig(config.ai, config.ankiConnect?.ai) as AiConfig,
-          undefined,
-          options.showOverlayNotification,
-          options.getCachedMediaPath,
-          options.shouldRequireRemoteMediaCache,
-          options.getYoutubeMediaSourceUrl,
-          options.dismissOverlayNotification,
-        );
-        integration.start();
-        options.setAnkiIntegration(integration);
-        logger.info('AnkiConnect integration enabled');
-      } else if (!enabled && ankiIntegration) {
-        ankiIntegration.destroy();
-        options.setAnkiIntegration(null);
-        logger.info('AnkiConnect integration disabled');
-      }
-
-      options.broadcastRuntimeOptionsChanged();
-    },
-    clearAnkiHistory: () => {
-      const subtitleTimingTracker = options.getSubtitleTimingTracker();
-      if (subtitleTimingTracker) {
-        subtitleTimingTracker.cleanup();
-        logger.info('AnkiConnect subtitle timing history cleared');
-      }
-    },
     refreshKnownWords: async () => {
       const integration = options.getAnkiIntegration();
       if (!integration) {

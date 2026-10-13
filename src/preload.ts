@@ -60,8 +60,6 @@ window.addEventListener('hachidori-open-external', (event) => {
 import type {
   SubtitleData,
   SubtitlePosition,
-  MecabStatus,
-  Keybinding,
   ElectronAPI,
   SecondarySubMode,
   SubtitleStyleConfig,
@@ -83,7 +81,6 @@ import type {
   SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
-  ClipboardAppendResult,
   PlaylistBrowserMutationResult,
   PlaylistBrowserSnapshot,
   KikuFieldGroupingRequestData,
@@ -98,7 +95,6 @@ import type {
   ShortcutsConfig,
   ConfigHotReloadPayload,
   ControllerConfigUpdate,
-  ControllerPreferenceUpdate,
   ResolvedControllerConfig,
   SessionHelpOpenPayload,
   SessionNumericSelectionStartPayload,
@@ -214,10 +210,6 @@ const onOverlayNotificationEvent =
 const onNotificationHistoryToggleEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.notificationHistoryToggle,
 );
-const onSubtitleVisibilityEvent = createLatestValueIpcListenerWithPayload<boolean>(
-  IPC_CHANNELS.event.subtitleVisibility,
-  (payload) => payload === true,
-);
 const onSubtitlePositionSetEvent = createLatestValueIpcListenerWithPayload<SubtitlePosition | null>(
   IPC_CHANNELS.event.subtitlePositionSet,
   (payload) => payload as SubtitlePosition | null,
@@ -274,22 +266,14 @@ const electronAPI: ElectronAPI = {
   },
   onNotificationHistoryToggle: onNotificationHistoryToggleEvent,
 
-  onVisibility: (callback: (visible: boolean) => void) => {
-    onSubtitleVisibilityEvent(callback);
-  },
-
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => {
     onSubtitlePositionSetEvent(callback);
   },
 
-  getOverlayVisibility: (): Promise<boolean> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.getVisibleOverlayVisibility),
   getCurrentSubtitle: (): Promise<SubtitleData> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSubtitle),
   getCurrentSubtitleRaw: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSubtitleRaw),
-  getCurrentSubtitleAss: (): Promise<string> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSubtitleAss),
   getSubtitleSidebarOpen: (): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleSidebarOpen),
   getSubtitleSidebarSnapshot: () =>
@@ -302,14 +286,6 @@ const electronAPI: ElectronAPI = {
   },
   getPlaybackPaused: (): Promise<boolean | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getPlaybackPaused),
-  onSubtitleAss: (callback: (assText: string) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.subtitleAssSet,
-      (_event: IpcRendererEvent, assText: string) => {
-        callback(assText);
-      },
-    );
-  },
 
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
     ipcRenderer.send(IPC_CHANNELS.command.setIgnoreMouseEvents, ignore, options);
@@ -317,10 +293,6 @@ const electronAPI: ElectronAPI = {
 
   reportOverlayInteractive: (interactive: boolean) => {
     ipcRenderer.send(IPC_CHANNELS.command.reportOverlayInteractive, interactive);
-  },
-
-  openYomitanSettings: () => {
-    ipcRenderer.send(IPC_CHANNELS.command.openYomitanSettings);
   },
 
   recordYomitanLookup: (context?: SubtitleMiningContext | null) => {
@@ -333,18 +305,10 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.send(IPC_CHANNELS.command.saveSubtitlePosition, position);
   },
 
-  getMecabStatus: (): Promise<MecabStatus> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.getMecabStatus),
-  setMecabEnabled: (enabled: boolean) => {
-    ipcRenderer.send(IPC_CHANNELS.command.setMecabEnabled, enabled);
-  },
-
   sendMpvCommand: (command: (string | number)[]) => {
     ipcRenderer.send(IPC_CHANNELS.command.mpvCommand, command);
   },
 
-  getKeybindings: (): Promise<Keybinding[]> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.getKeybindings),
   getMpvInputBindings: () => ipcRenderer.invoke(IPC_CHANNELS.request.getMpvInputBindings),
   getSessionBindings: () => ipcRenderer.invoke(IPC_CHANNELS.request.getSessionBindings),
   getConfiguredShortcuts: (): Promise<Required<ShortcutsConfig>> =>
@@ -363,8 +327,6 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getControllerConfig),
   saveControllerConfig: (update: ControllerConfigUpdate): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.command.saveControllerConfig, update),
-  saveControllerPreference: (update: ControllerPreferenceUpdate): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.command.saveControllerPreference, update),
 
   getJimakuMediaInfo: (): Promise<JimakuMediaInfo> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.jimakuGetMediaInfo),
@@ -388,29 +350,12 @@ const electronAPI: ElectronAPI = {
   tsukihimeGetSecondaryLanguages: (): Promise<string[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.tsukihimeGetSecondaryLanguages),
 
-  quitApp: () => {
-    ipcRenderer.send(IPC_CHANNELS.command.quitApp);
-  },
-
   toggleDevTools: () => {
     ipcRenderer.send(IPC_CHANNELS.command.toggleDevTools);
   },
 
-  toggleOverlay: () => {
-    ipcRenderer.send(IPC_CHANNELS.command.toggleOverlay);
-  },
-
   toggleStatsOverlay: () => {
     ipcRenderer.send(IPC_CHANNELS.command.toggleStatsOverlay);
-  },
-
-  getAnkiConnectStatus: (): Promise<boolean> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.getAnkiConnectStatus),
-  setAnkiConnectEnabled: (enabled: boolean) => {
-    ipcRenderer.send(IPC_CHANNELS.command.setAnkiConnectEnabled, enabled);
-  },
-  clearAnkiConnectHistory: () => {
-    ipcRenderer.send(IPC_CHANNELS.command.clearAnkiConnectHistory);
   },
 
   onSecondarySub: (callback: (text: string) => void) => {
@@ -457,8 +402,6 @@ const electronAPI: ElectronAPI = {
     value: RuntimeOptionValue,
   ): Promise<RuntimeOptionApplyResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.setRuntimeOption, id, value),
-  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1): Promise<RuntimeOptionApplyResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.cycleRuntimeOption, id, direction),
   onRuntimeOptionsChanged: (callback: (options: RuntimeOptionState[]) => void) => {
     ipcRenderer.on(
       IPC_CHANNELS.event.runtimeOptionsChanged,
@@ -523,8 +466,6 @@ const electronAPI: ElectronAPI = {
   onSessionNumericSelectionStart: onSessionNumericSelectionStartEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
-  appendClipboardVideoToQueue: (): Promise<ClipboardAppendResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.appendClipboardVideoToQueue),
   getPlaylistBrowserSnapshot: (): Promise<PlaylistBrowserSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getPlaylistBrowserSnapshot),
   appendPlaylistBrowserFile: (pathValue: string): Promise<PlaylistBrowserMutationResult> =>

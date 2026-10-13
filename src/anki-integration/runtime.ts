@@ -1,10 +1,6 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import type { AnkiConnectConfig } from '../types/anki';
-import {
-  getKnownWordCacheLifecycleConfig,
-  getKnownWordCacheRefreshIntervalMinutes,
-  getKnownWordCacheScopeForConfig,
-} from './known-word-cache';
+import { getKnownWordCacheLifecycleConfig } from './known-word-cache';
 
 export interface AnkiIntegrationRuntimeProxyServer {
   start(options: { host: string; port: number; upstreamUrl: string }): void;
@@ -253,14 +249,6 @@ export class AnkiIntegrationRuntime {
 
   private getKnownWordCacheLifecycleConfig(config: AnkiConnectConfig): string {
     return getKnownWordCacheLifecycleConfig(config);
-  }
-
-  private getKnownWordRefreshIntervalMinutes(config: AnkiConnectConfig): number {
-    return getKnownWordCacheRefreshIntervalMinutes(config);
-  }
-
-  private getKnownWordCacheScopeForConfig(config: AnkiConnectConfig): string {
-    return getKnownWordCacheScopeForConfig(config);
   }
 
   getOrCreateProxyServer(): AnkiIntegrationRuntimeProxyServer {

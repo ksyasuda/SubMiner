@@ -133,9 +133,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     enabled: false,
     accessToken: '',
     characterDictionary: {
-      refreshTtlHours: 168,
       maxLoaded: 3,
-      evictionPolicy: 'delete',
       profileScope: 'all',
       collapsibleSections: {
         description: false,

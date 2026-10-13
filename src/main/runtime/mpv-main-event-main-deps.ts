@@ -46,7 +46,6 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     activeParsedSubtitleSource?: string | null;
     currentMediaPath?: string | null;
     currentSubText: string;
-    currentSubAssText: string;
     currentSubtitleData?: SubtitleData | null;
     playbackPaused: boolean | null;
     previousSecondarySubVisibility: boolean | null;
@@ -300,11 +299,6 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       ? (trackList: unknown[] | null) => deps.onSubtitleTrackListChange!(trackList)
       : undefined,
     refreshDiscordPresence: () => deps.refreshDiscordPresence(),
-    setCurrentSubAssText: (text: string) => {
-      deps.appState.currentSubAssText = text;
-    },
-    broadcastSubtitleAss: (text: string) =>
-      deps.broadcastToOverlayWindows('subtitle-ass:set', text),
     broadcastSecondarySubtitle: (text: string) => {
       if (deps.onSecondarySubtitleChange) {
         deps.onSecondarySubtitleChange(text);

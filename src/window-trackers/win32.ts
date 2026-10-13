@@ -13,7 +13,8 @@ const RECT = koffi.struct('RECT', {
   Bottom: 'int',
 });
 
-const MARGINS = koffi.struct('MARGINS', {
+// Registered by name for the DwmExtendFrameIntoClientArea prototype below.
+koffi.struct('MARGINS', {
   cxLeftWidth: 'int',
   cxRightWidth: 'int',
   cyTopHeight: 'int',

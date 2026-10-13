@@ -7,7 +7,6 @@ import type {
   ControllerConfigUpdate,
   PlaylistBrowserMutationResult,
   PlaylistBrowserSnapshot,
-  ControllerPreferenceUpdate,
   ResolvedControllerConfig,
   RuntimeOptionId,
   RuntimeOptionValue,
@@ -34,10 +33,8 @@ import { IPC_CHANNELS, type OverlayHostedModal } from '../../shared/ipc/contract
 import {
   parseMpvCommand,
   parseControllerConfigUpdate,
-  parseControllerPreferenceUpdate,
   parseOptionalForwardingOptions,
   parseOverlayHostedModal,
-  parseRuntimeOptionDirection,
   parseRuntimeOptionId,
   parseRuntimeOptionValue,
   parseSessionActionDispatchRequest,
@@ -71,14 +68,9 @@ export interface IpcServiceDeps {
     actionId: string,
     noteId?: number,
   ) => void | Promise<void>;
-  openYomitanSettings: () => void;
-  quitApp: () => void;
   toggleDevTools: () => void;
-  getVisibleOverlayVisibility: () => boolean;
-  toggleVisibleOverlay: () => void;
   tokenizeCurrentSubtitle: () => Promise<unknown>;
   getCurrentSubtitleRaw: () => string;
-  getCurrentSubtitleAss: () => string;
   getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
   getSubtitleSidebarPlaybackState?: () => SubtitleSidebarPlaybackState;
   getSubtitleSidebarOpen?: () => boolean;
@@ -86,14 +78,7 @@ export interface IpcServiceDeps {
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
-  getMecabStatus: () => {
-    available: boolean;
-    enabled: boolean;
-    path: string | null;
-  };
-  setMecabEnabled: (enabled: boolean) => void;
   handleMpvCommand: (command: Array<string | number>) => void;
-  getKeybindings: () => unknown;
   getMpvInputBindings?: () => Promise<MpvInputBindingsSnapshot>;
   getSessionBindings?: () => CompiledSessionBinding[] | Promise<CompiledSessionBinding[]>;
   getConfiguredShortcuts: () => unknown;
@@ -103,7 +88,6 @@ export interface IpcServiceDeps {
   getOverlayNotificationPosition: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
-  saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
   getSecondarySubMode: () => unknown;
   getCurrentSecondarySub: () => string;
   focusMainWindow: () => void;
@@ -125,10 +109,8 @@ export interface IpcServiceDeps {
   resolveMediaTimingReview?: (
     request: MediaTimingReviewResolveRequest,
   ) => MediaTimingReviewActionResult | Promise<MediaTimingReviewActionResult>;
-  getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
-  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (
     payload: unknown,
     senderWindow: ElectronBrowserWindow | null,
@@ -149,7 +131,6 @@ export interface IpcServiceDeps {
   getCharacterDictionaryManagerSnapshot?: () => Promise<unknown>;
   removeCharacterDictionaryManagedEntry?: (mediaId: number) => Promise<unknown>;
   moveCharacterDictionaryManagedEntry?: (mediaId: number, direction: 1 | -1) => Promise<unknown>;
-  appendClipboardVideoToQueue: () => { ok: boolean; message: string };
   getChangelogSnapshot?: (options?: { refresh?: boolean }) => Promise<ChangelogSnapshot>;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
@@ -172,15 +153,6 @@ interface WindowLike {
   webContents: {
     toggleDevTools: () => void;
   };
-}
-
-interface MecabTokenizerLike {
-  getStatus: () => {
-    available: boolean;
-    enabled: boolean;
-    path: string | null;
-  };
-  setEnabled: (enabled: boolean) => void;
 }
 
 interface MpvClientLike {
@@ -342,7 +314,6 @@ function parseMediaTimingReviewResolveRequest(
 
 export interface IpcDepsRuntimeOptions {
   getMainWindow: () => WindowLike | null;
-  getVisibleOverlayVisibility: () => boolean;
   onOverlayModalClosed: (
     modal: OverlayHostedModal,
     senderWindow: ElectronBrowserWindow | null,
@@ -364,12 +335,8 @@ export interface IpcDepsRuntimeOptions {
     actionId: string,
     noteId?: number,
   ) => void | Promise<void>;
-  openYomitanSettings: () => void;
-  quitApp: () => void;
-  toggleVisibleOverlay: () => void;
   tokenizeCurrentSubtitle: () => Promise<unknown>;
   getCurrentSubtitleRaw: () => string;
-  getCurrentSubtitleAss: () => string;
   getSubtitleSidebarSnapshot?: () => Promise<SubtitleSidebarSnapshot>;
   getSubtitleSidebarPlaybackState?: () => SubtitleSidebarPlaybackState;
   getSubtitleSidebarOpen?: () => boolean;
@@ -377,9 +344,7 @@ export interface IpcDepsRuntimeOptions {
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
-  getMecabTokenizer: () => MecabTokenizerLike | null;
   handleMpvCommand: (command: Array<string | number>) => void;
-  getKeybindings: () => unknown;
   getMpvInputBindings?: () => Promise<MpvInputBindingsSnapshot>;
   getSessionBindings?: () => CompiledSessionBinding[] | Promise<CompiledSessionBinding[]>;
   getConfiguredShortcuts: () => unknown;
@@ -389,7 +354,6 @@ export interface IpcDepsRuntimeOptions {
   getOverlayNotificationPosition: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
-  saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
   getSecondarySubMode: () => unknown;
   getMpvClient: () => MpvClientLike | null;
   focusMainWindow: () => void;
@@ -403,10 +367,8 @@ export interface IpcDepsRuntimeOptions {
   getMediaTimingReviewWaveform?: IpcServiceDeps['getMediaTimingReviewWaveform'];
   stopMediaTimingReviewPreview?: IpcServiceDeps['stopMediaTimingReviewPreview'];
   resolveMediaTimingReview?: IpcServiceDeps['resolveMediaTimingReview'];
-  getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
-  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (payload: unknown) => void;
   getAnilistStatus: () => unknown;
   clearAnilistToken: () => void;
@@ -424,7 +386,6 @@ export interface IpcDepsRuntimeOptions {
   getCharacterDictionaryManagerSnapshot?: () => Promise<unknown>;
   removeCharacterDictionaryManagedEntry?: (mediaId: number) => Promise<unknown>;
   moveCharacterDictionaryManagedEntry?: (mediaId: number, direction: 1 | -1) => Promise<unknown>;
-  appendClipboardVideoToQueue: () => { ok: boolean; message: string };
   getChangelogSnapshot?: (options?: { refresh?: boolean }) => Promise<ChangelogSnapshot>;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
@@ -444,19 +405,14 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     onOverlayMouseInteractionChanged: options.onOverlayMouseInteractionChanged,
     onOverlayInteractiveHint: options.onOverlayInteractiveHint,
     handleOverlayNotificationAction: options.handleOverlayNotificationAction,
-    openYomitanSettings: options.openYomitanSettings,
     recordSubtitleMiningContext: options.recordSubtitleMiningContext,
-    quitApp: options.quitApp,
     toggleDevTools: () => {
       const mainWindow = options.getMainWindow();
       if (!mainWindow || mainWindow.isDestroyed()) return;
       mainWindow.webContents.toggleDevTools();
     },
-    getVisibleOverlayVisibility: options.getVisibleOverlayVisibility,
-    toggleVisibleOverlay: options.toggleVisibleOverlay,
     tokenizeCurrentSubtitle: options.tokenizeCurrentSubtitle,
     getCurrentSubtitleRaw: options.getCurrentSubtitleRaw,
-    getCurrentSubtitleAss: options.getCurrentSubtitleAss,
     getSubtitleSidebarSnapshot: options.getSubtitleSidebarSnapshot,
     getSubtitleSidebarPlaybackState: options.getSubtitleSidebarPlaybackState,
     getSubtitleSidebarOpen: options.getSubtitleSidebarOpen ?? (() => false),
@@ -464,19 +420,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getSubtitlePosition: options.getSubtitlePosition,
     getSubtitleStyle: options.getSubtitleStyle,
     saveSubtitlePosition: options.saveSubtitlePosition,
-    getMecabStatus: () => {
-      const mecabTokenizer = options.getMecabTokenizer();
-      return mecabTokenizer
-        ? mecabTokenizer.getStatus()
-        : { available: false, enabled: false, path: null };
-    },
-    setMecabEnabled: (enabled) => {
-      const mecabTokenizer = options.getMecabTokenizer();
-      if (!mecabTokenizer) return;
-      mecabTokenizer.setEnabled(enabled);
-    },
     handleMpvCommand: options.handleMpvCommand,
-    getKeybindings: options.getKeybindings,
     getMpvInputBindings: options.getMpvInputBindings,
     getSessionBindings: options.getSessionBindings ?? (() => []),
     getConfiguredShortcuts: options.getConfiguredShortcuts,
@@ -486,7 +430,6 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getOverlayNotificationPosition: options.getOverlayNotificationPosition,
     getControllerConfig: options.getControllerConfig,
     saveControllerConfig: options.saveControllerConfig,
-    saveControllerPreference: options.saveControllerPreference,
     getSecondarySubMode: options.getSecondarySubMode,
     getCurrentSecondarySub: () => options.getMpvClient()?.currentSecondarySubText || '',
     focusMainWindow: () => {
@@ -503,10 +446,8 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getMediaTimingReviewWaveform: options.getMediaTimingReviewWaveform,
     stopMediaTimingReviewPreview: options.stopMediaTimingReviewPreview,
     resolveMediaTimingReview: options.resolveMediaTimingReview,
-    getAnkiConnectStatus: options.getAnkiConnectStatus,
     getRuntimeOptions: options.getRuntimeOptions,
     setRuntimeOption: options.setRuntimeOption,
-    cycleRuntimeOption: options.cycleRuntimeOption,
     reportOverlayContentBounds: (payload, senderWindow) => {
       const mainWindow = options.getMainWindow();
       if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -553,7 +494,6 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
         message: 'Character dictionary manager unavailable.',
         entries: [],
       })),
-    appendClipboardVideoToQueue: options.appendClipboardVideoToQueue,
     getChangelogSnapshot: options.getChangelogSnapshot,
     getPlaylistBrowserSnapshot: options.getPlaylistBrowserSnapshot,
     appendPlaylistBrowserFile: options.appendPlaylistBrowserFile,
@@ -680,10 +620,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     },
   );
 
-  ipc.on(IPC_CHANNELS.command.openYomitanSettings, () => {
-    deps.openYomitanSettings();
-  });
-
   ipc.on(IPC_CHANNELS.command.recordYomitanLookup, (_event: unknown, payload: unknown) => {
     try {
       deps.recordSubtitleMiningContext?.(parseSubtitleMiningContext(payload));
@@ -711,20 +647,8 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return marked;
   });
 
-  ipc.on(IPC_CHANNELS.command.quitApp, () => {
-    deps.quitApp();
-  });
-
   ipc.on(IPC_CHANNELS.command.toggleDevTools, () => {
     deps.toggleDevTools();
-  });
-
-  ipc.on(IPC_CHANNELS.command.toggleOverlay, () => {
-    deps.toggleVisibleOverlay();
-  });
-
-  ipc.handle(IPC_CHANNELS.request.getVisibleOverlayVisibility, () => {
-    return deps.getVisibleOverlayVisibility();
   });
 
   ipc.handle(IPC_CHANNELS.request.getCurrentSubtitle, async () => {
@@ -733,10 +657,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.getCurrentSubtitleRaw, () => {
     return deps.getCurrentSubtitleRaw();
-  });
-
-  ipc.handle(IPC_CHANNELS.request.getCurrentSubtitleAss, () => {
-    return deps.getCurrentSubtitleAss();
   });
 
   ipc.handle(IPC_CHANNELS.request.getSubtitleSidebarSnapshot, async () => {
@@ -776,17 +696,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   });
 
   ipc.handle(
-    IPC_CHANNELS.command.saveControllerPreference,
-    async (_event: unknown, update: unknown) => {
-      const parsedUpdate = parseControllerPreferenceUpdate(update);
-      if (!parsedUpdate) {
-        throw new Error('Invalid controller preference payload');
-      }
-      await deps.saveControllerPreference(parsedUpdate);
-    },
-  );
-
-  ipc.handle(
     IPC_CHANNELS.command.saveControllerConfig,
     async (_event: unknown, update: unknown) => {
       const parsedUpdate = parseControllerConfigUpdate(update);
@@ -796,15 +705,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       await deps.saveControllerConfig(parsedUpdate);
     },
   );
-
-  ipc.handle(IPC_CHANNELS.request.getMecabStatus, () => {
-    return deps.getMecabStatus();
-  });
-
-  ipc.on(IPC_CHANNELS.command.setMecabEnabled, (_event: unknown, enabled: unknown) => {
-    if (typeof enabled !== 'boolean') return;
-    deps.setMecabEnabled(enabled);
-  });
 
   ipc.on(IPC_CHANNELS.command.mpvCommand, (_event: unknown, command: unknown) => {
     const parsedCommand = parseMpvCommand(command);
@@ -822,10 +722,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       await deps.dispatchSessionAction?.(parsedRequest);
     },
   );
-
-  ipc.handle(IPC_CHANNELS.request.getKeybindings, () => {
-    return deps.getKeybindings();
-  });
 
   ipc.handle(IPC_CHANNELS.request.getMpvInputBindings, () => {
     return deps.getMpvInputBindings?.() ?? { keys: [], blockedKeys: [] };
@@ -879,10 +775,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return await deps.runSubsyncManual(parsedRequest);
   });
 
-  ipc.handle(IPC_CHANNELS.request.getAnkiConnectStatus, () => {
-    return deps.getAnkiConnectStatus();
-  });
-
   ipc.handle(IPC_CHANNELS.request.getRuntimeOptions, () => {
     return deps.getRuntimeOptions();
   });
@@ -897,18 +789,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       return { ok: false, error: 'Invalid runtime option value payload' };
     }
     return deps.setRuntimeOption(parsedId, parsedValue);
-  });
-
-  ipc.handle(IPC_CHANNELS.request.cycleRuntimeOption, (_event, id: unknown, direction: unknown) => {
-    const parsedId = parseRuntimeOptionId(id);
-    if (!parsedId) {
-      return { ok: false, error: 'Invalid runtime option id' };
-    }
-    const parsedDirection = parseRuntimeOptionDirection(direction);
-    if (!parsedDirection) {
-      return { ok: false, error: 'Invalid runtime option cycle direction' };
-    }
-    return deps.cycleRuntimeOption(parsedId, parsedDirection);
   });
 
   ipc.on(IPC_CHANNELS.command.reportOverlayContentBounds, (event: unknown, payload: unknown) => {
@@ -1019,10 +899,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
         }));
     },
   );
-
-  ipc.handle(IPC_CHANNELS.request.appendClipboardVideoToQueue, () => {
-    return deps.appendClipboardVideoToQueue();
-  });
 
   ipc.handle(IPC_CHANNELS.request.getChangelogSnapshot, async (_event, payload: unknown) => {
     const refresh =

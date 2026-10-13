@@ -41,7 +41,6 @@ import type { NPlusOneMatchMode, SubtitleMiningContext } from './types/subtitle'
 import { DEFAULT_ANKI_CONNECT_CONFIG } from './config';
 import {
   getConfiguredWordFieldCandidates,
-  getConfiguredWordFieldName,
   getPreferredWordValueFromExtractedFields,
 } from './anki-field-config';
 import { createLogger } from './logger';
@@ -1630,10 +1629,6 @@ export class AnkiIntegration {
   private getPreferredSentenceAudioFieldName(): string {
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
     return sentenceCardConfig.audioField || 'SentenceAudio';
-  }
-
-  private getConfiguredWordFieldName(): string {
-    return getConfiguredWordFieldName(this.config);
   }
 
   private getConfiguredWordFieldCandidates(): string[] {

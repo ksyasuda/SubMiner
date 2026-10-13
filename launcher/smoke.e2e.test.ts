@@ -543,7 +543,6 @@ test(
         const appStartEntries = readJsonLines(appStartPath);
         const appStopEntries = readJsonLines(appStopPath);
         const controlEntries = readJsonLines(controlServer.logPath);
-        const mpvEntries = readJsonLines(path.join(smokeCase.artifactsDir, 'fake-mpv.log'));
 
         assert.equal(result.status, 0);
         if (process.platform === 'linux') {

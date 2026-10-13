@@ -6,11 +6,9 @@ import type { LauncherCommandContext } from './context.js';
 import { runConfigCommand } from './config-command.js';
 import { runDictionaryCommand } from './dictionary-command.js';
 import { runDoctorCommand } from './doctor-command.js';
-import { runLogsCommand } from './logs-command.js';
 import { runMpvPostAppCommand, runMpvPreAppCommand } from './mpv-command.js';
 import { runAppPassthroughCommand } from './app-command.js';
 import { runStatsCommand } from './stats-command.js';
-import { runUpdateCommand } from './update-command.js';
 
 class ExitSignal extends Error {
   code: number;

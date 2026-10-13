@@ -24,7 +24,6 @@ export const MPV_REQUEST_ID_SUB_FONT = 111;
 export const MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW = 112;
 export const MPV_REQUEST_ID_OSD_HEIGHT = 113;
 export const MPV_REQUEST_ID_OSD_DIMENSIONS = 114;
-export const MPV_REQUEST_ID_SUBTEXT_ASS = 115;
 export const MPV_REQUEST_ID_SUB_SPACING = 116;
 export const MPV_REQUEST_ID_SUB_BOLD = 117;
 export const MPV_REQUEST_ID_SUB_ITALIC = 118;
@@ -52,7 +51,6 @@ export interface MpvProtocolHandleMessageDeps {
   getSubtitleMetrics: () => MpvSubtitleRenderMetrics;
   isVisibleOverlayVisible: () => boolean;
   emitSubtitleChange: (payload: { text: string; isOverlayVisible: boolean }) => void;
-  emitSubtitleAssChange: (payload: { text: string }) => void;
   emitSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
   emitSecondarySubtitleChange: (payload: { text: string }) => void;
   emitSubtitleTrackChange: (payload: { sid: number | null }) => void;
@@ -253,8 +251,6 @@ export async function dispatchMpvProtocolMessage(
         isOverlayVisible: overlayVisible,
       });
       deps.setCurrentSubText(nextSubText);
-    } else if (msg.name === 'sub-text/ass' || msg.name === 'sub-text-ass') {
-      deps.emitSubtitleAssChange({ text: (msg.data as string) || '' });
     } else if (msg.name === 'sub-start') {
       deps.setCurrentSubStart((msg.data as number) || 0);
       deps.emitSubtitleTiming({
@@ -468,8 +464,6 @@ export async function dispatchMpvProtocolMessage(
         text: nextSubText,
         isOverlayVisible: deps.isVisibleOverlayVisible(),
       });
-    } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT_ASS) {
-      deps.emitSubtitleAssChange({ text: (msg.data as string) || '' });
     } else if (msg.request_id === MPV_REQUEST_ID_PATH) {
       deps.emitMediaPathChange({ path: (msg.data as string) || '' });
     } else if (msg.request_id === MPV_REQUEST_ID_MEDIA_TITLE) {

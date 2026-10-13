@@ -175,9 +175,6 @@ Run `make help` for the full list.
 | `SUBMINER_MPV_PLUGIN_PATH`         | mpv plugin directory the launcher injects                        |
 | `SUBMINER_LOG_LEVEL`               | App log level (`debug`, `info`, `warn`, `error`)                 |
 | `SUBMINER_MPV_LOG`                 | Shared mpv/app log file path                                     |
-| `SUBMINER_JIMAKU_API_KEY`          | Jimaku API key for launcher subtitle downloads                   |
-| `SUBMINER_JIMAKU_API_KEY_COMMAND`  | Command that prints the Jimaku API key                           |
-| `SUBMINER_JIMAKU_API_BASE_URL`     | Jimaku API base URL                                              |
 | `SUBMINER_JELLYFIN_ACCESS_TOKEN`   | Jellyfin access token, used before the stored encrypted session  |
 | `SUBMINER_JELLYFIN_USER_ID`        | Jellyfin user ID                                                 |
 | `SUBMINER_SKIP_MACOS_HELPER_BUILD` | Set to `1` to skip the macOS helper build during `bun run build` |

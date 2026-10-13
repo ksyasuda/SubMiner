@@ -10,7 +10,6 @@ import type {
 } from '../../types/integrations';
 import type {
   ControllerConfigUpdate,
-  ControllerPreferenceUpdate,
   SessionActionDispatchRequest,
   SubsyncManualRunRequest,
 } from '../../types/runtime';
@@ -128,16 +127,6 @@ export function parseSubtitlePosition(value: unknown): SubtitlePosition | null {
   }
   return {
     yPercent: value.yPercent,
-  };
-}
-
-export function parseControllerPreferenceUpdate(value: unknown): ControllerPreferenceUpdate | null {
-  if (!isObject(value)) return null;
-  if (typeof value.preferredGamepadId !== 'string') return null;
-  if (typeof value.preferredGamepadLabel !== 'string') return null;
-  return {
-    preferredGamepadId: value.preferredGamepadId,
-    preferredGamepadLabel: value.preferredGamepadLabel,
   };
 }
 
@@ -326,10 +315,6 @@ export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRe
 export function parseRuntimeOptionId(value: unknown): RuntimeOptionId | null {
   if (typeof value !== 'string') return null;
   return RUNTIME_OPTION_IDS.includes(value as RuntimeOptionId) ? (value as RuntimeOptionId) : null;
-}
-
-export function parseRuntimeOptionDirection(value: unknown): 1 | -1 | null {
-  return value === 1 || value === -1 ? value : null;
 }
 
 export function parseRuntimeOptionValue(value: unknown): RuntimeOptionValue | null {

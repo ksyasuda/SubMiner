@@ -50,7 +50,6 @@ export interface JimakuConfig {
   maxEntryResults?: number;
 }
 
-export type AnilistCharacterDictionaryEvictionPolicy = 'disable' | 'delete';
 export type AnilistCharacterDictionaryProfileScope = 'all' | 'active';
 export type AnilistCharacterDictionaryCollapsibleSectionKey =
   | 'description'
@@ -64,9 +63,7 @@ export interface AnilistCharacterDictionaryCollapsibleSectionsConfig {
 }
 
 export interface AnilistCharacterDictionaryConfig {
-  refreshTtlHours?: number;
   maxLoaded?: number;
-  evictionPolicy?: AnilistCharacterDictionaryEvictionPolicy;
   profileScope?: AnilistCharacterDictionaryProfileScope;
   collapsibleSections?: AnilistCharacterDictionaryCollapsibleSectionsConfig;
 }

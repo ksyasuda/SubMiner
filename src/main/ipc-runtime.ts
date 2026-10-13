@@ -15,7 +15,7 @@ import {
 
 export interface RegisterIpcRuntimeServicesParams {
   runtimeOptions: RuntimeOptionsIpcDepsParams;
-  mainDeps: Omit<MainIpcRuntimeServiceDepsParams, 'setRuntimeOption' | 'cycleRuntimeOption'>;
+  mainDeps: Omit<MainIpcRuntimeServiceDepsParams, 'setRuntimeOption'>;
   ankiJimakuDeps: AnkiJimakuIpcRuntimeServiceDepsParams;
 }
 
@@ -40,7 +40,6 @@ export function registerIpcRuntimeServices(params: RegisterIpcRuntimeServicesPar
   registerMainIpcRuntimeServices({
     ...params.mainDeps,
     setRuntimeOption: runtimeOptionsIpcDeps.setRuntimeOption,
-    cycleRuntimeOption: runtimeOptionsIpcDeps.cycleRuntimeOption,
   });
   registerAnkiJimakuIpcRuntimeServices(params.ankiJimakuDeps);
 }

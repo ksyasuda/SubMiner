@@ -390,23 +390,6 @@ function isReduplicatedKanaSfx(text: string): boolean {
   return chars.slice(0, half).join('') === chars.slice(half).join('');
 }
 
-function isReduplicatedKanaSfxWithOptionalTrailingTo(text: string): boolean {
-  const normalized = normalizeKana(text);
-  if (!normalized) {
-    return false;
-  }
-
-  if (isReduplicatedKanaSfx(normalized)) {
-    return true;
-  }
-
-  if (normalized.length <= 1 || !normalized.endsWith('と')) {
-    return false;
-  }
-
-  return isReduplicatedKanaSfx(normalized.slice(0, -1));
-}
-
 function hasAdjacentKanaRepeat(text: string): boolean {
   const normalized = normalizeKana(text);
   if (!normalized) {

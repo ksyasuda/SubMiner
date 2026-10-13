@@ -202,14 +202,9 @@ import {
   createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
-  createBroadcastRuntimeOptionsChangedHandler,
   createGetRuntimeOptionsStateHandler,
   createGetFieldGroupingResolverHandler,
   createSetFieldGroupingResolverHandler,
-  createOpenRuntimeOptionsPaletteHandler,
-  createRestorePreviousSecondarySubVisibilityHandler,
-  createSendToActiveOverlayWindowHandler,
-  createSetOverlayDebugVisualizationEnabledHandler,
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
@@ -306,7 +301,6 @@ import {
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
   importYomitanDictionaryFromZip,
-  initializeOverlayAnkiIntegration as initializeOverlayAnkiIntegrationCore,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
   isSubtitleAnnotationUpgrade,
   isOverlayWindowContentReady,
@@ -613,7 +607,6 @@ import {
 } from './main/anilist-url-guard';
 import {
   ConfigService,
-  ConfigStartupParseError,
   DEFAULT_CONFIG,
   DEFAULT_KEYBINDINGS,
   generateConfigTemplate,
@@ -625,7 +618,6 @@ import {
   createSubtitlePrefetchService,
   type SubtitlePrefetchService,
 } from './core/services/subtitle-prefetch';
-import { buildSubtitleSidebarSourceKey } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
 import {
   createCachedInternalSubtitleTrackExtractor,
@@ -633,7 +625,6 @@ import {
 } from './main/runtime/internal-subtitle-extraction';
 import { createRemoteMediaPathDetector } from './main/runtime/network-media-path';
 import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
-import { getSubsyncConfig } from './subsync/utils';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -2882,11 +2873,6 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getOverlayInteractionActive: () =>
       visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive(),
     getWindowTracker: () => appState.windowTracker,
-    getLastKnownWindowsForegroundProcessName: () =>
-      visibleOverlayInteractionRuntime.getLastWindowsVisibleOverlayForegroundProcessName(),
-    getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
-    getWindowsFocusHandoffGraceActive: () =>
-      visibleOverlayInteractionRuntime.hasWindowsVisibleOverlayFocusHandoffGrace(),
     getMacOSForegroundProbeActive: () =>
       visibleOverlayInteractionRuntime.getMacOSVisibleOverlayForegroundProbeActive(),
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
@@ -3317,7 +3303,6 @@ const {
   cleanupJellyfinSubtitleCache,
   runJellyfinCommand,
   openJellyfinSetupWindow,
-  getJellyfinClientInfo,
   ensureMpvConnectedForPlayback,
 } = composeJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {
@@ -4895,7 +4880,6 @@ const {
         autoplaySubtitlePrimingRuntime.resetAutoplaySubtitlePrime();
         lastObservedTimePos = 0;
         appState.currentSubText = '';
-        appState.currentSubAssText = '';
         appState.currentSubtitleData = null;
         if (!preserveParsedSubtitleCues) {
           appState.activeParsedSubtitleCues = [];
@@ -5919,7 +5903,6 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       stopMediaTimingReviewPreview: (reviewId) => mediaTimingReviewRuntime.stopPreview(reviewId),
       resolveMediaTimingReview: (request) => mediaTimingReviewRuntime.resolveReview(request),
       getMainWindow: () => overlayManager.getMainWindow(),
-      getVisibleOverlayVisibility: () => overlayManager.getVisibleOverlayVisible(),
       focusMainWindow: () => {
         const mainWindow = overlayManager.getMainWindow();
         if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -6033,14 +6016,11 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
       },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
-      openYomitanSettings: () => openDictionarySettings(),
       // Overlay lookups carry no cue context of their own; fall back to snapshotting the
       // live mpv sub timings at lookup time so media generation clips the mined line even
       // when extraction finishes long after playback has moved on.
       recordSubtitleMiningContext: (context) =>
         recordSubtitleMiningContext(context ?? captureCurrentPrimarySubtitleMiningContext()),
-      quitApp: () => requestAppQuit(),
-      toggleVisibleOverlay: () => toggleVisibleOverlay(),
       tokenizeCurrentSubtitle: async () => {
         const tokenizeSubtitleForCurrent = tokenizeSubtitleDeferred;
         return resolveCurrentSubtitleForRenderer({
@@ -6058,7 +6038,6 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         });
       },
       getCurrentSubtitleRaw: () => appState.currentSubText,
-      getCurrentSubtitleAss: () => appState.currentSubAssText,
       getSubtitleSidebarOpen: () => subtitleSidebarRequestedOpen,
       getSubtitleSidebarPlaybackState: () => getSubtitleSidebarPlaybackState(),
       // Full snapshot: resolves the active source over mpv IPC and re-parses it when it changed.
@@ -6138,8 +6117,6 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         return resolveSubtitleStyleForRenderer(resolvedConfig);
       },
       saveSubtitlePosition: (position) => saveSubtitlePosition(position),
-      getMecabTokenizer: () => appState.mecabTokenizer,
-      getKeybindings: () => appState.keybindings,
       getMpvInputBindings: async () => {
         await refreshMpvSessionBindings();
         return readMpvInputBindings({
@@ -6169,17 +6146,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           controller: applyControllerConfigUpdate(currentRawConfig.controller, update),
         });
       },
-      saveControllerPreference: ({ preferredGamepadId, preferredGamepadLabel }) => {
-        configService.patchRawConfig({
-          controller: {
-            preferredGamepadId,
-            preferredGamepadLabel,
-          },
-        });
-      },
       getSecondarySubMode: () => appState.secondarySubMode,
       getMpvClient: () => appState.mpvClient,
-      getAnkiConnectStatus: () => appState.ankiIntegration !== null,
       getRuntimeOptions: () => getRuntimeOptionsStateHandler(),
       reportOverlayContentBounds: (payload: unknown) => {
         if (overlayContentMeasurementStore.report(payload)) {
@@ -6267,47 +6235,14 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
         return result;
       },
-      appendClipboardVideoToQueue: () => appendClipboardVideoToQueueHandler(),
       getChangelogSnapshot: (options) => getChangelogSnapshot(options),
       ...playlistBrowserMainDeps,
       getImmersionTracker: () => appState.immersionTracker,
     },
     ankiJimakuDeps: createAnkiJimakuIpcRuntimeServiceDeps({
-      patchAnkiConnectEnabled: (enabled: boolean) => {
-        configService.patchRawConfig({ ankiConnect: { enabled } });
-      },
       getResolvedConfig: () => configService.getConfig(),
-      getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-      getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
       getMpvClient: () => appState.mpvClient,
       getAnkiIntegration: () => appState.ankiIntegration,
-      setAnkiIntegration: (integration: AnkiIntegration | null) => {
-        appState.ankiIntegration = integration;
-        appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
-        appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
-          refreshCurrentSubtitleAnnotations,
-        );
-        appState.ankiIntegration?.setSubtitleMiningContextConsumer(
-          consumePendingSubtitleMiningContext,
-        );
-        appState.ankiIntegration?.setMediaTimingReviewCallback(
-          mediaTimingReviewRuntime.requestReview,
-        );
-        appState.ankiIntegration?.setSentenceFuriganaGenerator(generateMiningSentenceFurigana);
-      },
-      getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
-      getCachedMediaPath: (currentVideoPath, kind) =>
-        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
-      shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
-      getYoutubeMediaSourceUrl: () => getCurrentYoutubeMediaCacheSourceUrl(),
-      showDesktopNotification,
-      showOverlayNotification: (payload) =>
-        overlayNotificationsRuntime.showOverlayNotification(payload),
-      dismissOverlayNotification: (id) =>
-        overlayNotificationsRuntime.dismissOverlayNotification(id),
-      createFieldGroupingCallback: () => createFieldGroupingCallback(),
-      broadcastRuntimeOptionsChanged: () =>
-        overlayVisibilityComposer.broadcastRuntimeOptionsChanged(),
       getFieldGroupingResolver: () => getFieldGroupingResolverHandler(),
       setFieldGroupingResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) =>
         setFieldGroupingResolverHandler(resolver),

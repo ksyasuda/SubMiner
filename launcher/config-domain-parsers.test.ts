@@ -17,20 +17,11 @@ test('parseLauncherYoutubeSubgenConfig keeps only valid typed values', () => {
     secondarySub: {
       secondarySubLanguages: ['eng', true, 'deu'],
     },
-    jimaku: {
-      apiKey: 'abc',
-      apiKeyCommand: 'pass show key',
-      apiBaseUrl: 'https://jimaku.cc',
-      languagePreference: 'ja',
-      maxEntryResults: 8.7,
-    },
   });
 
   assert.equal('mode' in parsed, false);
   assert.deepEqual(parsed.primarySubLanguages, ['ja', 'en']);
   assert.deepEqual(parsed.secondarySubLanguages, ['eng', 'deu']);
-  assert.equal(parsed.jimakuLanguagePreference, 'ja');
-  assert.equal(parsed.jimakuMaxEntryResults, 8);
 });
 
 test('parseLauncherJellyfinConfig omits legacy token and user id fields', () => {

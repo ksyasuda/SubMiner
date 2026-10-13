@@ -18,10 +18,6 @@ const TOP_LEVEL_SECTION_DESCRIPTION_BY_KEY = new Map(
   CONFIG_TEMPLATE_SECTIONS.map((section) => [String(section.key), section.description[0] ?? '']),
 );
 const SUBTITLE_CSS_SCOPES: SubtitleCssScope[] = ['primary', 'secondary', 'sidebar'];
-const HIDDEN_TEMPLATE_PATHS = [
-  'anilist.characterDictionary.evictionPolicy',
-  'anilist.characterDictionary.refreshTtlHours',
-];
 
 function normalizeCommentText(value: string): string {
   return value.replace(/\s+/g, ' ').replace(/\*\//g, '*\\/').trim();
@@ -176,9 +172,6 @@ function renderSection(
 function createTemplateConfig(config: ResolvedConfig): ResolvedConfig {
   const templateConfig = deepCloneConfig(config);
   foldSubtitleCssManagedDefaults(templateConfig);
-  for (const hiddenPath of HIDDEN_TEMPLATE_PATHS) {
-    deleteValueAtPath(templateConfig, hiddenPath);
-  }
   if (templateConfig.keybindings.length === 0) {
     templateConfig.keybindings = DEFAULT_KEYBINDINGS.map((binding) => ({
       key: binding.key,

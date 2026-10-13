@@ -16,7 +16,6 @@ import { deriveStoredPartOfSpeech } from '../tokenizer/part-of-speech';
 import {
   cleanupUnusedCoverArtBlobHash,
   findSharedCoverBlobHash,
-  toDbMs,
   toDbTimestamp,
 } from './query-shared';
 

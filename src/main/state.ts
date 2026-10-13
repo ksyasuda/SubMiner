@@ -160,7 +160,6 @@ export interface AppState {
   discordPresenceService: ReturnType<typeof createDiscordPresenceService> | null;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   currentSubText: string;
-  currentSubAssText: string;
   currentSubtitleData: SubtitleData | null;
   activeParsedSubtitleCues: SubtitleCue[];
   activeParsedSubtitleSource: string | null;
@@ -247,7 +246,6 @@ export function createAppState(values: AppStateInitialValues): AppState {
     discordPresenceService: null,
     reconnectTimer: null,
     currentSubText: '',
-    currentSubAssText: '',
     currentSubtitleData: null,
     activeParsedSubtitleCues: [],
     activeParsedSubtitleSource: null,

@@ -8,8 +8,6 @@ interface RuntimeHarness {
   state: {
     ankiIntegration: unknown;
     fieldGroupingResolver: ((choice: unknown) => void) | null;
-    patches: boolean[];
-    broadcasts: number;
     fetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
     tsukihimeFetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
     sentCommands: Array<{ command: (string | number)[] }>;
@@ -20,8 +18,6 @@ function createHarness(): RuntimeHarness {
   const state = {
     ankiIntegration: null as unknown,
     fieldGroupingResolver: null as ((choice: unknown) => void) | null,
-    patches: [] as boolean[],
-    broadcasts: 0,
     fetchCalls: [] as Array<{
       endpoint: string;
       query?: Record<string, unknown>;
@@ -34,11 +30,7 @@ function createHarness(): RuntimeHarness {
   };
 
   const options: AnkiJimakuIpcRuntimeOptions = {
-    patchAnkiConnectEnabled: (enabled) => {
-      state.patches.push(enabled);
-    },
     getResolvedConfig: () => ({ tsukihime: { maxSearchResults: 2 } }),
-    getRuntimeOptionsManager: () => null,
     tsukihimeFetchJson: async (endpoint, query) => {
       state.tsukihimeFetchCalls.push({
         endpoint,
@@ -76,7 +68,6 @@ function createHarness(): RuntimeHarness {
         } as never,
       };
     },
-    getSubtitleTimingTracker: () => null,
     getMpvClient: () => ({
       connected: true,
       send: (payload) => {
@@ -99,20 +90,6 @@ function createHarness(): RuntimeHarness {
       },
     }),
     getAnkiIntegration: () => state.ankiIntegration as never,
-    setAnkiIntegration: (integration) => {
-      state.ankiIntegration = integration;
-    },
-    getKnownWordCacheStatePath: () => '/tmp/subminer-known-words-cache.json',
-    showDesktopNotification: () => {},
-    createFieldGroupingCallback: () => async () => ({
-      keepNoteId: 1,
-      deleteNoteId: 2,
-      deleteDuplicate: false,
-      cancelled: false,
-    }),
-    broadcastRuntimeOptionsChanged: () => {
-      state.broadcasts += 1;
-    },
     getFieldGroupingResolver: () => state.fieldGroupingResolver as never,
     setFieldGroupingResolver: (resolver) => {
       state.fieldGroupingResolver = resolver as never;
@@ -169,38 +146,12 @@ test('refreshKnownWords throws when integration is unavailable', async () => {
   );
 });
 
-test('setAnkiConnectEnabled disables active integration and broadcasts changes', () => {
+test('respondFieldGrouping resolves and clears the pending resolver', () => {
   const { registered, state } = createHarness();
-  let destroyed = 0;
-  state.ankiIntegration = {
-    destroy: () => {
-      destroyed += 1;
-    },
-  };
-
-  registered.setAnkiConnectEnabled!(false);
-
-  assert.deepEqual(state.patches, [false]);
-  assert.equal(destroyed, 1);
-  assert.equal(state.ankiIntegration, null);
-  assert.equal(state.broadcasts, 1);
-});
-
-test('clearAnkiHistory and respondFieldGrouping execute runtime callbacks', () => {
-  const { registered, state, options } = createHarness();
-  let cleaned = 0;
   let resolvedChoice: unknown = null;
   state.fieldGroupingResolver = (choice) => {
     resolvedChoice = choice;
   };
-
-  const originalGetTracker = options.getSubtitleTimingTracker;
-  options.getSubtitleTimingTracker = () =>
-    ({
-      cleanup: () => {
-        cleaned += 1;
-      },
-    }) as never;
 
   const choice = {
     keepNoteId: 10,
@@ -208,12 +159,8 @@ test('clearAnkiHistory and respondFieldGrouping execute runtime callbacks', () =
     deleteDuplicate: true,
     cancelled: false,
   };
-  registered.clearAnkiHistory!();
   registered.respondFieldGrouping!(choice);
 
-  options.getSubtitleTimingTracker = originalGetTracker;
-
-  assert.equal(cleaned, 1);
   assert.deepEqual(resolvedChoice, choice);
   assert.equal(state.fieldGroupingResolver, null);
 });
