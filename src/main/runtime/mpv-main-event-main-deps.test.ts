@@ -20,7 +20,6 @@ function buildMainDeps(
     immersionTracker: null,
     subtitleTimingTracker: null,
     currentSubText: '',
-    currentSubAssText: '',
     playbackPaused: null,
     previousSecondarySubVisibility: false,
     ...appStateOverrides,

@@ -1,7 +1,6 @@
 type MpvBindingEventName =
   | 'connection-change'
   | 'subtitle-change'
-  | 'subtitle-ass-change'
   | 'secondary-subtitle-change'
   | 'subtitle-track-change'
   | 'secondary-subtitle-track-change'
@@ -89,7 +88,6 @@ export function createHandleMpvSubtitleTimingHandler(deps: {
 export function createBindMpvClientEventHandlers(deps: {
   onConnectionChange: (payload: { connected: boolean }) => void;
   onSubtitleChange: (payload: { text: string }) => void;
-  onSubtitleAssChange: (payload: { text: string }) => void;
   onSecondarySubtitleChange: (payload: { text: string }) => void;
   onSubtitleTrackChange: (payload: { sid: number | null }) => void;
   onSecondarySubtitleTrackChange: (payload: { sid: number | null }) => void;
@@ -108,7 +106,6 @@ export function createBindMpvClientEventHandlers(deps: {
   return (mpvClient: MpvEventClient): void => {
     mpvClient.on('connection-change', deps.onConnectionChange);
     mpvClient.on('subtitle-change', deps.onSubtitleChange);
-    mpvClient.on('subtitle-ass-change', deps.onSubtitleAssChange);
     mpvClient.on('secondary-subtitle-change', deps.onSecondarySubtitleChange);
     mpvClient.on('subtitle-track-change', deps.onSubtitleTrackChange);
     mpvClient.on('secondary-subtitle-track-change', deps.onSecondarySubtitleTrackChange);

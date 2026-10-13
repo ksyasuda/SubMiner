@@ -45,7 +45,6 @@ function createDefaultMpvFixture() {
         immersionTracker: null,
         subtitleTimingTracker: null,
         currentSubText: '',
-        currentSubAssText: '',
         playbackPaused: null,
         previousSecondarySubVisibility: null,
       },

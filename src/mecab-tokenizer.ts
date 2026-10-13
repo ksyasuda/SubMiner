@@ -399,29 +399,6 @@ export class MecabTokenizer {
       path: this.mecabPath,
     };
   }
-
-  setEnabled(enabled: boolean): void {
-    this.enabled = enabled;
-    if (!enabled) {
-      const pending: MecabQueuedRequest[] = [];
-      if (this.activeRequest) {
-        pending.push({
-          text: this.activeRequest.text,
-          retryCount: MecabTokenizer.MAX_RETRY_COUNT,
-          resolve: this.activeRequest.resolve,
-        });
-      }
-      if (this.requestQueue.length > 0) {
-        pending.push(...this.requestQueue);
-      }
-      this.activeRequest = null;
-      this.requestQueue = [];
-      for (const request of pending) {
-        request.resolve(null);
-      }
-      this.stopPersistentProcess();
-    }
-  }
 }
 
 export { mapMecabPos1ToPartOfSpeech as mapPartOfSpeech };

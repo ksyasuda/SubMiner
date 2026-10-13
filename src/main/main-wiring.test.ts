@@ -37,7 +37,6 @@ test('media path changes clear rendered subtitle state without clearing same-you
 
   assert.ok(actionBlock);
   assert.match(actionBlock, /appState\.currentSubText = '';/);
-  assert.match(actionBlock, /appState\.currentSubAssText = '';/);
   assert.match(actionBlock, /appState\.currentSubtitleData = null;/);
   assert.match(actionBlock, /isSameYoutubeMediaPath\(/);
   assert.match(actionBlock, /if \(!preserveParsedSubtitleCues\)/);

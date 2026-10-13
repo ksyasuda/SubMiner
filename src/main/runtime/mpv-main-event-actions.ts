@@ -49,16 +49,6 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
   };
 }
 
-export function createHandleMpvSubtitleAssChangeHandler(deps: {
-  setCurrentSubAssText: (text: string) => void;
-  broadcastSubtitleAss: (text: string) => void;
-}) {
-  return ({ text }: { text: string }): void => {
-    deps.setCurrentSubAssText(text);
-    deps.broadcastSubtitleAss(text);
-  };
-}
-
 export function createHandleMpvSecondarySubtitleChangeHandler(deps: {
   broadcastSecondarySubtitle: (text: string) => void;
 }) {

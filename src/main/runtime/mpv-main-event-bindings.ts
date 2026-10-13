@@ -10,7 +10,6 @@ import {
   createHandleMpvPauseChangeHandler,
   createHandleMpvSecondarySubtitleChangeHandler,
   createHandleMpvSecondarySubtitleVisibilityHandler,
-  createHandleMpvSubtitleAssChangeHandler,
   createHandleMpvSubtitleChangeHandler,
   createHandleMpvSubtitleMetricsChangeHandler,
   createHandleMpvTimePosChangeHandler,
@@ -52,8 +51,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   logSubtitleProcessingDebug?: (message: string) => void;
   refreshDiscordPresence: () => void;
 
-  setCurrentSubAssText: (text: string) => void;
-  broadcastSubtitleAss: (text: string) => void;
   broadcastSecondarySubtitle: (text: string) => void;
   onSubtitleTrackChange?: (sid: number | null) => void;
   onSecondarySubtitleTrackChange?: (sid: number | null) => void;
@@ -135,10 +132,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
         : undefined,
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
-    const handleMpvSubtitleAssChange = createHandleMpvSubtitleAssChangeHandler({
-      setCurrentSubAssText: (text) => deps.setCurrentSubAssText(text),
-      broadcastSubtitleAss: (text) => deps.broadcastSubtitleAss(text),
-    });
     const handleMpvSecondarySubtitleChange = createHandleMpvSecondarySubtitleChangeHandler({
       broadcastSecondarySubtitle: (text) => deps.broadcastSecondarySubtitle(text),
     });
@@ -200,7 +193,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
     createBindMpvClientEventHandlers({
       onConnectionChange: handleMpvConnectionChangeWithSidebarReset,
       onSubtitleChange: handleMpvSubtitleChange,
-      onSubtitleAssChange: handleMpvSubtitleAssChange,
       onSecondarySubtitleChange: handleMpvSecondarySubtitleChange,
       onSubtitleTrackChange: ({ sid }) => deps.onSubtitleTrackChange?.(sid),
       onSecondarySubtitleTrackChange: ({ sid }) => deps.onSecondarySubtitleTrackChange?.(sid),

@@ -20,7 +20,6 @@ import {
   MPV_REQUEST_ID_SUB_SHADOW_OFFSET,
   MPV_REQUEST_ID_SUB_SPACING,
   MPV_REQUEST_ID_SUBTEXT,
-  MPV_REQUEST_ID_SUBTEXT_ASS,
   MPV_REQUEST_ID_SUB_USE_MARGINS,
   MPV_REQUEST_ID_PAUSE,
 } from './mpv-protocol';
@@ -54,7 +53,6 @@ const MPV_SUBTITLE_PROPERTY_OBSERVATIONS: string[] = [
   'sub-scale-by-window',
   'osd-height',
   'osd-dimensions',
-  'sub-text/ass',
   'sub-border-size',
   'sub-shadow-offset',
   'sub-ass-override',
@@ -75,10 +73,6 @@ const MPV_INITIAL_PROPERTY_REQUESTS: Array<MpvProtocolCommand> = [
   {
     command: ['get_property', 'sub-text'],
     request_id: MPV_REQUEST_ID_SUBTEXT,
-  },
-  {
-    command: ['get_property', 'sub-text/ass'],
-    request_id: MPV_REQUEST_ID_SUBTEXT_ASS,
   },
   {
     command: ['get_property', 'path'],

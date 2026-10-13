@@ -1,15 +1,11 @@
 import { RuntimeOptionId, RuntimeOptionValue, SubsyncManualPayload } from '../types';
-import type { OverlayNotificationPayload } from '../types/notification';
 import { SubsyncResolvedConfig } from '../subsync/utils';
 import type { SubsyncRuntimeDeps } from '../core/services/subsync-runner';
 import type { IpcDepsRuntimeOptions } from '../core/services/ipc';
 import type { AnkiJimakuIpcRuntimeOptions } from '../core/services/anki-jimaku';
 import type { CliCommandDepsRuntimeOptions } from '../core/services/cli-command';
 import type { HandleMpvCommandFromIpcOptions } from '../core/services/ipc-command';
-import {
-  cycleRuntimeOptionFromIpcRuntime,
-  setRuntimeOptionFromIpcRuntime,
-} from '../core/services/runtime-options-ipc';
+import { setRuntimeOptionFromIpcRuntime } from '../core/services/runtime-options-ipc';
 import { RuntimeOptionsManager } from '../runtime-options';
 
 export interface RuntimeOptionsIpcDepsParams {
@@ -28,15 +24,10 @@ export interface SubsyncRuntimeDepsParams {
 
 export function createRuntimeOptionsIpcDeps(params: RuntimeOptionsIpcDepsParams): {
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
-  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
 } {
   return {
     setRuntimeOption: (id, value) =>
       setRuntimeOptionFromIpcRuntime(params.getRuntimeOptionsManager(), id, value, (text) =>
-        params.showMpvOsd(text),
-      ),
-    cycleRuntimeOption: (id, direction) =>
-      cycleRuntimeOptionFromIpcRuntime(params.getRuntimeOptionsManager(), id, direction, (text) =>
         params.showMpvOsd(text),
       ),
   };
@@ -55,7 +46,6 @@ export function createSubsyncRuntimeDeps(params: SubsyncRuntimeDepsParams): Subs
 
 export interface MainIpcRuntimeServiceDepsParams {
   getMainWindow: IpcDepsRuntimeOptions['getMainWindow'];
-  getVisibleOverlayVisibility: IpcDepsRuntimeOptions['getVisibleOverlayVisibility'];
   onOverlayModalClosed: IpcDepsRuntimeOptions['onOverlayModalClosed'];
   onOverlayModalOpened?: IpcDepsRuntimeOptions['onOverlayModalOpened'];
   onOverlayMouseInteractionChanged?: IpcDepsRuntimeOptions['onOverlayMouseInteractionChanged'];
@@ -67,12 +57,8 @@ export interface MainIpcRuntimeServiceDepsParams {
   getMediaTimingReviewWaveform?: IpcDepsRuntimeOptions['getMediaTimingReviewWaveform'];
   stopMediaTimingReviewPreview?: IpcDepsRuntimeOptions['stopMediaTimingReviewPreview'];
   resolveMediaTimingReview?: IpcDepsRuntimeOptions['resolveMediaTimingReview'];
-  openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
-  quitApp: IpcDepsRuntimeOptions['quitApp'];
-  toggleVisibleOverlay: IpcDepsRuntimeOptions['toggleVisibleOverlay'];
   tokenizeCurrentSubtitle: IpcDepsRuntimeOptions['tokenizeCurrentSubtitle'];
   getCurrentSubtitleRaw: IpcDepsRuntimeOptions['getCurrentSubtitleRaw'];
-  getCurrentSubtitleAss: IpcDepsRuntimeOptions['getCurrentSubtitleAss'];
   getSubtitleSidebarSnapshot?: IpcDepsRuntimeOptions['getSubtitleSidebarSnapshot'];
   getSubtitleSidebarPlaybackState?: IpcDepsRuntimeOptions['getSubtitleSidebarPlaybackState'];
   getSubtitleSidebarOpen?: IpcDepsRuntimeOptions['getSubtitleSidebarOpen'];
@@ -82,9 +68,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getSubtitlePosition: IpcDepsRuntimeOptions['getSubtitlePosition'];
   getSubtitleStyle: IpcDepsRuntimeOptions['getSubtitleStyle'];
   saveSubtitlePosition: IpcDepsRuntimeOptions['saveSubtitlePosition'];
-  getMecabTokenizer: IpcDepsRuntimeOptions['getMecabTokenizer'];
   handleMpvCommand: IpcDepsRuntimeOptions['handleMpvCommand'];
-  getKeybindings: IpcDepsRuntimeOptions['getKeybindings'];
   getMpvInputBindings?: IpcDepsRuntimeOptions['getMpvInputBindings'];
   getSessionBindings: IpcDepsRuntimeOptions['getSessionBindings'];
   getConfiguredShortcuts: IpcDepsRuntimeOptions['getConfiguredShortcuts'];
@@ -94,14 +78,11 @@ export interface MainIpcRuntimeServiceDepsParams {
   getOverlayNotificationPosition: IpcDepsRuntimeOptions['getOverlayNotificationPosition'];
   getControllerConfig: IpcDepsRuntimeOptions['getControllerConfig'];
   saveControllerConfig: IpcDepsRuntimeOptions['saveControllerConfig'];
-  saveControllerPreference: IpcDepsRuntimeOptions['saveControllerPreference'];
   getSecondarySubMode: IpcDepsRuntimeOptions['getSecondarySubMode'];
   getMpvClient: IpcDepsRuntimeOptions['getMpvClient'];
   runSubsyncManual: IpcDepsRuntimeOptions['runSubsyncManual'];
-  getAnkiConnectStatus: IpcDepsRuntimeOptions['getAnkiConnectStatus'];
   getRuntimeOptions: IpcDepsRuntimeOptions['getRuntimeOptions'];
   setRuntimeOption: IpcDepsRuntimeOptions['setRuntimeOption'];
-  cycleRuntimeOption: IpcDepsRuntimeOptions['cycleRuntimeOption'];
   reportOverlayContentBounds: IpcDepsRuntimeOptions['reportOverlayContentBounds'];
   getAnilistStatus: IpcDepsRuntimeOptions['getAnilistStatus'];
   clearAnilistToken: IpcDepsRuntimeOptions['clearAnilistToken'];
@@ -115,7 +96,6 @@ export interface MainIpcRuntimeServiceDepsParams {
   getCharacterDictionaryManagerSnapshot?: IpcDepsRuntimeOptions['getCharacterDictionaryManagerSnapshot'];
   removeCharacterDictionaryManagedEntry?: IpcDepsRuntimeOptions['removeCharacterDictionaryManagedEntry'];
   moveCharacterDictionaryManagedEntry?: IpcDepsRuntimeOptions['moveCharacterDictionaryManagedEntry'];
-  appendClipboardVideoToQueue: IpcDepsRuntimeOptions['appendClipboardVideoToQueue'];
   getChangelogSnapshot?: IpcDepsRuntimeOptions['getChangelogSnapshot'];
   getPlaylistBrowserSnapshot: IpcDepsRuntimeOptions['getPlaylistBrowserSnapshot'];
   appendPlaylistBrowserFile: IpcDepsRuntimeOptions['appendPlaylistBrowserFile'];
@@ -126,22 +106,9 @@ export interface MainIpcRuntimeServiceDepsParams {
 }
 
 export interface AnkiJimakuIpcRuntimeServiceDepsParams {
-  patchAnkiConnectEnabled: AnkiJimakuIpcRuntimeOptions['patchAnkiConnectEnabled'];
   getResolvedConfig: AnkiJimakuIpcRuntimeOptions['getResolvedConfig'];
-  getRuntimeOptionsManager: AnkiJimakuIpcRuntimeOptions['getRuntimeOptionsManager'];
-  getSubtitleTimingTracker: AnkiJimakuIpcRuntimeOptions['getSubtitleTimingTracker'];
   getMpvClient: AnkiJimakuIpcRuntimeOptions['getMpvClient'];
   getAnkiIntegration: AnkiJimakuIpcRuntimeOptions['getAnkiIntegration'];
-  setAnkiIntegration: AnkiJimakuIpcRuntimeOptions['setAnkiIntegration'];
-  getKnownWordCacheStatePath: AnkiJimakuIpcRuntimeOptions['getKnownWordCacheStatePath'];
-  getCachedMediaPath?: AnkiJimakuIpcRuntimeOptions['getCachedMediaPath'];
-  shouldRequireRemoteMediaCache?: AnkiJimakuIpcRuntimeOptions['shouldRequireRemoteMediaCache'];
-  getYoutubeMediaSourceUrl?: AnkiJimakuIpcRuntimeOptions['getYoutubeMediaSourceUrl'];
-  showDesktopNotification: AnkiJimakuIpcRuntimeOptions['showDesktopNotification'];
-  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
-  dismissOverlayNotification?: (id: string) => void;
-  createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions['createFieldGroupingCallback'];
-  broadcastRuntimeOptionsChanged: AnkiJimakuIpcRuntimeOptions['broadcastRuntimeOptionsChanged'];
   getFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions['getFieldGroupingResolver'];
   setFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions['setFieldGroupingResolver'];
   parseMediaInfo: AnkiJimakuIpcRuntimeOptions['parseMediaInfo'];
@@ -258,7 +225,6 @@ export function createMainIpcRuntimeServiceDeps(
 ): IpcDepsRuntimeOptions {
   return {
     getMainWindow: params.getMainWindow,
-    getVisibleOverlayVisibility: params.getVisibleOverlayVisibility,
     onOverlayModalClosed: params.onOverlayModalClosed,
     onOverlayModalOpened: params.onOverlayModalOpened,
     onOverlayMouseInteractionChanged: params.onOverlayMouseInteractionChanged,
@@ -270,12 +236,8 @@ export function createMainIpcRuntimeServiceDeps(
     getMediaTimingReviewWaveform: params.getMediaTimingReviewWaveform,
     stopMediaTimingReviewPreview: params.stopMediaTimingReviewPreview,
     resolveMediaTimingReview: params.resolveMediaTimingReview,
-    openYomitanSettings: params.openYomitanSettings,
-    quitApp: params.quitApp,
-    toggleVisibleOverlay: params.toggleVisibleOverlay,
     tokenizeCurrentSubtitle: params.tokenizeCurrentSubtitle,
     getCurrentSubtitleRaw: params.getCurrentSubtitleRaw,
-    getCurrentSubtitleAss: params.getCurrentSubtitleAss,
     getSubtitleSidebarSnapshot: params.getSubtitleSidebarSnapshot,
     getSubtitleSidebarPlaybackState: params.getSubtitleSidebarPlaybackState,
     getSubtitleSidebarOpen: params.getSubtitleSidebarOpen,
@@ -283,9 +245,7 @@ export function createMainIpcRuntimeServiceDeps(
     getSubtitlePosition: params.getSubtitlePosition,
     getSubtitleStyle: params.getSubtitleStyle,
     saveSubtitlePosition: params.saveSubtitlePosition,
-    getMecabTokenizer: params.getMecabTokenizer,
     handleMpvCommand: params.handleMpvCommand,
-    getKeybindings: params.getKeybindings,
     getMpvInputBindings: params.getMpvInputBindings,
     getSessionBindings: params.getSessionBindings,
     getConfiguredShortcuts: params.getConfiguredShortcuts,
@@ -295,16 +255,13 @@ export function createMainIpcRuntimeServiceDeps(
     getOverlayNotificationPosition: params.getOverlayNotificationPosition,
     getControllerConfig: params.getControllerConfig,
     saveControllerConfig: params.saveControllerConfig,
-    saveControllerPreference: params.saveControllerPreference,
     focusMainWindow: params.focusMainWindow ?? (() => {}),
     activatePlaybackWindowForOverlayInteraction: params.activatePlaybackWindowForOverlayInteraction,
     getSecondarySubMode: params.getSecondarySubMode,
     getMpvClient: params.getMpvClient,
     runSubsyncManual: params.runSubsyncManual,
-    getAnkiConnectStatus: params.getAnkiConnectStatus,
     getRuntimeOptions: params.getRuntimeOptions,
     setRuntimeOption: params.setRuntimeOption,
-    cycleRuntimeOption: params.cycleRuntimeOption,
     reportOverlayContentBounds: params.reportOverlayContentBounds,
     getAnilistStatus: params.getAnilistStatus,
     clearAnilistToken: params.clearAnilistToken,
@@ -318,7 +275,6 @@ export function createMainIpcRuntimeServiceDeps(
     getCharacterDictionaryManagerSnapshot: params.getCharacterDictionaryManagerSnapshot,
     removeCharacterDictionaryManagedEntry: params.removeCharacterDictionaryManagedEntry,
     moveCharacterDictionaryManagedEntry: params.moveCharacterDictionaryManagedEntry,
-    appendClipboardVideoToQueue: params.appendClipboardVideoToQueue,
     getChangelogSnapshot: params.getChangelogSnapshot,
     getPlaylistBrowserSnapshot: params.getPlaylistBrowserSnapshot,
     appendPlaylistBrowserFile: params.appendPlaylistBrowserFile,
@@ -333,26 +289,9 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
   params: AnkiJimakuIpcRuntimeServiceDepsParams,
 ): AnkiJimakuIpcRuntimeOptions {
   return {
-    patchAnkiConnectEnabled: params.patchAnkiConnectEnabled,
     getResolvedConfig: params.getResolvedConfig,
-    getRuntimeOptionsManager: params.getRuntimeOptionsManager,
-    getSubtitleTimingTracker: params.getSubtitleTimingTracker,
     getMpvClient: params.getMpvClient,
     getAnkiIntegration: params.getAnkiIntegration,
-    setAnkiIntegration: params.setAnkiIntegration,
-    getKnownWordCacheStatePath: params.getKnownWordCacheStatePath,
-    ...(params.getCachedMediaPath ? { getCachedMediaPath: params.getCachedMediaPath } : {}),
-    ...(params.shouldRequireRemoteMediaCache
-      ? { shouldRequireRemoteMediaCache: params.shouldRequireRemoteMediaCache }
-      : {}),
-    ...(params.getYoutubeMediaSourceUrl
-      ? { getYoutubeMediaSourceUrl: params.getYoutubeMediaSourceUrl }
-      : {}),
-    showDesktopNotification: params.showDesktopNotification,
-    showOverlayNotification: params.showOverlayNotification,
-    dismissOverlayNotification: params.dismissOverlayNotification,
-    createFieldGroupingCallback: params.createFieldGroupingCallback,
-    broadcastRuntimeOptionsChanged: params.broadcastRuntimeOptionsChanged,
     getFieldGroupingResolver: params.getFieldGroupingResolver,
     setFieldGroupingResolver: params.setFieldGroupingResolver,
     parseMediaInfo: params.parseMediaInfo,

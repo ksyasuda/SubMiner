@@ -242,7 +242,6 @@ function installKeyboardTestGlobals() {
         windowFocusCalls += 1;
       },
       electronAPI: {
-        getKeybindings: async () => [],
         getMpvInputBindings: () => getMpvInputBindings(),
         getSessionBindings: () => getSessionBindingsImpl(),
         getConfiguredShortcuts: async () => configuredShortcuts,

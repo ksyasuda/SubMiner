@@ -32,8 +32,6 @@ test('anki/jimaku IPC handlers reject malformed invoke payloads', async () => {
   let previewCalls = 0;
   registerAnkiJimakuIpcHandlers(
     {
-      setAnkiConnectEnabled: () => {},
-      clearAnkiHistory: () => {},
       refreshKnownWords: async () => {},
       respondFieldGrouping: () => {},
       buildKikuMergePreview: async () => {
@@ -138,8 +136,6 @@ test('tsukihime downloads always route Japanese as primary', async () => {
   const secondaryLoads: string[] = [];
   registerAnkiJimakuIpcHandlers(
     {
-      setAnkiConnectEnabled: () => {},
-      clearAnkiHistory: () => {},
       refreshKnownWords: async () => {},
       respondFieldGrouping: () => {},
       buildKikuMergePreview: async () => ({ ok: true }),
@@ -205,13 +201,8 @@ test('tsukihime downloads always route Japanese as primary', async () => {
 test('anki/jimaku IPC command handlers ignore malformed payloads', () => {
   const { registrar, onHandlers } = createFakeRegistrar();
   const fieldGroupingChoices: unknown[] = [];
-  const enabledStates: boolean[] = [];
   registerAnkiJimakuIpcHandlers(
     {
-      setAnkiConnectEnabled: (enabled) => {
-        enabledStates.push(enabled);
-      },
-      clearAnkiHistory: () => {},
       refreshKnownWords: async () => {},
       respondFieldGrouping: (choice) => {
         fieldGroupingChoices.push(choice);
@@ -240,10 +231,6 @@ test('anki/jimaku IPC command handlers ignore malformed payloads', () => {
     },
     registrar,
   );
-
-  onHandlers.get(IPC_CHANNELS.command.setAnkiConnectEnabled)!({}, 'true');
-  onHandlers.get(IPC_CHANNELS.command.setAnkiConnectEnabled)!({}, true);
-  assert.deepEqual(enabledStates, [true]);
 
   onHandlers.get(IPC_CHANNELS.command.kikuFieldGroupingRespond)!({}, null);
   onHandlers.get(IPC_CHANNELS.command.kikuFieldGroupingRespond)!(
