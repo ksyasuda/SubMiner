@@ -26,7 +26,7 @@ The modal shows progress. **Cancel** stops the job. Closing the modal lets the j
 
 SubMiner saves `<video>.ja.generated.srt` next to the video and adds a number if that name is taken. If the same file is still playing, it loads the subtitles and resets the subtitle delay.
 
-For a Jellyfin video, SubMiner reads the original file from your server and saves the subtitles to a temporary folder, since a stream has no folder of its own. Playback keeps going while it works. If Jellyfin is transcoding, SubMiner transcribes the audio track that playback started with.
+For a Jellyfin video, SubMiner reads the original file from your server and saves the subtitles to `~/.cache/subminer/generated-subs/`, since a stream has no folder of its own. Each Jellyfin generation replaces the previous file there. Playback keeps going while it works. If Jellyfin is transcoding, SubMiner transcribes the audio track that playback started with.
 
 For a YouTube video, SubMiner downloads its audio first and pauses the video until the subtitles load. The subtitles are temporary, and the audio is deleted when generation ends or you switch videos. See [YouTube integration](/youtube-integration#generate-subtitles-with-whisper).
 

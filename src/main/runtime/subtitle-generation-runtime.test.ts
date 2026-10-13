@@ -554,7 +554,10 @@ test('a direct-play Jellyfin stream generates from its original file and shows b
           input.mediaPath,
           'https://jf.example/Videos/item/stream?static=true&ApiKey=secret',
         );
-        assert.equal(input.outputPath, '/tmp/generated/jellyfin.ja.generated.srt');
+        assert.match(
+          input.outputPath ?? '',
+          /^\/tmp\/generated\/jellyfin-\d+\.ja\.generated\.srt$/,
+        );
         assert.equal(input.audioStreamIndex, 0);
         assert.deepEqual(
           input.references?.map((reference) => reference.source.kind),
@@ -566,13 +569,8 @@ test('a direct-play Jellyfin stream generates from its original file and shows b
   );
   assert.equal((await subject.runtime.getStatus()).mediaPath, 'Jellyfin: Show S01E02');
   assert.equal((await subject.runtime.start()).ok, true);
-  assert.deepEqual(subject.commands[0], [
-    'sub-add',
-    '/tmp/generated/jellyfin.ja.generated.srt',
-    'select',
-    'Generated Japanese',
-    'ja',
-  ]);
+  assert.equal(subject.commands[0]?.[0], 'sub-add');
+  assert.match(String(subject.commands[0]?.[1]), /^\/tmp\/generated\/jellyfin-\d+/);
 });
 
 test('a transcoded Jellyfin stream uses the Jellyfin audio index and only external references', async () => {

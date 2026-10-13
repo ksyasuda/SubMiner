@@ -5,7 +5,7 @@ const OUTPUT_LIMIT = 64 * 1024;
 
 // ffmpeg echoes input URLs in its errors; streamed media carries access tokens in the query.
 function redactUrlCredentials(text: string): string {
-  return text.replace(/([?&](?:api_?key|token|access_token)=)[\w.~%-]+/gi, '$1<redacted>');
+  return text.replace(/([?&](?:api_?key|token|access_token)=)[^&#\s'"]+/gi, '$1<redacted>');
 }
 
 // Keep partial lines between chunks: ffmpeg and whisper both report progress on stderr.

@@ -491,14 +491,13 @@ test('process cancellation terminates work and bounds diagnostic output', () =>
     const unauthorized = await executable(
       directory,
       'unauthorized',
-      "process.stderr.write('https://host/Videos/1/stream?static=true&ApiKey=secret: Server returned 401');process.exitCode=1;",
+      "process.stderr.write('https://host/Videos/1/stream?ApiKey=se+cr/et==&static=true: Server returned 401');process.exitCode=1;",
     );
     await assert.rejects(
       runSubtitleGenerationProcess({ command: unauthorized, args: [] }),
       (error: unknown) =>
         error instanceof Error &&
-        !error.message.includes('secret') &&
-        error.message.includes('ApiKey=<redacted>: Server returned 401'),
+        error.message.includes('?ApiKey=<redacted>&static=true: Server returned 401'),
     );
   }));
 

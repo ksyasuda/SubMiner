@@ -1,5 +1,5 @@
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readdir, rm } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { readSubtitleGenerationReferences } from '../../core/services/subtitle-generation-reference';
 import { detectSubtitleGenerationAcceleration } from '../../core/services/subtitle-generation-acceleration';
@@ -76,8 +76,21 @@ export interface SubtitleGenerationRuntimeDeps {
   resolveYoutubeSourceUrl?: (mediaPath: string) => string | null;
   /** Identifies mpv's path as Jellyfin playback. Without it, streams cannot generate. */
   resolveJellyfinMedia?: (mediaPath: string) => SubtitleGenerationJellyfinMedia | null;
-  /** Directory for subtitles of streamed media, which has no folder of its own. */
+  /**
+   * Directory for subtitles of streamed media, which has no folder of its own. Called once per
+   * stream generation, so it may delete what an earlier run wrote there.
+   */
   createStreamOutputDirectory?: () => Promise<string>;
+}
+
+// One reused folder keeps stream subtitles from piling up: each run deletes earlier files.
+// mpv has already parsed a loaded track, and a file still locked (Windows) waits for a later run.
+async function reuseStreamOutputDirectory(): Promise<string> {
+  const directory = path.join(homedir(), '.cache', 'subminer', 'generated-subs');
+  await mkdir(directory, { recursive: true });
+  for (const name of await readdir(directory))
+    await rm(path.join(directory, name), { recursive: true, force: true }).catch(() => undefined);
+  return directory;
 }
 
 // Resolves mpv's `path` value to an absolute local file, or null for URLs.
@@ -411,11 +424,8 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
           outputPath:
             media.kind === 'jellyfin'
               ? path.join(
-                  await (
-                    deps.createStreamOutputDirectory ??
-                    (() => mkdtemp(path.join(tmpdir(), 'subminer-generated-subtitles-')))
-                  )(),
-                  'jellyfin.ja.generated.srt',
+                  await (deps.createStreamOutputDirectory ?? reuseStreamOutputDirectory)(),
+                  `jellyfin-${Date.now()}.ja.generated.srt`,
                 )
               : undefined,
           audioStreamIndex,
