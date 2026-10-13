@@ -16,31 +16,9 @@ export function parseLauncherYoutubeSubgenConfig(
     secondarySubRaw && typeof secondarySubRaw === 'object'
       ? (secondarySubRaw as Record<string, unknown>)
       : null;
-  const jimakuRaw = root.jimaku;
-  const jimaku =
-    jimakuRaw && typeof jimakuRaw === 'object' ? (jimakuRaw as Record<string, unknown>) : null;
-
-  const jimakuLanguagePreference = jimaku?.languagePreference;
-  const jimakuMaxEntryResults = jimaku?.maxEntryResults;
 
   return {
     primarySubLanguages: asStringArray(youtube?.primarySubLanguages),
     secondarySubLanguages: asStringArray(secondarySub?.secondarySubLanguages),
-    jimakuApiKey: typeof jimaku?.apiKey === 'string' ? jimaku.apiKey : undefined,
-    jimakuApiKeyCommand:
-      typeof jimaku?.apiKeyCommand === 'string' ? jimaku.apiKeyCommand : undefined,
-    jimakuApiBaseUrl: typeof jimaku?.apiBaseUrl === 'string' ? jimaku.apiBaseUrl : undefined,
-    jimakuLanguagePreference:
-      jimakuLanguagePreference === 'ja' ||
-      jimakuLanguagePreference === 'en' ||
-      jimakuLanguagePreference === 'none'
-        ? jimakuLanguagePreference
-        : undefined,
-    jimakuMaxEntryResults:
-      typeof jimakuMaxEntryResults === 'number' &&
-      Number.isFinite(jimakuMaxEntryResults) &&
-      jimakuMaxEntryResults > 0
-        ? Math.floor(jimakuMaxEntryResults)
-        : undefined,
   };
 }

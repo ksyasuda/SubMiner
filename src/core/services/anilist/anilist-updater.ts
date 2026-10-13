@@ -87,20 +87,6 @@ export interface GuessAnilistMediaInfoDeps {
   runGuessit: (target: string) => Promise<string>;
 }
 
-function firstString(value: unknown): string | null {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const candidate = firstString(item);
-      if (candidate) return candidate;
-    }
-  }
-  return null;
-}
-
 function normalizeGuessitTitlePart(value: string): string {
   return value.replace(/[._]+/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
 }

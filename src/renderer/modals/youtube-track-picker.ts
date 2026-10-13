@@ -31,12 +31,6 @@ export function createYoutubeTrackPickerModal(
     ctx.dom.youtubePickerStatus.style.color = isError ? '#ed8796' : '#a5adcb';
   }
 
-  function getTrackLabel(trackId: string): string {
-    return (
-      ctx.state.youtubePickerPayload?.tracks.find((track) => track.id === trackId)?.label ?? ''
-    );
-  }
-
   function renderTrackList(): void {
     ctx.dom.youtubePickerTracks.replaceChildren();
     const payload = ctx.state.youtubePickerPayload;

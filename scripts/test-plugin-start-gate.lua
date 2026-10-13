@@ -267,7 +267,6 @@ local function run_plugin_scenario(config)
 	package.loaded["binary"] = nil
 	package.loaded["bootstrap"] = nil
 	package.loaded["environment"] = nil
-	package.loaded["hover"] = nil
 	package.loaded["init"] = nil
 	package.loaded["lifecycle"] = nil
 	package.loaded["log"] = nil

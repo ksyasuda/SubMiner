@@ -74,9 +74,6 @@ export function updateVisibleOverlayVisibility(args: {
   overlayInteractionActive?: boolean;
   mainWindow: BrowserWindow | null;
   windowTracker: BaseWindowTracker | null;
-  lastKnownWindowsForegroundProcessName?: string | null;
-  windowsOverlayProcessName?: string | null;
-  windowsFocusHandoffGraceActive?: boolean;
   macOSForegroundProbeActive?: boolean;
   trackerNotReadyWarningShown: boolean;
   setTrackerNotReadyWarningShown: (shown: boolean) => void;
@@ -168,26 +165,6 @@ export function updateVisibleOverlayVisibility(args: {
     const shouldUseMacOSMousePassthrough = args.isMacOSPlatform && !overlayInteractionActive;
     const shouldDefaultToPassthrough =
       args.isWindowsPlatform || forceMousePassthrough || shouldReleaseMacOSOverlayLevel;
-    const windowsForegroundProcessName =
-      args.lastKnownWindowsForegroundProcessName?.trim().toLowerCase() ?? null;
-    const windowsOverlayProcessName = args.windowsOverlayProcessName?.trim().toLowerCase() ?? null;
-    const hasWindowsForegroundProcessSignal =
-      args.isWindowsPlatform && windowsForegroundProcessName !== null;
-    const isTrackedWindowsTargetFocused = args.windowTracker?.isTargetWindowFocused?.() ?? true;
-    const isTrackedWindowsTargetMinimized =
-      args.isWindowsPlatform &&
-      typeof args.windowTracker?.isTargetWindowMinimized === 'function' &&
-      args.windowTracker.isTargetWindowMinimized();
-    const shouldPreserveWindowsOverlayDuringFocusHandoff =
-      args.isWindowsPlatform &&
-      args.windowsFocusHandoffGraceActive === true &&
-      !!args.windowTracker &&
-      (!hasWindowsForegroundProcessSignal ||
-        windowsForegroundProcessName === 'mpv' ||
-        (windowsOverlayProcessName !== null &&
-          windowsForegroundProcessName === windowsOverlayProcessName)) &&
-      !isTrackedWindowsTargetMinimized &&
-      (args.windowTracker.isTracking() || args.windowTracker.getGeometry() !== null);
     const shouldForcePassiveReshow = args.isWindowsPlatform && !wasVisible;
     const isNonNativeOverlay = !args.isWindowsPlatform && !args.isMacOSPlatform;
     const isNonNativePassiveOverlay = isNonNativeOverlay && !overlayInteractionActive;
@@ -208,13 +185,6 @@ export function updateVisibleOverlayVisibility(args: {
       (isNonNativePassiveOverlay && !hasNonNativeInputRegion) ||
       (shouldDefaultToPassthrough && (!isVisibleOverlayFocused || shouldForcePassiveReshow));
     const shouldBindTrackedWindowsOverlay = args.isWindowsPlatform && !!args.windowTracker;
-    const shouldKeepTrackedWindowsOverlayTopmost =
-      !args.isWindowsPlatform ||
-      !args.windowTracker ||
-      isVisibleOverlayFocused ||
-      isTrackedWindowsTargetFocused ||
-      shouldPreserveWindowsOverlayDuringFocusHandoff ||
-      (hasWindowsForegroundProcessSignal && windowsForegroundProcessName === 'mpv');
     if (shouldIgnoreMouseEvents) {
       applyOverlayClickThrough(mainWindow, args.isWindowsPlatform);
     } else {

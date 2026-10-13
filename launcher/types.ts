@@ -52,7 +52,6 @@ export function getDefaultMpvLogFile(options?: {
 
 export const DEFAULT_MPV_LOG_FILE = getDefaultMpvLogFile();
 export const DEFAULT_YOUTUBE_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
-export const DEFAULT_JIMAKU_API_BASE_URL = 'https://jimaku.cc';
 export const DEFAULT_MPV_SUBMINER_ARGS = [
   '--sub-auto=fuzzy',
   '--sub-file-paths=.;subs;subtitles',
@@ -69,7 +68,6 @@ export function shouldForwardLogLevel(level: LogLevel): boolean {
   return level === 'debug' || level === 'error';
 }
 export type Backend = 'auto' | 'hyprland' | 'sway' | 'x11' | 'macos' | 'windows';
-export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
 
 export interface Args {
   generateSubtitles?: {
@@ -103,11 +101,6 @@ export interface Args {
   passwordStore: string;
   target: string;
   targetKind: '' | 'file' | 'url';
-  jimakuApiKey: string;
-  jimakuApiKeyCommand: string;
-  jimakuApiBaseUrl: string;
-  jimakuLanguagePreference: JimakuLanguagePreference;
-  jimakuMaxEntryResults: number;
   jellyfin: boolean;
   jellyfinLogin: boolean;
   jellyfinLogout: boolean;
@@ -151,11 +144,6 @@ export interface Args {
 export interface LauncherYoutubeSubgenConfig {
   primarySubLanguages?: string[];
   secondarySubLanguages?: string[];
-  jimakuApiKey?: string;
-  jimakuApiKeyCommand?: string;
-  jimakuApiBaseUrl?: string;
-  jimakuLanguagePreference?: JimakuLanguagePreference;
-  jimakuMaxEntryResults?: number;
 }
 
 export interface LauncherJellyfinConfig {

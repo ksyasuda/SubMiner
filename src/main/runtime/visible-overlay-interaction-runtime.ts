@@ -78,7 +78,6 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
   const VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
   const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
   const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
-  const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
   const LINUX_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 1_500;
   // Ignore transient "neither mpv nor overlay is the active window" blips before suppressing
   // subtitle pointer interaction. Right after playback starts the overlay can briefly become the
@@ -93,7 +92,6 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
   let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
   let windowsOverlayPointerInteractionActive = false;
   let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
-  let lastWindowsVisibleOverlayBlurredAtMs = 0;
   let lastLinuxVisibleOverlayFollowedMpvAtMs = 0;
   const linuxPointerForegroundSuppressionGrace: ForegroundSuppressionGraceState = {
     lossSinceMs: null,
@@ -482,15 +480,6 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
     }
   }
 
-  function hasWindowsVisibleOverlayFocusHandoffGrace(): boolean {
-    return (
-      process.platform === 'win32' &&
-      lastWindowsVisibleOverlayBlurredAtMs > 0 &&
-      Date.now() - lastWindowsVisibleOverlayBlurredAtMs <=
-        WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS
-    );
-  }
-
   function shouldPollWindowsVisibleOverlayForegroundProcess(): boolean {
     if (process.platform !== 'win32' || !overlayManager.getVisibleOverlayVisible()) {
       return false;
@@ -562,9 +551,6 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
       return;
     }
 
-    if (process.platform === 'win32') {
-      lastWindowsVisibleOverlayBlurredAtMs = Date.now();
-    }
     startMacOSVisibleOverlayForegroundProbe();
     clearVisibleOverlayBlurRefreshTimeouts();
     for (const delayMs of VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
@@ -860,7 +846,6 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
     retargetOverlayWindowTrackerForMpvSocket,
     requestWindowsVisibleOverlayZOrderSync,
     scheduleWindowsVisibleOverlayZOrderSyncBurst,
-    hasWindowsVisibleOverlayFocusHandoffGrace,
     ensureWindowsVisibleOverlayForegroundPollLoop,
     clearWindowsVisibleOverlayForegroundPollLoop,
     scheduleVisibleOverlayBlurRefresh,
@@ -881,8 +866,6 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
       windowsOverlayPointerInteractionActive = false;
     },
     getLinuxOverlayInputShapeActive: () => linuxOverlayInputShapeActive,
-    getLastWindowsVisibleOverlayForegroundProcessName: () =>
-      lastWindowsVisibleOverlayForegroundProcessName,
     getMacOSVisibleOverlayForegroundProbeActive: () => macOSVisibleOverlayForegroundProbeActive,
     setLinuxOverlayInteractiveHint: (interactive: boolean) => {
       linuxOverlayInteractiveHint = interactive;

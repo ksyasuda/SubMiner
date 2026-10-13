@@ -10,7 +10,6 @@ function M.create(ctx)
 	local state = ctx.state
 	local options_helper = ctx.options_helper
 	local process = ctx.process
-	local hover = ctx.hover
 	local subminer_log = ctx.log.subminer_log
 	local show_osd = ctx.log.show_osd
 
@@ -308,7 +307,6 @@ function M.create(ctx)
 
 	local function on_shutdown()
 		next_auto_start_retry_generation()
-		hover.clear_hover_overlay()
 		process.disarm_auto_play_ready_gate()
 		process.stop_overlay_loading_osd()
 		clear_pending_visible_overlay_hide()
@@ -326,13 +324,9 @@ function M.create(ctx)
 		mp.register_event("start-file", on_start_file)
 		mp.register_event("file-loaded", on_file_loaded)
 		mp.register_event("shutdown", on_shutdown)
-		mp.register_event("file-loaded", function()
-			hover.clear_hover_overlay()
-		end)
 		mp.register_event("end-file", function(event)
 			process.stop_overlay_loading_osd()
 			process.disarm_auto_play_ready_gate()
-			hover.clear_hover_overlay()
 			local reason = type(event) == "table" and event.reason or nil
 			if is_reload_end_file(reason) then
 				state.pending_reload_media_identity = state.current_media_identity or resolve_media_identity()
@@ -351,15 +345,6 @@ function M.create(ctx)
 			if state.overlay_running and reason ~= "quit" then
 				hide_visible_overlay_after_end_file()
 			end
-		end)
-		mp.register_event("shutdown", function()
-			hover.clear_hover_overlay()
-		end)
-		mp.add_hook("on_unload", 10, function()
-			hover.clear_hover_overlay()
-		end)
-		mp.observe_property("sub-start", "native", function()
-			hover.clear_hover_overlay()
 		end)
 	end
 

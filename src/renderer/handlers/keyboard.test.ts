@@ -1464,7 +1464,7 @@ test('keyboard mode: an open modal receives h/l/arrows instead of lookup control
 });
 
 test('keyboard mode: h/l/arrows typed into a text field are not consumed by lookup controls', async () => {
-  const { ctx, testGlobals, handlers, setWordCount } = createKeyboardHandlerHarness();
+  const { testGlobals, handlers, setWordCount } = createKeyboardHandlerHarness();
 
   try {
     await handlers.setupMpvInputForwarding();

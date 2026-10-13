@@ -18,7 +18,6 @@ import type {
 } from './types';
 import {
   ACTIVE_SESSION_METRICS_CTE,
-  SESSION_WORD_COUNTS_CTE,
   SESSION_WORD_COUNTS_SELECT,
   fromDbTimestamp,
   resolvedCoverBlobExpr,

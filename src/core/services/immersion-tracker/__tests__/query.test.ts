@@ -2769,7 +2769,6 @@ test('getSessionWordsByLine joins word occurrences through imm_words.id', () => 
 
   try {
     ensureSchema(db);
-    const stmts = createTrackerPreparedStatements(db);
     const startedAtMs = 1_735_732_800_000;
     const videoId = getOrCreateVideoRecord(db, '/tmp/session-words-by-line.mkv', {
       canonicalTitle: 'Episode',

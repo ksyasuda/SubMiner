@@ -193,14 +193,9 @@ import {
   createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
-  createBroadcastRuntimeOptionsChangedHandler,
   createGetRuntimeOptionsStateHandler,
   createGetFieldGroupingResolverHandler,
   createSetFieldGroupingResolverHandler,
-  createOpenRuntimeOptionsPaletteHandler,
-  createRestorePreviousSecondarySubVisibilityHandler,
-  createSendToActiveOverlayWindowHandler,
-  createSetOverlayDebugVisualizationEnabledHandler,
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
@@ -297,7 +292,6 @@ import {
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
   importYomitanDictionaryFromZip,
-  initializeOverlayAnkiIntegration as initializeOverlayAnkiIntegrationCore,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
   isSubtitleAnnotationUpgrade,
   isOverlayWindowContentReady,
@@ -603,7 +597,6 @@ import {
 } from './main/anilist-url-guard';
 import {
   ConfigService,
-  ConfigStartupParseError,
   DEFAULT_CONFIG,
   DEFAULT_KEYBINDINGS,
   generateConfigTemplate,
@@ -615,7 +608,6 @@ import {
   createSubtitlePrefetchService,
   type SubtitlePrefetchService,
 } from './core/services/subtitle-prefetch';
-import { buildSubtitleSidebarSourceKey } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
 import {
   createCachedInternalSubtitleTrackExtractor,
@@ -623,7 +615,6 @@ import {
 } from './main/runtime/internal-subtitle-extraction';
 import { createRemoteMediaPathDetector } from './main/runtime/network-media-path';
 import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
-import { getSubsyncConfig } from './subsync/utils';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -2798,11 +2789,6 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getOverlayInteractionActive: () =>
       visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive(),
     getWindowTracker: () => appState.windowTracker,
-    getLastKnownWindowsForegroundProcessName: () =>
-      visibleOverlayInteractionRuntime.getLastWindowsVisibleOverlayForegroundProcessName(),
-    getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
-    getWindowsFocusHandoffGraceActive: () =>
-      visibleOverlayInteractionRuntime.hasWindowsVisibleOverlayFocusHandoffGrace(),
     getMacOSForegroundProbeActive: () =>
       visibleOverlayInteractionRuntime.getMacOSVisibleOverlayForegroundProbeActive(),
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
@@ -3233,7 +3219,6 @@ const {
   cleanupJellyfinSubtitleCache,
   runJellyfinCommand,
   openJellyfinSetupWindow,
-  getJellyfinClientInfo,
   ensureMpvConnectedForPlayback,
 } = composeJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {

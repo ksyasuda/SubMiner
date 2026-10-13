@@ -65,7 +65,7 @@ export async function runMpvPostAppCommand(
   context: LauncherCommandContext,
   deps: MpvCommandDeps = defaultDeps,
 ): Promise<boolean> {
-  const { args, appPath, scriptPath, mpvSocketPath, pluginRuntimeConfig } = context;
+  const { args, appPath, mpvSocketPath, pluginRuntimeConfig } = context;
   if (!args.mpvIdle) {
     return false;
   }

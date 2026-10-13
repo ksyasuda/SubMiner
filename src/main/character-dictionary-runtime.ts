@@ -49,7 +49,6 @@ import type {
   CharacterDictionaryRuntimeDeps,
   CharacterDictionarySnapshot,
   CharacterDictionarySnapshotImage,
-  CharacterDictionarySnapshotProgress,
   CharacterDictionarySnapshotProgressCallbacks,
   CharacterDictionarySnapshotResult,
   MergedCharacterDictionaryBuildResult,

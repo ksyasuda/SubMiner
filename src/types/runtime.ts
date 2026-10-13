@@ -58,7 +58,6 @@ import type {
   SubtitleSidebarPlaybackState,
   SubtitleSidebarSnapshot,
   SubtitleRendererStyleConfig,
-  SubtitleStyleConfig,
 } from './subtitle';
 import type {
   RuntimeOptionApplyResult,

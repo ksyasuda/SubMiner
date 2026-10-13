@@ -4,7 +4,6 @@ import type {
   AiConfig,
   AiFeatureConfig,
   AnilistCharacterDictionaryCollapsibleSectionsConfig,
-  AnilistCharacterDictionaryEvictionPolicy,
   AnilistCharacterDictionaryProfileScope,
   AnilistConfig,
   DiscordPresenceConfig,
@@ -345,9 +344,7 @@ export interface ResolvedConfig {
     enabled: boolean;
     accessToken: string;
     characterDictionary: {
-      refreshTtlHours: number;
       maxLoaded: number;
-      evictionPolicy: AnilistCharacterDictionaryEvictionPolicy;
       profileScope: AnilistCharacterDictionaryProfileScope;
       collapsibleSections: Required<AnilistCharacterDictionaryCollapsibleSectionsConfig>;
     };

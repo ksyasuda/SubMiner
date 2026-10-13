@@ -37,8 +37,6 @@ function collectConfigLeafPaths(config: ResolvedConfig): string[] {
 // an allowlist entry. Only allowlist a path when the registry is genuinely
 // the wrong surface for it.
 const UNDOCUMENTED_LEAVES: ReadonlySet<string> = new Set([
-  'anilist.characterDictionary.evictionPolicy',
-  'anilist.characterDictionary.refreshTtlHours',
   'keybindings',
   'subtitleStyle.backdropFilter',
   'subtitleStyle.backgroundColor',

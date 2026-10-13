@@ -608,14 +608,6 @@ function getYomitanFrequencyRank(
     return null;
   }
 
-  const normalizedHeadword = token.headword.trim();
-  const normalizedSurface = token.surface.trim();
-  const isInflectedHeadwordFallback =
-    matchMode === 'headword' &&
-    normalizedCandidateText === normalizedHeadword &&
-    normalizedSurface.length > 0 &&
-    normalizedSurface !== normalizedHeadword;
-
   return selectBestYomitanFrequencyRank(candidateEntries);
 }
 

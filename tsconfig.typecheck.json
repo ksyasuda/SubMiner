@@ -3,6 +3,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true,
+    "noUnusedLocals": true,
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false

@@ -1,5 +1,4 @@
 import type { RuntimeOptionApplyResult, RuntimeOptionId } from '../../types';
-import type { SessionActionId } from '../../types/session-bindings';
 import type { SessionActionDispatchRequest } from '../../types/runtime';
 
 export interface SessionActionExecutorDeps {
