@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import test from 'node:test';
 import { DEFAULT_SUBTITLE_GENERATION_CONFIG } from '../../shared/subtitle-generation';
 import {
@@ -546,6 +547,7 @@ function jellyfinFixture(
 }
 
 test('a direct-play Jellyfin stream generates from its original file and shows by title', async () => {
+  let outputPath = '';
   const subject = jellyfinFixture(
     { transcoded: false, audioStreamIndex: 2 },
     {
@@ -554,23 +556,27 @@ test('a direct-play Jellyfin stream generates from its original file and shows b
           input.mediaPath,
           'https://jf.example/Videos/item/stream?static=true&ApiKey=secret',
         );
-        assert.match(
-          input.outputPath ?? '',
-          /^\/tmp\/generated\/jellyfin-\d+\.ja\.generated\.srt$/,
-        );
+        outputPath = input.outputPath ?? '';
+        assert.equal(path.dirname(outputPath), path.join('/tmp', 'generated'));
+        assert.match(path.basename(outputPath), /^jellyfin-\d+\.ja\.generated\.srt$/);
         assert.equal(input.audioStreamIndex, 0);
         assert.deepEqual(
           input.references?.map((reference) => reference.source.kind),
           ['embedded', 'external'],
         );
-        return input.outputPath ?? '';
+        return outputPath;
       },
     },
   );
   assert.equal((await subject.runtime.getStatus()).mediaPath, 'Jellyfin: Show S01E02');
   assert.equal((await subject.runtime.start()).ok, true);
-  assert.equal(subject.commands[0]?.[0], 'sub-add');
-  assert.match(String(subject.commands[0]?.[1]), /^\/tmp\/generated\/jellyfin-\d+/);
+  assert.deepEqual(subject.commands[0], [
+    'sub-add',
+    outputPath,
+    'select',
+    'Generated Japanese',
+    'ja',
+  ]);
 });
 
 test('a transcoded Jellyfin stream uses the Jellyfin audio index and only external references', async () => {
