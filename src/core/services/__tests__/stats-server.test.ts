@@ -1934,6 +1934,27 @@ describe('stats server API routes', () => {
     });
   });
 
+  it('POST /api/stats/mine-card widens halfwidth katakana from older stats lines', async () => {
+    await withMiningEnv({}, async (env) => {
+      const app = createStatsApp(createMockTracker(), {
+        addYomitanNote: async () => 777,
+        ankiConnectConfig: ankiConfig(env, { fields: { sentence: 'Sentence' } }),
+      });
+
+      const { status, body } = await mineCard(app, 'word', {
+        sourcePath: env.sourcePath,
+        sentence: 'ｱﾝﾀがｱｰﾀﾙたん？',
+        word: 'ｱﾝﾀ',
+      });
+
+      assert.equal(status, 200, JSON.stringify(body));
+      assert.equal(
+        sentNote(env.requests, 'updateNoteFields').fields.Sentence,
+        '<b>アンタ</b>がアータルたん？',
+      );
+    });
+  });
+
   it('POST /api/stats/mine-card leaves word card selection text to Yomitan glossary', async () => {
     await withMiningEnv({}, async (env) => {
       const app = createStatsApp(createMockTracker(), {
