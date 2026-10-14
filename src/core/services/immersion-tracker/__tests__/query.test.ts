@@ -3980,6 +3980,39 @@ test('getWordOccurrences widens halfwidth katakana in lines recorded before inge
   }
 });
 
+test('searchSubtitleSentences matches halfwidth and fullwidth katakana in either direction', () => {
+  const dbPath = makeDbPath();
+  const db = openTestDb(dbPath);
+
+  try {
+    ensureSchema(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/kamikatsu-s01e08.mkv', {
+      canonicalTitle: 'Episode 8',
+      sourcePath: '/tmp/KamiKatsu S01E08.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const { sessionId } = startSessionRecord(db, videoId, 1_000_000);
+    const insertLine = db.prepare(
+      `INSERT INTO imm_subtitle_lines (
+        session_id, event_id, video_id, anime_id, line_index, segment_start_ms, segment_end_ms, text, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    insertLine.run(sessionId, null, videoId, null, 1, 0, 1000, 'ｱﾝﾀがｱｰﾀﾙたん？', 1_000, 1_000);
+    insertLine.run(sessionId, null, videoId, null, 2, 1000, 2000, 'アンタ、ダキニ', 2_000, 2_000);
+
+    for (const query of ['アンタ', 'ｱﾝﾀ']) {
+      assert.deepEqual(
+        searchSubtitleSentences(db, query, 10).map((row) => row.text),
+        ['アンタ、ダキニ', 'アンタがアータルたん？'],
+      );
+    }
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('searchSubtitleSentences searches known subtitle lines and returns media context', () => {
   const dbPath = makeDbPath();
   const db = openTestDb(dbPath);

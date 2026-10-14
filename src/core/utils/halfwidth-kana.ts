@@ -26,3 +26,24 @@ export function widenHalfwidthKana(text: string): string {
     return (previous + widened[0]).normalize('NFC') + widened.slice(1);
   });
 }
+
+// Inverse of widenHalfwidthKana per character, derived from it so the two stay in sync.
+// Voiced pairs (ｶﾞ) are included because they widen to a single character (ガ).
+const HALFWIDTH_BY_FULLWIDTH = new Map<string, string>();
+for (let code = 0xff61; code <= 0xff9f; code += 1) {
+  const halfwidth = String.fromCharCode(code);
+  for (const form of [halfwidth, `${halfwidth}ﾞ`, `${halfwidth}ﾟ`]) {
+    const widened = widenHalfwidthKana(form);
+    if (widened.length === 1 && !HALFWIDTH_BY_FULLWIDTH.has(widened)) {
+      HALFWIDTH_BY_FULLWIDTH.set(widened, form);
+    }
+  }
+}
+
+/**
+ * Rewrites fullwidth katakana and punctuation to halfwidth forms (アンタ → ｱﾝﾀ). Used to
+ * search text stored before subtitle ingest widened it; display paths should widen instead.
+ */
+export function narrowFullwidthKana(text: string): string {
+  return Array.from(text, (char) => HALFWIDTH_BY_FULLWIDTH.get(char) ?? char).join('');
+}

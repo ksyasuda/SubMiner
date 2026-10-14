@@ -18,7 +18,7 @@ import type {
 } from './types';
 import { fromDbTimestamp, toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
-import { widenHalfwidthKana } from '../../utils/halfwidth-kana';
+import { narrowFullwidthKana, widenHalfwidthKana } from '../../utils/halfwidth-kana';
 import {
   areLexicalDailyRollupsReady,
   getLexicalDailyRollups,
@@ -480,6 +480,14 @@ export function searchSubtitleSentences(
   const params: string[] = [];
   for (const term of terms) {
     const likeTerm = `%${escapeLikeTerm(term)}%`;
+    // Lines recorded before ingest widening can hold halfwidth katakana, so subtitle
+    // text is matched against the term's widened and narrowed forms as well.
+    const widenedTerm = widenHalfwidthKana(term);
+    const textLikeTerms = uniqueNonEmptyTerms([
+      term,
+      widenedTerm,
+      narrowFullwidthKana(widenedTerm),
+    ]).map((variant) => `%${escapeLikeTerm(variant)}%`);
     const headwords = getHeadwordCandidatesForSentenceSearchTerm(term, options);
     const headwordClause =
       headwords.length > 0
@@ -495,13 +503,13 @@ export function searchSubtitleSentences(
         : '';
     clauses.push(`
       (
-        l.text LIKE ? ESCAPE '\\'
+        ${textLikeTerms.map(() => "l.text LIKE ? ESCAPE '\\'").join(' OR ')}
         OR v.canonical_title LIKE ? ESCAPE '\\'
         OR COALESCE(a.canonical_title, '') LIKE ? ESCAPE '\\'
         ${headwordClause}
       )
     `);
-    params.push(likeTerm, likeTerm, likeTerm, ...headwords);
+    params.push(...textLikeTerms, likeTerm, likeTerm, ...headwords);
   }
 
   const rows = db
