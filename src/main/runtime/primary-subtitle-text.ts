@@ -3,6 +3,7 @@ import {
   removeAssControlDebrisLines,
   removeLiveGlyphFragmentLines,
 } from '../../core/services/ass-text';
+import { widenHalfwidthKana } from '../../core/utils/halfwidth-kana';
 
 // Slack on top of each cue's recorded animation envelope, for time-pos observation
 // staleness and small user sub-delay offsets. The envelope itself covers how far
@@ -26,11 +27,14 @@ function cuesUseAssSyntax(cues: readonly SubtitleCue[] | null | undefined): bool
   );
 }
 
+// Live text also arrives from direct `sub-text` reads that bypass the mpv protocol
+// handler, so it is widened here too to match the parsed cues.
 function decodedLiveText(
   liveText: string,
   cues: readonly SubtitleCue[] | null | undefined,
 ): string {
-  return cuesUseAssSyntax(cues) ? removeAssControlDebrisLines(liveText) : liveText;
+  const text = widenHalfwidthKana(liveText);
+  return cuesUseAssSyntax(cues) ? removeAssControlDebrisLines(text) : text;
 }
 
 function animationSpan(cue: SubtitleCue): { start: number; end: number } {

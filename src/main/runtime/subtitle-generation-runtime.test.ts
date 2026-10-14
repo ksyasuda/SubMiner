@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import test from 'node:test';
 import { DEFAULT_SUBTITLE_GENERATION_CONFIG } from '../../shared/subtitle-generation';
 import {
   createSubtitleGenerationRuntime,
+  type SubtitleGenerationJellyfinMedia,
   type SubtitleGenerationRuntimeDeps,
 } from './subtitle-generation-runtime';
 
@@ -505,4 +507,102 @@ test('switching to another resolved YouTube stream cancels the modal job', async
   runtime.handleMediaPathChange(player.path);
 
   assert.deepEqual(await job, { ok: false, message: 'Cancelled.' });
+});
+
+function jellyfinFixture(
+  jellyfin: Omit<SubtitleGenerationJellyfinMedia, 'sourceUrl'>,
+  overrides: Partial<SubtitleGenerationRuntimeDeps> = {},
+) {
+  const playing = 'https://jf.example/Videos/item/master.m3u8?ApiKey=secret';
+  const subject = fixture({
+    resolveJellyfinMedia: (mediaPath) =>
+      mediaPath === playing
+        ? {
+            sourceUrl: 'https://jf.example/Videos/item/stream?static=true&ApiKey=secret',
+            ...jellyfin,
+          }
+        : null,
+    createStreamOutputDirectory: async () => '/tmp/generated',
+    ...overrides,
+  });
+  subject.client.requestProperty = async (name) =>
+    name === 'path'
+      ? playing
+      : name === 'media-title'
+        ? 'Show S01E02'
+        : name === 'track-list'
+          ? [
+              { type: 'audio', selected: true, 'ff-index': 0 },
+              { type: 'sub', lang: 'eng', title: 'English Full', 'ff-index': 4 },
+              {
+                type: 'sub',
+                lang: 'eng',
+                title: 'English',
+                external: true,
+                'external-filename': '/tmp/jellyfin-subs/track-5.srt',
+              },
+            ]
+          : null;
+  return subject;
+}
+
+test('a direct-play Jellyfin stream generates from its original file and shows by title', async () => {
+  let outputPath = '';
+  const subject = jellyfinFixture(
+    { transcoded: false, audioStreamIndex: 2 },
+    {
+      generate: async (input) => {
+        assert.equal(
+          input.mediaPath,
+          'https://jf.example/Videos/item/stream?static=true&ApiKey=secret',
+        );
+        outputPath = input.outputPath ?? '';
+        assert.equal(path.dirname(outputPath), path.join('/tmp', 'generated'));
+        assert.match(path.basename(outputPath), /^jellyfin-\d+\.ja\.generated\.srt$/);
+        assert.equal(input.audioStreamIndex, 0);
+        assert.deepEqual(
+          input.references?.map((reference) => reference.source.kind),
+          ['embedded', 'external'],
+        );
+        return outputPath;
+      },
+    },
+  );
+  assert.equal((await subject.runtime.getStatus()).mediaPath, 'Jellyfin: Show S01E02');
+  assert.equal((await subject.runtime.start()).ok, true);
+  assert.deepEqual(subject.commands[0], [
+    'sub-add',
+    outputPath,
+    'select',
+    'Generated Japanese',
+    'ja',
+  ]);
+});
+
+test('a transcoded Jellyfin stream uses the Jellyfin audio index and only external references', async () => {
+  const subject = jellyfinFixture(
+    { transcoded: true, audioStreamIndex: 2 },
+    {
+      generate: async (input) => {
+        assert.equal(input.audioStreamIndex, 2);
+        assert.deepEqual(
+          input.references?.map((reference) => reference.source.kind),
+          ['external'],
+        );
+        return '/tmp/generated/jellyfin.ja.generated.srt';
+      },
+    },
+  );
+  assert.equal((await subject.runtime.start()).ok, true);
+});
+
+test('unrecognized streams cannot generate', async () => {
+  const subject = jellyfinFixture(
+    { transcoded: false, audioStreamIndex: null },
+    { resolveJellyfinMedia: () => null },
+  );
+  assert.equal((await subject.runtime.getStatus()).mediaPath, null);
+  const result = await subject.runtime.start();
+  assert.equal(result.ok, false);
+  assert.match(result.message, /Jellyfin stream/);
 });

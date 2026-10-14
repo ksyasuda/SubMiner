@@ -1,3 +1,5 @@
+import { mkdir, readdir, rm } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { readSubtitleGenerationReferences } from '../../core/services/subtitle-generation-reference';
 import { detectSubtitleGenerationAcceleration } from '../../core/services/subtitle-generation-acceleration';
@@ -29,6 +31,22 @@ interface GenerationMpvClient {
   request: (command: unknown[]) => Promise<{ error?: string }>;
 }
 
+/** A Jellyfin stream playing in mpv, as subtitle generation reads it. */
+export interface SubtitleGenerationJellyfinMedia {
+  /** The item's original file. It carries the access token, so it never reaches status text. */
+  sourceUrl: string;
+  /**
+   * Transcoded playback has its own stream layout, so mpv's track indexes do not address the
+   * original file. Generation then uses Jellyfin's audio index and skips embedded references.
+   */
+  transcoded: boolean;
+  audioStreamIndex: number | null;
+}
+
+type GenerationMedia =
+  | { kind: 'local'; path: string }
+  | { kind: 'jellyfin'; path: string; jellyfin: SubtitleGenerationJellyfinMedia };
+
 export interface SubtitleGenerationRuntimeDeps {
   getConfig: () => SubtitleGenerationConfig;
   getModelDirectory: () => string;
@@ -56,11 +74,27 @@ export interface SubtitleGenerationRuntimeDeps {
    * resolved direct stream in mpv, so mpv's path alone does not identify the video.
    */
   resolveYoutubeSourceUrl?: (mediaPath: string) => string | null;
+  /** Identifies mpv's path as Jellyfin playback. Without it, streams cannot generate. */
+  resolveJellyfinMedia?: (mediaPath: string) => SubtitleGenerationJellyfinMedia | null;
+  /**
+   * Directory for subtitles of streamed media, which has no folder of its own. Called once per
+   * stream generation, so it may delete what an earlier run wrote there.
+   */
+  createStreamOutputDirectory?: () => Promise<string>;
 }
 
-async function currentLocalMedia(client: GenerationMpvClient | null): Promise<string | null> {
-  if (!client?.connected) return null;
-  const media = await client.requestProperty('path');
+// One reused folder keeps stream subtitles from piling up: each run deletes earlier files.
+// mpv has already parsed a loaded track, and a file still locked (Windows) waits for a later run.
+async function reuseStreamOutputDirectory(): Promise<string> {
+  const directory = path.join(homedir(), '.cache', 'subminer', 'generated-subs');
+  await mkdir(directory, { recursive: true });
+  for (const name of await readdir(directory))
+    await rm(path.join(directory, name), { recursive: true, force: true }).catch(() => undefined);
+  return directory;
+}
+
+// Resolves mpv's `path` value to an absolute local file, or null for URLs.
+async function localMediaPath(client: GenerationMpvClient, media: unknown): Promise<string | null> {
   if (typeof media !== 'string' || !media || /^[a-z][a-z\d+.-]*:\/\//i.test(media)) return null;
   if (path.isAbsolute(media)) return path.normalize(media);
   const directory = await client.requestProperty('working-directory');
@@ -139,6 +173,22 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
   function youtubeSource(mediaPath: string | null | undefined): string | null | undefined {
     return (mediaPath && deps.resolveYoutubeSourceUrl?.(mediaPath)) || mediaPath;
   }
+  async function currentMedia(client: GenerationMpvClient | null): Promise<GenerationMedia | null> {
+    if (!client?.connected) return null;
+    const media = await client.requestProperty('path');
+    if (typeof media === 'string' && /^https?:\/\//i.test(media)) {
+      const jellyfin = deps.resolveJellyfinMedia?.(media);
+      return jellyfin ? { kind: 'jellyfin', path: media, jellyfin } : null;
+    }
+    const local = await localMediaPath(client, media);
+    return local ? { kind: 'local', path: local } : null;
+  }
+  // Stream URLs carry access tokens, so Jellyfin media shows by title.
+  async function describeMedia(client: GenerationMpvClient, media: GenerationMedia) {
+    if (media.kind === 'local') return media.path;
+    const title = await client.requestProperty('media-title').catch(() => null);
+    return `Jellyfin: ${typeof title === 'string' && title.trim() ? title.trim() : 'current item'}`;
+  }
   async function currentYoutubeMedia(client: GenerationMpvClient | null): Promise<string | null> {
     if (!client?.connected) return null;
     const media = await client.requestProperty('path');
@@ -196,9 +246,10 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
       deps.getModelDirectory(),
     );
     const client = deps.getMpvClient();
+    const media = client ? await currentMedia(client).catch(() => null) : null;
     const mediaPath =
       youtubeJobUrl ??
-      (await currentLocalMedia(client).catch(() => null)) ??
+      (client && media ? await describeMedia(client, media) : null) ??
       (deps.generateYoutube ? await currentYoutubeMedia(client).catch(() => null) : null);
     return {
       model,
@@ -350,21 +401,33 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
         const youtubeUrl = deps.generateYoutube ? await currentYoutubeMedia(client) : null;
         if (client && youtubeUrl && deps.generateYoutube)
           return await startYoutube(client, youtubeUrl, config, signal, deps.generateYoutube);
-        const mediaPath = await currentLocalMedia(client);
-        if (!client || !mediaPath)
-          throw new Error('Open a local video or audio file, or a YouTube video, in mpv first.');
+        const media = await currentMedia(client);
+        if (!client || !media)
+          throw new Error(
+            'Open a local video or audio file, a Jellyfin stream, or a YouTube video in mpv first.',
+          );
         const tracks = await client.requestProperty('track-list');
-        const audioStreamIndex = selectedAudioIndex(tracks);
-        const references = await readSubtitleGenerationReferences(tracks, (name) =>
-          client.requestProperty(name),
-        );
-        if ((await currentLocalMedia(client)) !== mediaPath)
+        const transcoded = media.kind === 'jellyfin' && media.jellyfin.transcoded;
+        const audioStreamIndex = transcoded
+          ? (media.jellyfin.audioStreamIndex ?? undefined)
+          : selectedAudioIndex(tracks);
+        const references = (
+          await readSubtitleGenerationReferences(tracks, (name) => client.requestProperty(name))
+        ).filter((reference) => !transcoded || reference.source.kind === 'external');
+        if ((await currentMedia(client))?.path !== media.path)
           throw new Error('The current media changed. Start generation again.');
         signal.throwIfAborted();
         const outputPath = await (deps.generate ?? generateJapaneseSubtitles)({
           config,
           modelDirectory: deps.getModelDirectory(),
-          mediaPath,
+          mediaPath: media.kind === 'jellyfin' ? media.jellyfin.sourceUrl : media.path,
+          outputPath:
+            media.kind === 'jellyfin'
+              ? path.join(
+                  await (deps.createStreamOutputDirectory ?? reuseStreamOutputDirectory)(),
+                  `jellyfin-${Date.now()}.ja.generated.srt`,
+                )
+              : undefined,
           audioStreamIndex,
           references,
           onProgress: report,
@@ -372,8 +435,8 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
         });
         // Saving succeeds even if playback changes or disconnects during the job.
         try {
-          const playingMedia = await currentLocalMedia(client);
-          if (!signal.aborted && deps.getMpvClient() === client && playingMedia === mediaPath) {
+          const playingMedia = (await currentMedia(client))?.path;
+          if (!signal.aborted && deps.getMpvClient() === client && playingMedia === media.path) {
             await loadGeneratedSubtitles(client, outputPath);
             return {
               ok: true,

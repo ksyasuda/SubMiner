@@ -191,6 +191,7 @@ export async function requireSubtitleGenerationSetup(
 export async function generateJapaneseSubtitles(input: {
   config: SubtitleGenerationConfig;
   modelDirectory: string;
+  /** A local file, or an http(s) stream when `outputPath` is set. */
   mediaPath: string;
   audioStreamIndex?: number;
   references?: readonly SubtitleGenerationReference[];
@@ -201,10 +202,12 @@ export async function generateJapaneseSubtitles(input: {
   signal?: AbortSignal;
 }): Promise<string> {
   input.signal?.throwIfAborted();
-  if (/^[a-z][a-z\d+.-]*:\/\//i.test(input.mediaPath))
+  // HTTP streams are read by ffmpeg directly but have no directory to save beside.
+  const remote = /^https?:\/\//i.test(input.mediaPath);
+  if (remote ? !input.outputPath : /^[a-z][a-z\d+.-]*:\/\//i.test(input.mediaPath))
     throw new Error('Subtitle generation requires a local media file.');
-  const mediaPath = path.resolve(input.mediaPath);
-  if (!(await stat(mediaPath)).isFile())
+  const mediaPath = remote ? input.mediaPath : path.resolve(input.mediaPath);
+  if (!remote && !(await stat(mediaPath)).isFile())
     throw new Error('Subtitle generation requires a local media file.');
   if (input.outputPath) await ensureAvailableOutput(path.resolve(input.outputPath));
   await ensureWritableDirectory(

@@ -18,6 +18,7 @@ import type {
 } from './types';
 import { fromDbTimestamp, toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
+import { narrowFullwidthKana, widenHalfwidthKana } from '../../utils/halfwidth-kana';
 import {
   areLexicalDailyRollupsReady,
   getLexicalDailyRollups,
@@ -382,6 +383,13 @@ export function getKanjiStats(db: DatabaseSync, limit = 100): KanjiStatsRow[] {
   return stmt.all(limit) as KanjiStatsRow[];
 }
 
+// Lines recorded before subtitle text was widened at ingest can still hold halfwidth
+// katakana; widen them on the way out so the dashboard and cards mined from it match
+// newer rows. Display-only: word identity columns stay as stored since they are keys.
+function widenLineText<T extends { text: string }>(row: T): T {
+  return { ...row, text: widenHalfwidthKana(row.text) };
+}
+
 export function getWordOccurrences(
   db: DatabaseSync,
   headword: string,
@@ -390,7 +398,7 @@ export function getWordOccurrences(
   limit = 100,
   offset = 0,
 ): WordOccurrenceRow[] {
-  return db
+  const rows = db
     .prepare(
       `
         SELECT
@@ -418,6 +426,7 @@ export function getWordOccurrences(
       `,
     )
     .all(headword, word, reading, limit, offset) as unknown as WordOccurrenceRow[];
+  return rows.map(widenLineText);
 }
 
 export function getKanjiOccurrences(
@@ -426,7 +435,7 @@ export function getKanjiOccurrences(
   limit = 100,
   offset = 0,
 ): KanjiOccurrenceRow[] {
-  return db
+  const rows = db
     .prepare(
       `
         SELECT
@@ -454,6 +463,7 @@ export function getKanjiOccurrences(
       `,
     )
     .all(kanji, limit, offset) as unknown as KanjiOccurrenceRow[];
+  return rows.map(widenLineText);
 }
 
 export function searchSubtitleSentences(
@@ -470,6 +480,14 @@ export function searchSubtitleSentences(
   const params: string[] = [];
   for (const term of terms) {
     const likeTerm = `%${escapeLikeTerm(term)}%`;
+    // Lines recorded before ingest widening can hold halfwidth katakana, so subtitle
+    // text is matched against the term's widened and narrowed forms as well.
+    const widenedTerm = widenHalfwidthKana(term);
+    const textLikeTerms = uniqueNonEmptyTerms([
+      term,
+      widenedTerm,
+      narrowFullwidthKana(widenedTerm),
+    ]).map((variant) => `%${escapeLikeTerm(variant)}%`);
     const headwords = getHeadwordCandidatesForSentenceSearchTerm(term, options);
     const headwordClause =
       headwords.length > 0
@@ -485,16 +503,16 @@ export function searchSubtitleSentences(
         : '';
     clauses.push(`
       (
-        l.text LIKE ? ESCAPE '\\'
+        ${textLikeTerms.map(() => "l.text LIKE ? ESCAPE '\\'").join(' OR ')}
         OR v.canonical_title LIKE ? ESCAPE '\\'
         OR COALESCE(a.canonical_title, '') LIKE ? ESCAPE '\\'
         ${headwordClause}
       )
     `);
-    params.push(likeTerm, likeTerm, likeTerm, ...headwords);
+    params.push(...textLikeTerms, likeTerm, likeTerm, ...headwords);
   }
 
-  return db
+  const rows = db
     .prepare(
       `
         SELECT
@@ -518,6 +536,7 @@ export function searchSubtitleSentences(
       `,
     )
     .all(...params, resolvedLimit) as unknown as SentenceSearchResultRow[];
+  return rows.map(widenLineText);
 }
 
 export function getSessionEvents(

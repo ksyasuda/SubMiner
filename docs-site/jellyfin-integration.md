@@ -23,6 +23,8 @@ SubMiner starts mpv if it is not already running. Pause, seek, stop, and track c
 
 SubMiner selects a Japanese subtitle track automatically and resets mpv's subtitle delay to zero. It direct-plays files when it can and asks Jellyfin to transcode the rest.
 
+If an episode has no Japanese subtitles, you can [generate them with Whisper](/subtitle-generation#generating-from-the-overlay) while it plays.
+
 On Windows, casting finds mpv through `mpv.executablePath`, then `SUBMINER_MPV_PATH`, then `PATH`. An invalid `mpv.executablePath` stops mpv from starting.
 
 ## Playing from the terminal

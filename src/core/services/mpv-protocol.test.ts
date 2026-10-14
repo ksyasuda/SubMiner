@@ -131,6 +131,18 @@ test('dispatchMpvProtocolMessage emits subtitle text on property change', async 
   assert.deepEqual(state.events, [{ text: '字幕', isOverlayVisible: false }]);
 });
 
+test('dispatchMpvProtocolMessage widens halfwidth katakana in subtitle text', async () => {
+  const { deps, state } = createDeps();
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'sub-text', data: 'ｱﾝﾀがｱｰﾀﾙたん？' },
+    deps,
+  );
+
+  assert.equal(state.subText, 'アンタがアータルたん？');
+  assert.deepEqual(state.events, [{ text: 'アンタがアータルたん？', isOverlayVisible: false }]);
+});
+
 test('dispatchMpvProtocolMessage emits subtitle track changes', async () => {
   const { deps, state } = createDeps({
     emitSubtitleTrackChange: (payload) => state.events.push(payload),

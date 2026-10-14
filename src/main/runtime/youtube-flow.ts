@@ -21,6 +21,7 @@ import {
 } from '../../core/services/youtube/generate';
 import { resolveSubtitleSourcePath } from './subtitle-prefetch-source';
 import { extractYoutubeVideoId } from './youtube-playback';
+import { widenHalfwidthKana } from '../../core/utils/halfwidth-kana';
 
 type YoutubeFlowOpenPicker = (payload: YoutubePickerOpenPayload) => Promise<boolean>;
 
@@ -457,7 +458,7 @@ async function injectDownloadedSubtitles(
 
   const currentSubText = await deps.requestMpvProperty('sub-text').catch(() => null);
   if (typeof currentSubText === 'string' && currentSubText.trim().length > 0) {
-    deps.refreshCurrentSubtitle(currentSubText);
+    deps.refreshCurrentSubtitle(widenHalfwidthKana(currentSubText));
   }
 
   deps.showMpvOsd(secondaryTrack ? 'Primary and secondary subtitles loaded.' : 'Subtitles loaded.');

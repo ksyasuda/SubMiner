@@ -3,6 +3,11 @@ import { expandSubtitleGenerationPath } from './subtitle-generation-files';
 
 const OUTPUT_LIMIT = 64 * 1024;
 
+// ffmpeg echoes input URLs in its errors; streamed media carries access tokens in the query.
+function redactUrlCredentials(text: string): string {
+  return text.replace(/([?&](?:api_?key|token|access_token)=)[^&#\s'"]+/gi, '$1<redacted>');
+}
+
 // Keep partial lines between chunks: ffmpeg and whisper both report progress on stderr.
 export function runSubtitleGenerationProcess(input: {
   command: string;
@@ -63,7 +68,11 @@ export function runSubtitleGenerationProcess(input: {
       cleanup();
       if (input.signal?.aborted) reject(new Error('Subtitle generation cancelled.'));
       else if (code !== 0) {
-        reject(new Error(`${input.command} exited with status ${code}: ${stderr.trim()}`));
+        reject(
+          new Error(
+            `${input.command} exited with status ${code}: ${redactUrlCredentials(stderr.trim())}`,
+          ),
+        );
       } else resolve(stdout);
     });
   });

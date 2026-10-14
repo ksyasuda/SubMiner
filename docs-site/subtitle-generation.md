@@ -16,7 +16,7 @@ The modal's **Local tools** section lists anything missing. After you install a 
 
 ## Generating from the overlay
 
-1. Open a local video in mpv and select its Japanese audio track, or play a YouTube video.
+1. Open a local video in mpv and select its Japanese audio track, or play a Jellyfin or YouTube video.
 2. Press `Ctrl+Shift+G`. If the subtitle sidebar is empty, its **Generate Japanese subtitles** button opens the same modal.
 3. Pick a model and download it if needed.
 4. Optionally check **Focus on spoken dialogue** (see below).
@@ -25,6 +25,8 @@ The modal's **Local tools** section lists anything missing. After you install a 
 The modal shows progress. **Cancel** stops the job. Closing the modal lets the job keep running, and reopening it shows the progress.
 
 SubMiner saves `<video>.ja.generated.srt` next to the video and adds a number if that name is taken. If the same file is still playing, it loads the subtitles and resets the subtitle delay.
+
+For a Jellyfin video, SubMiner reads the original file from your server and saves the subtitles to `~/.cache/subminer/generated-subs/`, since a stream has no folder of its own. Each Jellyfin generation replaces the previous file there. Playback keeps going while it works. If Jellyfin is transcoding, SubMiner transcribes the audio track that playback started with.
 
 For a YouTube video, SubMiner downloads its audio first and pauses the video until the subtitles load. The subtitles are temporary, and the audio is deleted when generation ends or you switch videos. See [YouTube integration](/youtube-integration#generate-subtitles-with-whisper).
 
@@ -46,7 +48,7 @@ subminer generate-subs episode.mkv --model-path /path/to/ggml-small.bin
 | `--audio-stream <index>` | Pick an audio stream by its absolute FFmpeg index             |
 | `--output <path>`        | Write to this SRT path. Existing files are never overwritten. |
 
-With a file argument, SubMiner uses the audio stream tagged Japanese, or the first stream. `Ctrl+C` cancels.
+With a file argument, SubMiner uses the audio stream tagged Japanese, or the first stream. `Ctrl+C` cancels. The launcher only works with local files. Use the overlay for Jellyfin and YouTube.
 
 ## Choosing a model
 

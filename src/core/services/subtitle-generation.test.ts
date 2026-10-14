@@ -378,7 +378,22 @@ test('empty executable paths find tools on PATH and explicit overrides take prec
     }
   }));
 
-test('generation rejects remote media, missing models, and missing tools before starting a subprocess', () =>
+test('generation reads an HTTP stream as-is and saves to the requested output', () =>
+  fixture(async (directory) => {
+    const input = await generationFixture(directory);
+    const mediaPath = 'https://jellyfin.example/Videos/item/stream?static=true&ApiKey=secret';
+    const outputPath = path.join(directory, 'out', 'stream.ja.srt');
+    await mkdir(path.dirname(outputPath));
+    assert.equal(await generateJapaneseSubtitles({ ...input, mediaPath, outputPath }), outputPath);
+    const calls: string[][] = (await readFile(input.callsPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    assert.equal(calls[0]?.at(-1), mediaPath);
+    assert.equal(calls[1]?.[calls[1].indexOf('-i') + 1], mediaPath);
+  }));
+
+test('generation rejects remote media without an output path, missing models, and missing tools before starting a subprocess', () =>
   fixture(async (directory) => {
     const input = await generationFixture(directory);
     await assert.rejects(
@@ -472,6 +487,17 @@ test('process cancellation terminates work and bounds diagnostic output', () =>
         error instanceof Error &&
         error.message.length < 66000 &&
         error.message.includes('status 7'),
+    );
+    const unauthorized = await executable(
+      directory,
+      'unauthorized',
+      "process.stderr.write('https://host/Videos/1/stream?ApiKey=se+cr/et==&static=true: Server returned 401');process.exitCode=1;",
+    );
+    await assert.rejects(
+      runSubtitleGenerationProcess({ command: unauthorized, args: [] }),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.message.includes('?ApiKey=<redacted>&static=true: Server returned 401'),
     );
   }));
 

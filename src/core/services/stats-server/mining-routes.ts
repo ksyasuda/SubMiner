@@ -8,6 +8,7 @@ import { clampMediaEndTime } from '../../../anki-integration/media-duration.js';
 import { MediaGenerator } from '../../../media-generator.js';
 import { statsJson } from '../../../types/stats-http-contract.js';
 import { STATS_MINING_TAG } from '../../../shared/anki-source.js';
+import { widenHalfwidthKana } from '../../utils/halfwidth-kana.js';
 import {
   resolveRetimedSecondarySubtitleTextFromSidecar,
   resolveSecondarySubtitleTextFromSidecar,
@@ -36,8 +37,11 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
     const sourcePath = typeof body?.sourcePath === 'string' ? body.sourcePath.trim() : '';
     const startMs = typeof body?.startMs === 'number' ? body.startMs : NaN;
     const endMs = typeof body?.endMs === 'number' ? body.endMs : NaN;
-    const sentence = typeof body?.sentence === 'string' ? body.sentence.trim() : '';
-    const word = typeof body?.word === 'string' ? body.word.trim() : '';
+    // Older stats rows can carry halfwidth katakana; cards get the fullwidth form that
+    // live mining produces, and the word is widened alongside so highlighting still hits.
+    const sentence =
+      typeof body?.sentence === 'string' ? widenHalfwidthKana(body.sentence.trim()) : '';
+    const word = typeof body?.word === 'string' ? widenHalfwidthKana(body.word.trim()) : '';
     const bodySecondaryText =
       typeof body?.secondaryText === 'string' ? body.secondaryText.trim() : '';
     const videoTitle = typeof body?.videoTitle === 'string' ? body.videoTitle.trim() : '';

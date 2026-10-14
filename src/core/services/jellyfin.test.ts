@@ -7,6 +7,7 @@ import {
   listSubtitleTracks,
   resolvePlaybackPlan,
   ticksToSeconds,
+  toJellyfinOriginalStreamUrl,
 } from './jellyfin';
 
 const clientInfo = {
@@ -861,4 +862,27 @@ test('resolvePlaybackPlan replaces a legacy api_key on the server transcoding ur
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('toJellyfinOriginalStreamUrl maps direct and transcoded playback to the original file', () => {
+  assert.equal(
+    toJellyfinOriginalStreamUrl(
+      'https://media.example/jf/videos/item-1/master.m3u8?ApiKey=token&MediaSourceId=src&VideoCodec=h264&StartTimeTicks=9',
+      'item-1',
+    ),
+    'https://media.example/jf/Videos/item-1/stream?static=true&ApiKey=token&MediaSourceId=src',
+  );
+  assert.equal(
+    toJellyfinOriginalStreamUrl(
+      'http://jf.local:8096/Videos/item-1/stream?static=true&api_key=legacy&AudioStreamIndex=2',
+      'item-1',
+    ),
+    'http://jf.local:8096/Videos/item-1/stream?static=true&ApiKey=legacy',
+  );
+  assert.equal(
+    toJellyfinOriginalStreamUrl('https://jf/Videos/other/stream?ApiKey=token', 'item-1'),
+    null,
+  );
+  assert.equal(toJellyfinOriginalStreamUrl('https://jf/Videos/item-1/stream', 'item-1'), null);
+  assert.equal(toJellyfinOriginalStreamUrl('/media/item-1.mkv', 'item-1'), null);
 });

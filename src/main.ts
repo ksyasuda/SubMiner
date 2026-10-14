@@ -319,6 +319,7 @@ import {
   replayCurrentSubtitleRuntime,
   resolveSanitizedSubtitleSeekCommand,
   resolveJellyfinPlaybackPlanRuntime,
+  toJellyfinOriginalStreamUrl,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   clearYomitanParserCachesForWindow,
@@ -6924,6 +6925,17 @@ const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
     }),
   resolveYoutubeSourceUrl: (mediaPath) =>
     youtubePlaybackRuntime.getYoutubeSourceUrlForStream(mediaPath),
+  resolveJellyfinMedia: (mediaPath) => {
+    const playback = activeJellyfinRemotePlayback;
+    const sourceUrl = playback && toJellyfinOriginalStreamUrl(mediaPath, playback.itemId);
+    return sourceUrl
+      ? {
+          sourceUrl,
+          transcoded: playback.playMethod === 'Transcode',
+          audioStreamIndex: playback.audioStreamIndex ?? null,
+        }
+      : null;
+  },
   getMpvClient: () => appState.mpvClient,
   onProgress: (progress) => {
     for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {

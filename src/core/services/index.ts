@@ -130,6 +130,7 @@ export {
   listSubtitleTracks as listJellyfinSubtitleTracksRuntime,
   resolvePlaybackPlan as resolveJellyfinPlaybackPlanRuntime,
   ticksToSeconds as jellyfinTicksToSecondsRuntime,
+  toJellyfinOriginalStreamUrl,
 } from './jellyfin';
 export { JellyfinRemoteSessionService } from './jellyfin-remote';
 export {
