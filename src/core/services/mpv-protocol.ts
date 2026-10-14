@@ -1,5 +1,6 @@
 import { MpvSubtitleRenderMetrics } from '../../types';
 import { sanitizeMediaTitle } from '../../shared/media-identity';
+import { widenHalfwidthKana } from '../utils/halfwidth-kana';
 
 export type MpvMessage = {
   event?: string;
@@ -244,7 +245,7 @@ export async function dispatchMpvProtocolMessage(
 ): Promise<void> {
   if (msg.event === 'property-change') {
     if (msg.name === 'sub-text') {
-      const nextSubText = (msg.data as string) || '';
+      const nextSubText = widenHalfwidthKana((msg.data as string) || '');
       const overlayVisible = deps.isVisibleOverlayVisible();
       deps.emitSubtitleChange({
         text: nextSubText,
@@ -458,7 +459,7 @@ export async function dispatchMpvProtocolMessage(
         }>,
       );
     } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT) {
-      const nextSubText = (msg.data as string) || '';
+      const nextSubText = widenHalfwidthKana((msg.data as string) || '');
       deps.setCurrentSubText(nextSubText);
       deps.emitSubtitleChange({
         text: nextSubText,

@@ -9,6 +9,7 @@ import {
   type AssOverrideCommand,
 } from './ass-text';
 import { hasAssAnimationEvidence, mergeDuplicateCues } from './subtitle-cue-dedup';
+import { widenHalfwidthKana } from '../utils/halfwidth-kana';
 
 /** Vertical third of the screen a cue is authored to occupy. */
 export type AssVerticalBand = 'top' | 'middle' | 'bottom';
@@ -141,7 +142,8 @@ function toPublicCues(cues: AnnotatedSubtitleCue[]): SubtitleCue[] {
       const common = {
         startTime,
         endTime,
-        text,
+        // Widened only on the way out: fragment reconstruction above works per glyph.
+        text: widenHalfwidthKana(text),
       };
       if (source === 'reconstructed-ass') {
         return attachAssMetadata(
