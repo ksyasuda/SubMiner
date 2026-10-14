@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AnkiConnectConfig, ResolvedConfig } from '../../types';
-import { createYomitanAnkiServerSyncRuntime } from './yomitan-anki-server-sync';
+import {
+  buildYomitanAnkiSettingsKey,
+  createYomitanAnkiServerSyncRuntime,
+} from './yomitan-anki-server-sync';
+import { buildHachidoriAnkiHints } from '../../core/services/tokenizer/hachidori-anki-settings';
 
 type SyncCall = { url: string; forceOverride: boolean; deck: string };
 
@@ -63,4 +67,16 @@ test('retries the same settings after a failed sync', async () => {
   await harness.sync();
   await harness.sync();
   assert.equal(harness.calls.length, 2);
+});
+
+test('settings sync key changes when fields or tags change', () => {
+  const key = (word: string, tags: string[]) =>
+    buildYomitanAnkiSettingsKey({
+      targetUrl: 'http://127.0.0.1:8766',
+      targetDeck: 'Mining',
+      forceOverride: true,
+      hachidoriHints: buildHachidoriAnkiHints({ fields: { word }, tags }),
+    });
+  assert.notEqual(key('Word', ['SubMiner']), key('Expression', ['SubMiner']));
+  assert.notEqual(key('Word', ['SubMiner']), key('Word', ['Japanese']));
 });

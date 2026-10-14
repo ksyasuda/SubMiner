@@ -12,8 +12,7 @@ import {
   hasSubtitleSidebarSelection,
 } from './subtitle-sidebar-selection.js';
 import {
-  YOMITAN_POPUP_HIDDEN_EVENT,
-  YOMITAN_POPUP_SHOWN_EVENT,
+  registerDictionaryPopupVisibilityListener,
   isYomitanPopupVisible,
 } from '../yomitan-popup.js';
 
@@ -850,12 +849,18 @@ export function createSubtitleSidebarModal(
       syncEmbeddedSidebarLayout();
     };
     window.addEventListener('resize', resizeHandler);
-    window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, handleYomitanPopupShown);
-    window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, handleYomitanPopupHidden);
+    const disposeShown = registerDictionaryPopupVisibilityListener(
+      'shown',
+      handleYomitanPopupShown,
+    );
+    const disposeHidden = registerDictionaryPopupVisibilityListener(
+      'hidden',
+      handleYomitanPopupHidden,
+    );
     disposeDomEvents = () => {
       window.removeEventListener('resize', resizeHandler);
-      window.removeEventListener(YOMITAN_POPUP_SHOWN_EVENT, handleYomitanPopupShown);
-      window.removeEventListener(YOMITAN_POPUP_HIDDEN_EVENT, handleYomitanPopupHidden);
+      disposeShown();
+      disposeHidden();
       disposeDomEvents = null;
     };
   }

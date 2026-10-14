@@ -4,7 +4,7 @@
 
 # SubMiner
 
-Look up words with Yomitan, mine them to Anki, and track your immersion without leaving mpv
+Look up words with Yomitan or Hachidori, mine them to Anki, and track your immersion without leaving mpv
 
 [Installation](#quick-start) · [Requirements](#requirements) · [Usage](https://docs.subminer.moe/usage) · [Documentation](https://docs.subminer.moe)
 
@@ -24,6 +24,8 @@ Look up words with Yomitan, mine them to Anki, and track your immersion without 
 ### Dictionary Lookups
 
 Hover over any word in the subtitles to open the full Yomitan popup with definitions, pitch accent, and frequency data. SubMiner bundles its own Yomitan, separate from any browser install.
+
+Yomitan remains the default. Select the bundled Hachidori backend with `dictionaryBackend: "hachidori"` and restart SubMiner. The tray opens the selected backend's settings. See [dictionary setup](https://docs.subminer.moe/usage#hachidori-setup) for importing dictionaries, linking an external Hachidori host, and configuring Anki.
 
 <div align="center">
   <img src="docs-site/public/screenshots/yomitan-lookup.png" width="800" alt="Yomitan dictionary popup over annotated subtitles in mpv">
@@ -265,7 +267,8 @@ SubMiner builds on the work of these open-source projects:
 | [jellyfin-mpv-shim](https://github.com/jellyfin/jellyfin-mpv-shim)                          | Jellyfin integration                                                    |
 | [Jimaku.cc](https://jimaku.cc)                                                              | Japanese subtitle search and downloads                                  |
 | [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui)                        | Base for the WebSocket texthooker integration                           |
-| [Yomitan](https://github.com/yomidevs/yomitan)                                              | Dictionary engine powering all lookups and the morphological parser     |
+| [Yomitan](https://github.com/yomidevs/yomitan)                                              | Default dictionary engine and morphological parser                     |
+| [Hachidori](https://github.com/bee-san/hachidori)                                           | Alternative dictionary backend, powered by HoshiDicts                   |
 | [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab)                       | JLPT level tags for vocabulary                                          |
 
 ## License

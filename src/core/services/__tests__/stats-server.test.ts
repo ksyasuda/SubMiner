@@ -1831,6 +1831,7 @@ describe('stats server API routes', () => {
         });
 
         assert.equal(status, 200, JSON.stringify(body));
+        assert.deepEqual(sentNote(env.requests, 'addNote').tags, ['SubMiner', 'SubMiner::Stats']);
         assert.match(
           sentNote(env.requests, 'updateNoteFields').fields.Picture ?? '',
           /^<img src="subminer_image_\d+_12345\.jpg">$/,

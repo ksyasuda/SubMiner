@@ -179,6 +179,45 @@ const konosuba = { mediaId: 21202, label: '21202 - KonoSuba', title: 'KonoSuba' 
 const towerOfGod = { mediaId: 115230, label: '115230 - Tower of God', title: 'Tower of God' };
 const eminence = { mediaId: 130298, label: '130298 - Eminence', title: 'Eminence' };
 
+test('replacement-capable imports retain the installed dictionary when an update fails', async () => {
+  for (const succeeds of [true, false]) {
+    let imported = false;
+    const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+      userDataPath: makeTempDir(),
+      getConfig: () => ({ enabled: true, maxLoaded: 3, profileScope: 'all' }),
+      getOrCreateCurrentSnapshot: async () => ({
+        mediaId: 7,
+        mediaTitle: 'Frieren',
+        entryCount: 100,
+        fromCache: true,
+        updatedAt: 1000,
+      }),
+      buildMergedDictionary: async () => ({
+        zipPath: '/tmp/replacement.zip',
+        revision: 'new',
+        dictionaryTitle: 'SubMiner Character Dictionary',
+        entryCount: 100,
+      }),
+      getYomitanDictionaryInfo: async () => [
+        { title: 'SubMiner Character Dictionary', revision: 'old' },
+      ],
+      dictionaryImportReplacesExisting: () => true,
+      importYomitanDictionary: async () => {
+        imported = true;
+        return succeeds;
+      },
+      deleteYomitanDictionary: async () => {
+        assert.fail('must keep the old dictionary until replacement succeeds');
+      },
+      upsertYomitanDictionarySettings: async () => true,
+      now: () => 1000,
+    });
+    if (succeeds) await runtime.runSyncNow();
+    else await assert.rejects(runtime.runSyncNow(), /Failed to import dictionary ZIP/);
+    assert.equal(imported, true);
+  }
+});
+
 test('character dictionary manager snapshots, reorders, and removes MRU entries', () => {
   const userDataPath = makeTempDir();
   writeState(userDataPath, {

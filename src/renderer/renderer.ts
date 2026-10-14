@@ -61,7 +61,7 @@ import { createOverlayNotificationHistoryPanel } from './overlay-notification-hi
 import { createRendererState } from './state.js';
 import { createModalRegistry, type ModalDescriptor } from './modal-registry.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
-import { isYomitanPopupVisible, registerYomitanLookupListener } from './yomitan-popup.js';
+import { isLookupPopupOpen, registerYomitanLookupListener } from './yomitan-popup.js';
 import {
   createRendererRecoveryController,
   registerRendererGlobalErrorHandlers,
@@ -457,7 +457,7 @@ function startControllerPolling(): void {
         profiles: {},
       },
     getKeyboardModeEnabled: () => ctx.state.keyboardDrivenModeEnabled,
-    getLookupWindowOpen: () => ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document),
+    getLookupWindowOpen: () => isLookupPopupOpen(ctx.state, document),
     getInteractionBlocked: () => isControllerInputBlocked(),
     toggleKeyboardMode: () => keyboardHandlers.handleKeyboardModeToggleRequested(),
     toggleLookup: () => keyboardHandlers.handleLookupWindowToggleRequested(),

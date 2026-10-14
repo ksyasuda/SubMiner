@@ -7,6 +7,12 @@ export interface SubtitlePrefetchServiceDeps {
   tokenizeSubtitle: (text: string) => Promise<SubtitleData | null>;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
   hasCachedTokenization?: (text: string) => boolean;
+  /**
+   * Bumped whenever the tokenization cache is invalidated. A result is cached only if
+   * the generation is unchanged since its tokenization began; without this dep every
+   * result counts as fresh.
+   */
+  getCacheGeneration?: () => number;
   priorityWindowSize?: number;
 }
 
@@ -88,9 +94,12 @@ export function createSubtitlePrefetchService(
       }
       warmedKeys.add(cacheKey);
 
+      // Freshness follows the cache generation, not the run: a seek or restart that
+      // supersedes this run leaves the result valid, and the parser time is already spent.
+      const generation = deps.getCacheGeneration?.();
       try {
         const result = await deps.tokenizeSubtitle(cue.text);
-        if (result && !stopped && runId === currentRunId) {
+        if (result && generation === deps.getCacheGeneration?.()) {
           deps.preCacheTokenization(cue.text, result);
         }
       } catch {
