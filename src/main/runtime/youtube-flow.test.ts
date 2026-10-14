@@ -256,6 +256,18 @@ test('youtube flow announces manual picker opening before probing tracks', async
   assertNoProblems(harness);
 });
 
+test('youtube flow widens halfwidth katakana in the refreshed subtitle', async () => {
+  const harness = createFlowHarness({
+    mpv: { subText: 'ｱﾝﾀがｱｰﾀﾙたん？' },
+    probeTracks: [primaryTrack],
+    pick: { primaryTrackId: primaryTrack.id, secondaryTrackId: null },
+  });
+
+  await harness.runtime.openManualPicker({ url: 'https://example.com' });
+
+  assert.deepEqual(harness.refreshedSubtitles, ['アンタがアータルたん？']);
+});
+
 test('youtube flow can open a manual picker session and load the selected subtitles', async () => {
   const harness = createFlowHarness({
     probeTracks: [primaryTrack, secondaryTrack],

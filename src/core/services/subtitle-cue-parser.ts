@@ -105,7 +105,7 @@ function decodeSubtitleCueText(text: string): string {
 }
 
 function sanitizeSubtitleCueText(text: string): string {
-  return decodeSubtitleCueText(text).trim();
+  return widenHalfwidthKana(decodeSubtitleCueText(text)).trim();
 }
 
 function sanitizeAssCueText(text: string): string {
@@ -142,8 +142,7 @@ function toPublicCues(cues: AnnotatedSubtitleCue[]): SubtitleCue[] {
       const common = {
         startTime,
         endTime,
-        // Widened only on the way out: fragment reconstruction above works per glyph.
-        text: widenHalfwidthKana(text),
+        text,
       };
       if (source === 'reconstructed-ass') {
         return attachAssMetadata(
@@ -2657,10 +2656,16 @@ function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
     removeAssFontTextureEvents(parseAnnotatedAssEvents(content, placement)),
     placement.playResY,
   );
-  return mergeAssCaptionRows(
+  const cues = mergeAssCaptionRows(
     recoverFragmentOnlyAssLines(recoverCanonicalAssEvents(events)),
     placement.playResY,
   );
+  // Widened after reconstruction, which works glyph by glyph, but before duplicate
+  // merging, so ｶﾞｸ and ガク authored for the same span collapse into one cue.
+  for (const cue of cues) {
+    cue.text = widenHalfwidthKana(cue.text);
+  }
+  return cues;
 }
 
 export function parseAssCues(content: string): SubtitleCue[] {

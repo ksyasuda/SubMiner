@@ -12,3 +12,8 @@ test('widenHalfwidthKana widens halfwidth katakana and composes voiced marks', (
 test('widenHalfwidthKana leaves other compatibility characters alone', () => {
   assert.equal(widenHalfwidthKana('見て見てっ！①㍑ＡＢ'), '見て見てっ！①㍑ＡＢ');
 });
+
+test('widenHalfwidthKana folds a lone halfwidth voiced mark into the kana before it', () => {
+  assert.equal(widenHalfwidthKana('山カﾞク ハﾟン'), '山ガク パン');
+  assert.equal(widenHalfwidthKana('アﾞ'), 'ア\u3099');
+});

@@ -1,6 +1,9 @@
 // No `u` flag: the range is entirely BMP so it changes nothing here, and
 // Bun's unicode-mode matcher mis-handles this class next to certain ligatures.
-const HALFWIDTH_KANA_RUN = /[｡-ﾟ]+/g;
+// The optional leading character is captured so a run opening with a voiced
+// mark (カﾞ) can fold the mark into the fullwidth kana before it.
+const HALFWIDTH_KANA_RUN = /([^｡-ﾟ]?)([｡-ﾟ]+)/g;
+const LEADING_COMBINING_VOICED_MARK = /^[゙゚]/;
 
 /**
  * Rewrites halfwidth katakana and its punctuation (ｱﾝﾀ, ﾀﾞｷﾆ, ｡｢｣､･) to the fullwidth
@@ -13,5 +16,13 @@ const HALFWIDTH_KANA_RUN = /[｡-ﾟ]+/g;
  * unrelated text (① → 1, ！ → !, ㍑ → リットル).
  */
 export function widenHalfwidthKana(text: string): string {
-  return text.replace(HALFWIDTH_KANA_RUN, (run) => run.normalize('NFKC'));
+  return text.replace(HALFWIDTH_KANA_RUN, (_match, previous: string, run: string) => {
+    const widened = run.normalize('NFKC');
+    if (!previous || !LEADING_COMBINING_VOICED_MARK.test(widened)) {
+      return previous + widened;
+    }
+    // A lone ﾞ widens to a combining mark; NFC composes it with the kana before it
+    // (カ + ゛ → ガ) and leaves pairs that have no composed form untouched.
+    return (previous + widened[0]).normalize('NFC') + widened.slice(1);
+  });
 }

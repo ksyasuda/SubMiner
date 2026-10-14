@@ -64,6 +64,27 @@ test('parseSubtitleCues widens halfwidth katakana in cue text', () => {
   assert.equal(cues[0]?.text, '(トーカ)ダキニお姉ちゃん');
 });
 
+test('parseSubtitleCues merges cues that differ only in halfwidth katakana', () => {
+  const cues = parseSubtitleCues(
+    [
+      '1',
+      '00:00:01,000 --> 00:00:02,000',
+      '山ｶﾞｸ',
+      '',
+      '2',
+      '00:00:01,000 --> 00:00:02,000',
+      '山ガク',
+      '',
+    ].join('\n'),
+    'ep.srt',
+  );
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['山ガク'],
+  );
+});
+
 test('parseSrtCues handles hours in timestamps', () => {
   const content = ['1', '01:30:00,000 --> 01:30:05,000', 'テスト', ''].join('\n');
 
