@@ -38,7 +38,6 @@ function lookupResult(matched: string, expression: string, reading: string, dict
 type UploadReply = Record<string, unknown>;
 // The parts of vendor/hachidori/extension/linked-import.js the harness drives.
 type LinkedImportModule = {
-  ENGINE_BUSY_CODE: string;
   createUploadHost(options: {
     store: {
       append(token: string, data: string): void;
@@ -85,7 +84,6 @@ async function createHarness(emptyLibrary = false) {
   let proxyUrl: unknown;
   let loadingStatusReplies = 0;
   let busyEngineReplies = 0;
-  let busyCommits = 0;
   const uploads: Array<{ fileName: string; replace: boolean; bytes: Buffer }> = [];
   const apiModule: unknown = await import(
     pathToFileURL(path.join(extensionPath, 'api-host.js')).href
@@ -108,10 +106,6 @@ async function createHarness(emptyLibrary = false) {
       token: string,
       { fileName, replace }: { fileName: string; replace: boolean },
     ) => {
-      if (busyCommits > 0) {
-        busyCommits -= 1;
-        return { ok: false, error: 'busy', errorCode: linkedImportModule.ENGINE_BUSY_CODE };
-      }
       uploads.push({ fileName, replace, bytes: Buffer.concat(uploadParts.get(token) ?? []) });
       return { ok: true, report: { success: true } };
     },
@@ -279,9 +273,6 @@ async function createHarness(emptyLibrary = false) {
     },
     setBusyEngineReplies: (count: number) => {
       busyEngineReplies = count;
-    },
-    setBusyCommits: (count: number) => {
-      busyCommits = count;
     },
     uploads: () => uploads,
   };
@@ -541,8 +532,6 @@ test('Hachidori mining requests render native dictionary aliases and frequency m
 
 test('Hachidori settings automation uploads ZIP bytes as a replacement and removes the matching dictionary ID', async () => {
   const harness = await createHarness();
-  // The engine is mid-change for the first commit; the same upload must still land once.
-  harness.setBusyCommits(1);
   await harness.run(
     "__subminerYomitanSettingsAutomation.importDictionaryArchiveBase64('UEstdGVzdA==', 'characters.zip')",
   );

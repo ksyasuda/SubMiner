@@ -209,20 +209,11 @@ export const HACHIDORI_PARSER_BRIDGE_SCRIPT = String.raw`
       void invoke(action, params).then(result => callback({ result }), error => callback({ error: { message: error.message } }));
     };
     // Archives go through Hachidori's upload requests: an unlinked install imports
-    // the ZIP itself and a linked one forwards it to its host. A busy engine keeps
-    // the upload open, so the same commit is sent again.
-    const sendUpload = async (type, fields) => {
-      const deadline = Date.now() + 300000;
-      for (;;) {
-        const reply = await chrome.runtime.sendMessage({
-          target: 'hachidori-linked-import', type, requestId: crypto.randomUUID(), ...fields,
-        });
-        if (type !== 'hd_import_commit' || reply?.errorCode !== 'engine-mutating' || Date.now() >= deadline) {
-          return reply;
-        }
-        await sleep(500);
-      }
-    };
+    // the ZIP itself and a linked one forwards it to its host. The engine queues
+    // an import behind any dictionary change already running.
+    const sendUpload = (type, fields) => chrome.runtime.sendMessage({
+      target: 'hachidori-linked-import', type, requestId: crypto.randomUUID(), ...fields,
+    });
     async function importArchive(blob, fileName) {
       await waitForEngineReady();
       const reply = await uploadDictionary({ blob, fileName, replace: true, send: sendUpload });
