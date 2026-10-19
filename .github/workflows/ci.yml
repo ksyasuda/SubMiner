@@ -78,6 +78,10 @@ jobs:
       - name: End-to-end suite
         run: bun run test:e2e
 
+      - name: Dictionary backend windows (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a bun run test:dictionary:electron
+
       - name: Upload session logs (on failure)
         if: failure()
         uses: actions/upload-artifact@v4

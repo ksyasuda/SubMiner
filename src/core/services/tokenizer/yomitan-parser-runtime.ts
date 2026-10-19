@@ -872,6 +872,9 @@ async function serveDictionaryZipOnce<T>(
     }
     return await callback(`http://127.0.0.1:${address.port}${requestPath}`);
   } finally {
+    // The extension's fetch keeps its socket open; close() alone would wait out
+    // Node's keep-alive timeout before the import reports completion.
+    server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }

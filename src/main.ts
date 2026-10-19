@@ -1,4 +1,3 @@
-import { requestHachidoriSharing } from './core/services/tokenizer/yomitan-parser-runtime';
 /*
   SubMiner - All-in-one sentence mining overlay
   Copyright (C) 2026 sudacode
@@ -38,6 +37,7 @@ import {
   createHachidoriExtensionRuntime,
   getHachidoriSession,
 } from './core/services/hachidori-extension';
+import { requestHachidoriSharing } from './core/services/tokenizer/yomitan-parser-runtime';
 import {
   DICTIONARY_EXTERNAL_LINK_CHANNEL,
   parseDictionaryExternalUrl,
