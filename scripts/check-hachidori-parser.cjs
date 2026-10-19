@@ -141,7 +141,7 @@ app
       );
       assert.equal(anki.model, 'Custom Japanese');
       assert.equal(anki.deck, 'Test Mining');
-      assert.deepEqual(anki.tags, ankiConfig.tags);
+      assert.deepEqual(anki.tags, [...ankiConfig.tags, 'hachidori']);
       assert.equal(anki.fieldTemplates.Term.value, '{expression}');
       assert.equal(anki.fieldTemplates.Pronunciation.value, '{audio}');
       assert.equal(anki.fieldTemplates.Context.value, '{sentence}');
