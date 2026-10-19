@@ -49,8 +49,10 @@ export const HACHIDORI_ANKI_SETTINGS_SCRIPT = String.raw`
         // SubMiner's new-card polling only watches its configured deck, so the
         // first template follows it like Yomitan's term card deck.
         if (deck) template.deck = deck;
+        // SubMiner's tags join Hachidori's own so cards show which backend mined
+        // them. Only the untouched default is filled; edits in Hachidori settings win.
         if (hints?.tags && JSON.stringify(first.tags) === JSON.stringify(['hachidori'])) {
-          template.tags = [...hints.tags];
+          template.tags = [...new Set([...hints.tags, 'hachidori'])];
         }
         let pending = false;
         // Advanced templates include intentionally blank fields. Preserve them

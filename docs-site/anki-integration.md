@@ -49,7 +49,7 @@ Clients must send notes to the proxy (`http://127.0.0.1:8766` here), not to Anki
 With the [Hachidori backend](/usage#hachidori-setup), SubMiner fills Hachidori's first Anki template from your `ankiConnect` settings on startup and whenever you open Hachidori Settings:
 
 - The deck always follows `ankiConnect.deck`, because polling only looks for new cards in that deck.
-- Configured tags go into untouched defaults.
+- While the template still has Hachidori's default `hachidori` tag, the configured tags are added ahead of it so cards carry both. Tags you edit in Hachidori settings are kept as written.
 - Missing word, sentence, pronunciation-audio, and picture mappings are filled with fields that exist in Anki. Pronunciation uses `fields.wordAudio`, or `fields.audio` when no word-audio field is set.
 - If the note type is unset, SubMiner picks the one note type that has your word and sentence fields. Enabled Lapis, Kiku, or Senren narrows the search. A fresh mapping also gets Hachidori's matching preset for readings, definitions, and other known fields.
 

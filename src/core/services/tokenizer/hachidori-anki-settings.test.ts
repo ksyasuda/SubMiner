@@ -83,7 +83,7 @@ test('fresh Hachidori settings inherit deck, tags, a unique model and configured
   assert.deepEqual(await h.sync(), { updated: true, matched: true, pending: false });
   assert.deepEqual(
     await h.run('[options.anki.url, options.anki.deck, options.anki.model, options.anki.tags]'),
-    ['http://127.0.0.1:8766', 'Mining', 'Japanese', config.tags],
+    ['http://127.0.0.1:8766', 'Mining', 'Japanese', [...config.tags, 'hachidori']],
   );
   assert.deepEqual(
     await h.run(
@@ -100,6 +100,16 @@ test('fresh Hachidori settings inherit deck, tags, a unique model and configured
   );
   await h.sync();
   assert.equal(await h.run('writes'), 1);
+});
+
+test('leaves tags edited in Hachidori settings alone', async () => {
+  const h = await harness({
+    templates: [
+      { id: 'default', name: 'Default', deck: 'Mining', model: 'Japanese', tags: ['SubMiner'] },
+    ],
+  });
+  await h.sync();
+  assert.deepEqual(await h.run('options.anki.tags'), ['SubMiner']);
 });
 
 // SubMiner's new-card polling only watches ankiConnect.deck, so the first
