@@ -2999,7 +2999,11 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   getMpvClient: () => appState.mpvClient,
   getCurrentMediaPath: () =>
     appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
-  getMpvExecutablePath: () => findMpvExecutablePath(configService.getConfig().mpv.executablePath),
+  // An invalid configured path is passed through so the preview fails instead of using PATH mpv.
+  getMpvExecutablePath: () => {
+    const configuredPath = configService.getConfig().mpv.executablePath;
+    return findMpvExecutablePath(configuredPath) || configuredPath;
+  },
   createPreviewSession: () => new MediaTimingPreviewSession(),
   generateWaveform: (options) => generateSpeechWaveform(options),
   generateFrame: (options) => mediaTimingFrameExtractor.generate(options),

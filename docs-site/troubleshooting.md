@@ -262,5 +262,5 @@ mpv --gpu-context=x11vk,x11egl,x11 video.mkv
 
 ## macOS
 
-- Accessibility permission is required for window tracking: System Settings > Privacy & Security > Accessibility. On macOS 27 this list is named **Device Control and Data Access**.
+- Grant Accessibility permission under System Settings > Privacy & Security > Accessibility (named **Device Control and Data Access** on macOS 27). Without it, SubMiner falls back to a basic window lookup that cannot tell when mpv is minimized.
 - If Gatekeeper blocks the app, right-click it and choose Open, or run `xattr -d com.apple.quarantine /path/to/SubMiner.app`.
