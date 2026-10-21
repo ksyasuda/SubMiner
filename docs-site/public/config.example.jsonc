@@ -734,10 +734,10 @@
   // autoStartSubMiner starts SubMiner in the background; auto_start_overlay only controls visible overlay display.
   // Set mpv.launchMode to choose normal, maximized, or fullscreen SubMiner-managed mpv playback.
   // Set mpv.profile to pass an mpv profile to managed mpv launches; leave it blank to pass none.
-  // Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.
+  // Leave mpv.executablePath blank to auto-discover mpv from SUBMINER_MPV_PATH, PATH, or (macOS) Homebrew and /Applications/mpv.app.
   // ==========================================
   "mpv": {
-    "executablePath": "", // Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.
+    "executablePath": "", // Optional absolute path to the mpv binary SubMiner starts itself (Windows launches, Jellyfin casting, timing preview). Leave empty to auto-discover from SUBMINER_MPV_PATH, PATH, and on macOS the Homebrew and /Applications/mpv.app locations.
     "launchMode": "normal", // Default window state for SubMiner-managed mpv launches. Values: normal | maximized | fullscreen
     "profile": "", // Optional mpv profile name passed to SubMiner-managed mpv launches. Leave empty to pass no profile.
     "socketPath": "/tmp/subminer-socket", // mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin.

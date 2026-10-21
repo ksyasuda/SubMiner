@@ -215,7 +215,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
       'autoStartSubMiner starts SubMiner in the background; auto_start_overlay only controls visible overlay display.',
       'Set mpv.launchMode to choose normal, maximized, or fullscreen SubMiner-managed mpv playback.',
       'Set mpv.profile to pass an mpv profile to managed mpv launches; leave it blank to pass none.',
-      'Leave mpv.executablePath blank to auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.',
+      'Leave mpv.executablePath blank to auto-discover mpv from SUBMINER_MPV_PATH, PATH, or (macOS) Homebrew and /Applications/mpv.app.',
     ],
     key: 'mpv',
   },

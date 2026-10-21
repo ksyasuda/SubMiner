@@ -199,7 +199,7 @@ The AppImage is all you need. First-run setup can install the optional `subminer
 
 Download the latest DMG from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest) and drag `SubMiner.app` into `/Applications`.
 
-Then enable SubMiner under **System Settings > Privacy & Security > Accessibility**, or the overlay cannot follow the mpv window. If macOS blocks the first launch, right-click the app and choose **Open**.
+Then enable SubMiner under **System Settings > Privacy & Security > Accessibility** (named **Device Control and Data Access** on macOS 27), or the overlay cannot follow the mpv window. If macOS blocks the first launch, right-click the app and choose **Open**.
 
 </details>
 

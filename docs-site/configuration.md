@@ -579,18 +579,18 @@ A local web dashboard at `http://127.0.0.1:<serverPort>`, also available as an o
 
 Settings for mpv instances that SubMiner starts, and for the bundled mpv plugin. See [mpv plugin](/mpv-plugin).
 
-| Key                          | Default           | What it does                                                                |
-| ---------------------------- | ----------------- | --------------------------------------------------------------------------- |
-| `mpv.executablePath`         | `""`              | Path to `mpv.exe` on Windows. Empty checks `SUBMINER_MPV_PATH`, then `PATH` |
-| `mpv.launchMode`             | `"normal"`        | Window state: `normal`, `maximized`, or `fullscreen`                        |
-| `mpv.profile`                | `""`              | mpv profile to pass. Combined with a launcher `--profile` if both are set   |
-| `mpv.socketPath`             | platform-specific | mpv IPC socket. See the warning under [Config file](#configuration-file)    |
-| `mpv.backend`                | `"auto"`          | Window tracking: `auto`, `hyprland`, `sway`, `x11`, `macos`, `windows`      |
-| `mpv.autoStartSubMiner`      | `true`            | Start SubMiner in the background when mpv loads a file                      |
-| `mpv.pauseUntilOverlayReady` | `true`            | Keep mpv paused until subtitles are ready, up to 30 seconds                 |
-| `mpv.subminerBinaryPath`     | `""`              | SubMiner app path for the plugin. Empty uses the detected path              |
-| `mpv.aniskipEnabled`         | `true`            | Detect intros with AniSkip and show a skip prompt                           |
-| `mpv.aniskipButtonKey`       | `"TAB"`           | mpv key that skips the intro while the prompt is shown                      |
+| Key                          | Default           | What it does                                                                                            |
+| ---------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `mpv.executablePath`         | `""`              | Full path to mpv. Empty auto-discovers it ([lookup order](/jellyfin-integration#casting-from-jellyfin)) |
+| `mpv.launchMode`             | `"normal"`        | Window state: `normal`, `maximized`, or `fullscreen`                                                    |
+| `mpv.profile`                | `""`              | mpv profile to pass. Combined with a launcher `--profile` if both are set                               |
+| `mpv.socketPath`             | platform-specific | mpv IPC socket. See the warning under [Config file](#configuration-file)                                |
+| `mpv.backend`                | `"auto"`          | Window tracking: `auto`, `hyprland`, `sway`, `x11`, `macos`, `windows`                                  |
+| `mpv.autoStartSubMiner`      | `true`            | Start SubMiner in the background when mpv loads a file                                                  |
+| `mpv.pauseUntilOverlayReady` | `true`            | Keep mpv paused until subtitles are ready, up to 30 seconds                                             |
+| `mpv.subminerBinaryPath`     | `""`              | SubMiner app path for the plugin. Empty uses the detected path                                          |
+| `mpv.aniskipEnabled`         | `true`            | Detect intros with AniSkip and show a skip prompt                                                       |
+| `mpv.aniskipButtonKey`       | `"TAB"`           | mpv key that skips the intro while the prompt is shown                                                  |
 
 ### YouTube playback settings
 
