@@ -392,7 +392,11 @@ import {
   getConfiguredWindowsMpvPathStatus,
   launchWindowsMpv,
 } from './main/runtime/windows-mpv-launch';
-import { resolveMpvExecutablePath, spawnMpvProcess } from './main/runtime/mpv-process';
+import {
+  findMpvExecutablePath,
+  resolveMpvExecutablePath,
+  spawnMpvProcess,
+} from './main/runtime/mpv-process';
 import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
 import {
   DEFAULT_JELLYFIN_CLIENT_NAME,
@@ -2995,8 +2999,11 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   getMpvClient: () => appState.mpvClient,
   getCurrentMediaPath: () =>
     appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
-  getMpvExecutablePath: () =>
-    configService.getConfig().mpv.executablePath || process.env.SUBMINER_MPV_PATH?.trim() || '',
+  // An invalid configured path is passed through so the preview fails instead of using PATH mpv.
+  getMpvExecutablePath: () => {
+    const configuredPath = configService.getConfig().mpv.executablePath;
+    return findMpvExecutablePath(configuredPath) || configuredPath;
+  },
   createPreviewSession: () => new MediaTimingPreviewSession(),
   generateWaveform: (options) => generateSpeechWaveform(options),
   generateFrame: (options) => mediaTimingFrameExtractor.generate(options),

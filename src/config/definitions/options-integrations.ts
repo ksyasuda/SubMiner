@@ -554,7 +554,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.mpv.executablePath,
       description:
-        'Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.',
+        'Optional absolute path to the mpv binary SubMiner starts itself (Windows launches, Jellyfin casting, timing preview). Leave empty to auto-discover from SUBMINER_MPV_PATH, PATH, and on macOS the Homebrew and /Applications/mpv.app locations.',
     },
     {
       path: 'mpv.launchMode',

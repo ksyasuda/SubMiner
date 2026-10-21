@@ -5,9 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  createPosixMpvPathDeps,
   createWindowsMpvPathDeps,
   getConfiguredWindowsMpvPathStatus,
   resolveMpvExecutablePath,
+  resolvePosixMpvPath,
   resolveWindowsMpvPath,
   spawnMpvProcess,
 } from './mpv-process';
@@ -93,6 +95,79 @@ test('resolveWindowsMpvPath returns blank when nothing resolves', () => {
   assert.equal(resolveWindowsMpvPath(failed.deps), '');
   assert.equal(resolveWindowsMpvPath(blank.deps), '');
   assert.equal(resolveWindowsMpvPath(missing.deps), '');
+});
+
+// launchd's default PATH, which apps opened from Finder, the Dock, or Spotlight inherit.
+const LAUNCHD_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
+
+function makePosixDeps(options: {
+  platform: NodeJS.Platform;
+  executables?: string[];
+  env?: Record<string, string>;
+}) {
+  const executables = new Set(options.executables ?? []);
+  return createPosixMpvPathDeps({
+    platform: options.platform,
+    getEnv: (name) => options.env?.[name],
+    isExecutable: (candidate) => executables.has(candidate),
+  });
+}
+
+test('resolvePosixMpvPath prefers a configured executable and does not fall back when it is invalid', () => {
+  const deps = makePosixDeps({
+    platform: 'darwin',
+    executables: ['/cfg/mpv', '/opt/homebrew/bin/mpv'],
+    env: { PATH: LAUNCHD_PATH },
+  });
+
+  assert.equal(resolvePosixMpvPath(deps, '  /cfg/mpv  '), '/cfg/mpv');
+  assert.equal(resolvePosixMpvPath(deps, '/missing/mpv'), '');
+});
+
+test('resolvePosixMpvPath uses SUBMINER_MPV_PATH before searching PATH', () => {
+  const deps = makePosixDeps({
+    platform: 'linux',
+    executables: ['/env/mpv', '/usr/bin/mpv'],
+    env: { SUBMINER_MPV_PATH: ' /env/mpv ', PATH: '/usr/bin' },
+  });
+
+  assert.equal(resolvePosixMpvPath(deps), '/env/mpv');
+});
+
+test('resolvePosixMpvPath takes the first PATH entry that has mpv', () => {
+  const deps = makePosixDeps({
+    platform: 'darwin',
+    executables: ['/second/mpv', '/third/mpv', '/opt/homebrew/bin/mpv'],
+    env: { SUBMINER_MPV_PATH: '/stale/mpv', PATH: '/first::/second:/third' },
+  });
+
+  assert.equal(resolvePosixMpvPath(deps), '/second/mpv');
+});
+
+test('resolvePosixMpvPath finds Homebrew mpv on macOS when the app only has the launchd PATH', () => {
+  const homebrew = makePosixDeps({
+    platform: 'darwin',
+    executables: ['/opt/homebrew/bin/mpv'],
+    env: { PATH: LAUNCHD_PATH },
+  });
+  const appBundle = makePosixDeps({
+    platform: 'darwin',
+    executables: ['/Applications/mpv.app/Contents/MacOS/mpv'],
+    env: { PATH: LAUNCHD_PATH },
+  });
+
+  assert.equal(resolvePosixMpvPath(homebrew), '/opt/homebrew/bin/mpv');
+  assert.equal(resolvePosixMpvPath(appBundle), '/Applications/mpv.app/Contents/MacOS/mpv');
+});
+
+test('resolvePosixMpvPath only probes macOS install locations on macOS', () => {
+  const deps = makePosixDeps({
+    platform: 'linux',
+    executables: ['/opt/homebrew/bin/mpv'],
+    env: { PATH: LAUNCHD_PATH },
+  });
+
+  assert.equal(resolvePosixMpvPath(deps), '');
 });
 
 const X11_SPAWN_CASES = [

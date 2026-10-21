@@ -39,11 +39,18 @@ SubMiner reads subtitles from mpv over an IPC socket (a named pipe on Windows). 
 
 SubMiner reconnects on its own if mpv restarts.
 
+## Casting from Jellyfin does nothing
+
+When `connect ENOENT /tmp/subminer-socket` follows a cast in the app log, SubMiner could not start mpv, so the socket never appeared. Look for `Failed handling Jellyfin remote Play event` or `Failed to launch mpv for Jellyfin remote playback` just before it.
+
+- Check that `mpv --version` works in a terminal.
+- If it does, SubMiner is not finding mpv where it is installed. Set `mpv.executablePath` to the output of `command -v mpv`. See [Casting from Jellyfin](/jellyfin-integration#casting-from-jellyfin) for where SubMiner looks.
+
 ## Overlay does not appear
 
 - Confirm SubMiner is running (`SubMiner.AppImage --start`, or check for the process).
 - Linux: Hyprland and Sway work natively. Any other compositor needs mpv and SubMiner under X11 or Xwayland, with `xdotool`, `xprop`, and `xwininfo` installed. See [KDE Plasma and other Wayland compositors](#kde-plasma-and-other-wayland-compositors).
-- macOS: grant Accessibility permission in System Settings > Privacy & Security > Accessibility.
+- macOS: grant Accessibility permission. See [macOS](#macos).
 
 ## Overlay is on the wrong monitor or position
 
@@ -255,5 +262,5 @@ mpv --gpu-context=x11vk,x11egl,x11 video.mkv
 
 ## macOS
 
-- Accessibility permission is required for window tracking: System Settings > Privacy & Security > Accessibility.
+- Grant Accessibility permission under System Settings > Privacy & Security > Accessibility (named **Device Control and Data Access** on macOS 27). Without it, SubMiner falls back to a basic window lookup that cannot tell when mpv is minimized.
 - If Gatekeeper blocks the app, right-click it and choose Open, or run `xattr -d com.apple.quarantine /path/to/SubMiner.app`.
