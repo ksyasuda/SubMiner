@@ -38,6 +38,8 @@ function baseHandlers(overrides: Partial<TrayMenuHandlers> = {}): TrayMenuHandle
     showFirstRunSetup: false,
     openWindowsMpvLauncherSetup: () => undefined,
     showWindowsMpvLauncherSetup: false,
+    dictionaryBackend: 'yomitan',
+    openHachidoriSettings: () => undefined,
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
     openSyncUi: () => undefined,
@@ -71,6 +73,27 @@ for (const entry of optionalEntries) {
   test(`tray menu shows "${entry.label}" only when its flag is set`, () => {
     assert.equal(labelsFor({}).includes(entry.label), false);
     assert.equal(labelsFor(entry.flag).includes(entry.label), true);
+  });
+}
+
+for (const dictionaryBackend of ['yomitan', 'hachidori'] as const) {
+  test(`tray menu shows only ${dictionaryBackend} settings and dispatches its handler`, () => {
+    const calls: string[] = [];
+    const template = buildTrayMenuTemplateRuntime(
+      baseHandlers({
+        dictionaryBackend,
+        openHachidoriSettings: () => calls.push('hachidori'),
+        openYomitanSettings: () => calls.push('yomitan'),
+      }),
+    );
+    const labels = template.flatMap((entry) => (entry.label ? [entry.label] : []));
+    const [shown, hidden] =
+      dictionaryBackend === 'hachidori'
+        ? ['Open Hachidori Settings', 'Open Yomitan Settings']
+        : ['Open Yomitan Settings', 'Open Hachidori Settings'];
+    assert.equal(labels.includes(hidden), false);
+    template.find((entry) => entry.label === shown)?.click?.();
+    assert.deepEqual(calls, [dictionaryBackend]);
   });
 }
 

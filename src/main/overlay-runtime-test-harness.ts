@@ -56,6 +56,7 @@ export class FakeOverlayWindow {
   private readonly name: string;
   private readonly log: string[] | undefined;
   private loadListeners: Array<() => void> = [];
+  private stopLoadingListeners: Array<() => void> = [];
   private readyToShowListeners: Array<() => void> = [];
 
   readonly webContents = {
@@ -68,8 +69,10 @@ export class FakeOverlayWindow {
     focus: (): void => {
       this.webContentsFocused = true;
     },
-    once: (_event: 'did-finish-load', listener: () => void): void => {
-      this.loadListeners.push(listener);
+    once: (event: 'did-finish-load' | 'did-stop-loading', listener: () => void): void => {
+      (event === 'did-stop-loading' ? this.stopLoadingListeners : this.loadListeners).push(
+        listener,
+      );
     },
   };
 
@@ -136,12 +139,14 @@ export class FakeOverlayWindow {
     this.readyToShowListeners.push(listener);
   }
 
-  // Commits the modal document and fires the queued did-finish-load listeners.
+  // Commits the modal document like Electron does: isLoading() stays true inside
+  // did-finish-load and only settles before did-stop-loading.
   finishLoad(): void {
-    this.loading = false;
     this.url = MODAL_URL;
     this[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] = true;
     for (const listener of this.loadListeners.splice(0)) listener();
+    this.loading = false;
+    for (const listener of this.stopLoadingListeners.splice(0)) listener();
   }
 
   // Marks renderer content ready and fires the queued ready-to-show listeners.

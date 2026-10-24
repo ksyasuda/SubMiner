@@ -47,6 +47,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   runYoutubePlaybackFlow: CliCommandContextFactoryDeps['runYoutubePlaybackFlow'];
   ensureBackgroundStatsServer?: CliCommandContextFactoryDeps['ensureBackgroundStatsServer'];
   openYomitanSettings: () => void;
+  openHachidoriSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
   openYoutubeBrowserWindow: () => void;
@@ -108,6 +109,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     runYoutubePlaybackFlow: deps.runYoutubePlaybackFlow,
     ensureBackgroundStatsServer: deps.ensureBackgroundStatsServer,
     openYomitanSettings: deps.openYomitanSettings,
+    openHachidoriSettings: deps.openHachidoriSettings,
     openConfigSettingsWindow: deps.openConfigSettingsWindow,
     openSyncUiWindow: deps.openSyncUiWindow,
     openYoutubeBrowserWindow: deps.openYoutubeBrowserWindow,

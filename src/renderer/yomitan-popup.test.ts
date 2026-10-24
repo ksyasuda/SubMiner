@@ -7,10 +7,35 @@ import {
   hasYomitanPopupIframe,
   isYomitanPopupIframe,
   isYomitanPopupVisible,
+  registerDictionaryPopupVisibilityListener,
 } from './yomitan-popup.js';
 
 type FakeStyle = Pick<CSSStyleDeclaration, 'visibility' | 'display' | 'opacity'>;
 type FakeFrame = Element & { fakeStyle: FakeStyle };
+
+test('native popup attention events from either backend have the same lifecycle', () => {
+  for (const backend of ['yomitan', 'hachidori']) {
+    const target = new EventTarget();
+    const calls: string[] = [];
+    const disposeShown = registerDictionaryPopupVisibilityListener(
+      'shown',
+      () => calls.push('shown'),
+      target,
+    );
+    const disposeHidden = registerDictionaryPopupVisibilityListener(
+      'hidden',
+      () => calls.push('hidden'),
+      target,
+    );
+    target.dispatchEvent(new CustomEvent(`${backend}-popup-shown`));
+    target.dispatchEvent(new CustomEvent(`${backend}-popup-hidden`));
+    disposeShown();
+    disposeHidden();
+    target.dispatchEvent(new CustomEvent(`${backend}-popup-shown`));
+    target.dispatchEvent(new CustomEvent(`${backend}-popup-hidden`));
+    assert.deepEqual(calls, ['shown', 'hidden']);
+  }
+});
 
 const VISIBLE_STYLE: FakeStyle = { visibility: 'visible', display: 'block', opacity: '1' };
 

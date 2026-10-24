@@ -72,6 +72,7 @@ function buildContextDeps(overrides: Partial<MainDeps> = {}) {
     runUpdateCommand: noopAsync,
     runEnsureLinuxRuntimePluginAssetsCommand: noopAsync,
     runYoutubePlaybackFlow: noopAsync,
+    openHachidoriSettings: noop,
     openYomitanSettings: noop,
     openConfigSettingsWindow: noop,
     openSyncUiWindow: noop,

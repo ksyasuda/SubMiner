@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
 import { createRendererState } from '../state.js';
+import { HACHIDORI_HOST_SELECTOR } from '../yomitan-popup.js';
 import type { CompiledSessionBinding } from '../../types';
 import type { MpvInputBindingsSnapshot } from '../../types/session-bindings';
 import { DEFAULT_KEYBINDINGS, SPECIAL_COMMANDS } from '../../config/definitions';
@@ -152,6 +153,10 @@ function installKeyboardTestGlobals() {
   let selectionAddCount = 0;
 
   let popupVisible = false;
+  let hachidoriPaneOpen = false;
+  const hachidoriHost = {
+    shadowRoot: { querySelectorAll: () => [{ hidden: false }] },
+  };
 
   const popupIframe = {
     tagName: 'IFRAME',
@@ -285,7 +290,10 @@ function installKeyboardTestGlobals() {
         listeners.push(listener);
         documentListeners.set(type, listeners);
       },
-      querySelectorAll: () => {
+      querySelectorAll: (selector: string) => {
+        if (selector === HACHIDORI_HOST_SELECTOR) {
+          return hachidoriPaneOpen ? [hachidoriHost] : [];
+        }
         if (popupVisible) {
           return [popupIframe];
         }
@@ -455,6 +463,9 @@ function installKeyboardTestGlobals() {
     setPopupVisible: (value: boolean) => {
       popupVisible = value;
     },
+    setHachidoriPaneOpen: (value: boolean) => {
+      hachidoriPaneOpen = value;
+    },
     setStatsToggleKey: (value: string) => {
       statsToggleKey = value;
     },
@@ -473,6 +484,18 @@ function installKeyboardTestGlobals() {
     createInteractiveTarget: () => {
       const target = new TestElement();
       target.closest = (selector: string) => (selector.includes('.modal') ? target : null);
+      return target;
+    },
+    // Events inside Hachidori's shadow root reach the document retargeted to its host.
+    createDictionaryPopupHostTarget: () => {
+      const target = new TestElement();
+      target.closest = (selector: string) =>
+        selector
+          .split(',')
+          .map((part) => part.trim())
+          .includes(HACHIDORI_HOST_SELECTOR)
+          ? target
+          : null;
       return target;
     },
     createTextInputTarget: () => {
@@ -705,6 +728,23 @@ test('right-clicking interactive overlay controls does not raise playback window
     await handlers.setupMpvInputForwarding();
 
     testGlobals.dispatchDocumentMouseDown({ button: 2, target: interactiveTarget });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.interactionActivations, []);
+    assert.deepEqual(testGlobals.mpvCommands, []);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('right-clicking inside a dictionary popup host does not raise playback window or toggle pause', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  const popupHost = testGlobals.createDictionaryPopupHostTarget();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchDocumentMouseDown({ button: 2, target: popupHost });
     await wait(0);
 
     assert.deepEqual(testGlobals.interactionActivations, []);
@@ -1177,7 +1217,13 @@ test('imported mpv wheel bindings forward from the overlay but not over modals',
 
     testGlobals.dispatchWheel({ deltaY: 120 });
     testGlobals.dispatchWheel({ deltaY: -120, target: testGlobals.createInteractiveTarget() });
+    // A Hachidori popup scrolls itself; its events arrive retargeted to its host.
+    const popupScrolled = !testGlobals.dispatchWheel({
+      deltaY: -120,
+      target: testGlobals.createDictionaryPopupHostTarget(),
+    });
 
+    assert.equal(popupScrolled, true);
     assert.deepEqual(testGlobals.mpvCommands, [['keypress', 'WHEEL_DOWN', 1]]);
   } finally {
     testGlobals.restore();
@@ -1218,6 +1264,86 @@ test('imported mpv mouse buttons forward only after SubMiner mouse handling', as
       ['cycle', 'pause'],
     ]);
   } finally {
+    testGlobals.restore();
+  }
+});
+
+test('Hachidori attention without an open popup pane still forwards imported mpv input', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setGetMpvInputBindings(async () => ({
+      keys: ['0', 'MBTN_LEFT_DBL'],
+      blockedKeys: [],
+    }));
+    await handlers.setupMpvInputForwarding();
+    await wait(0);
+    // Hachidori claims attention for any press that may start a selection.
+    ctx.state.hachidoriReaderSeen = true;
+    ctx.state.yomitanPopupVisible = true;
+
+    testGlobals.dispatchKeydown({ key: '0', code: 'Digit0' });
+    testGlobals.dispatchMousedown({ button: 0 });
+    testGlobals.dispatchMousedown({ button: 0, type: 'mouseup' });
+
+    assert.deepEqual(testGlobals.commandEvents, []);
+    assert.deepEqual(testGlobals.mpvCommands, [
+      ['keydown', '0'],
+      ['keydown', 'MBTN_LEFT'],
+      ['keyup', 'MBTN_LEFT'],
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: lookup toggle opens a lookup during Hachidori attention without a pane', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    ctx.state.keyboardSelectedWordIndex = 1;
+    handlers.syncKeyboardTokenSelection();
+    ctx.state.hachidoriReaderSeen = true;
+    ctx.state.yomitanPopupVisible = true;
+
+    handlers.handleLookupWindowToggleRequested();
+    await wait(0);
+
+    assert.equal(ctx.dom.subtitleRoot.classList.contains('has-selection'), true);
+    assert.deepEqual(
+      testGlobals.commandEvents.filter((event) => event.type === 'setVisible'),
+      [],
+    );
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: lookup toggle closes an open Hachidori pane after attention is released', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    // A selection drag leaves the pane open while the Yomitan-shaped visible marker clears.
+    ctx.state.hachidoriReaderSeen = true;
+    ctx.state.yomitanPopupVisible = false;
+    testGlobals.setHachidoriPaneOpen(true);
+
+    handlers.handleLookupWindowToggleRequested();
+    await wait(0);
+
+    assert.deepEqual(
+      testGlobals.commandEvents.filter(
+        (event) => event.type === 'setVisible' || event.type === 'clearActiveTextSource',
+      ),
+      [{ type: 'setVisible', visible: false }, { type: 'clearActiveTextSource' }],
+    );
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();
   }
 });

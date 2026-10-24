@@ -80,6 +80,7 @@ export interface CharacterDictionaryAutoSyncRuntimeDeps {
   waitForYomitanMutationReady?: () => Promise<void>;
   getYomitanDictionaryInfo: () => Promise<AutoSyncDictionaryInfo[]>;
   importYomitanDictionary: (zipPath: string) => Promise<boolean>;
+  dictionaryImportReplacesExisting?: () => boolean;
   deleteYomitanDictionary: (dictionaryTitle: string) => Promise<boolean>;
   upsertYomitanDictionarySettings: (
     dictionaryTitle: string,
@@ -669,7 +670,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
             const importTimeoutMs = resolveImportTimeoutMs(
               merged?.zipPath ?? path.join(dictionariesDir, 'merged.zip'),
             );
-            if (existing !== null) {
+            if (existing !== null && deps.dictionaryImportReplacesExisting?.() !== true) {
               await withTimeout(
                 `deleteYomitanDictionary(${dictionaryTitle})`,
                 deps.deleteYomitanDictionary(dictionaryTitle),

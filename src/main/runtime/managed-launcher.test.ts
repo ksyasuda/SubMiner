@@ -372,12 +372,19 @@ test('Windows stages a new runtime version while the prior Bun executable is run
       await exited;
     }
   }
-  cleanupOldWindowsManagedRuntimes({
-    platform: 'win32',
-    localAppData: root,
-    appVersion: '2.0.0',
-  });
-  assert.equal(fs.existsSync(path.dirname(first.bunPath)), false);
+  // Windows can keep bun.exe locked briefly after the exit event; cleanup
+  // skips locked runtimes, so retry the way the next launch would.
+  const firstDirectory = path.dirname(first.bunPath);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    cleanupOldWindowsManagedRuntimes({
+      platform: 'win32',
+      localAppData: root,
+      appVersion: '2.0.0',
+    });
+    if (!fs.existsSync(firstDirectory)) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(fs.existsSync(firstDirectory), false);
   assert.ok(fs.existsSync(expectedSecond.bunPath));
 });
 

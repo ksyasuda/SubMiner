@@ -49,6 +49,7 @@ export interface CliCommandRuntimeServiceContext {
   runYoutubePlaybackFlow: CliCommandRuntimeServiceDepsParams['app']['runYoutubePlaybackFlow'];
   ensureBackgroundStatsServer?: CliCommandRuntimeServiceDepsParams['app']['ensureBackgroundStatsServer'];
   openYomitanSettings: () => void;
+  openHachidoriSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
   openYoutubeBrowserWindow: () => void;
@@ -136,6 +137,7 @@ function createCliCommandDepsFromContext(
     ui: {
       openFirstRunSetup: context.openFirstRunSetup,
       openYomitanSettings: context.openYomitanSettings,
+      openHachidoriSettings: context.openHachidoriSettings,
       openConfigSettingsWindow: context.openConfigSettingsWindow,
       openSyncUiWindow: context.openSyncUiWindow,
       openYoutubeBrowserWindow: context.openYoutubeBrowserWindow,

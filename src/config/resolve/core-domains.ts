@@ -6,6 +6,17 @@ import { asBoolean, asNumber, asString, isObject } from './shared';
 export function applyCoreDomainConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
 
+  if (src.dictionaryBackend === 'yomitan' || src.dictionaryBackend === 'hachidori') {
+    resolved.dictionaryBackend = src.dictionaryBackend;
+  } else if (src.dictionaryBackend !== undefined) {
+    warn(
+      'dictionaryBackend',
+      src.dictionaryBackend,
+      resolved.dictionaryBackend,
+      "Expected 'yomitan' or 'hachidori'.",
+    );
+  }
+
   if (isObject(src.subtitleSelection)) {
     const enabled = asBoolean(src.subtitleSelection.enabled);
     if (enabled !== undefined) resolved.subtitleSelection.enabled = enabled;

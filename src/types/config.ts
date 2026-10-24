@@ -140,7 +140,10 @@ export interface RawShortcutsConfig extends ShortcutsConfig {
   openAnimetosho?: string | null;
 }
 
+export type DictionaryBackend = 'yomitan' | 'hachidori';
+
 export interface Config {
+  dictionaryBackend?: DictionaryBackend;
   subtitlePosition?: SubtitlePosition;
   keybindings?: Keybinding[];
   websocket?: WebSocketConfig;
@@ -183,6 +186,7 @@ export interface Config {
 export type RawConfig = Config;
 
 export interface ResolvedConfig {
+  dictionaryBackend: DictionaryBackend;
   subtitlePosition: SubtitlePosition;
   keybindings: Keybinding[];
   websocket: Required<WebSocketConfig>;
