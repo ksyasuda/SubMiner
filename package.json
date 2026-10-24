@@ -93,6 +93,7 @@
     "brace-expansion": "5.0.11",
     "electron-builder-squirrel-windows": "26.16.1",
     "fast-uri": "3.1.7",
+    "follow-redirects": "1.16.1",
     "form-data": "4.0.6",
     "ip-address": "10.2.0",
     "js-yaml": "4.3.2",
@@ -101,7 +102,7 @@
     "picomatch": "4.0.4",
     "tar": "7.5.21",
     "tmp": "0.2.7",
-    "undici": "7.29.1"
+    "undici": "7.30.1"
   },
   "keywords": [
     "anki",
@@ -130,12 +131,12 @@
     "@electron/asar": "3.4.1",
     "@types/node": "^24.10.0",
     "@types/ws": "^8.18.1",
-    "electron": "43.7.7",
+    "electron": "43.8.3",
     "electron-builder": "26.16.1",
     "esbuild": "^0.25.12",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
-    "undici": "7.29.1"
+    "undici": "7.30.1"
   },
   "build": {
     "appId": "com.sudacode.SubMiner",
