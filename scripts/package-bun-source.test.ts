@@ -4,6 +4,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  DEFAULT_MANIFEST_PATH,
+  DEFAULT_PACKAGE_JSON_PATH,
+  DEFAULT_RUNTIME_MANIFEST_PATH,
   downloadArchive,
   parseRegisteredRepositories,
   parseSourceManifest,
@@ -65,6 +68,22 @@ describe('Bun corresponding-source manifest', () => {
       kind: 'tag',
       reference: 'v1.1.0',
     });
+  });
+
+  test('default manifest paths resolve to aligned checked-in manifests', async () => {
+    const [manifestText, runtimeManifestText, packageJsonText] = await Promise.all([
+      fs.readFile(DEFAULT_MANIFEST_PATH, 'utf8'),
+      fs.readFile(DEFAULT_RUNTIME_MANIFEST_PATH, 'utf8'),
+      fs.readFile(DEFAULT_PACKAGE_JSON_PATH, 'utf8'),
+    ]);
+
+    expect(() =>
+      validateRuntimeAlignment(
+        parseSourceManifest(JSON.parse(manifestText)),
+        JSON.parse(packageJsonText),
+        JSON.parse(runtimeManifestText),
+      ),
+    ).not.toThrow();
   });
 
   test('rejects stale runtime or package-manager pins', async () => {

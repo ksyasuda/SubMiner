@@ -18,7 +18,8 @@ export const DEFAULT_MANIFEST_PATH = path.join(
 );
 export const DEFAULT_RUNTIME_MANIFEST_PATH = path.join(
   repoRoot,
-  'build',
+  'packaging',
+  'bun',
   'bun-runtime-manifest.json',
 );
 export const DEFAULT_PACKAGE_JSON_PATH = path.join(repoRoot, 'package.json');

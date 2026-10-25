@@ -36,6 +36,8 @@ environment.toml
 .vitepress/dist/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+# Local test media and scripts
+tests/*
 .worktrees/
 .tmp/
 .codex/*

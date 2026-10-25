@@ -51,6 +51,9 @@ test('platform packaging preserves the runtime allowlist after builder normalize
       'stats/dist/nested/fixtures/data.json',
       'vendor/texthooker-ui/docs/nested/component.tsx',
       'dist/launcher/subminer',
+      'dist/yomitan/manifest.json',
+      'dist/hachidori/manifest.json',
+      'dist/release/SubMiner-1.0.0.AppImage',
       'dist/settings/fonts/MPLUS1[wght].ttf',
       'vendor/subminer-yomitan/ext/manifest.json',
     ]) {
