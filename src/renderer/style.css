@@ -2072,6 +2072,32 @@ body:focus-visible,
   text-align: center;
 }
 
+/* Controller hints: shown beside each button while a controller is connected. */
+.media-timing-review-modal.controller-hints-visible button[data-controller-hint]::after {
+  content: attr(data-controller-hint);
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--ctp-surface1);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--ctp-mantle);
+  color: var(--ctp-subtext0);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.media-timing-review-modal.controller-hints-visible .media-timing-review-line-stepper button {
+  width: auto;
+  min-width: 24px;
+  padding: 0 5px;
+}
+
 .media-timing-review-cancel-step {
   min-height: 300px;
   padding: 44px 38px 34px;

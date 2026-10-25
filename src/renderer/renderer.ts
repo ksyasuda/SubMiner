@@ -50,6 +50,7 @@ import { createSubsyncModal } from './modals/subsync.js';
 import { createSubtitleGenerationModal } from './modals/subtitle-generation.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
 import { createMediaTimingReviewModal } from './modals/media-timing-review.js';
+import { createMediaTimingReviewControllerLayout } from './handlers/media-timing-review-controller.js';
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
@@ -311,6 +312,12 @@ const mediaTimingReviewModal = createMediaTimingReviewModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const mediaTimingReviewControllerLayout = createMediaTimingReviewControllerLayout({
+  getStep: () => mediaTimingReviewModal.getControllerStep(),
+  dispatch: (action) => {
+    mediaTimingReviewModal.handleControllerAction(action);
+  },
+});
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
@@ -399,6 +406,9 @@ function applyControllerSnapshot(snapshot: {
   ctx.state.controllerRawButtons = snapshot.rawButtons;
   controllerSelectModal.updateDevices();
   controllerDebugModal.updateSnapshot();
+  mediaTimingReviewModal.setControllerHintsVisible(
+    ctx.state.controllerConfig?.enabled === true && snapshot.connectedGamepads.length > 0,
+  );
 }
 
 function showControllerDisabledNotice(): void {
@@ -519,6 +529,9 @@ function startControllerPolling(): void {
     onState: (snapshot) => {
       applyControllerSnapshot(snapshot);
     },
+    getScreenLayout: () =>
+      ctx.state.mediaTimingReviewModalOpen ? mediaTimingReviewControllerLayout : null,
+    getSuspended: () => ctx.state.controllerSuspendedByModalWindow,
   });
 
   const poll = (now: number): void => {
@@ -719,6 +732,10 @@ function registerKeyboardCommandHandlers(): void {
     runGuarded('session:numeric-selection-start', () => {
       keyboardHandlers.beginSessionNumericSelection(payload.actionId, payload.timeoutMs);
     });
+  });
+
+  window.electronAPI.onControllerSuspendedChanged((suspended: boolean) => {
+    ctx.state.controllerSuspendedByModalWindow = suspended;
   });
 
   window.electronAPI.onKeyboardModeToggleRequested(() => {

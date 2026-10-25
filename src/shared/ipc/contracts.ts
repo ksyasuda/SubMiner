@@ -158,6 +158,7 @@ export const IPC_CHANNELS = {
     playlistBrowserOpen: 'playlist-browser:open',
     sessionNumericSelectionStart: 'session:numeric-selection-start',
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
+    controllerSuspendedChanged: 'controller:suspended-changed',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     sessionHelpOpen: 'session-help:open',
     changelogOpen: 'changelog:open',

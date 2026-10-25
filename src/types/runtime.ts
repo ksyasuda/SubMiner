@@ -586,6 +586,7 @@ export interface ElectronAPI {
     callback: (payload: SessionNumericSelectionStartPayload) => void,
   ) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
+  onControllerSuspendedChanged: (callback: (suspended: boolean) => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (path: string) => Promise<PlaylistBrowserMutationResult>;

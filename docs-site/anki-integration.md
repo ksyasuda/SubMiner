@@ -160,6 +160,26 @@ The confirmed range is used as is, with no extra padding. Added lines go into th
 
 When you cancel, you can go back to editing, keep the original timing, create the card without media, or discard it. Discard deletes the Yomitan note or audio card, and skips creation for a sentence card.
 
+#### With a controller
+
+With [controller support](/usage#controller-support) on, the dialog has its own fixed controller layout, and each button shows its controller shortcut while a controller is connected. It works with or without keyboard-only mode, and the controller's usual actions pause until the dialog closes. Buttons that were already held when the dialog opened, such as the mine button, wait for a fresh press.
+
+Hold `L1` or `R1` and press the D-pad for the combos. `L1` covers the clip start and the lines before it, and `R1` the clip end and the lines after it. D-pad actions repeat while held.
+
+| Controller              | Editing                          | After Cancel        |
+| ----------------------- | -------------------------------- | ------------------- |
+| `A`                     | Use this timing                  | Use original timing |
+| `B`                     | Cancel                           | Keep editing        |
+| `X`                     | Play selection                   | Without media       |
+| `Y`                     | Reset timing                     | Discard             |
+| D-pad left / right      | Earlier −2s / Later +2s          |                     |
+| D-pad up / down         | Previous / next screenshot frame |                     |
+| `L1` + D-pad left/right | Start −0.1s / +0.1s              |                     |
+| `L1` + D-pad up/down    | Add / remove a previous line     |                     |
+| `R1` + D-pad left/right | End −0.1s / +0.1s                |                     |
+| `R1` + D-pad up/down    | Add / remove a next line         |                     |
+| `L1` + `R1`             | Reset the screenshot frame       |                     |
+
 ### Update behavior
 
 | Key                           | What it does                                         |

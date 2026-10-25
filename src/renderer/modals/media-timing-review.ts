@@ -6,6 +6,13 @@ import type {
   MediaTimingReviewPreviewPosition,
 } from '../../types/anki';
 import type { ModalStateReader, RendererContext } from '../context';
+import {
+  MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT,
+  formatMediaTimingReviewControllerHint,
+  type MediaTimingReviewControllerAction,
+  type MediaTimingReviewStep,
+} from '../handlers/media-timing-review-controller.js';
+import type { RendererDom } from '../utils/dom';
 import { createModalFocusGuard } from './modal-focus-guard';
 
 const MINIMUM_CLIP_SECONDS = 0.1;
@@ -23,6 +30,43 @@ const SPEECH_TAIL_SECONDS = 0.15;
 const MINIMUM_TRAILING_TRIM_SECONDS = 0.1;
 /** Allow buffering and output-device delays without cutting off an advancing preview. */
 const PREVIEW_STALL_TIMEOUT_MS = 15_000;
+
+type ButtonDomKey = {
+  [Key in keyof RendererDom]: RendererDom[Key] extends HTMLButtonElement ? Key : never;
+}[keyof RendererDom];
+
+/** The on-screen button each controller action presses. */
+export const MEDIA_TIMING_REVIEW_CONTROLLER_BUTTONS: Record<
+  MediaTimingReviewControllerAction,
+  ButtonDomKey
+> = {
+  confirm: 'mediaTimingReviewConfirm',
+  cancel: 'mediaTimingReviewCancel',
+  play: 'mediaTimingReviewPlay',
+  resetTiming: 'mediaTimingReviewReset',
+  showEarlier: 'mediaTimingReviewShowEarlier',
+  showLater: 'mediaTimingReviewShowLater',
+  startBack: 'mediaTimingReviewStartBack',
+  startForward: 'mediaTimingReviewStartForward',
+  endBack: 'mediaTimingReviewEndBack',
+  endForward: 'mediaTimingReviewEndForward',
+  previousLineAdd: 'mediaTimingReviewPrevAdd',
+  previousLineRemove: 'mediaTimingReviewPrevRemove',
+  nextLineAdd: 'mediaTimingReviewNextAdd',
+  nextLineRemove: 'mediaTimingReviewNextRemove',
+  framePrevious: 'mediaTimingReviewFramePrevious',
+  frameNext: 'mediaTimingReviewFrameNext',
+  frameReset: 'mediaTimingReviewFrameReset',
+  keepEditing: 'mediaTimingReviewCancelBack',
+  useOriginal: 'mediaTimingReviewUseOriginal',
+  skipMedia: 'mediaTimingReviewSkipMedia',
+  discard: 'mediaTimingReviewDiscard',
+};
+
+/** A controller press only counts when a mouse click could have reached the button. */
+export function isMediaTimingReviewButtonAvailable(button: HTMLButtonElement): boolean {
+  return !button.disabled && button.closest('.hidden') === null;
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -962,7 +1006,36 @@ export function createMediaTimingReviewModal(
     return false;
   }
 
+  function getControllerStep(): MediaTimingReviewStep {
+    return ctx.dom.mediaTimingReviewCancelStep.classList.contains('hidden') ? 'editor' : 'cancel';
+  }
+
+  /** Presses the on-screen button for a controller action, so every guard it has applies. */
+  function handleControllerAction(action: MediaTimingReviewControllerAction): boolean {
+    if (!ctx.state.mediaTimingReviewModalOpen) return false;
+    const button = ctx.dom[MEDIA_TIMING_REVIEW_CONTROLLER_BUTTONS[action]];
+    if (!isMediaTimingReviewButtonAvailable(button)) return false;
+    button.click();
+    return true;
+  }
+
+  /**
+   * Hints live in a data attribute drawn by CSS, so they survive code that rewrites a
+   * button's text (Skip media / Discard labels change with the card).
+   */
+  function applyControllerHints(): void {
+    for (const binding of MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT) {
+      ctx.dom[MEDIA_TIMING_REVIEW_CONTROLLER_BUTTONS[binding.action]].dataset.controllerHint =
+        formatMediaTimingReviewControllerHint(binding);
+    }
+  }
+
+  function setControllerHintsVisible(visible: boolean): void {
+    ctx.dom.mediaTimingReviewModal.classList.toggle('controller-hints-visible', visible);
+  }
+
   function wireDomEvents(): void {
+    applyControllerHints();
     ctx.dom.mediaTimingReviewFrameSlider.addEventListener('input', () => {
       if (!resolveInFlight) framePicker.choose(Number(ctx.dom.mediaTimingReviewFrameSlider.value));
     });
@@ -1050,5 +1123,8 @@ export function createMediaTimingReviewModal(
     requestCancel,
     handleMediaTimingReviewKeydown,
     wireDomEvents,
+    getControllerStep,
+    handleControllerAction,
+    setControllerHintsVisible,
   };
 }
