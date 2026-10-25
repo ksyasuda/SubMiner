@@ -157,23 +157,26 @@ You can drive the overlay with a gamepad.
 
 1. Set `controller.enabled` to `true` in your config.
 2. Connect a controller. SubMiner uses the first one it sees.
-3. Press `Y` on the controller to turn on keyboard-only mode. The controller only works in this mode.
+3. Press `Y` on the controller to turn on keyboard-only mode. Most controller actions only work in this mode.
 4. Move between words with the left stick, press `A` to look one up, and `X` to mine it.
 
 Press `Alt+C` to choose a controller and remap buttons. Click an action's **Learn** button, then press the button you want. `Alt+Shift+C` shows raw input values for unusual pads.
 
-| Button                | Action                               |
-| --------------------- | ------------------------------------ |
-| `A` (South)           | Look up the selected word            |
-| `B` (East)            | Close the lookup                     |
-| `X` (West)            | Mine a card                          |
-| `Y` (North)           | Toggle keyboard-only mode            |
-| `L1`                  | Play the current Yomitan audio       |
-| `R1`                  | Next Yomitan audio source            |
-| `L3`                  | Pause or resume mpv                  |
-| `Select` / `Minus`    | Quit mpv                             |
-| Left stick            | Move between words, scroll the popup |
-| Right stick (up/down) | Jump through the popup               |
+| Button                | Action                                 |
+| --------------------- | -------------------------------------- |
+| `A` (South)           | Look up the selected word              |
+| `B` (East)            | Close the lookup                       |
+| `X` (West)            | Mine a card                            |
+| `Y` (North)           | Toggle keyboard-only mode              |
+| `L1`                  | Play the current Yomitan audio         |
+| `R1`                  | Next Yomitan audio source              |
+| `L3`                  | Pause or resume mpv                    |
+| `Select` / `Minus`    | Quit mpv                               |
+| Left stick            | Move between words, scroll the popup   |
+| Right stick (up/down) | Jump through the popup                 |
+| Unbound by default    | Show the secondary subtitle while held |
+
+The secondary subtitle hold works with or without keyboard-only mode. Assign it with **Learn** on the **Show Secondary Subtitle (Hold)** row in `Alt+C`. While held, the secondary subtitle shows as if its mode were `visible`; releasing the button returns it to your chosen mode.
 
 On controllers that report the W3C standard layout, the default quit button lands on `L2` instead of `Select`. Remap it with `Alt+C`. All options are in [Configuration](/configuration#controller-support).
 

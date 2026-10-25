@@ -217,6 +217,7 @@ function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindin
     'nextAudio',
     'playCurrentAudio',
     'toggleMpvPause',
+    'holdSecondarySub',
   ] as const;
   for (const key of discreteKeys) {
     if (value[key] === undefined) continue;

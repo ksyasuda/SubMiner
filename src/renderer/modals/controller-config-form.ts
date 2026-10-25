@@ -52,6 +52,13 @@ export const CONTROLLER_BINDING_DEFINITIONS: ControllerBindingDefinition[] = [
     defaultBinding: { kind: 'button', buttonIndex: 9 },
   },
   {
+    id: 'holdSecondarySub',
+    label: 'Show Secondary Subtitle (Hold)',
+    group: 'Playback',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
+  },
+  {
     id: 'quitMpv',
     label: 'Quit MPV',
     group: 'Playback',

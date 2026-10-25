@@ -87,6 +87,9 @@ function createHarness(
   } = {},
 ) {
   const calls: HarnessCall[] = [];
+  // Hold changes are kept apart from `calls` so tests that press R2 for other
+  // actions keep their exact call lists.
+  const secondarySubHeld: boolean[] = [];
   const states: ControllerRuntimeSnapshot[] = [];
   const deps = options.deps ?? {};
   const { gamepads = [], config = createControllerConfig() } = options;
@@ -107,6 +110,7 @@ function createHarness(
     nextAudio: () => {},
     playCurrentAudio: () => {},
     toggleMpvPause: () => {},
+    setSecondarySubHeld: () => {},
     scrollPopup: () => {},
     jumpPopup: () => {},
     ...deps,
@@ -121,6 +125,10 @@ function createHarness(
       deps[action]?.();
     };
   }
+  controllerOptions.setSecondarySubHeld = (held) => {
+    secondarySubHeld.push(held);
+    deps.setSecondarySubHeld?.(held);
+  };
   controllerOptions.moveSelection = (delta) => {
     calls.push(`moveSelection:${delta}`);
     deps.moveSelection?.(delta);
@@ -137,6 +145,7 @@ function createHarness(
   const controller = createGamepadController(controllerOptions);
   return {
     calls,
+    secondarySubHeld,
     states,
     controller,
     poll: (...times: number[]) => {
@@ -431,4 +440,118 @@ test('gamepad controller maps L3 to mpv pause and keeps unbound audio action ina
   harness.poll(0);
 
   assert.deepEqual(harness.calls, ['toggleMpvPause']);
+});
+
+const HOLD_ON_R2 = { holdSecondarySub: { kind: 'button', buttonIndex: 7 } } as const;
+
+test('gamepad controller leaves the secondary subtitle hold unbound by default', () => {
+  const harness = createHarness({
+    gamepads: [
+      createGamepad('pad-1', {
+        buttons: Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i, PRESSED])),
+      }),
+    ],
+  });
+
+  harness.poll(0);
+
+  assert.deepEqual(CORE_DEFAULT_CONFIG.controller.bindings.holdSecondarySub, { kind: 'none' });
+  assert.deepEqual(harness.secondarySubHeld, []);
+});
+
+test('gamepad controller shows the secondary subtitle only while R2 is held, even outside keyboard-only mode', () => {
+  let r2: TestButton = RELEASED;
+  const harness = createHarness({
+    gamepads: () => [createGamepad('pad-1', { buttons: { 7: r2 } })],
+    config: createControllerConfig({ bindings: HOLD_ON_R2 }),
+    deps: { getKeyboardModeEnabled: () => false },
+  });
+
+  harness.poll(0);
+  r2 = { value: 1, pressed: true, touched: true };
+  harness.poll(16, 32, 48);
+  r2 = RELEASED;
+  harness.poll(64, 80);
+
+  assert.deepEqual(harness.secondarySubHeld, [true, false]);
+  assert.deepEqual(harness.calls, []);
+});
+
+test('gamepad controller releases the secondary subtitle hold when the pad disconnects', () => {
+  let connected = true;
+  const harness = createHarness({
+    gamepads: () => (connected ? [createGamepad('pad-1', { buttons: { 7: PRESSED } })] : []),
+    config: createControllerConfig({ bindings: HOLD_ON_R2 }),
+  });
+
+  harness.poll(0);
+  connected = false;
+  harness.poll(16);
+
+  assert.deepEqual(harness.secondarySubHeld, [true, false]);
+});
+
+test('gamepad controller releases the secondary subtitle hold when a blocking modal opens', () => {
+  let blocked = false;
+  const harness = createHarness({
+    gamepads: [createGamepad('pad-1', { buttons: { 7: PRESSED } })],
+    config: createControllerConfig({ bindings: HOLD_ON_R2 }),
+    deps: { getInteractionBlocked: () => blocked },
+  });
+
+  harness.poll(0);
+  blocked = true;
+  harness.poll(16);
+  blocked = false;
+  harness.poll(32);
+
+  assert.deepEqual(harness.secondarySubHeld, [true, false, true]);
+});
+
+test('gamepad controller ignores the secondary subtitle hold while controller support is disabled', () => {
+  const harness = createHarness({
+    gamepads: [createGamepad('pad-1', { buttons: { 7: PRESSED } })],
+    config: createControllerConfig({ enabled: false, bindings: HOLD_ON_R2 }),
+  });
+
+  harness.poll(0, 16);
+
+  assert.deepEqual(harness.secondarySubHeld, []);
+});
+
+test('gamepad controller honors a remapped or explicitly unbound secondary subtitle hold', () => {
+  const remapped = createHarness({
+    gamepads: [createGamepad('pad-1', { buttons: { 5: PRESSED, 7: PRESSED } })],
+    config: createControllerConfig({
+      bindings: { holdSecondarySub: { kind: 'button', buttonIndex: 5 } },
+    }),
+  });
+  remapped.poll(0);
+  assert.deepEqual(remapped.secondarySubHeld, [true]);
+
+  const unbound = createHarness({
+    gamepads: [createGamepad('pad-1', { buttons: { 7: PRESSED } })],
+    config: createControllerConfig({ bindings: { holdSecondarySub: { kind: 'none' } } }),
+  });
+  unbound.poll(0);
+  assert.deepEqual(unbound.secondarySubHeld, []);
+});
+
+test('gamepad controller requires an analog R2 pull past the trigger deadzone to hold', () => {
+  let r2: TestButton = { value: 0.3, pressed: false, touched: true };
+  const harness = createHarness({
+    gamepads: () => [createGamepad('pad-1', { buttons: { 7: r2 } })],
+    config: createControllerConfig({
+      triggerInputMode: 'analog',
+      triggerDeadzone: 0.5,
+      bindings: HOLD_ON_R2,
+    }),
+  });
+
+  harness.poll(0);
+  assert.deepEqual(harness.secondarySubHeld, []);
+
+  r2 = { value: 0.7, pressed: false, touched: true };
+  harness.poll(16);
+  assert.deepEqual(harness.secondarySubHeld, [true]);
 });

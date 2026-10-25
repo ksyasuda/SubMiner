@@ -60,6 +60,12 @@ class FakeElement {
   dataset: Record<string, string> = {};
   style = new FakeStyleDeclaration();
   className = '';
+  classes = new Set<string>();
+  classList = {
+    add: (...names: string[]) => names.forEach((name) => this.classes.add(name)),
+    remove: (...names: string[]) => names.forEach((name) => this.classes.delete(name)),
+    contains: (name: string) => this.classes.has(name),
+  };
   replaceChildrenCalls = 0;
   src?: string;
   alt?: string;
@@ -725,4 +731,24 @@ test('prepareSecondarySubtitleLines strips ASS override tags and handles empty i
   assert.deepEqual(prepareSecondarySubtitleLines('{\\an8}Sign text'), ['Sign text']);
   assert.deepEqual(prepareSecondarySubtitleLines(''), []);
   assert.deepEqual(prepareSecondarySubtitleLines('{\\an8}'), []);
+});
+
+test('setSecondarySubHeld shows the secondary subtitle while held and restores the chosen mode', () => {
+  withRenderer({}, ({ renderer, dom }) => {
+    const modeClasses = () =>
+      [...dom.secondarySubContainer.classes].filter((name) => name.startsWith('secondary-sub-'));
+
+    renderer.updateSecondarySubMode('hidden');
+    assert.deepEqual(modeClasses(), ['secondary-sub-hidden']);
+
+    renderer.setSecondarySubHeld(true);
+    assert.deepEqual(modeClasses(), ['secondary-sub-visible']);
+
+    // A mode change from mpv or the CLI while held is remembered, not shown yet.
+    renderer.updateSecondarySubMode('hover');
+    assert.deepEqual(modeClasses(), ['secondary-sub-visible']);
+
+    renderer.setSecondarySubHeld(false);
+    assert.deepEqual(modeClasses(), ['secondary-sub-hover']);
+  });
 });

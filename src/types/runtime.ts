@@ -234,6 +234,7 @@ export interface ControllerBindingsConfig {
   nextAudio?: ControllerDiscreteBindingConfig;
   playCurrentAudio?: ControllerDiscreteBindingConfig;
   toggleMpvPause?: ControllerDiscreteBindingConfig;
+  holdSecondarySub?: ControllerDiscreteBindingConfig;
   leftStickHorizontal?: ControllerAxisBindingConfig;
   leftStickVertical?: ControllerAxisBindingConfig;
   rightStickHorizontal?: ControllerAxisBindingConfig;
@@ -250,6 +251,7 @@ export interface ResolvedControllerBindingsConfig {
   nextAudio?: ResolvedControllerDiscreteBinding;
   playCurrentAudio?: ResolvedControllerDiscreteBinding;
   toggleMpvPause?: ResolvedControllerDiscreteBinding;
+  holdSecondarySub?: ResolvedControllerDiscreteBinding;
   leftStickHorizontal?: ResolvedControllerAxisBinding;
   leftStickVertical?: ResolvedControllerAxisBinding;
   rightStickHorizontal?: ResolvedControllerAxisBinding;

@@ -55,6 +55,12 @@ export function buildCoreConfigOptionRegistry(
       defaultValue: defaultConfig.controller.bindings.toggleMpvPause,
       description: 'Controller binding descriptor for toggling mpv play/pause.',
     },
+    {
+      id: 'holdSecondarySub',
+      defaultValue: defaultConfig.controller.bindings.holdSecondarySub,
+      description:
+        'Controller binding descriptor that shows the secondary subtitle only while held. Works with or without keyboard-only mode.',
+    },
   ] as const;
 
   const axisBindings = [

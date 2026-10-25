@@ -461,6 +461,7 @@ function startControllerPolling(): void {
           nextAudio: { kind: 'button', buttonIndex: 5 },
           playCurrentAudio: { kind: 'button', buttonIndex: 4 },
           toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+          holdSecondarySub: { kind: 'none' },
           leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
           leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
           rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
@@ -496,6 +497,10 @@ function startControllerPolling(): void {
     },
     toggleMpvPause: () => {
       window.electronAPI.sendMpvCommand(['cycle', 'pause']);
+    },
+    setSecondarySubHeld: (held) => {
+      subtitleRenderer.setSecondarySubHeld(held);
+      measurementReporter.schedule();
     },
     scrollPopup: (deltaPixels) => {
       emitControllerPopupScroll(deltaPixels);
