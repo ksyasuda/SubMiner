@@ -56,6 +56,7 @@ export function createControllerSelectModal(
 
   const controllerConfigForm = createControllerConfigForm({
     container: ctx.dom.controllerConfigList,
+    getControllerMapping: () => getSelectedController()?.mapping ?? null,
     getBindings: () =>
       getSelectedControllerConfig()?.bindings ?? {
         toggleLookup: { kind: 'button', buttonIndex: 0 },

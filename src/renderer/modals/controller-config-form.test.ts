@@ -89,7 +89,10 @@ function findOne(root: FakeElement, className: string, text?: string): FakeEleme
 }
 
 /** Renders the form into a fake container with `document` stubbed for the duration. */
-function renderForm(learningActionId: ActionId | null) {
+function renderForm(
+  learningActionId: ActionId | null,
+  options: { bindings?: typeof BINDINGS; mapping?: string } = {},
+) {
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -101,7 +104,8 @@ function renderForm(learningActionId: ActionId | null) {
     const container = new FakeElement();
     createControllerConfigForm({
       container: container as unknown as HTMLElement,
-      getBindings: () => BINDINGS,
+      getBindings: () => options.bindings ?? BINDINGS,
+      getControllerMapping: () => options.mapping,
       getLearningActionId: () => learningActionId,
       getDpadLearningActionId: () => null,
       onLearn: (actionId, bindingType) => calls.push(`learn:${actionId}:${bindingType}`),
@@ -233,3 +237,29 @@ for (const c of [
     assert.deepEqual(calls, [c.expected]);
   });
 }
+
+test('controller config form names buttons by the W3C standard layout for standard pads', () => {
+  const bindings: typeof BINDINGS = {
+    ...BINDINGS,
+    quitMpv: { kind: 'button', buttonIndex: 6 },
+    toggleMpvPause: { kind: 'button', buttonIndex: 10 },
+    holdSecondarySub: { kind: 'button', buttonIndex: 11 },
+    previousEntry: { kind: 'button', buttonIndex: 8 },
+    nextEntry: { kind: 'button', buttonIndex: 9 },
+    rightStickVertical: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+  };
+  const badge = (row: FakeElement) => findOne(row, 'controller-config-badge').textContent;
+
+  const standard = renderForm(null, { bindings, mapping: 'standard' });
+  assert.equal(badge(standard.row('Quit MPV')), 'LT / L2');
+  assert.equal(badge(standard.row('Previous Entry')), 'Back / Select');
+  assert.equal(badge(standard.row('Next Entry')), 'Start / Options');
+  assert.equal(badge(standard.row('Toggle MPV Pause')), 'L3 / LS');
+  assert.equal(badge(standard.row('Show Secondary Subtitle (Hold)')), 'R3 / RS');
+  assert.equal(badge(standard.row('Popup Jump (Stick)')), 'Right Stick Y');
+
+  // Pads without the standard mapping keep the previous names.
+  const raw = renderForm(null, { bindings, mapping: '' });
+  assert.equal(badge(raw.row('Quit MPV')), 'Back / Select');
+  assert.equal(badge(raw.row('Previous Entry')), 'L3 / LS');
+});
