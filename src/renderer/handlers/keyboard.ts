@@ -123,12 +123,13 @@ export function createKeyboardHandlers(
   }
 
   // Imported mpv bindings only run when no SubMiner UI could be the input's target.
+  // The subtitle sidebar is a side panel over playback, so only input inside it (a
+  // `.modal` target) stays with SubMiner.
   function canForwardToMpv(target: EventTarget | null): boolean {
     return (
       keyboardConfigLoaded &&
       !ctx.state.playlistBrowserModalOpen &&
       !ctx.state.youtubePickerModalOpen &&
-      !ctx.state.subtitleSidebarModalOpen &&
       !isLookupPopupOpen(ctx.state, document) &&
       !isInteractiveTarget(target)
     );

@@ -1297,6 +1297,39 @@ test('Hachidori attention without an open popup pane still forwards imported mpv
   }
 });
 
+test('an open subtitle sidebar only keeps imported mpv input aimed at the sidebar', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setGetMpvInputBindings(async () => ({
+      keys: ['0', 'MBTN_LEFT_DBL'],
+      blockedKeys: [],
+    }));
+    await handlers.setupMpvInputForwarding();
+    await wait(0);
+    ctx.state.subtitleSidebarModalOpen = true;
+
+    testGlobals.dispatchKeydown({ key: '0', code: 'Digit0' });
+    testGlobals.dispatchMousedown({ button: 0 });
+    testGlobals.dispatchMousedown({ button: 0, type: 'mouseup' });
+    testGlobals.dispatchKeydown({
+      key: '0',
+      code: 'Digit0',
+      target: testGlobals.createInteractiveTarget(),
+    });
+    testGlobals.dispatchMousedown({ button: 0, target: testGlobals.createInteractiveTarget() });
+
+    assert.deepEqual(testGlobals.mpvCommands, [
+      ['keydown', '0'],
+      ['keydown', 'MBTN_LEFT'],
+      ['keyup', 'MBTN_LEFT'],
+    ]);
+  } finally {
+    ctx.state.subtitleSidebarModalOpen = false;
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: lookup toggle opens a lookup during Hachidori attention without a pane', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
