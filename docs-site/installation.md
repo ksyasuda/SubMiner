@@ -187,7 +187,7 @@ First-run setup can install the `subminer` command for you.
    xattr -d com.apple.quarantine /Applications/SubMiner.app
    ```
 
-3. Open **System Settings > Privacy & Security > Accessibility** and enable SubMiner (add it if it is missing). The overlay cannot follow the mpv window without this.
+3. Open **System Settings > Privacy & Security > Accessibility** and enable SubMiner (add it if it is missing). On macOS 27 this list is named **Device Control and Data Access**. SubMiner uses it to track the mpv window. Without it, SubMiner falls back to a basic window lookup that cannot tell when mpv is minimized.
 
 First-run setup can install the `subminer` command for you.
 

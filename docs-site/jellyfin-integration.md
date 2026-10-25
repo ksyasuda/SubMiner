@@ -25,7 +25,7 @@ SubMiner selects a Japanese subtitle track automatically and resets mpv's subtit
 
 If an episode has no Japanese subtitles, you can [generate them with Whisper](/subtitle-generation#generating-from-the-overlay) while it plays.
 
-On Windows, casting finds mpv through `mpv.executablePath`, then `SUBMINER_MPV_PATH`, then `PATH`. An invalid `mpv.executablePath` stops mpv from starting.
+Casting finds mpv through `mpv.executablePath`, then `SUBMINER_MPV_PATH`, then `PATH`. On macOS it then checks `/opt/homebrew/bin/mpv`, `/usr/local/bin/mpv`, and `/Applications/mpv.app`, because an app opened from Finder, the Dock, or Spotlight does not get your shell's `PATH`. If mpv lives somewhere else, set `mpv.executablePath` to its full path (`command -v mpv` prints it). An invalid `mpv.executablePath` stops mpv from starting.
 
 ## Playing from the terminal
 

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import {
   MPV_X11_BACKEND_ARGS,
@@ -98,14 +99,74 @@ export function spawnMpvProcess(
   });
 }
 
+export interface PosixMpvPathDeps {
+  platform: NodeJS.Platform;
+  getEnv: (name: string) => string | undefined;
+  isExecutable: (candidate: string) => boolean;
+}
+
+// Apps opened from Finder, the Dock, or Spotlight inherit launchd's minimal PATH
+// (/usr/bin:/bin:/usr/sbin:/sbin), so Homebrew and app-bundle installs are probed directly.
+const MACOS_MPV_FALLBACK_PATHS = [
+  '/opt/homebrew/bin/mpv',
+  '/usr/local/bin/mpv',
+  '/Applications/mpv.app/Contents/MacOS/mpv',
+];
+
+function isExecutableFile(candidate: string): boolean {
+  try {
+    fs.accessSync(candidate, fs.constants.X_OK);
+    return fs.statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
+
+export function createPosixMpvPathDeps(
+  overrides: Partial<PosixMpvPathDeps> = {},
+): PosixMpvPathDeps {
+  return {
+    platform: overrides.platform ?? process.platform,
+    getEnv: overrides.getEnv ?? ((name) => process.env[name]),
+    isExecutable: overrides.isExecutable ?? isExecutableFile,
+  };
+}
+
+// Resolution order: mpv.executablePath, SUBMINER_MPV_PATH, PATH, then macOS install
+// locations. A configured path that is not executable resolves to '' instead of falling back.
+export function resolvePosixMpvPath(deps: PosixMpvPathDeps, configuredMpvPath = ''): string {
+  const configPath = configuredMpvPath.trim();
+  if (configPath) {
+    return deps.isExecutable(configPath) ? configPath : '';
+  }
+
+  const envPath = deps.getEnv('SUBMINER_MPV_PATH')?.trim();
+  if (envPath && deps.isExecutable(envPath)) {
+    return envPath;
+  }
+
+  const pathCandidates = (deps.getEnv('PATH') ?? '')
+    .split(path.posix.delimiter)
+    .filter((dir) => dir.length > 0)
+    .map((dir) => path.posix.join(dir, 'mpv'));
+  const candidates =
+    deps.platform === 'darwin' ? [...pathCandidates, ...MACOS_MPV_FALLBACK_PATHS] : pathCandidates;
+  return candidates.find((candidate) => deps.isExecutable(candidate)) ?? '';
+}
+
+// Returns the mpv binary SubMiner should spawn itself, or '' when none is found.
+export function findMpvExecutablePath(configuredMpvPath = ''): string {
+  return process.platform === 'win32'
+    ? resolveWindowsMpvPath(createWindowsMpvPathDeps(), configuredMpvPath)
+    : resolvePosixMpvPath(createPosixMpvPathDeps(), configuredMpvPath);
+}
+
 export function resolveMpvExecutablePath(configuredMpvPath = ''): string {
-  const executablePath =
-    process.platform === 'win32'
-      ? resolveWindowsMpvPath(createWindowsMpvPathDeps(), configuredMpvPath)
-      : 'mpv';
+  const executablePath = findMpvExecutablePath(configuredMpvPath);
   if (!executablePath) {
+    const binary = process.platform === 'win32' ? 'mpv.exe' : 'mpv';
     throw new Error(
-      'Could not find mpv.exe. Check mpv.executablePath, SUBMINER_MPV_PATH, or PATH.',
+      `Could not find ${binary}. Check mpv.executablePath, SUBMINER_MPV_PATH, or PATH.`,
     );
   }
   return executablePath;
