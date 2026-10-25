@@ -162,6 +162,12 @@
       "holdSecondarySub": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
       }, // Controller binding descriptor that shows the secondary subtitle only while held. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "previousEntry": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that selects the previous word entry in the open Yomitan popup. Mine Card mines the selected entry. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "nextEntry": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "leftStickHorizontal": {
         "kind": "axis", // Analog binding input source kind. Values: none | axis
         "axisIndex": 0, // Raw axis index captured for this analog controller action.

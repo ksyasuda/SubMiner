@@ -89,6 +89,8 @@ const CONTROLLER_DISCRETE_BINDING_KEYS = [
   'playCurrentAudio',
   'toggleMpvPause',
   'holdSecondarySub',
+  'previousEntry',
+  'nextEntry',
 ] as const;
 
 const CONTROLLER_AXIS_BINDING_KEYS = [

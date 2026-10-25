@@ -175,8 +175,12 @@ Press `Alt+C` to choose a controller and remap buttons. Click an action's **Lear
 | Left stick            | Move between words, scroll the popup   |
 | Right stick (up/down) | Jump through the popup                 |
 | Unbound by default    | Show the secondary subtitle while held |
+| Unbound by default    | Previous word entry in the popup       |
+| Unbound by default    | Next word entry in the popup           |
 
 The secondary subtitle hold works with or without keyboard-only mode. Assign it with **Learn** on the **Show Secondary Subtitle (Hold)** row in `Alt+C`. While held, the secondary subtitle shows as if its mode were `visible`; releasing the button returns it to your chosen mode.
+
+**Previous Entry** and **Next Entry** move one word entry at a time in the open popup, and Mine Card then mines the selected entry. They send Yomitan's default `Alt+Up` / `Alt+Down` entry shortcuts, so they stop working if you rebind those in Yomitan's keyboard settings. If you assign them to the D-pad, click **Clear** on the **Popup Scroll (D-pad)** row too, or the D-pad will also scroll the popup.
 
 On controllers that report the W3C standard layout, the default quit button lands on `L2` instead of `Select`. Remap it with `Alt+C`. All options are in [Configuration](/configuration#controller-support).
 

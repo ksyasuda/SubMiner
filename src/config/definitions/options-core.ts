@@ -61,6 +61,18 @@ export function buildCoreConfigOptionRegistry(
       description:
         'Controller binding descriptor that shows the secondary subtitle only while held. Works with or without keyboard-only mode.',
     },
+    {
+      id: 'previousEntry',
+      defaultValue: defaultConfig.controller.bindings.previousEntry,
+      description:
+        'Controller binding descriptor that selects the previous word entry in the open Yomitan popup. Mine Card mines the selected entry.',
+    },
+    {
+      id: 'nextEntry',
+      defaultValue: defaultConfig.controller.bindings.nextEntry,
+      description:
+        'Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry.',
+    },
   ] as const;
 
   const axisBindings = [

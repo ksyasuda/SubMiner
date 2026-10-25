@@ -31,6 +31,20 @@ export const CONTROLLER_BINDING_DEFINITIONS: ControllerBindingDefinition[] = [
     defaultBinding: { kind: 'button', buttonIndex: 1 },
   },
   {
+    id: 'previousEntry',
+    label: 'Previous Entry',
+    group: 'Lookup',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
+  },
+  {
+    id: 'nextEntry',
+    label: 'Next Entry',
+    group: 'Lookup',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
+  },
+  {
     id: 'mineCard',
     label: 'Mine Card',
     group: 'Lookup',

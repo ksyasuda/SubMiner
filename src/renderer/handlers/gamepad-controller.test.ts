@@ -67,6 +67,8 @@ const VOID_ACTIONS = [
   'previousAudio',
   'nextAudio',
   'playCurrentAudio',
+  'previousEntry',
+  'nextEntry',
   'toggleMpvPause',
 ] as const;
 const DELTA_ACTIONS = ['moveSelection', 'scrollPopup', 'jumpPopup'] as const;
@@ -109,6 +111,8 @@ function createHarness(
     previousAudio: () => {},
     nextAudio: () => {},
     playCurrentAudio: () => {},
+    previousEntry: () => {},
+    nextEntry: () => {},
     toggleMpvPause: () => {},
     setSecondarySubHeld: () => {},
     scrollPopup: () => {},
@@ -554,4 +558,64 @@ test('gamepad controller requires an analog R2 pull past the trigger deadzone to
   r2 = { value: 0.7, pressed: false, touched: true };
   harness.poll(16);
   assert.deepEqual(harness.secondarySubHeld, [true]);
+});
+
+const ENTRY_ON_DPAD = {
+  previousEntry: { kind: 'button', buttonIndex: 12 },
+  nextEntry: { kind: 'button', buttonIndex: 13 },
+  // Free the D-pad from the popup-scroll fallback, as a user binding it would.
+  leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'none' },
+} as const;
+
+test('gamepad controller leaves popup entry navigation unbound by default', () => {
+  assert.deepEqual(CORE_DEFAULT_CONFIG.controller.bindings.previousEntry, { kind: 'none' });
+  assert.deepEqual(CORE_DEFAULT_CONFIG.controller.bindings.nextEntry, { kind: 'none' });
+});
+
+test('gamepad controller moves one popup entry per press while the lookup is open', () => {
+  let buttons: Record<number, TestButton> = {};
+  const harness = createHarness({
+    gamepads: () => [createGamepad('pad-1', { buttons })],
+    config: createControllerConfig({ bindings: ENTRY_ON_DPAD }),
+    deps: { getLookupWindowOpen: () => true },
+  });
+
+  harness.poll(0);
+  buttons = { 13: PRESSED };
+  // Holding the button does not repeat.
+  harness.poll(16, 32, 400, 800);
+  buttons = {};
+  harness.poll(816);
+  buttons = { 13: PRESSED };
+  harness.poll(832);
+  buttons = {};
+  harness.poll(848);
+  buttons = { 12: PRESSED };
+  harness.poll(864);
+
+  assert.deepEqual(harness.calls, ['nextEntry', 'nextEntry', 'previousEntry']);
+});
+
+test('gamepad controller ignores popup entry navigation while the lookup is closed', () => {
+  const harness = createHarness({
+    gamepads: [createGamepad('pad-1', { buttons: { 12: PRESSED, 13: PRESSED } })],
+    config: createControllerConfig({ bindings: ENTRY_ON_DPAD }),
+    deps: { getLookupWindowOpen: () => false },
+  });
+
+  harness.poll(0, 16);
+
+  assert.deepEqual(harness.calls, []);
+});
+
+test('gamepad controller requires keyboard-only mode for popup entry navigation', () => {
+  const harness = createHarness({
+    gamepads: [createGamepad('pad-1', { buttons: { 13: PRESSED } })],
+    config: createControllerConfig({ bindings: ENTRY_ON_DPAD }),
+    deps: { getLookupWindowOpen: () => true, getKeyboardModeEnabled: () => false },
+  });
+
+  harness.poll(0, 16);
+
+  assert.deepEqual(harness.calls, []);
 });

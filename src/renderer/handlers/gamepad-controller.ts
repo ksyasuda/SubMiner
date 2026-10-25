@@ -37,6 +37,8 @@ type GamepadControllerOptions = {
   previousAudio: () => void;
   nextAudio: () => void;
   playCurrentAudio: () => void;
+  previousEntry: () => void;
+  nextEntry: () => void;
   toggleMpvPause: () => void;
   setSecondarySubHeld: (held: boolean) => void;
   scrollPopup: (deltaPixels: number) => void;
@@ -366,6 +368,8 @@ export function createGamepadController(options: GamepadControllerOptions) {
       ['previousAudio', config.bindings.previousAudio],
       ['nextAudio', config.bindings.nextAudio],
       ['playCurrentAudio', config.bindings.playCurrentAudio],
+      ['previousEntry', config.bindings.previousEntry],
+      ['nextEntry', config.bindings.nextEntry],
       ['toggleMpvPause', config.bindings.toggleMpvPause],
     ] as const;
 
@@ -507,6 +511,20 @@ export function createGamepadController(options: GamepadControllerOptions) {
         activeGamepad,
         activeConfig,
         options.playCurrentAudio,
+      );
+      handleActionEdge(
+        'previousEntry',
+        activeConfig.bindings.previousEntry,
+        activeGamepad,
+        activeConfig,
+        options.previousEntry,
+      );
+      handleActionEdge(
+        'nextEntry',
+        activeConfig.bindings.nextEntry,
+        activeGamepad,
+        activeConfig,
+        options.nextEntry,
       );
 
       const primaryScroll = resolveAxisBindingValue(
