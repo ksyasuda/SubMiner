@@ -481,6 +481,8 @@ function installKeyboardTestGlobals() {
     setSessionBindings: (value: CompiledSessionBinding[]) => {
       sessionBindings = value;
     },
+    // A plain overlay element over playback, outside any SubMiner UI.
+    createPlaybackTarget: () => new TestElement(),
     createInteractiveTarget: () => {
       const target = new TestElement();
       target.closest = (selector: string) => (selector.includes('.modal') ? target : null);
@@ -1308,10 +1310,11 @@ test('an open subtitle sidebar only keeps imported mpv input aimed at the sideba
     await handlers.setupMpvInputForwarding();
     await wait(0);
     ctx.state.subtitleSidebarModalOpen = true;
+    const playbackTarget = testGlobals.createPlaybackTarget();
 
-    testGlobals.dispatchKeydown({ key: '0', code: 'Digit0' });
-    testGlobals.dispatchMousedown({ button: 0 });
-    testGlobals.dispatchMousedown({ button: 0, type: 'mouseup' });
+    testGlobals.dispatchKeydown({ key: '0', code: 'Digit0', target: playbackTarget });
+    testGlobals.dispatchMousedown({ button: 0, target: playbackTarget });
+    testGlobals.dispatchMousedown({ button: 0, type: 'mouseup', target: playbackTarget });
     testGlobals.dispatchKeydown({
       key: '0',
       code: 'Digit0',
