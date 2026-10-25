@@ -20,7 +20,7 @@ test('getYomitanExtensionSearchPaths prioritizes generated build output before p
   });
 
   assert.deepEqual(searchPaths, [
-    path.join(repoRoot, 'build', 'yomitan'),
+    path.join(repoRoot, 'dist', 'yomitan'),
     path.join(resourcesPath, 'yomitan'),
     '/usr/share/SubMiner/yomitan',
     path.join(userDataPath, 'yomitan'),
@@ -29,19 +29,19 @@ test('getYomitanExtensionSearchPaths prioritizes generated build output before p
 
 test('resolveExistingYomitanExtensionPath returns first manifest-backed candidate', () => {
   const existing = new Set<string>([
-    path.join('/repo', 'build', 'yomitan', 'manifest.json'),
+    path.join('/repo', 'dist', 'yomitan', 'manifest.json'),
     path.join('/repo', 'vendor', 'subminer-yomitan', 'ext', 'manifest.json'),
   ]);
 
   const resolved = resolveExistingYomitanExtensionPath(
     [
-      path.join('/repo', 'build', 'yomitan'),
+      path.join('/repo', 'dist', 'yomitan'),
       path.join('/repo', 'vendor', 'subminer-yomitan', 'ext'),
     ],
     (candidate) => existing.has(candidate),
   );
 
-  assert.equal(resolved, path.join('/repo', 'build', 'yomitan'));
+  assert.equal(resolved, path.join('/repo', 'dist', 'yomitan'));
 });
 
 test('resolveExistingYomitanExtensionPath ignores source tree without built manifest', () => {

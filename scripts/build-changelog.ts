@@ -68,8 +68,8 @@ type PullRequestChangelogOptions = {
   changedLabels?: string[];
 };
 
-const RELEASE_NOTES_PATH = path.join('release', 'release-notes.md');
-const PRERELEASE_NOTES_PATH = path.join('release', 'prerelease-notes.md');
+const RELEASE_NOTES_PATH = path.join('packaging', 'release-notes', 'release-notes.md');
+const PRERELEASE_NOTES_PATH = path.join('packaging', 'release-notes', 'prerelease-notes.md');
 const CHANGELOG_HEADER = '# Changelog';
 const CHANGE_TYPES: FragmentType[] = ['added', 'changed', 'fixed', 'docs', 'internal'];
 const SKIP_CHANGELOG_LABEL = 'skip-changelog';
@@ -1144,7 +1144,7 @@ function isFragmentPath(candidate: string): boolean {
 function isIgnoredPullRequestPath(candidate: string): boolean {
   return (
     candidate === 'CHANGELOG.md' ||
-    candidate === 'release/release-notes.md' ||
+    candidate === 'packaging/release-notes/release-notes.md' ||
     candidate === 'AGENTS.md' ||
     candidate === 'README.md' ||
     candidate.startsWith('changes/') ||
@@ -1405,7 +1405,7 @@ export function verifyPrereleaseNotesMatchVersion(options?: ChangelogOptions): v
   const markerVersion = extractPrereleaseVersionMarker(readFileSync(prereleaseNotesPath, 'utf8'));
   if (markerVersion !== version) {
     throw new Error(
-      `release/prerelease-notes.md was generated for ${markerVersion ?? 'an unknown version (missing or legacy prerelease-version marker)'} but this release is ${version}. Rerun 'bun run changelog:prerelease-notes --version ${version}' and commit the result.`,
+      `packaging/release-notes/prerelease-notes.md was generated for ${markerVersion ?? 'an unknown version (missing or legacy prerelease-version marker)'} but this release is ${version}. Rerun 'bun run changelog:prerelease-notes --version ${version}' and commit the result.`,
     );
   }
 }

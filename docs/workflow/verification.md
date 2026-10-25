@@ -62,7 +62,7 @@ bun run docs:build
   then `bun run test:e2e` (see [Headless End-to-End Harness](#headless-end-to-end-harness))
 - Build/release scripts (`scripts/**`): `bun run test:scripts`
 - Packaging: build the platform package, then run `bun run test:package <resources-directory>`.
-  On headless Linux: `xvfb-run -a bun run test:package release/linux-unpacked/resources`.
+  On headless Linux: `xvfb-run -a bun run test:package dist/release/linux-unpacked/resources`.
   Content checks run inside the electron-builder afterPack hook. See the
   [release guide](../RELEASING.md#package-contents-checks) for the
   installed-app verification checklist.

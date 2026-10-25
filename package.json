@@ -146,7 +146,8 @@
     "afterPack": "scripts/electron-builder-after-pack.cjs",
     "icon": "assets/SubMiner-square.png",
     "directories": {
-      "output": "release"
+      "buildResources": "packaging/electron-builder",
+      "output": "dist/release"
     },
     "publish": [
       {
@@ -178,8 +179,8 @@
       "category": "public.app-category.video",
       "icon": "assets/SubMiner-square.png",
       "hardenedRuntime": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
+      "entitlements": "packaging/electron-builder/entitlements.mac.plist",
+      "entitlementsInherit": "packaging/electron-builder/entitlements.mac.plist",
       "extraResources": [
         {
           "from": "dist/scripts/get-mpv-window-macos",
@@ -211,7 +212,7 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "include": "build/installer.nsh"
+      "include": "packaging/electron-builder/installer.nsh"
     },
     "files": [
       "dist/**/*",
@@ -225,17 +226,18 @@
       "!**/{test,tests,__tests__,fixture,fixtures,__fixtures__}{,/**/*}",
       "!dist/launcher{,/**/*}",
       "!dist/scripts{,/**/*}",
+      "!dist/{yomitan,hachidori,release}{,/**/*}",
       "!dist/{renderer,settings,syncui}/fonts{,/**/*}",
       "!node_modules/koffi/{src,vendor,doc}{,/**/*}",
       "!node_modules/@libsql/linux-x64-musl{,/**/*}"
     ],
     "extraResources": [
       {
-        "from": "build/yomitan",
+        "from": "dist/yomitan",
         "to": "yomitan"
       },
       {
-        "from": "build/hachidori",
+        "from": "dist/hachidori",
         "to": "hachidori"
       },
       {
@@ -276,6 +278,11 @@
         "to": "CHANGELOG.md"
       }
     ]
+  },
+  "prettier": {
+    "printWidth": 100,
+    "singleQuote": true,
+    "trailingComma": "all"
   },
   "patchedDependencies": {
     "@discordjs/rest@2.6.1": "patches/@discordjs%2Frest@2.6.1.patch"

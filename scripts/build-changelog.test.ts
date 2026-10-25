@@ -203,7 +203,7 @@ test('writeChangelogArtifacts ignores README, groups fragments by type, writes r
       assert.match(changelog, /### Fixed\n- Polished: fixed entry\./);
       assert.match(changelog, /## v0\.4\.0 \(2026-03-01\)\n- Existing fix\n$/);
 
-      const releaseNotes = project.read('release/release-notes.md');
+      const releaseNotes = project.read('packaging/release-notes/release-notes.md');
       assert.match(releaseNotes, /## Highlights\n### Added\n- Polished: added entry\./);
       assert.match(releaseNotes, /### Fixed\n- Polished: fixed entry\./);
       assert.match(releaseNotes, /## Installation\n\nSee the README and docs\/installation guide/);
@@ -240,7 +240,7 @@ test('writeChangelogArtifacts skips changelog prepend when release section alrea
       assert.equal(project.exists('changes/001.md'), false);
       assert.equal(project.read('CHANGELOG.md'), existingChangelog);
       assert.match(
-        project.read('release/release-notes.md'),
+        project.read('packaging/release-notes/release-notes.md'),
         /## Highlights\n### Added\n- Existing release bullet\./,
       );
     },
@@ -268,7 +268,7 @@ test('writeStableReleaseArtifacts reuses the requested version and date for chan
       });
 
       assert.deepEqual(result.outputPaths, [project.at('CHANGELOG.md')]);
-      assert.equal(result.releaseNotesPath, project.at('release/release-notes.md'));
+      assert.equal(result.releaseNotesPath, project.at('packaging/release-notes/release-notes.md'));
       assert.equal(result.docsChangelogPath, project.at('docs-site/changelog.md'));
 
       assert.match(project.read('CHANGELOG.md'), /## v0\.4\.1 \(2026-03-07\)/);
@@ -471,7 +471,7 @@ test('writePrereleaseNotesForVersion writes cumulative beta notes without mutati
         deps: { runClaude: stub.runClaude, listPrereleaseTags: () => [] },
       });
 
-      assert.equal(outputPath, project.at('release/prerelease-notes.md'));
+      assert.equal(outputPath, project.at('packaging/release-notes/prerelease-notes.md'));
       assert.equal(
         project.read('CHANGELOG.md'),
         existingChangelog,
@@ -527,7 +527,7 @@ test('writePrereleaseNotesForVersion reuses existing prerelease notes when addin
     'prerelease-reuse-existing-notes',
     {
       'package.json': packageJson('0.11.3-beta.2'),
-      'release/prerelease-notes.md': existingNotes,
+      'packaging/release-notes/prerelease-notes.md': existingNotes,
       'changes/001.md': fragment('fixed', 'launcher', '- Fixed launcher prerelease packaging.'),
     },
     (project) => {
@@ -574,7 +574,7 @@ test('writePrereleaseNotesForVersion ignores unmarked prerelease notes from an o
     'prerelease-ignore-unmarked-old-notes',
     {
       'package.json': packageJson('0.17.0-beta.1'),
-      'release/prerelease-notes.md': existingNotes,
+      'packaging/release-notes/prerelease-notes.md': existingNotes,
       'changes/001.md': fragment(
         'changed',
         'overlay',
@@ -785,7 +785,7 @@ test('writeChangelogArtifacts filters internal fragments from the release-notes 
         'release-notes mode drops internal fragments',
       );
 
-      const releaseNotes = project.read('release/release-notes.md');
+      const releaseNotes = project.read('packaging/release-notes/release-notes.md');
       assert.doesNotMatch(releaseNotes, /<details>/);
       assert.doesNotMatch(releaseNotes, /### Internal/);
       assert.match(
@@ -841,7 +841,7 @@ test('writeChangelogArtifacts appends contributor attribution and a new-contribu
         project.at('changes/002.md'),
       ]);
 
-      const releaseNotes = project.read('release/release-notes.md');
+      const releaseNotes = project.read('packaging/release-notes/release-notes.md');
       assert.match(releaseNotes, /## What's Changed\n\n/);
       assert.match(releaseNotes, /- feat\(overlay\): add a feature by @ksyasuda in #110\n/);
       assert.match(releaseNotes, /- fix\(jellyfin\): restart remote session by @bee-san in #112\n/);
@@ -904,7 +904,10 @@ test('writeChangelogArtifacts skips contributor attribution in GitHub Actions wi
         });
 
         assert.deepEqual(warnings, []);
-        assert.doesNotMatch(project.read('release/release-notes.md'), /## What's Changed/);
+        assert.doesNotMatch(
+          project.read('packaging/release-notes/release-notes.md'),
+          /## What's Changed/,
+        );
       } finally {
         console.warn = originalWarn;
         for (const key of envKeys) {
@@ -990,7 +993,10 @@ test('writeReleaseNotesForVersion preserves committed contributor attribution be
 
   await withProject(
     'release-notes-preserve-attribution',
-    { 'CHANGELOG.md': existingChangelog, 'release/release-notes.md': committedReleaseNotes },
+    {
+      'CHANGELOG.md': existingChangelog,
+      'packaging/release-notes/release-notes.md': committedReleaseNotes,
+    },
     (project) => {
       const outputPath = writeReleaseNotesForVersion({
         cwd: project.projectRoot,
@@ -1055,7 +1061,7 @@ test('writeChangelogArtifacts strips <details> blocks from release notes when re
         'no Claude calls should fire when the section already exists',
       );
 
-      const releaseNotes = project.read('release/release-notes.md');
+      const releaseNotes = project.read('packaging/release-notes/release-notes.md');
       assert.match(releaseNotes, /## Highlights\n### Added\n- Polished: previously committed\./);
       assert.doesNotMatch(releaseNotes, /<details>/);
       assert.doesNotMatch(releaseNotes, /### Internal/);
@@ -1237,7 +1243,7 @@ test('writePrereleaseNotesForVersion strips the stale delta section from the reu
     'prerelease-reuse-strips-delta',
     {
       'package.json': packageJson('0.12.0-beta.3'),
-      'release/prerelease-notes.md': existingNotes,
+      'packaging/release-notes/prerelease-notes.md': existingNotes,
       'changes/001.md': fragment('added', 'overlay', '- Added overlay coverage.'),
     },
     (project) => {
@@ -1271,7 +1277,7 @@ test('verifyPrereleaseNotesMatchVersion accepts matching notes and rejects stale
     (project) => {
       const verify = (version = '0.12.0-beta.2') =>
         verifyPrereleaseNotesMatchVersion({ cwd: project.projectRoot, version });
-      const notesPath = 'release/prerelease-notes.md';
+      const notesPath = 'packaging/release-notes/prerelease-notes.md';
 
       assert.throws(() => verify(), /Missing .*prerelease-notes\.md/);
 

@@ -22,12 +22,10 @@ export function getYomitanExtensionSearchPaths(
   const searchPaths: string[] = [];
 
   pushUnique(searchPaths, options.explicitPath ? path.resolve(options.explicitPath) : null);
-  pushUnique(searchPaths, options.cwd ? path.resolve(options.cwd, 'build', 'yomitan') : null);
+  pushUnique(searchPaths, options.cwd ? path.resolve(options.cwd, 'dist', 'yomitan') : null);
   pushUnique(
     searchPaths,
-    options.moduleDir
-      ? path.resolve(options.moduleDir, '..', '..', '..', 'build', 'yomitan')
-      : null,
+    options.moduleDir ? path.resolve(options.moduleDir, '..', '..', '..', 'dist', 'yomitan') : null,
   );
   pushUnique(
     searchPaths,

@@ -10,14 +10,19 @@ import { Readable } from 'node:stream';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 
-export const DEFAULT_MANIFEST_PATH = path.join(repoRoot, 'build', 'bun-source-manifest.json');
+export const DEFAULT_MANIFEST_PATH = path.join(
+  repoRoot,
+  'packaging',
+  'bun',
+  'bun-source-manifest.json',
+);
 export const DEFAULT_RUNTIME_MANIFEST_PATH = path.join(
   repoRoot,
   'build',
   'bun-runtime-manifest.json',
 );
 export const DEFAULT_PACKAGE_JSON_PATH = path.join(repoRoot, 'package.json');
-export const DEFAULT_OUTPUT_DIR = path.join(repoRoot, 'release');
+export const DEFAULT_OUTPUT_DIR = path.join(repoRoot, 'dist', 'release');
 export const DEFAULT_CACHE_DIR = path.join(repoRoot, '.tmp', 'bun-corresponding-source');
 
 function isRecord(value) {

@@ -14,9 +14,14 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 
 export const DEFAULT_PACKAGE_JSON_PATH = path.join(repoRoot, 'package.json');
-export const DEFAULT_MANIFEST_PATH = path.join(repoRoot, 'build', 'bun-runtime-manifest.json');
+export const DEFAULT_MANIFEST_PATH = path.join(
+  repoRoot,
+  'packaging',
+  'bun',
+  'bun-runtime-manifest.json',
+);
 export const DEFAULT_CACHE_DIR = path.join(repoRoot, '.tmp', 'bun-runtime');
-export const DEFAULT_LICENSES_SOURCE_DIR = path.join(repoRoot, 'resources', 'bun', 'licenses');
+export const DEFAULT_LICENSES_SOURCE_DIR = path.join(repoRoot, 'packaging', 'bun', 'licenses');
 export const STAGED_METADATA_FILE = 'metadata.json';
 export const REQUIRED_LICENSE_FILES = [
   'Bun-LICENSE.md',

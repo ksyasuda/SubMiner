@@ -10,7 +10,7 @@ The SubMiner GitHub release containing this application also contains `bun-v1.3.
 - every external source repository registered by that Bun revision's CMake build, at its exact commit
 - Bun's dependency patches, build scripts, lockfiles, collected third-party license files, and instructions for rebuilding Bun against a modified JavaScriptCore
 
-The machine-readable inventory lives at `SOURCE-INVENTORY.json` inside the source archive and at `build/bun-source-manifest.json` in SubMiner's source repository.
+The machine-readable inventory lives at `SOURCE-INVENTORY.json` inside the source archive and at `packaging/bun/bun-source-manifest.json` in SubMiner's source repository.
 
 The archive vendors the source repositories linked through Bun's CMake build. It preserves Bun's package-manager lockfiles and lol-html's `Cargo.lock`, but it does not vendor npm packages, crates.io packages, compilers, SDKs, or other build tools. Rebuilding needs network access for those package-manager and toolchain inputs. The archive's rebuild README records the known tool versions and the remaining unpinned Rust nightly input.
 

@@ -11,9 +11,9 @@ test('Hachidori resolves development and packaged artifacts without falling back
   assert.equal(
     resolveHachidoriExtensionPath({
       ...options,
-      exists: (p) => p === '/app/build/hachidori/manifest.json',
+      exists: (p) => p === '/app/dist/hachidori/manifest.json',
     }),
-    '/app/build/hachidori',
+    '/app/dist/hachidori',
   );
   assert.equal(
     resolveHachidoriExtensionPath({

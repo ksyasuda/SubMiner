@@ -35,7 +35,7 @@ function runtimeConfig() {
       'win32-x64': { file: 'bun-windows-x64-baseline.zip', sha256: '5'.repeat(64) },
     },
     licenseInventoryStatus: 'complete-for-bun-1.3.5-declared-linked-libraries',
-    sourceManifest: 'build/bun-source-manifest.json',
+    sourceManifest: 'packaging/bun/bun-source-manifest.json',
     correspondingSourceAsset: 'bun-v1.3.5-source.tar.gz',
   };
 }
@@ -96,7 +96,7 @@ test('manifest version must match the exact packageManager Bun pin', () => {
           releaseTagCommit: 'fa5a5bbe556a4bda5bde77b4013aa6c3bb4ec9ab',
           artifacts: {},
           licenseInventoryStatus: 'partial',
-          sourceManifest: 'build/bun-source-manifest.json',
+          sourceManifest: 'packaging/bun/bun-source-manifest.json',
           correspondingSourceAsset: 'bun-v1.3.5-source.tar.gz',
         },
         '1.3.5',

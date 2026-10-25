@@ -54,10 +54,10 @@ files before signing and generating updater hashes, never from a signed app.
 4. Bump `package.json` to the release version.
 5. Build release metadata before tagging (this calls `claude -p` locally):
    `bun run changelog:build --version <version> --date <yyyy-mm-dd>`
-   - The polished `CHANGELOG.md` and `release/release-notes.md` are committed
+   - The polished `CHANGELOG.md` and `packaging/release-notes/release-notes.md` are committed
      before tagging. Release CI no longer auto-builds the changelog; it fails
      fast if `changes/*.md` fragments are still present on a tag-based run.
-6. Review `CHANGELOG.md` and `release/release-notes.md`. Edit by hand if Claude
+6. Review `CHANGELOG.md` and `packaging/release-notes/release-notes.md`. Edit by hand if Claude
    missed something — the committed Markdown is what ships.
 7. Run release gate locally:
    `bun run changelog:check --version <version>`
@@ -73,9 +73,9 @@ files before signing and generating updater hashes, never from a signed app.
    `bun-v<version>-source.tar.gz` plus its `.sha256` file. The script
    fails if Bun's CMake dependency pins, WebKit pin, source checksums, patch
    inputs, or collected license files differ from
-   `build/bun-source-manifest.json`.
+   `packaging/bun/bun-source-manifest.json`.
    When validating auto-update metadata, also run the relevant platform package
-   build and confirm `release/` contains the generated updater metadata
+   build and confirm `dist/release/` contains the generated updater metadata
    (`latest*.yml`) and blockmaps (`*.blockmap`).
 8. If `docs-site/` changed, also run:
    `bun run docs:test`
@@ -103,9 +103,9 @@ files before signing and generating updater hashes, never from a signed app.
    source archive. A missing source repository or license file fails the
    release instead of publishing only the executable.
    When validating packaged updater output, confirm the platform build writes
-   `latest*.yml` and `*.blockmap` files under `release/`.
+   `latest*.yml` and `*.blockmap` files under `dist/release/`.
 5. Commit the prerelease prep (package.json version bump + the generated
-   `release/prerelease-notes.md`). CI does not regenerate notes — it uses the
+   `packaging/release-notes/prerelease-notes.md`). CI does not regenerate notes — it uses the
    committed file — so review it before committing. Rerun
    `bun run changelog:prerelease-notes --version <version>` for every later
    beta/RC, even if no fragments changed: the notes carry a hidden
@@ -128,14 +128,14 @@ Notes:
 - Supported prerelease channels are `beta` and `rc`, with versions like `0.11.3-beta.1` and `0.11.3-rc.1`.
 - Pass `--date` explicitly when you want the release stamped with the local cut date; otherwise the generator uses the current ISO date, which can roll over to the next UTC day late at night.
 - `changelog:check` now rejects tag/package version mismatches.
-- `changelog:prerelease-notes` also rejects tag/package version mismatches and writes `release/prerelease-notes.md` without mutating tracked changelog files. When that file already exists, the generator includes it in the Claude prompt so later beta/RC notes reuse the reviewed text instead of starting over.
+- `changelog:prerelease-notes` also rejects tag/package version mismatches and writes `packaging/release-notes/prerelease-notes.md` without mutating tracked changelog files. When that file already exists, the generator includes it in the Claude prompt so later beta/RC notes reuse the reviewed text instead of starting over.
 - From the second prerelease of a base version onward, the notes open with a `## Changes since <previous tag>` section above the cumulative `## Highlights`. The generator locates the newest preceding beta/RC tag for the same base version (semver order: all betas before all RCs), diffs `changes/*.md` between that tag and the working tree, and asks Claude to describe only the behavioral beta-to-beta differences — added fragments as new changes, modified fragments by their before/after difference (editorial-only edits are dropped), deleted fragments as removed/reverted changes. If no fragments changed (for example a packaging-only rebuild), the section states that explicitly without a Claude call. The delta section carries no separate contributor attribution; `## What's Changed` stays cumulative like `## Highlights`.
 - `changelog:check-prerelease-notes --version <version>` verifies the committed notes' `prerelease-version` marker matches the version being tagged; the prerelease workflow runs it and fails the release on stale notes.
-- `changelog:build` generates `CHANGELOG.md` + `release/release-notes.md` (both polished by `claude -p`) and removes the released `changes/*.md` fragments. The CHANGELOG keeps internal notes inside a `<details><summary>Internal changes</summary>` collapse; the release notes drop them entirely.
-- `release/release-notes.md` (and `release/prerelease-notes.md`) include GitHub-style attribution after `## Highlights`: a `## What's Changed` list crediting each released fragment as `by @<author> in #<pr>`, plus a `## New Contributors` section for first-time authors. Attribution is resolved per fragment via `git log` (the commit that added the fragment) + `gh api .../commits/<sha>/pulls`, with one `gh` search per author for the first-contribution check. It needs `gh` installed and authenticated; if `gh` is unavailable or a lookup fails, the generator warns and emits notes without the attribution sections rather than failing. The CHANGELOG itself stays attribution-free.
+- `changelog:build` generates `CHANGELOG.md` + `packaging/release-notes/release-notes.md` (both polished by `claude -p`) and removes the released `changes/*.md` fragments. The CHANGELOG keeps internal notes inside a `<details><summary>Internal changes</summary>` collapse; the release notes drop them entirely.
+- `packaging/release-notes/release-notes.md` (and `packaging/release-notes/prerelease-notes.md`) include GitHub-style attribution after `## Highlights`: a `## What's Changed` list crediting each released fragment as `by @<author> in #<pr>`, plus a `## New Contributors` section for first-time authors. Attribution is resolved per fragment via `git log` (the commit that added the fragment) + `gh api .../commits/<sha>/pulls`, with one `gh` search per author for the first-contribution check. It needs `gh` installed and authenticated; if `gh` is unavailable or a lookup fails, the generator warns and emits notes without the attribution sections rather than failing. The CHANGELOG itself stays attribution-free.
 - The release workflow no longer auto-runs `changelog:build`. If pending `changes/*.md` fragments are present on a tag-based run, CI exits with a clear `::error::` pointing at the local fix. Run `bun run changelog:build --version <version>` locally, commit the polished output, then tag.
 - Do not tag while `changes/*.md` fragments still exist.
-- Prerelease tags intentionally keep `changes/*.md` fragments in place so multiple prereleases can reuse the same cumulative pending notes until the final stable cut. `make clean` preserves `release/prerelease-notes.md` while deleting generated build artifacts.
+- Prerelease tags intentionally keep `changes/*.md` fragments in place so multiple prereleases can reuse the same cumulative pending notes until the final stable cut.
 - If you need to repair a published release body (for example, a prior version’s section was omitted), regenerate notes from `CHANGELOG.md` and re-edit the release with `gh release edit --notes-file`.
 - Prerelease tags are handled by `.github/workflows/prerelease.yml`, which always publishes a GitHub prerelease with all current release platforms and never runs the AUR sync job.
 - CI, stable release, and prerelease workflows call the shared `.github/workflows/quality-gate.yml`; update that reusable workflow when changing common test coverage. Its environment suite includes the Lua mpv plugin tests.

@@ -18,7 +18,7 @@ test('platform packaging preserves the runtime allowlist after builder normalize
       '/tmp/subminer-filter-output',
       {
         defaultSrc: root,
-        globalOutDir: path.join(root, 'release'),
+        globalOutDir: path.join(root, 'dist', 'release'),
         customBuildOptions: { files: config.build[platform].files },
         macroExpander: (value) => value.replaceAll('${arch}', 'x64'),
       },

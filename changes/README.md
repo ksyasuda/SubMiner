@@ -44,11 +44,11 @@ How fragments turn into a release:
 - The polish step treats pending fragments as the final release outcome, not prerelease history. If a feature is added and then renamed or fixed before the stable cut, ship the final feature bullet instead of separate prerelease-only breaking/fix entries.
 - `CHANGELOG.md`, GitHub release notes, and prerelease notes all use one item per feature or area, inline by default: `- **Name**: one or two short sentences.` Items with several separate changes may use a few short nested bullets instead of a run-on sentence. Items say what changed and how to reach it; implementation details, edge cases, and step-by-step usage belong in the docs, not the release body.
 - `internal` fragments stay in `CHANGELOG.md` (inside a collapsed `<details>` block) but are dropped from the GitHub release notes entirely.
-- The polished `CHANGELOG.md` and `release/release-notes.md` are committed and reviewed before tagging — edit the Markdown by hand if Claude misses something.
+- The polished `CHANGELOG.md` and `packaging/release-notes/release-notes.md` are committed and reviewed before tagging — edit the Markdown by hand if Claude misses something.
 
 Prerelease notes:
 
-- prerelease tags like `v0.11.3-beta.1` and `v0.11.3-rc.1` reuse the current pending fragments to generate `release/prerelease-notes.md`
+- prerelease tags like `v0.11.3-beta.1` and `v0.11.3-rc.1` reuse the current pending fragments to generate `packaging/release-notes/prerelease-notes.md`
 - from the second prerelease of a base version onward, the notes also open with a `## Changes since <previous tag>` section generated from the fragment diff against the previous beta/RC tag; keep fragment edits meaningful. Editorial-only rewording is filtered out of that section, while genuinely changed behavior and deleted fragments (reverted changes) are reported
 - existing prerelease notes are a reviewed baseline; later prerelease runs should replace stale beta/RC wording with the current outcome instead of appending fix churn
 - prerelease note generation does not consume fragments and does not update `CHANGELOG.md` or `docs-site/changelog.md`

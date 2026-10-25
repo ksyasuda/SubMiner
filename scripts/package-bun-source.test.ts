@@ -70,7 +70,7 @@ describe('Bun corresponding-source manifest', () => {
   test('rejects stale runtime or package-manager pins', async () => {
     const manifest = parseSourceManifest(
       JSON.parse(
-        await fs.readFile(path.join(projectRoot, 'build/bun-source-manifest.json'), 'utf8'),
+        await fs.readFile(path.join(projectRoot, 'packaging/bun/bun-source-manifest.json'), 'utf8'),
       ),
     );
     const runtimeManifest = {
@@ -100,7 +100,7 @@ describe('Bun corresponding-source manifest', () => {
   test('rejects drift in CMake dependency and WebKit pins', async () => {
     const manifest = parseSourceManifest(
       JSON.parse(
-        await fs.readFile(path.join(projectRoot, 'build/bun-source-manifest.json'), 'utf8'),
+        await fs.readFile(path.join(projectRoot, 'packaging/bun/bun-source-manifest.json'), 'utf8'),
       ),
     );
     const registrations = manifest.sources

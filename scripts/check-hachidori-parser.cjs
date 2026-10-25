@@ -48,7 +48,7 @@ app
   .then(async () => {
     const targetSession = session.fromPartition('persist:hachidori-check');
     const extension = await targetSession.extensions.loadExtension(
-      path.join(root, 'build/hachidori'),
+      path.join(root, 'dist/hachidori'),
       { allowFileAccess: true },
     );
     // Keep a host window alive while the dictionary importer opens/closes its

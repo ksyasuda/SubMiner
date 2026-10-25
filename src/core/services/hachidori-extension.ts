@@ -15,7 +15,7 @@ export function resolveHachidoriExtensionPath(options: {
   exists?: (candidate: string) => boolean;
 }): string {
   const candidates = [
-    path.resolve(options.moduleDir, '../../../build/hachidori'),
+    path.resolve(options.moduleDir, '../../../dist/hachidori'),
     path.join(options.resourcesPath, 'hachidori'),
   ];
   const found = candidates.find((candidate) =>

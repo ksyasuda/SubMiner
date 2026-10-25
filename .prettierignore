@@ -1,6 +1,5 @@
 node_modules
 dist
-release
 coverage
 vendor
 *.log

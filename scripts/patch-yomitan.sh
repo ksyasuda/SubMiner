@@ -6,7 +6,7 @@ cat <<'EOF'
 patch-yomitan.sh is retired.
 
 SubMiner now uses the forked source submodule at vendor/subminer-yomitan and builds the
-Chromium extension artifact into build/yomitan.
+Chromium extension artifact into dist/yomitan.
 
 Use:
   git submodule update --init --recursive

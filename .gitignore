@@ -8,19 +8,12 @@ node_modules/
 # Electron build output
 out/
 dist/
-release/*
-!release/
-!release/release-notes.md
-!release/prerelease-notes.md
-build/yomitan/
 coverage/
 
 # Launcher build artifact (produced by make build-launcher)
 /subminer
 /main-entry.js
 /main-entry.js.map
-
-/build/hachidori/
 
 # Logs
 *.log
@@ -43,7 +36,6 @@ environment.toml
 .vitepress/dist/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
-tests/*
 .worktrees/
 .tmp/
 .codex/*

@@ -21,11 +21,10 @@ MACOS_DATA_DIR ?= $(HOME)/Library/Application Support/SubMiner
 MACOS_APP_DIR ?= $(HOME)/Applications
 MACOS_APP_DEST ?= $(MACOS_APP_DIR)/SubMiner.app
 
-# If building from source, the AppImage will typically land in release/.
-APPIMAGE_SRC = $(firstword $(wildcard release/SubMiner-*.AppImage))
-MACOS_APP_SRC = $(firstword $(wildcard release/*.app release/*/*.app))
-MACOS_ZIP_SRC = $(firstword $(wildcard release/SubMiner-*.zip))
-PRERELEASE_NOTES := release/prerelease-notes.md
+# If building from source, the AppImage will typically land in dist/release/.
+APPIMAGE_SRC = $(firstword $(wildcard dist/release/SubMiner-*.AppImage))
+MACOS_APP_SRC = $(firstword $(wildcard dist/release/*.app dist/release/*/*.app))
+MACOS_ZIP_SRC = $(firstword $(wildcard dist/release/SubMiner-*.zip))
 
 UNAME_S := $(shell uname -s 2>/dev/null || echo Unknown)
 ifeq ($(OS),Windows_NT)
@@ -57,7 +56,7 @@ help:
 		"  build-linux      Build Linux AppImage" \
 		"  build-macos      Build macOS DMG/ZIP (signed if configured)" \
 		"  build-macos-unsigned Build macOS DMG/ZIP without signing/notarization" \
-		"  clean            Remove build artifacts (dist/, release/, AppImage, binary)" \
+		"  clean            Remove build artifacts (dist/, AppImage, binary)" \
 		"  dev-start        Build and launch local Electron app" \
 		"  dev-start-macos  Build and launch local Electron app with macOS tracker backend" \
 		"  dev-watch        Start fast watch loop (tsc + renderer + Electron dev app)" \
@@ -165,15 +164,7 @@ build-launcher:
 
 clean:
 	@printf '%s\n' "[INFO] Removing build artifacts"
-	@if [ -f "$(PRERELEASE_NOTES)" ]; then \
-		PRERELEASE_NOTES_BACKUP="$$(mktemp -t subminer-prerelease-notes.XXXXXX)" && \
-		cp "$(PRERELEASE_NOTES)" "$$PRERELEASE_NOTES_BACKUP" && \
-		rm -rf dist release && \
-		install -d release && \
-		mv "$$PRERELEASE_NOTES_BACKUP" "$(PRERELEASE_NOTES)"; \
-	else \
-		rm -rf dist release; \
-	fi
+	@rm -rf dist
 	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 
 generate-config: ensure-bun
@@ -229,7 +220,7 @@ install-linux: build-launcher
 	@if [ -n "$(APPIMAGE_SRC)" ]; then \
 		install -m 0755 "$(APPIMAGE_SRC)" "$(BINDIR)/SubMiner.AppImage"; \
 	else \
-		printf '%s\n' "[WARN] No release/SubMiner-*.AppImage found; skipping AppImage install"; \
+		printf '%s\n' "[WARN] No dist/release/SubMiner-*.AppImage found; skipping AppImage install"; \
 		printf '%s\n' "       Build one with: make build"; \
 	fi
 	@printf '%s\n' "Installed to:" "  $(BINDIR)/subminer" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)" "  $(LINUX_DATA_DIR)/thumbnailers/$(THUMBNAILER_FILE)"
@@ -252,7 +243,7 @@ install-macos: build-launcher
 		ditto -x -k "$(MACOS_ZIP_SRC)" "$(MACOS_APP_DIR)"; \
 		printf '%s\n' "[INFO] Installed app bundle from $(MACOS_ZIP_SRC)"; \
 	else \
-		printf '%s\n' "[WARN] No macOS app bundle or zip found in release/; skipping app install"; \
+		printf '%s\n' "[WARN] No macOS app bundle or zip found in dist/release/; skipping app install"; \
 		printf '%s\n' "       Build one with: make build"; \
 	fi
 	@printf '%s\n' "Installed to:" "  $(BINDIR)/subminer" "  $(MACOS_DATA_DIR)/themes/$(THEME_FILE)" "  $(MACOS_APP_DEST)"

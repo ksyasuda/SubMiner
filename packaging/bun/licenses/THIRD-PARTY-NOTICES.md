@@ -1,6 +1,6 @@
 # Bun 1.3.5 third-party notices
 
-This file collects the license texts shipped by the external source repositories used by Bun 1.3.5 at the revisions in build/bun-source-manifest.json. The corresponding-source release asset also preserves license notices embedded in individual Bun and WebKit source files. Bun’s own LICENSE.md lists additional embedded libraries and JavaScript polyfills whose source and per-file notices are included in that asset.
+This file collects the license texts shipped by the external source repositories used by Bun 1.3.5 at the revisions in packaging/bun/bun-source-manifest.json. The corresponding-source release asset also preserves license notices embedded in individual Bun and WebKit source files. Bun’s own LICENSE.md lists additional embedded libraries and JavaScript polyfills whose source and per-file notices are included in that asset.
 
 ## BoringSSL
 

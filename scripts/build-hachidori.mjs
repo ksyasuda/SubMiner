@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = path.join(repoRoot, 'vendor', 'hachidori');
-const output = path.join(repoRoot, 'build', 'hachidori');
+const output = path.join(repoRoot, 'dist', 'hachidori');
 const provenance = JSON.parse(fs.readFileSync(path.join(source, 'SOURCE.json'), 'utf8'));
 
 // Upstream commits the engine binaries. Verify the pinned bytes before staging

@@ -86,7 +86,7 @@ SubMiner detected that a previously non-empty Yomitan profile suddenly appears e
 
 ## "Yomitan extension not found in any search path"
 
-The bundled Yomitan is missing. Re-download the AppImage, or place an unpacked Yomitan extension in `~/.config/SubMiner/yomitan`. Source builds must run `bun run build` first to produce `build/yomitan`.
+The bundled Yomitan is missing. Re-download the AppImage, or place an unpacked Yomitan extension in `~/.config/SubMiner/yomitan`. Source builds must run `bun run build` first to produce `dist/yomitan`.
 
 ## "MeCab not found on system"
 

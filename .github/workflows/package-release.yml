@@ -67,26 +67,26 @@ jobs:
       - name: Build unversioned AppImage
         run: |
           shopt -s nullglob
-          appimages=(release/SubMiner-*.AppImage)
+          appimages=(dist/release/SubMiner-*.AppImage)
           if [ "${#appimages[@]}" -eq 0 ]; then
             echo "No versioned AppImage found to create unversioned artifact."
-            ls -la release
+            ls -la dist/release
             exit 1
           fi
-          cp "${appimages[0]}" release/SubMiner.AppImage
+          cp "${appimages[0]}" dist/release/SubMiner.AppImage
 
       - name: Smoke packaged runtime assets
         shell: bash
-        run: xvfb-run -a bun run test:package "release/linux-unpacked/resources"
+        run: xvfb-run -a bun run test:package "dist/release/linux-unpacked/resources"
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
           name: appimage
           path: |
-            release/*.AppImage
-            release/latest*.yml
-            release/*.blockmap
+            dist/release/*.AppImage
+            dist/release/latest*.yml
+            dist/release/*.blockmap
           if-no-files-found: error
 
   build-macos:
@@ -159,17 +159,17 @@ jobs:
 
       - name: Smoke packaged runtime assets
         shell: bash
-        run: bun run test:package "release/mac-arm64/SubMiner.app/Contents/Resources"
+        run: bun run test:package "dist/release/mac-arm64/SubMiner.app/Contents/Resources"
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos
           path: |
-            release/*.dmg
-            release/*.zip
-            release/latest*.yml
-            release/*.blockmap
+            dist/release/*.dmg
+            dist/release/*.zip
+            dist/release/latest*.yml
+            dist/release/*.blockmap
           if-no-files-found: error
 
   build-windows:
@@ -224,15 +224,15 @@ jobs:
 
       - name: Smoke packaged runtime assets
         shell: bash
-        run: bun run test:package "release/win-unpacked/resources"
+        run: bun run test:package "dist/release/win-unpacked/resources"
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows
           path: |
-            release/*.exe
-            release/*.zip
-            release/latest*.yml
-            release/*.blockmap
+            dist/release/*.exe
+            dist/release/*.zip
+            dist/release/latest*.yml
+            dist/release/*.blockmap
           if-no-files-found: error

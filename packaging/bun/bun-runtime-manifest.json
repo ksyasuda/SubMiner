@@ -26,6 +26,6 @@
     }
   },
   "licenseInventoryStatus": "source-and-notices-pinned-to-binary-revision",
-  "sourceManifest": "build/bun-source-manifest.json",
+  "sourceManifest": "packaging/bun/bun-source-manifest.json",
   "correspondingSourceAsset": "bun-v1.3.5-source.tar.gz"
 }

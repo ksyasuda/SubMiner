@@ -44,19 +44,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: appimage
-          path: release
+          path: dist/release
 
       - name: Download macOS artifacts
         uses: actions/download-artifact@v4
         with:
           name: macos
-          path: release
+          path: dist/release
 
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows
-          path: release
+          path: dist/release
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -90,13 +90,15 @@ jobs:
 
       - name: Package optional assets bundle
         run: |
-          tar -czf "release/subminer-assets.tar.gz" \
+          # Keep the archive layout stable for the AUR PKGBUILD.
+          tar -czf "dist/release/subminer-assets.tar.gz" \
+            --transform 's,^packaging/bun/licenses,resources/bun/licenses,' \
             config.example.jsonc \
             plugin/subminer \
             plugin/subminer.conf \
             assets/themes/subminer.rasi \
             assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer \
-            resources/bun/licenses
+            packaging/bun/licenses
 
       - name: Package Bun corresponding source
         run: bun scripts/package-bun-source.mjs
@@ -104,16 +106,16 @@ jobs:
       - name: Generate checksums
         run: |
           shopt -s nullglob
-          files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz release/latest*.yml release/*.blockmap dist/launcher/subminer dist/launcher/subminer.cmd)
+          files=(dist/release/*.AppImage dist/release/*.dmg dist/release/*.exe dist/release/*.zip dist/release/*.tar.gz dist/release/latest*.yml dist/release/*.blockmap dist/launcher/subminer dist/launcher/subminer.cmd)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
           fi
-          : > release/SHA256SUMS.txt
+          : > dist/release/SHA256SUMS.txt
           for file in "${files[@]}"; do
             printf '%s  %s\n' \
               "$(sha256sum "$file" | awk '{print $1}')" \
-              "${file##*/}" >> release/SHA256SUMS.txt
+              "${file##*/}" >> dist/release/SHA256SUMS.txt
           done
 
       - name: Get version from tag
@@ -124,12 +126,12 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          if [ ! -s release/prerelease-notes.md ]; then
-            echo "::error::release/prerelease-notes.md is missing or empty. Run 'bun run changelog:prerelease-notes --version <version>' locally and commit the file before tagging."
+          if [ ! -s packaging/release-notes/prerelease-notes.md ]; then
+            echo "::error::packaging/release-notes/prerelease-notes.md is missing or empty. Run 'bun run changelog:prerelease-notes --version <version>' locally and commit the file before tagging."
             exit 1
           fi
           if ! bun run changelog:check-prerelease-notes --version "$RELEASE_VERSION"; then
-            echo "::error::release/prerelease-notes.md was not generated for $RELEASE_VERSION. Rerun 'bun run changelog:prerelease-notes --version $RELEASE_VERSION' locally, commit, and retag."
+            echo "::error::packaging/release-notes/prerelease-notes.md was not generated for $RELEASE_VERSION. Rerun 'bun run changelog:prerelease-notes --version $RELEASE_VERSION' locally, commit, and retag."
             exit 1
           fi
 
@@ -142,15 +144,15 @@ jobs:
 
           shopt -s nullglob
           artifacts=(
-            release/*.AppImage
-            release/*.dmg
-            release/*.exe
-            release/*.zip
-            release/*.tar.gz
-            release/*.tar.gz.sha256
-            release/latest*.yml
-            release/*.blockmap
-            release/SHA256SUMS.txt
+            dist/release/*.AppImage
+            dist/release/*.dmg
+            dist/release/*.exe
+            dist/release/*.zip
+            dist/release/*.tar.gz
+            dist/release/*.tar.gz.sha256
+            dist/release/latest*.yml
+            dist/release/*.blockmap
+            dist/release/SHA256SUMS.txt
             dist/launcher/subminer
             dist/launcher/subminer.cmd
           )
@@ -165,14 +167,14 @@ jobs:
               --draft \
               --prerelease \
               --title "$RELEASE_VERSION" \
-              --notes-file release/prerelease-notes.md
+              --notes-file packaging/release-notes/prerelease-notes.md
           else
             gh release create "$RELEASE_VERSION" \
               --draft \
               --latest=false \
               --prerelease \
               --title "$RELEASE_VERSION" \
-              --notes-file release/prerelease-notes.md
+              --notes-file packaging/release-notes/prerelease-notes.md
           fi
 
           for asset in "${artifacts[@]}"; do
@@ -183,4 +185,4 @@ jobs:
             --draft=false \
             --prerelease \
             --title "$RELEASE_VERSION" \
-            --notes-file release/prerelease-notes.md
+            --notes-file packaging/release-notes/prerelease-notes.md

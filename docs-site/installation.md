@@ -226,7 +226,7 @@ make deps
 make build-macos
 ```
 
-The `.dmg` and `.zip` land in `release/`. For an unsigned local build, run `bun run build:mac:unsigned`.
+The `.dmg` and `.zip` land in `dist/release/`. For an unsigned local build, run `bun run build:mac:unsigned`.
 
 </details>
 
