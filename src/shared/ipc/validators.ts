@@ -17,6 +17,7 @@ import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-op
 import type { SessionActionId, SessionActionPayload } from '../../types/session-bindings';
 import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
+import { isControllerReviewAction, parseControllerReviewBinding } from '../controller-review';
 
 const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -242,6 +243,20 @@ function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindin
   return bindings;
 }
 
+function parseControllerReviewBindings(
+  value: unknown,
+): ControllerConfigUpdate['reviewBindings'] | null {
+  if (!isObject(value)) return null;
+  const bindings: NonNullable<ControllerConfigUpdate['reviewBindings']> = {};
+  for (const [action, rawBinding] of Object.entries(value)) {
+    if (!isControllerReviewAction(action)) return null;
+    const parsed = parseControllerReviewBinding(rawBinding);
+    if (!parsed) return null;
+    bindings[action] = parsed;
+  }
+  return bindings;
+}
+
 export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpdate | null {
   if (!isObject(value)) return null;
   const update: ControllerConfigUpdate = {};
@@ -269,6 +284,11 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
     if (!parsed) return null;
     update.bindings = parsed;
   }
+  if (value.reviewBindings !== undefined) {
+    const parsed = parseControllerReviewBindings(value.reviewBindings);
+    if (!parsed) return null;
+    update.reviewBindings = parsed;
+  }
 
   if (value.profiles !== undefined) {
     if (!isObject(value.profiles)) return null;
@@ -290,6 +310,11 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
         const parsed = parseControllerBindings(rawProfile.bindings);
         if (!parsed) return null;
         profile.bindings = parsed;
+      }
+      if (rawProfile.reviewBindings !== undefined) {
+        const parsed = parseControllerReviewBindings(rawProfile.reviewBindings);
+        if (!parsed) return null;
+        profile.reviewBindings = parsed;
       }
       profiles[profileId] = profile;
     }

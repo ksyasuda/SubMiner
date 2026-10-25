@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { ResolvedControllerConfig } from '../../types';
+import { CORE_DEFAULT_CONFIG } from '../../config/definitions/defaults-core';
+import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
+import type { ControllerReviewAction, ResolvedControllerConfig } from '../../types';
 import { createControllerConfigForm } from './controller-config-form.js';
 
 type ActionId = keyof ResolvedControllerConfig['bindings'];
@@ -286,4 +288,130 @@ test('controller config form names face buttons Nintendo-style when configured',
   assert.equal(badge(form.row('Toggle Keyboard-Only Mode')), 'X');
   // Non-face buttons keep their names.
   assert.equal(badge(form.row('Next Audio')), 'RB / R1');
+});
+
+type ReviewFormOptions = {
+  reviewBindings?: ResolvedControllerConfig['reviewBindings'];
+  learning?: { actionId: ControllerReviewAction; holdLabel: string | null } | null;
+};
+
+/** Renders the form with the review group; `act` runs while `document` is still stubbed. */
+function withReviewForm(
+  options: ReviewFormOptions,
+  act: (env: {
+    calls: string[];
+    container: FakeElement;
+    reviewRow: (label: string) => FakeElement;
+  }) => void,
+): void {
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { createElement: () => new FakeElement() },
+  });
+  try {
+    const calls: string[] = [];
+    const container = new FakeElement();
+    createControllerConfigForm({
+      container: container as unknown as HTMLElement,
+      getBindings: () => BINDINGS,
+      getLearningActionId: () => null,
+      getDpadLearningActionId: () => null,
+      onLearn: () => {},
+      onClear: () => {},
+      onReset: () => {},
+      onDpadLearn: () => {},
+      onDpadClear: () => {},
+      onDpadReset: () => {},
+      getReviewBindings: () => options.reviewBindings ?? getDefaultControllerReviewBindings(),
+      getReviewInputContext: () => ({
+        mapping: 'standard',
+        faceButtonLabels: 'xbox',
+        buttonIndices: CORE_DEFAULT_CONFIG.controller.buttonIndices,
+      }),
+      getReviewLearning: () => options.learning ?? null,
+      onReviewLearn: (actionId) => calls.push(`reviewLearn:${actionId}`),
+      onReviewClear: (actionId) => calls.push(`reviewClear:${actionId}`),
+      onReviewReset: (actionId) => calls.push(`reviewReset:${actionId}`),
+      onReviewResetAll: () => calls.push('reviewResetAll'),
+    }).render();
+    const reviewRow = (label: string) => {
+      const match = findAll(container, 'controller-config-row').find(
+        (el) => findOne(el, 'controller-config-label').textContent === label,
+      );
+      assert.ok(match, `missing row "${label}"`);
+      return match;
+    };
+    act({ calls, container, reviewRow });
+  } finally {
+    if (previousDocument) {
+      Object.defineProperty(globalThis, 'document', previousDocument);
+    } else {
+      Reflect.deleteProperty(globalThis, 'document');
+    }
+  }
+}
+
+const badgeOf = (row: FakeElement) => findOne(row, 'controller-config-badge').textContent;
+
+test('controller config form keeps the review group collapsed until opened', () => {
+  withReviewForm({}, ({ calls, container, reviewRow }) => {
+    const header = findOne(container, 'controller-config-group-toggle');
+    assert.match(header.textContent, /Review media timing/);
+    assert.equal(
+      findAll(container, 'controller-config-subgroup').length,
+      0,
+      'collapsed group shows no rows',
+    );
+
+    header.click();
+    assert.deepEqual(
+      findAll(container, 'controller-config-subgroup').map((el) => el.textContent),
+      ['While editing', 'After Cancel'],
+    );
+    assert.equal(badgeOf(reviewRow('Use this timing')), 'A');
+    assert.equal(badgeOf(reviewRow('Earlier −2s')), 'D-pad ◀');
+    assert.equal(badgeOf(reviewRow('Start +0.1s')), 'L1 + D-pad ▶');
+    assert.equal(badgeOf(reviewRow('Reset screenshot frame')), 'L1 + R1');
+    assert.equal(badgeOf(reviewRow('Keep editing')), 'B');
+
+    findOne(container, 'controller-config-group-action', 'Reset all').click();
+    findOne(reviewRow('Start +0.1s'), 'controller-config-edit-icon').click();
+    findOne(reviewRow('Start +0.1s'), 'controller-config-reset-icon').click();
+    assert.deepEqual(calls, [
+      'reviewResetAll',
+      'reviewLearn:startForward',
+      'reviewReset:startForward',
+    ]);
+  });
+});
+
+test('controller config form shows the hold button while a review combo is being learned', () => {
+  withReviewForm(
+    { learning: { actionId: 'startForward', holdLabel: 'L2' } },
+    ({ container, reviewRow }) => {
+      assert.equal(badgeOf(reviewRow('Start +0.1s')), 'L2 + …');
+      assert.match(
+        findOne(container, 'controller-config-edit-hint').textContent,
+        /Holding L2: press another button for a combo, or let go to use L2 alone/,
+      );
+    },
+  );
+});
+
+test('controller config form warns about review bindings that clash', () => {
+  const reviewBindings = {
+    ...getDefaultControllerReviewBindings(),
+    play: {
+      kind: 'combo' as const,
+      press: { kind: 'face' as const, letter: 'a' as const },
+      hold: null,
+    },
+  };
+  withReviewForm({ reviewBindings }, ({ container, reviewRow }) => {
+    findOne(container, 'controller-config-group-toggle').click();
+    const warnings = findAll(container, 'controller-config-warning').map((el) => el.textContent);
+    assert.deepEqual(warnings, ['⚠ Same as Play selection', '⚠ Same as Use this timing']);
+    assert.equal(reviewRow('Play selection').classList.contains('has-warning'), true);
+  });
 });

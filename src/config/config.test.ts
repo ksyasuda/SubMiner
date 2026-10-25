@@ -2215,3 +2215,53 @@ test('parses controller face button labels and warns on unknown styles', () => {
     invalidService.getWarnings().some((warning) => warning.path === 'controller.faceButtonLabels'),
   );
 });
+
+test('parses controller review bindings globally and per profile, and warns on bad entries', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    JSON.stringify({
+      controller: {
+        reviewBindings: {
+          confirm: { press: { kind: 'button', buttonIndex: 9 } },
+          discard: { kind: 'none' },
+          play: { press: { kind: 'face', letter: 'q' } },
+          notAnAction: { kind: 'none' },
+        },
+        profiles: {
+          'pad-1': {
+            reviewBindings: {
+              startForward: {
+                press: { kind: 'dpad', direction: 'right' },
+                hold: { kind: 'axis', axisIndex: 2, direction: 'positive' },
+              },
+            },
+          },
+        },
+      },
+    }),
+    'utf-8',
+  );
+  const service = new ConfigService(dir);
+  const controller = service.getConfig().controller;
+
+  assert.deepEqual(controller.reviewBindings.confirm, {
+    kind: 'combo',
+    press: { kind: 'button', buttonIndex: 9 },
+    hold: null,
+  });
+  assert.deepEqual(controller.reviewBindings.discard, { kind: 'none' });
+  // Invalid entries keep the default.
+  assert.deepEqual(controller.reviewBindings.play, DEFAULT_CONFIG.controller.reviewBindings.play);
+  // Profiles start from the resolved global layout, then apply their own overrides.
+  const profile = controller.profiles['pad-1']!.reviewBindings;
+  assert.deepEqual(profile.confirm, controller.reviewBindings.confirm);
+  assert.deepEqual(profile.startForward, {
+    kind: 'combo',
+    press: { kind: 'dpad', direction: 'right' },
+    hold: { kind: 'axis', axisIndex: 2, direction: 'positive' },
+  });
+  const warnedPaths = service.getWarnings().map((warning) => warning.path);
+  assert.ok(warnedPaths.includes('controller.reviewBindings.play'));
+  assert.ok(warnedPaths.includes('controller.reviewBindings.notAnAction'));
+});

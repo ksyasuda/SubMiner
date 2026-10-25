@@ -1,6 +1,15 @@
 import type { ModalStateReader, RendererContext } from '../context';
 import { resolveControllerConfigForGamepad } from '../controller-profile-config.js';
 import { createControllerBindingCapture } from '../handlers/controller-binding-capture.js';
+import { createControllerComboCapture } from '../handlers/controller-combo-capture.js';
+import {
+  formatControllerReviewInput,
+  getControllerReviewAction,
+  getDefaultControllerReviewBinding,
+  getDefaultControllerReviewBindings,
+  type ControllerReviewInputContext,
+} from '../../shared/controller-review';
+import type { ControllerReviewAction, ResolvedControllerReviewBinding } from '../../types';
 import {
   createControllerConfigForm,
   getControllerBindingDefinition,
@@ -39,6 +48,11 @@ export function createControllerSelectModal(
   let learningActionId: ControllerBindingKey | null = null;
   let dpadLearningActionId: ControllerBindingKey | null = null;
   let bindingCapture: ReturnType<typeof createControllerBindingCapture> | null = null;
+  let reviewLearning: {
+    actionId: ControllerReviewAction;
+    capture: ReturnType<typeof createControllerComboCapture>;
+    holdLabel: string | null;
+  } | null = null;
 
   function getSelectedController() {
     return ctx.state.connectedGamepads[ctx.state.controllerDeviceSelectedIndex] ?? null;
@@ -52,6 +66,31 @@ export function createControllerSelectModal(
     const config = ctx.state.controllerConfig;
     if (!config) return null;
     return resolveControllerConfigForGamepad(config, getSelectedControllerId());
+  }
+
+  function getReviewInputContext(): ControllerReviewInputContext {
+    const config = getSelectedControllerConfig();
+    return {
+      mapping: getSelectedController()?.mapping ?? 'standard',
+      faceButtonLabels: config?.faceButtonLabels ?? 'xbox',
+      buttonIndices: config?.buttonIndices ?? {
+        select: 6,
+        buttonSouth: 0,
+        buttonEast: 1,
+        buttonWest: 2,
+        buttonNorth: 3,
+        leftShoulder: 4,
+        rightShoulder: 5,
+        leftStickPress: 9,
+        rightStickPress: 10,
+        leftTrigger: 6,
+        rightTrigger: 7,
+      },
+    };
+  }
+
+  function cancelReviewLearning(): void {
+    reviewLearning = null;
   }
 
   const controllerConfigForm = createControllerConfigForm({
@@ -77,12 +116,53 @@ export function createControllerSelectModal(
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
+    getReviewBindings: () => getSelectedControllerConfig()?.reviewBindings ?? null,
+    getReviewInputContext,
+    getReviewLearning: () =>
+      reviewLearning
+        ? { actionId: reviewLearning.actionId, holdLabel: reviewLearning.holdLabel }
+        : null,
+    onReviewLearn: (actionId) => {
+      learningActionId = null;
+      dpadLearningActionId = null;
+      bindingCapture = null;
+      const config = ctx.state.controllerConfig;
+      const capture = createControllerComboCapture({
+        triggerDeadzone: config?.triggerDeadzone ?? 0.5,
+        stickDeadzone: config?.stickDeadzone ?? 0.2,
+      });
+      capture.arm({ axes: ctx.state.controllerRawAxes, buttons: ctx.state.controllerRawButtons });
+      reviewLearning = { actionId, capture, holdLabel: null };
+      controllerConfigForm.render();
+      setStatus(
+        `Press a button for ${getControllerReviewAction(actionId).label}, or hold one and press another for a combo.`,
+      );
+    },
+    onReviewClear: (actionId) => {
+      void saveReviewBindings(
+        { [actionId]: { kind: 'none' } },
+        `${getControllerReviewAction(actionId).label} cleared.`,
+      );
+    },
+    onReviewReset: (actionId) => {
+      void saveReviewBindings(
+        { [actionId]: getDefaultControllerReviewBinding(actionId) },
+        `${getControllerReviewAction(actionId).label} reset.`,
+      );
+    },
+    onReviewResetAll: () => {
+      void saveReviewBindings(
+        getDefaultControllerReviewBindings(),
+        'Review media timing layout reset.',
+      );
+    },
     getLearningActionId: () => learningActionId,
     getDpadLearningActionId: () => dpadLearningActionId,
     onLearn: (actionId, bindingType) => {
       const definition = getControllerBindingDefinition(actionId);
       if (!definition) return;
       dpadLearningActionId = null;
+      cancelReviewLearning();
       const config = ctx.state.controllerConfig;
       bindingCapture = createControllerBindingCapture({
         triggerDeadzone: config?.triggerDeadzone ?? 0.5,
@@ -123,6 +203,7 @@ export function createControllerSelectModal(
       const definition = getControllerBindingDefinition(actionId);
       if (!definition) return;
       learningActionId = null;
+      cancelReviewLearning();
       const config = ctx.state.controllerConfig;
       bindingCapture = createControllerBindingCapture({
         triggerDeadzone: config?.triggerDeadzone ?? 0.5,
@@ -237,6 +318,12 @@ export function createControllerSelectModal(
         ...update.bindings,
       } as typeof ctx.state.controllerConfig.bindings;
     }
+    if (update.reviewBindings) {
+      ctx.state.controllerConfig.reviewBindings = {
+        ...ctx.state.controllerConfig.reviewBindings,
+        ...update.reviewBindings,
+      } as typeof ctx.state.controllerConfig.reviewBindings;
+    }
     if (update.profiles) {
       ctx.state.controllerConfig.profiles = ctx.state.controllerConfig.profiles ?? {};
       for (const [profileId, profileUpdate] of Object.entries(update.profiles)) {
@@ -245,6 +332,7 @@ export function createControllerSelectModal(
           label: profileUpdate.label ?? profileId,
           buttonIndices: ctx.state.controllerConfig.buttonIndices,
           bindings: ctx.state.controllerConfig.bindings,
+          reviewBindings: ctx.state.controllerConfig.reviewBindings,
         };
         ctx.state.controllerConfig.profiles[profileId] = {
           label: profileUpdate.label ?? baseProfile.label,
@@ -255,6 +343,10 @@ export function createControllerSelectModal(
           bindings: {
             ...baseProfile.bindings,
             ...(profileUpdate.bindings ?? {}),
+          },
+          reviewBindings: {
+            ...(baseProfile.reviewBindings ?? ctx.state.controllerConfig.reviewBindings),
+            ...(profileUpdate.reviewBindings ?? {}),
           },
         } as (typeof ctx.state.controllerConfig.profiles)[string];
       }
@@ -299,6 +391,26 @@ export function createControllerSelectModal(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatus(`Failed to save binding: ${message}`, true);
+    }
+  }
+
+  async function saveReviewBindings(
+    bindings: Partial<Record<ControllerReviewAction, ResolvedControllerReviewBinding>>,
+    message: string,
+  ): Promise<void> {
+    const selected = getSelectedController();
+    try {
+      await saveControllerConfig(
+        selected
+          ? { profiles: { [selected.id]: { reviewBindings: bindings } } }
+          : { reviewBindings: bindings },
+      );
+      cancelReviewLearning();
+      controllerConfigForm.render();
+      setStatus(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(`Failed to save review binding: ${message}`, true);
     }
   }
 
@@ -377,6 +489,29 @@ export function createControllerSelectModal(
       }
     }
 
+    if (reviewLearning) {
+      const learning = reviewLearning;
+      const state = learning.capture.poll({
+        axes: ctx.state.controllerRawAxes,
+        buttons: ctx.state.controllerRawButtons,
+      });
+      if (state.status === 'holding') {
+        const holdLabel = formatControllerReviewInput(state.hold, getReviewInputContext(), {
+          dpadPrefix: true,
+        });
+        if (holdLabel !== learning.holdLabel) {
+          learning.holdLabel = holdLabel;
+          controllerConfigForm.render();
+        }
+      } else if (state.status === 'done') {
+        reviewLearning = null;
+        void saveReviewBindings(
+          { [learning.actionId]: state.binding },
+          `${getControllerReviewAction(learning.actionId).label} updated.`,
+        );
+      }
+    }
+
     const preferredId = ctx.state.controllerConfig?.preferredGamepadId ?? '';
     const shouldRender =
       getDevicesKey() !== lastRenderedDevicesKey ||
@@ -387,7 +522,12 @@ export function createControllerSelectModal(
       controllerConfigForm.render();
     }
 
-    if (ctx.state.connectedGamepads.length === 0 && !learningActionId && !dpadLearningActionId) {
+    if (
+      ctx.state.connectedGamepads.length === 0 &&
+      !learningActionId &&
+      !dpadLearningActionId &&
+      !reviewLearning
+    ) {
       setStatus('No controllers detected.');
     }
   }
@@ -420,6 +560,7 @@ export function createControllerSelectModal(
     learningActionId = null;
     dpadLearningActionId = null;
     bindingCapture = null;
+    cancelReviewLearning();
     ctx.state.controllerSelectModalOpen = false;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.controllerSelectModal.classList.add('hidden');
@@ -433,10 +574,11 @@ export function createControllerSelectModal(
   function handleControllerSelectKeydown(event: KeyboardEvent): boolean {
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (learningActionId || dpadLearningActionId) {
+      if (learningActionId || dpadLearningActionId || reviewLearning) {
         learningActionId = null;
         dpadLearningActionId = null;
         bindingCapture = null;
+        cancelReviewLearning();
         controllerConfigForm.render();
         setStatus('Controller learn mode cancelled.');
         return true;
@@ -473,7 +615,7 @@ export function createControllerSelectModal(
       return true;
     }
 
-    if (event.key === 'Enter' && !learningActionId && !dpadLearningActionId) {
+    if (event.key === 'Enter' && !learningActionId && !dpadLearningActionId && !reviewLearning) {
       event.preventDefault();
       void saveSelectedController();
       return true;

@@ -2,12 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { CORE_DEFAULT_CONFIG } from '../../config/definitions/defaults-core';
+import {
+  CONTROLLER_REVIEW_ACTIONS,
+  findControllerReviewBindingIssues,
+} from '../../shared/controller-review';
 import type { ResolvedControllerConfig } from '../../types';
 import type { GamepadLike } from './gamepad-controller.js';
 import {
-  MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT,
   createMediaTimingReviewControllerLayout,
-  formatMediaTimingReviewControllerHint,
+  formatMediaTimingReviewControllerHints,
+  getControllerReviewInputContext,
   type MediaTimingReviewControllerAction,
   type MediaTimingReviewStep,
 } from './media-timing-review-controller.js';
@@ -36,30 +40,26 @@ function createLayout(step: MediaTimingReviewStep = 'editor') {
   return { layout, actions, state };
 }
 
-test('every review action has exactly one controller binding per step', () => {
-  const seenInputs = new Set<string>();
-  const seenActions = new Set<string>();
-  for (const binding of MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT) {
-    const input = `${binding.step}:${formatMediaTimingReviewControllerHint(binding)}`;
-    assert.equal(seenInputs.has(input), false, `duplicate input ${input}`);
-    assert.equal(seenActions.has(binding.action), false, `duplicate action ${binding.action}`);
-    seenInputs.add(input);
-    seenActions.add(binding.action);
+test('the default review layout binds all 21 actions without conflicts', () => {
+  assert.equal(CONTROLLER_REVIEW_ACTIONS.length, 21);
+  for (const action of CONTROLLER_REVIEW_ACTIONS) {
+    assert.equal(CONFIG.reviewBindings[action.id]?.kind, 'combo', action.id);
   }
-  assert.equal(seenActions.size, 21);
+  for (const mapping of ['standard', ''] as const) {
+    for (const faceButtonLabels of ['xbox', 'nintendo'] as const) {
+      const context = getControllerReviewInputContext({ ...CONFIG, faceButtonLabels }, mapping);
+      assert.deepEqual(findControllerReviewBindingIssues(CONFIG.reviewBindings, context), {});
+    }
+  }
 });
 
 test('controller hints read like the documented layout', () => {
-  const hint = (action: MediaTimingReviewControllerAction) => {
-    const binding = MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT.find((entry) => entry.action === action);
-    assert.ok(binding);
-    return formatMediaTimingReviewControllerHint(binding);
-  };
-  assert.equal(hint('confirm'), 'A');
-  assert.equal(hint('showEarlier'), '◀');
-  assert.equal(hint('startForward'), 'L1 + ▶');
-  assert.equal(hint('nextLineAdd'), 'R1 + ▲');
-  assert.equal(hint('frameReset'), 'L1 + R1');
+  const hints = formatMediaTimingReviewControllerHints(CONFIG, 'standard');
+  assert.equal(hints.confirm, 'A');
+  assert.equal(hints.showEarlier, '\u25c0');
+  assert.equal(hints.startForward, 'L1 + \u25b6');
+  assert.equal(hints.nextLineAdd, 'R1 + \u25b2');
+  assert.equal(hints.frameReset, 'L1 + R1');
 });
 
 test('face buttons press the editor buttons once per press', () => {
@@ -215,4 +215,93 @@ test('a press that first reveals the pad to a fresh dialog window counts', () =>
   layout.poll(pad(['A']), CONFIG, 16);
 
   assert.deepEqual(actions, ['confirm']);
+});
+
+function withReviewBindings(
+  overrides: Partial<ResolvedControllerConfig['reviewBindings']>,
+): ResolvedControllerConfig {
+  return { ...CONFIG, reviewBindings: { ...CONFIG.reviewBindings, ...overrides } };
+}
+
+test('remapped combos use any hold button and leave plain presses alone', () => {
+  const config = withReviewBindings({
+    // Hold L2 (raw button 6 on standard pads) and press A.
+    startForward: {
+      kind: 'combo',
+      press: { kind: 'face', letter: 'a' },
+      hold: { kind: 'button', buttonIndex: 6 },
+    },
+  });
+  const actions: MediaTimingReviewControllerAction[] = [];
+  const layout = createMediaTimingReviewControllerLayout({
+    getStep: () => 'editor',
+    dispatch: (action) => actions.push(action),
+  });
+  const press = (indices: number[], now: number) => {
+    const buttons = Array.from({ length: 17 }, (_, index) => ({
+      value: indices.includes(index) ? 1 : 0,
+      pressed: indices.includes(index),
+    }));
+    layout.poll({ ...pad(), buttons }, config, now);
+  };
+  layout.activate(pad(), config, 0, { latchHeld: true });
+
+  press([6], 10);
+  press([6, 0], 20);
+  press([], 30);
+  press([0], 40);
+
+  assert.deepEqual(actions, ['startForward', 'confirm']);
+});
+
+test('unbound review actions never fire', () => {
+  const config = withReviewBindings({ confirm: { kind: 'none' } });
+  const actions: MediaTimingReviewControllerAction[] = [];
+  const layout = createMediaTimingReviewControllerLayout({
+    getStep: () => 'editor',
+    dispatch: (action) => actions.push(action),
+  });
+  layout.activate(pad(), config, 0, { latchHeld: true });
+
+  layout.poll(pad(['A']), config, 10);
+
+  assert.deepEqual(actions, []);
+});
+
+test('repeat follows the action, not the button it is on', () => {
+  const config = withReviewBindings({
+    startForward: { kind: 'combo', press: { kind: 'face', letter: 'b' }, hold: null },
+    cancel: { kind: 'combo', press: { kind: 'dpad', direction: 'right' }, hold: null },
+    showLater: { kind: 'none' },
+  });
+  const actions: MediaTimingReviewControllerAction[] = [];
+  const layout = createMediaTimingReviewControllerLayout({
+    getStep: () => 'editor',
+    dispatch: (action) => actions.push(action),
+  });
+  layout.activate(pad(), config, 0, { latchHeld: true });
+
+  for (const now of [10, 10 + repeatDelayMs, 10 + repeatDelayMs + repeatIntervalMs]) {
+    layout.poll(pad(['B', 'RIGHT']), config, now);
+  }
+
+  // Both fire on the first press; only startForward repeats.
+  assert.deepEqual(actions, ['cancel', 'startForward', 'startForward', 'startForward']);
+});
+
+test('conflicts are reported, including a learned D-pad button that matches a default', () => {
+  const config = withReviewBindings({
+    // A learned raw D-pad left (button 14) is the same input as the default "D-pad ◀".
+    showLater: { kind: 'combo', press: { kind: 'button', buttonIndex: 14 }, hold: null },
+    // R1 alone, while other actions hold R1.
+    play: { kind: 'combo', press: { kind: 'button', buttonIndex: 5 }, hold: null },
+  });
+  const issues = findControllerReviewBindingIssues(
+    config.reviewBindings,
+    getControllerReviewInputContext(config, 'standard'),
+  );
+
+  assert.equal(issues.showLater, 'Same as Earlier −2s');
+  assert.equal(issues.showEarlier, 'Same as Later +2s');
+  assert.equal(issues.play, 'R1 is also a hold button on this step');
 });

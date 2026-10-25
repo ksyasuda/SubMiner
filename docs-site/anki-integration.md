@@ -162,11 +162,13 @@ When you cancel, you can go back to editing, keep the original timing, create th
 
 #### With a controller
 
-With [controller support](/usage#controller-support) on, the dialog has its own fixed controller layout, and each button shows its controller shortcut. It works with or without keyboard-only mode, and the controller's usual actions pause until the dialog closes. Buttons that were already held when the dialog opened, such as the mine button, wait for a fresh press.
+With [controller support](/usage#controller-support) on, the dialog has its own controller layout, and each button shows its controller shortcut. It works with or without keyboard-only mode, and the controller's usual actions pause until the dialog closes. Buttons that were already held when the dialog opened, such as the mine button, wait for a fresh press.
 
 `A`, `B`, `X` and `Y` mean the letters printed on your controller. If yours has A on the right and B at the bottom (Switch-style and many 8BitDo pads), set `controller.faceButtonLabels` to `"nintendo"`; PlayStation pads use the default (`A` is ✕, `B` ○, `X` □, `Y` △).
 
 Hold `L1` or `R1` and press the D-pad for the combos. `L1` covers the clip start and the lines before it, and `R1` the clip end and the lines after it. D-pad actions repeat while held.
+
+This is the default layout:
 
 | Controller              | Editing                          | After Cancel        |
 | ----------------------- | -------------------------------- | ------------------- |
@@ -181,6 +183,10 @@ Hold `L1` or `R1` and press the D-pad for the combos. `L1` covers the clip start
 | `R1` + D-pad left/right | End −0.1s / +0.1s                |                     |
 | `R1` + D-pad up/down    | Add / remove a next line         |                     |
 | `L1` + `R1`             | Reset the screenshot frame       |                     |
+
+To change it, open `Alt+C` and expand **Review media timing**. Click an action's pencil, then press a button, or hold one button and press another to make a combo; the first button becomes the one you hold. Any button can be a hold button. Changes are saved per controller, and **Reset all** brings back the default layout.
+
+Nudges, Earlier/Later, lines and frames repeat while held whichever buttons they are on. A row warns you when two actions on the same step share an input, or when an action uses a button alone that other actions hold.
 
 ### Update behavior
 

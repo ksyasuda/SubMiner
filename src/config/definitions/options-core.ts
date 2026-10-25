@@ -1,4 +1,6 @@
+import { CONTROLLER_REVIEW_ACTIONS } from '../../shared/controller-review';
 import { ResolvedConfig } from '../../types/config';
+import type { ControllerReviewInput } from '../../types/runtime';
 import {
   NOTIFICATION_TYPE_VALUES,
   OVERLAY_NOTIFICATION_POSITION_VALUES,
@@ -338,6 +340,82 @@ export function buildCoreConfigOptionRegistry(
       description:
         'Per-controller binding and button-index overrides keyed by the controller id reported by the Gamepad API.',
     },
+    {
+      path: 'controller.reviewBindings',
+      kind: 'object',
+      defaultValue: defaultConfig.controller.reviewBindings,
+      description:
+        'Controller layout for the media timing review dialog, one entry per action. Set it with the Review media timing group in Alt+C. Each entry is {"kind": "none"} or {"press": input, "hold": input}, where an input is {"kind": "button", "buttonIndex"}, {"kind": "axis", "axisIndex", "direction"}, {"kind": "face", "letter": "a"|"b"|"x"|"y"} (printed letter) or {"kind": "dpad", "direction": "left"|"right"|"up"|"down"}.',
+    },
+    ...CONTROLLER_REVIEW_ACTIONS.flatMap((action) => {
+      const binding = defaultConfig.controller.reviewBindings[action.id];
+      const press = binding.kind === 'combo' ? binding.press : undefined;
+      const hold = binding.kind === 'combo' ? binding.hold : undefined;
+      const inputFields = (
+        name: 'press' | 'hold',
+        input: ControllerReviewInput | null | undefined,
+      ): ConfigOptionRegistryEntry[] => [
+        {
+          path: `controller.reviewBindings.${action.id}.${name}.kind`,
+          kind: 'enum',
+          enumValues: ['button', 'axis', 'face', 'dpad'],
+          defaultValue: input?.kind,
+          description:
+            'Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction.',
+        },
+        {
+          path: `controller.reviewBindings.${action.id}.${name}.buttonIndex`,
+          kind: 'number',
+          defaultValue: input?.kind === 'button' ? input.buttonIndex : undefined,
+          description: 'Raw button index.',
+        },
+        {
+          path: `controller.reviewBindings.${action.id}.${name}.letter`,
+          kind: 'enum',
+          enumValues: ['a', 'b', 'x', 'y'],
+          defaultValue: input?.kind === 'face' ? input.letter : undefined,
+          description: 'Printed face letter, placed by controller.faceButtonLabels.',
+        },
+        {
+          path: `controller.reviewBindings.${action.id}.${name}.direction`,
+          kind: 'enum',
+          enumValues: ['left', 'right', 'up', 'down', 'negative', 'positive'],
+          defaultValue:
+            input?.kind === 'dpad' || input?.kind === 'axis' ? input.direction : undefined,
+          description: 'D-pad direction, or axis direction for raw axis inputs.',
+        },
+      ];
+      return [
+        {
+          path: `controller.reviewBindings.${action.id}`,
+          kind: 'object' as const,
+          defaultValue: binding,
+          description: `Review dialog: ${action.label}${action.step === 'cancel' ? ' (after Cancel)' : ''}.${action.repeat ? ' Repeats while held.' : ''}`,
+        },
+        {
+          path: `controller.reviewBindings.${action.id}.kind`,
+          kind: 'enum' as const,
+          enumValues: ['none', 'combo'],
+          defaultValue: binding.kind,
+          description:
+            'none disables the action; combo presses "press" (while holding "hold", if set).',
+        },
+        {
+          path: `controller.reviewBindings.${action.id}.press`,
+          kind: 'object' as const,
+          defaultValue: press,
+          description: 'Input that triggers the action.',
+        },
+        {
+          path: `controller.reviewBindings.${action.id}.hold`,
+          kind: 'object' as const,
+          defaultValue: hold,
+          description: 'Optional input held while pressing; null for none.',
+        },
+        ...inputFields('press', press),
+        ...inputFields('hold', hold),
+      ];
+    }),
     ...discreteBindings.flatMap((binding) => [
       {
         path: `controller.bindings.${binding.id}`,

@@ -278,16 +278,73 @@ export interface ControllerButtonIndicesConfig {
   rightTrigger?: number;
 }
 
+/** Every button on the media timing review dialog, named by what it does. */
+export type ControllerReviewAction =
+  | 'confirm'
+  | 'cancel'
+  | 'play'
+  | 'resetTiming'
+  | 'showEarlier'
+  | 'showLater'
+  | 'framePrevious'
+  | 'frameNext'
+  | 'frameReset'
+  | 'startBack'
+  | 'startForward'
+  | 'previousLineAdd'
+  | 'previousLineRemove'
+  | 'endBack'
+  | 'endForward'
+  | 'nextLineAdd'
+  | 'nextLineRemove'
+  | 'useOriginal'
+  | 'keepEditing'
+  | 'skipMedia'
+  | 'discard';
+
+export type ControllerFaceLetter = 'a' | 'b' | 'x' | 'y';
+export type ControllerDpadDirection = 'left' | 'right' | 'up' | 'down';
+
+/**
+ * One input in a review binding. `button` and `axis` are raw indices recorded by Learn;
+ * `face` (printed letter, via `faceButtonLabels`) and `dpad` (any D-pad report) keep the
+ * defaults working on every controller layout.
+ */
+export type ControllerReviewInput =
+  | { kind: 'button'; buttonIndex: number }
+  | { kind: 'axis'; axisIndex: number; direction: ControllerAxisDirection }
+  | { kind: 'face'; letter: ControllerFaceLetter }
+  | { kind: 'dpad'; direction: ControllerDpadDirection };
+
+/** Press `press`, optionally while holding `hold`. */
+export type ControllerReviewBindingConfig =
+  | { kind: 'none' }
+  | { kind?: 'combo'; press: ControllerReviewInput; hold?: ControllerReviewInput | null };
+
+export type ResolvedControllerReviewBinding =
+  | { kind: 'none' }
+  | { kind: 'combo'; press: ControllerReviewInput; hold: ControllerReviewInput | null };
+
+export type ControllerReviewBindingsConfig = Partial<
+  Record<ControllerReviewAction, ControllerReviewBindingConfig>
+>;
+export type ResolvedControllerReviewBindings = Record<
+  ControllerReviewAction,
+  ResolvedControllerReviewBinding
+>;
+
 export interface ControllerProfileConfig {
   label?: string;
   buttonIndices?: ControllerButtonIndicesConfig;
   bindings?: ControllerBindingsConfig;
+  reviewBindings?: ControllerReviewBindingsConfig;
 }
 
 export interface ResolvedControllerProfileConfig {
   label: string;
   buttonIndices: Required<ControllerButtonIndicesConfig>;
   bindings: Required<ResolvedControllerBindingsConfig>;
+  reviewBindings: ResolvedControllerReviewBindings;
 }
 
 export interface ControllerConfig {
@@ -305,6 +362,7 @@ export interface ControllerConfig {
   repeatIntervalMs?: number;
   buttonIndices?: ControllerButtonIndicesConfig;
   bindings?: ControllerBindingsConfig;
+  reviewBindings?: ControllerReviewBindingsConfig;
   profiles?: Record<string, ControllerProfileConfig>;
 }
 

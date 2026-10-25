@@ -2,6 +2,7 @@ import type { ControllerConfigUpdate, RawConfig } from '../types';
 
 type RawControllerConfig = NonNullable<RawConfig['controller']>;
 type RawControllerBindings = NonNullable<RawControllerConfig['bindings']>;
+type RawControllerReviewBindings = NonNullable<RawControllerConfig['reviewBindings']>;
 type RawControllerButtonIndices = NonNullable<RawControllerConfig['buttonIndices']>;
 type RawControllerProfiles = NonNullable<RawControllerConfig['profiles']>;
 type RawControllerProfile = NonNullable<RawControllerProfiles[string]>;
@@ -24,6 +25,19 @@ function mergeBindingPatch(
     (nextBindings as Record<string, unknown>)[key] = structuredClone(value);
   }
 
+  return nextBindings;
+}
+
+function mergeReviewBindingPatch(
+  currentBindings: RawControllerReviewBindings | undefined,
+  updateBindings: RawControllerReviewBindings | undefined,
+): RawControllerReviewBindings | undefined {
+  if (!currentBindings && !updateBindings) return undefined;
+  const nextBindings: RawControllerReviewBindings = { ...(currentBindings ?? {}) };
+  for (const [action, binding] of Object.entries(updateBindings ?? {})) {
+    if (binding === undefined) continue;
+    (nextBindings as Record<string, unknown>)[action] = structuredClone(binding);
+  }
   return nextBindings;
 }
 
@@ -60,6 +74,14 @@ function mergeControllerProfile(
     nextProfile.bindings = bindings;
   }
 
+  const reviewBindings = mergeReviewBindingPatch(
+    currentProfile?.reviewBindings,
+    updateProfile.reviewBindings,
+  );
+  if (reviewBindings) {
+    nextProfile.reviewBindings = reviewBindings;
+  }
+
   return nextProfile;
 }
 
@@ -83,6 +105,14 @@ export function applyControllerConfigUpdate(
   const bindings = mergeBindingPatch(currentController?.bindings, update.bindings);
   if (bindings) {
     nextController.bindings = bindings;
+  }
+
+  const reviewBindings = mergeReviewBindingPatch(
+    currentController?.reviewBindings,
+    update.reviewBindings,
+  );
+  if (reviewBindings) {
+    nextController.reviewBindings = reviewBindings;
   }
 
   if (currentController?.profiles || update.profiles) {

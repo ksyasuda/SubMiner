@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT } from '../handlers/media-timing-review-controller.js';
+import { CONTROLLER_REVIEW_ACTIONS } from '../../shared/controller-review';
 import {
   MEDIA_TIMING_REVIEW_CONTROLLER_BUTTONS,
   isMediaTimingReviewButtonAvailable,
@@ -162,7 +162,7 @@ test('trailing silence trim follows the last speech slice and keeps cut-off or s
 
 test('every controller action presses a real button on the review screen', () => {
   const html = readFileSync('src/renderer/index.html', 'utf8');
-  const actions = new Set(MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT.map((binding) => binding.action));
+  const actions = new Set<string>(CONTROLLER_REVIEW_ACTIONS.map((action) => action.id));
   assert.deepEqual(new Set(Object.keys(MEDIA_TIMING_REVIEW_CONTROLLER_BUTTONS)), actions);
   for (const domId of Object.values(MEDIA_TIMING_REVIEW_CONTROLLER_BUTTONS)) {
     assert.match(html, new RegExp(`<button\\s+id="${domId}"`), `missing <button id="${domId}">`);

@@ -218,7 +218,7 @@ function syncHeldActionBlocked(
   state.initialFired = true;
 }
 
-function resolveDiscreteBindingPressed(
+export function resolveDiscreteBindingPressed(
   gamepad: GamepadLike,
   binding: ResolvedControllerDiscreteBinding,
   config: ResolvedControllerConfig,

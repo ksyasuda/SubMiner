@@ -8,6 +8,11 @@ import type {
   ResolvedControllerBindingsConfig,
   ResolvedControllerDiscreteBinding,
 } from '../../types/runtime';
+import {
+  isControllerReviewAction,
+  parseControllerReviewBinding,
+} from '../../shared/controller-review';
+import type { ResolvedControllerReviewBindings } from '../../types/runtime';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
 
@@ -268,6 +273,36 @@ function applyControllerBindings(
   }
 }
 
+function applyControllerReviewBindings(
+  source: unknown,
+  target: ResolvedControllerReviewBindings,
+  pathPrefix: string,
+  warn: ResolveContext['warn'],
+): void {
+  if (source === undefined) return;
+  if (!isObject(source)) {
+    warn(pathPrefix, source, target, 'Expected an object keyed by review action.');
+    return;
+  }
+  for (const [action, value] of Object.entries(source)) {
+    if (!isControllerReviewAction(action)) {
+      warn(`${pathPrefix}.${action}`, value, undefined, 'Unknown media timing review action.');
+      continue;
+    }
+    const parsed = parseControllerReviewBinding(value);
+    if (parsed) {
+      target[action] = parsed;
+    } else {
+      warn(
+        `${pathPrefix}.${action}`,
+        value,
+        target[action],
+        'Expected {"kind": "none"} or {"press": input, "hold"?: input} with button, axis, face or dpad inputs.',
+      );
+    }
+  }
+}
+
 export function applyControllerConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
   if (!isObject(src.controller)) return;
@@ -382,6 +417,12 @@ export function applyControllerConfig(context: ResolveContext): void {
     'controller.bindings',
     warn,
   );
+  applyControllerReviewBindings(
+    src.controller.reviewBindings,
+    resolved.controller.reviewBindings,
+    'controller.reviewBindings',
+    warn,
+  );
 
   if (isObject(src.controller.profiles)) {
     for (const [profileId, rawProfile] of Object.entries(src.controller.profiles)) {
@@ -418,6 +459,7 @@ export function applyControllerConfig(context: ResolveContext): void {
         label: label ?? profileId,
         buttonIndices: structuredClone(resolved.controller.buttonIndices),
         bindings: structuredClone(resolved.controller.bindings),
+        reviewBindings: structuredClone(resolved.controller.reviewBindings),
       };
       applyControllerButtonIndices(
         rawProfile.buttonIndices,
@@ -430,6 +472,12 @@ export function applyControllerConfig(context: ResolveContext): void {
         profile.bindings,
         profile.buttonIndices,
         `controller.profiles.${profileId}.bindings`,
+        warn,
+      );
+      applyControllerReviewBindings(
+        rawProfile.reviewBindings,
+        profile.reviewBindings,
+        `controller.profiles.${profileId}.reviewBindings`,
         warn,
       );
       resolved.controller.profiles[profileId] = profile;

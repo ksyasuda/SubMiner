@@ -3502,6 +3502,40 @@ iframe[id^='yomitan-popup'],
   margin-top: 0;
 }
 
+.controller-config-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.controller-config-group-action {
+  padding: 2px 8px;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.controller-config-subgroup {
+  padding: 10px 10px 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--ctp-subtext0);
+}
+
+.controller-config-warning {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ctp-yellow);
+}
+
+.controller-config-row.has-warning .controller-config-badge {
+  border-color: var(--ctp-yellow);
+}
+
 .controller-config-row {
   display: flex;
   align-items: center;

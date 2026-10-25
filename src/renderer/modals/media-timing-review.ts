@@ -6,11 +6,9 @@ import type {
   MediaTimingReviewPreviewPosition,
 } from '../../types/anki';
 import type { ModalStateReader, RendererContext } from '../context';
-import {
-  MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT,
-  formatMediaTimingReviewControllerHint,
-  type MediaTimingReviewControllerAction,
-  type MediaTimingReviewStep,
+import type {
+  MediaTimingReviewControllerAction,
+  MediaTimingReviewStep,
 } from '../handlers/media-timing-review-controller.js';
 import type { RendererDom } from '../utils/dom';
 import { createModalFocusGuard } from './modal-focus-guard';
@@ -1021,12 +1019,22 @@ export function createMediaTimingReviewModal(
 
   /**
    * Hints live in a data attribute drawn by CSS, so they survive code that rewrites a
-   * button's text (Skip media / Discard labels change with the card).
+   * button's text (Skip media / Discard labels change with the card). Unbound actions
+   * show no tag. Only changed attributes are written, since this runs every frame.
    */
-  function applyControllerHints(): void {
-    for (const binding of MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT) {
-      ctx.dom[MEDIA_TIMING_REVIEW_CONTROLLER_BUTTONS[binding.action]].dataset.controllerHint =
-        formatMediaTimingReviewControllerHint(binding);
+  function setControllerHints(
+    hints: Record<MediaTimingReviewControllerAction, string | null>,
+  ): void {
+    for (const [action, domKey] of Object.entries(MEDIA_TIMING_REVIEW_CONTROLLER_BUTTONS) as Array<
+      [MediaTimingReviewControllerAction, ButtonDomKey]
+    >) {
+      const button = ctx.dom[domKey];
+      const hint = hints[action];
+      if (hint === null || hint === undefined) {
+        if (button.dataset.controllerHint !== undefined) delete button.dataset.controllerHint;
+      } else if (button.dataset.controllerHint !== hint) {
+        button.dataset.controllerHint = hint;
+      }
     }
   }
 
@@ -1035,7 +1043,6 @@ export function createMediaTimingReviewModal(
   }
 
   function wireDomEvents(): void {
-    applyControllerHints();
     ctx.dom.mediaTimingReviewFrameSlider.addEventListener('input', () => {
       if (!resolveInFlight) framePicker.choose(Number(ctx.dom.mediaTimingReviewFrameSlider.value));
     });
@@ -1125,6 +1132,7 @@ export function createMediaTimingReviewModal(
     wireDomEvents,
     getControllerStep,
     handleControllerAction,
+    setControllerHints,
     setControllerHintsVisible,
   };
 }

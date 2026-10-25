@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { createRendererState } from '../state.js';
 import { createControllerSelectModal } from './controller-select.js';
+import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -162,6 +163,7 @@ function buildContext() {
       rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
       rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
     },
+    reviewBindings: getDefaultControllerReviewBindings(),
     profiles: {},
   };
   state.connectedGamepads = [
@@ -329,6 +331,7 @@ test('controller select modal reset control stores the default binding in the se
             ...state.controllerConfig.bindings,
             toggleLookup: { kind: 'button', buttonIndex: 11 },
           },
+          reviewBindings: state.controllerConfig.reviewBindings,
         },
       };
     }
@@ -614,6 +617,103 @@ test('controller select modal uses unique picker values for duplicate controller
     dom.controllerSelectPicker.dispatch('change');
 
     assert.equal(state.controllerDeviceSelectedIndex, 1);
+  } finally {
+    domHandle.restore();
+  }
+});
+
+function findByClass(root: any, className: string, text?: string): any {
+  for (const child of root.children ?? []) {
+    const classes = String(child.className ?? '').split(' ');
+    if (classes.includes(className) && (text === undefined || child.textContent === text)) {
+      return child;
+    }
+    const nested = findByClass(child, className, text);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function findReviewRow(root: any, label: string): any {
+  for (const child of root.children ?? []) {
+    if (String(child.className).split(' ').includes('controller-config-row')) {
+      if (child.children[0]?.textContent === label) return child;
+    }
+  }
+  return null;
+}
+
+test('controller select modal learns a review combo and saves it to the controller profile', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const header = findByClass(dom.controllerConfigList, 'controller-config-group-toggle');
+    assert.ok(header, 'review group header');
+    header.dispatch('click');
+    const row = findReviewRow(dom.controllerConfigList, 'Start +0.1s');
+    assert.ok(row, 'Start +0.1s row');
+    row.children[1].children[0].dispatch('click');
+
+    const buttons = (pressed: number[]) =>
+      Array.from({ length: 17 }, (_, index) => ({
+        value: pressed.includes(index) ? 1 : 0,
+        pressed: pressed.includes(index),
+        touched: pressed.includes(index),
+      }));
+
+    // Hold L2, then press A.
+    state.controllerRawButtons = buttons([6]);
+    modal.updateDevices();
+    assert.equal(
+      findReviewRow(dom.controllerConfigList, 'Start +0.1s').children[1].children[0].textContent,
+      'L2 + …',
+    );
+    state.controllerRawButtons = buttons([6, 0]);
+    modal.updateDevices();
+
+    await Promise.resolve();
+
+    assert.deepEqual(saved.at(-1), {
+      profiles: {
+        'pad-1': {
+          reviewBindings: {
+            startForward: {
+              kind: 'combo',
+              press: { kind: 'button', buttonIndex: 0 },
+              hold: { kind: 'button', buttonIndex: 6 },
+            },
+          },
+        },
+      },
+    });
+    assert.deepEqual(state.controllerConfig?.profiles['pad-1']?.reviewBindings.startForward, {
+      kind: 'combo',
+      press: { kind: 'button', buttonIndex: 0 },
+      hold: { kind: 'button', buttonIndex: 6 },
+    });
   } finally {
     domHandle.restore();
   }

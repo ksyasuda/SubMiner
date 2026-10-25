@@ -1,3 +1,15 @@
+import {
+  CONTROLLER_REVIEW_ACTIONS,
+  findControllerReviewBindingIssues,
+  formatControllerReviewBinding,
+  type ControllerReviewActionDefinition,
+  type ControllerReviewInputContext,
+} from '../../shared/controller-review';
+import type {
+  ControllerReviewAction,
+  ResolvedControllerReviewBinding,
+  ResolvedControllerReviewBindings,
+} from '../../types';
 import type {
   ControllerDpadFallback,
   ResolvedControllerAxisBinding,
@@ -303,8 +315,18 @@ export function createControllerConfigForm(options: {
   getControllerMapping?: () => ControllerMapping;
   /** `controller.faceButtonLabels`; names the face buttons as printed on the pad. */
   getFaceButtonLabels?: () => FaceButtonLabels;
+  /** Review media timing bindings of the controller being configured; null hides the group. */
+  getReviewBindings?: () => ResolvedControllerReviewBindings | null;
+  getReviewInputContext?: () => ControllerReviewInputContext;
+  /** The review action being learned, and the hold button pressed so far, if any. */
+  getReviewLearning?: () => { actionId: ControllerReviewAction; holdLabel: string | null } | null;
+  onReviewLearn?: (actionId: ControllerReviewAction) => void;
+  onReviewClear?: (actionId: ControllerReviewAction) => void;
+  onReviewReset?: (actionId: ControllerReviewAction) => void;
+  onReviewResetAll?: () => void;
 }) {
   let expandedRowKey: ExpandedRowKey | null = null;
+  let reviewExpanded = false;
 
   function render(): void {
     options.container.innerHTML = '';
@@ -340,6 +362,112 @@ export function createControllerConfigForm(options: {
       } else {
         renderDiscreteRow(definition, binding, learningActionId);
       }
+    }
+
+    renderReviewGroup();
+  }
+
+  function renderReviewGroup(): void {
+    const bindings = options.getReviewBindings?.() ?? null;
+    const context = options.getReviewInputContext?.();
+    if (!bindings || !context) return;
+    const learning = options.getReviewLearning?.() ?? null;
+    if (learning) {
+      reviewExpanded = true;
+      expandedRowKey = `review:${learning.actionId}`;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'controller-config-group controller-config-group-toggle';
+    header.setAttribute('role', 'button');
+    header.setAttribute('aria-expanded', String(reviewExpanded));
+    header.textContent = `${reviewExpanded ? '\u25be' : '\u25b8'} Review media timing`;
+    header.addEventListener('click', () => {
+      reviewExpanded = !reviewExpanded;
+      render();
+    });
+    if (reviewExpanded) {
+      const resetAll = document.createElement('button');
+      resetAll.type = 'button';
+      resetAll.className = 'btn-secondary controller-config-group-action';
+      resetAll.textContent = 'Reset all';
+      resetAll.addEventListener('click', (e) => {
+        e.stopPropagation();
+        options.onReviewResetAll?.();
+      });
+      header.appendChild(resetAll);
+    }
+    options.container.appendChild(header);
+    if (!reviewExpanded) return;
+
+    const issues = findControllerReviewBindingIssues(bindings, context);
+    let lastStep = '';
+    for (const action of CONTROLLER_REVIEW_ACTIONS) {
+      if (action.step !== lastStep) {
+        const subgroup = document.createElement('div');
+        subgroup.className = 'controller-config-subgroup';
+        subgroup.textContent = action.step === 'editor' ? 'While editing' : 'After Cancel';
+        options.container.appendChild(subgroup);
+        lastStep = action.step;
+      }
+      renderReviewRow(action, bindings[action.id], context, issues[action.id], learning);
+    }
+  }
+
+  function renderReviewRow(
+    action: ControllerReviewActionDefinition,
+    binding: ResolvedControllerReviewBinding,
+    context: ControllerReviewInputContext,
+    issue: string | undefined,
+    learning: { actionId: ControllerReviewAction; holdLabel: string | null } | null,
+  ): void {
+    const rowKey = `review:${action.id}`;
+    const isExpanded = expandedRowKey === rowKey;
+    const holdLabel = learning?.actionId === action.id ? learning.holdLabel : null;
+    const isLearning = learning?.actionId === action.id;
+    const current = formatControllerReviewBinding(binding, context, { dpadPrefix: true });
+
+    const learn = (e: Event) => {
+      e.stopPropagation();
+      expandedRowKey = rowKey;
+      options.onReviewLearn?.(action.id);
+    };
+    const reset = (e: Event) => {
+      e.stopPropagation();
+      options.onReviewReset?.(action.id);
+    };
+    const row = createRow(
+      action.label,
+      holdLabel ? `${holdLabel} + \u2026` : current,
+      binding.kind === 'none',
+      isExpanded,
+      `Learn ${action.label}`,
+      learn,
+      `Reset ${action.label}`,
+      reset,
+      issue,
+    );
+    row.addEventListener('click', () => {
+      expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
+      render();
+    });
+    options.container.appendChild(row);
+
+    if (isExpanded) {
+      const hint = !isLearning
+        ? `Currently: ${current}`
+        : holdLabel
+          ? `Holding ${holdLabel}: press another button for a combo, or let go to use ${holdLabel} alone\u2026`
+          : 'Press a button, or hold one and press another for a combo\u2026';
+      const panel = createEditPanel(hint, isLearning, {
+        onLearn: learn,
+        onClear: (e) => {
+          e.stopPropagation();
+          options.onReviewClear?.(action.id);
+        },
+        onReset: reset,
+      });
+      options.container.appendChild(panel);
     }
   }
 
@@ -520,6 +648,7 @@ export function createControllerConfigForm(options: {
     onEdit: (e: Event) => void,
     resetLabel: string,
     onReset: (e: Event) => void,
+    warningText?: string,
   ): HTMLDivElement {
     const row = document.createElement('div');
     row.className = 'controller-config-row';
@@ -528,6 +657,13 @@ export function createControllerConfigForm(options: {
     const label = document.createElement('div');
     label.className = 'controller-config-label';
     label.textContent = labelText;
+    if (warningText) {
+      row.classList.add('has-warning');
+      const warning = document.createElement('div');
+      warning.className = 'controller-config-warning';
+      warning.textContent = `\u26a0 ${warningText}`;
+      label.appendChild(warning);
+    }
 
     const right = document.createElement('div');
     right.className = 'controller-config-right';

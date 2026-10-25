@@ -50,7 +50,12 @@ import { createSubsyncModal } from './modals/subsync.js';
 import { createSubtitleGenerationModal } from './modals/subtitle-generation.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
 import { createMediaTimingReviewModal } from './modals/media-timing-review.js';
-import { createMediaTimingReviewControllerLayout } from './handlers/media-timing-review-controller.js';
+import {
+  createMediaTimingReviewControllerLayout,
+  formatMediaTimingReviewControllerHints,
+} from './handlers/media-timing-review-controller.js';
+import { resolveControllerConfigForGamepad } from './controller-profile-config.js';
+import { getDefaultControllerReviewBindings } from '../shared/controller-review';
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
@@ -412,7 +417,21 @@ function applyControllerSnapshot(snapshot: {
   controllerDebugModal.updateSnapshot();
   // Shown whenever controller support is on: a fresh dialog window cannot see the pad
   // until its first press, so "connected" would hide the hints exactly when needed.
-  mediaTimingReviewModal.setControllerHintsVisible(ctx.state.controllerConfig?.enabled === true);
+  const controllerConfig = ctx.state.controllerConfig;
+  mediaTimingReviewModal.setControllerHintsVisible(controllerConfig?.enabled === true);
+  if (controllerConfig?.enabled === true && ctx.state.mediaTimingReviewModalOpen) {
+    // Before the dialog window has seen the pad, use the saved controller's bindings.
+    const gamepadId = snapshot.activeGamepadId ?? controllerConfig.preferredGamepadId;
+    const mapping =
+      snapshot.connectedGamepads.find((device) => device.id === snapshot.activeGamepadId)
+        ?.mapping ?? 'standard';
+    mediaTimingReviewModal.setControllerHints(
+      formatMediaTimingReviewControllerHints(
+        resolveControllerConfigForGamepad(controllerConfig, gamepadId),
+        mapping,
+      ),
+    );
+  }
 }
 
 function showControllerDisabledNotice(): void {
@@ -484,6 +503,7 @@ function startControllerPolling(): void {
           rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
           rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
         },
+        reviewBindings: getDefaultControllerReviewBindings(),
         profiles: {},
       },
     getKeyboardModeEnabled: () => ctx.state.keyboardDrivenModeEnabled,

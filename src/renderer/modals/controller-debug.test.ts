@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { createRendererState } from '../state.js';
 import { createControllerDebugModal } from './controller-debug.js';
+import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -80,6 +81,7 @@ test('controller debug modal renders active controller axes, buttons, and config
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
+      reviewBindings: getDefaultControllerReviewBindings(),
       profiles: {},
     };
 
@@ -199,6 +201,7 @@ test('controller debug modal copies buttonIndices config to clipboard', async ()
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
+      reviewBindings: getDefaultControllerReviewBindings(),
       profiles: {},
     };
 
@@ -317,6 +320,7 @@ test('controller debug modal stays closed and notifies when controller support i
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
+      reviewBindings: getDefaultControllerReviewBindings(),
       profiles: {},
     };
     const ctx = {
