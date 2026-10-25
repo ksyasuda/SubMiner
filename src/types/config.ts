@@ -26,6 +26,7 @@ import type {
   ControllerConfig,
   ResolvedControllerProfileConfig,
   ControllerTriggerInputMode,
+  ControllerFaceButtonLabels,
   Keybinding,
   ResolvedControllerBindingsConfig,
 } from './runtime';
@@ -221,6 +222,7 @@ export interface ResolvedConfig {
     horizontalJumpPixels: number;
     stickDeadzone: number;
     triggerInputMode: ControllerTriggerInputMode;
+    faceButtonLabels: ControllerFaceButtonLabels;
     triggerDeadzone: number;
     repeatDelayMs: number;
     repeatIntervalMs: number;

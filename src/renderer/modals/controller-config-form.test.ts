@@ -91,7 +91,11 @@ function findOne(root: FakeElement, className: string, text?: string): FakeEleme
 /** Renders the form into a fake container with `document` stubbed for the duration. */
 function renderForm(
   learningActionId: ActionId | null,
-  options: { bindings?: typeof BINDINGS; mapping?: string } = {},
+  options: {
+    bindings?: typeof BINDINGS;
+    mapping?: string;
+    faceButtonLabels?: 'xbox' | 'nintendo';
+  } = {},
 ) {
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
@@ -106,6 +110,7 @@ function renderForm(
       container: container as unknown as HTMLElement,
       getBindings: () => options.bindings ?? BINDINGS,
       getControllerMapping: () => options.mapping,
+      getFaceButtonLabels: () => options.faceButtonLabels,
       getLearningActionId: () => learningActionId,
       getDpadLearningActionId: () => null,
       onLearn: (actionId, bindingType) => calls.push(`learn:${actionId}:${bindingType}`),
@@ -262,4 +267,23 @@ test('controller config form names buttons by the W3C standard layout for standa
   const raw = renderForm(null, { bindings, mapping: '' });
   assert.equal(badge(raw.row('Quit MPV')), 'Back / Select');
   assert.equal(badge(raw.row('Previous Entry')), 'L3 / LS');
+});
+
+test('controller config form names face buttons Nintendo-style when configured', () => {
+  const badge = (row: FakeElement) => findOne(row, 'controller-config-badge').textContent;
+  const bindings: typeof BINDINGS = {
+    ...BINDINGS,
+    toggleLookup: { kind: 'button', buttonIndex: 0 },
+    closeLookup: { kind: 'button', buttonIndex: 1 },
+    mineCard: { kind: 'button', buttonIndex: 2 },
+    toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+  };
+
+  const form = renderForm(null, { bindings, mapping: 'standard', faceButtonLabels: 'nintendo' });
+  assert.equal(badge(form.row('Toggle Lookup')), 'B');
+  assert.equal(badge(form.row('Close Lookup')), 'A');
+  assert.equal(badge(form.row('Mine Card')), 'Y');
+  assert.equal(badge(form.row('Toggle Keyboard-Only Mode')), 'X');
+  // Non-face buttons keep their names.
+  assert.equal(badge(form.row('Next Audio')), 'RB / R1');
 });

@@ -184,3 +184,22 @@ test('D-pads reported as axes (non-standard pads) drive the same layout', () => 
 
   assert.deepEqual(actions, ['endBack', 'frameNext']);
 });
+
+test('Nintendo-style pads press the button labelled A to confirm, wherever it sits', () => {
+  const nintendo: ResolvedControllerConfig = { ...CONFIG, faceButtonLabels: 'nintendo' };
+  const actions: MediaTimingReviewControllerAction[] = [];
+  const layout = createMediaTimingReviewControllerLayout({
+    getStep: () => 'editor',
+    dispatch: (action) => actions.push(action),
+  });
+  layout.activate(pad(), nintendo, 0);
+
+  // Positions, not letters: on these pads A is the right button (index 1), B the bottom
+  // one (0), X the top one (3) and Y the left one (2).
+  for (const position of ['B', 'A', 'Y', 'X'] as const) {
+    layout.poll(pad([position]), nintendo, 10);
+    layout.poll(pad(), nintendo, 20);
+  }
+
+  assert.deepEqual(actions, ['confirm', 'cancel', 'play', 'resetTiming']);
+});

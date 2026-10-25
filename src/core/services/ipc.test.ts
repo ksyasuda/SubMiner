@@ -45,6 +45,7 @@ function createControllerConfigFixture() {
     stickDeadzone: 0.2,
     triggerInputMode: 'auto' as const,
     triggerDeadzone: 0.5,
+    faceButtonLabels: 'xbox' as const,
     repeatDelayMs: 220,
     repeatIntervalMs: 80,
     buttonIndices: {

@@ -108,6 +108,7 @@
     "stickDeadzone": 0.2, // Deadzone applied to controller stick axes.
     "triggerInputMode": "auto", // How controller triggers are interpreted: auto, pressed-only, or thresholded analog. Values: auto | digital | analog
     "triggerDeadzone": 0.5, // Minimum analog trigger value required when trigger input uses auto or analog mode.
+    "faceButtonLabels": "xbox", // Letters printed on your controller's face buttons: xbox (A at the bottom; also PlayStation) or nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads). Used by fixed controller layouts and button names in Alt+C. Values: xbox | nintendo
     "repeatDelayMs": 320, // Delay before repeating held controller actions.
     "repeatIntervalMs": 120, // Repeat interval for held controller actions.
     "buttonIndices": {

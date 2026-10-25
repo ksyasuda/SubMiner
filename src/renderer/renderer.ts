@@ -446,6 +446,7 @@ function startControllerPolling(): void {
         stickDeadzone: 0.2,
         triggerInputMode: 'auto',
         triggerDeadzone: 0.5,
+        faceButtonLabels: 'xbox',
         repeatDelayMs: 320,
         repeatIntervalMs: 120,
         buttonIndices: {

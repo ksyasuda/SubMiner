@@ -38,7 +38,9 @@ export type MediaTimingReviewControllerAction =
 /** The review shows either the timing editor or the "Stop reviewing?" step. */
 export type MediaTimingReviewStep = 'editor' | 'cancel';
 
-type FaceButton = 'south' | 'east' | 'west' | 'north';
+/** Bound by the letter printed on the button, so the layout matches what the user reads. */
+type FaceButton = 'a' | 'b' | 'x' | 'y';
+type FacePosition = 'south' | 'east' | 'west' | 'north';
 type DpadDirection = 'left' | 'right' | 'up' | 'down';
 type DpadModifier = 'none' | 'l1' | 'r1';
 
@@ -52,6 +54,15 @@ export type MediaTimingReviewControllerBinding =
     }
   | { action: MediaTimingReviewControllerAction; step: MediaTimingReviewStep; shoulders: 'both' };
 
+/** Where each letter sits: Xbox (and PlayStation) pads put A at the bottom, Nintendo-style pads on the right. */
+const FACE_POSITIONS: Record<
+  ResolvedControllerConfig['faceButtonLabels'],
+  Record<FaceButton, FacePosition>
+> = {
+  xbox: { a: 'south', b: 'east', x: 'west', y: 'north' },
+  nintendo: { a: 'east', b: 'south', x: 'north', y: 'west' },
+};
+
 /**
  * Fixed default layout. L1 holds everything about the clip start (and lines before it),
  * R1 everything about the clip end (and lines after it). D-pad entries repeat while held;
@@ -59,10 +70,10 @@ export type MediaTimingReviewControllerBinding =
  */
 export const MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT: readonly MediaTimingReviewControllerBinding[] =
   [
-    { action: 'confirm', step: 'editor', face: 'south' },
-    { action: 'cancel', step: 'editor', face: 'east' },
-    { action: 'play', step: 'editor', face: 'west' },
-    { action: 'resetTiming', step: 'editor', face: 'north' },
+    { action: 'confirm', step: 'editor', face: 'a' },
+    { action: 'cancel', step: 'editor', face: 'b' },
+    { action: 'play', step: 'editor', face: 'x' },
+    { action: 'resetTiming', step: 'editor', face: 'y' },
     { action: 'showEarlier', step: 'editor', modifier: 'none', direction: 'left' },
     { action: 'showLater', step: 'editor', modifier: 'none', direction: 'right' },
     { action: 'framePrevious', step: 'editor', modifier: 'none', direction: 'up' },
@@ -76,13 +87,13 @@ export const MEDIA_TIMING_REVIEW_CONTROLLER_LAYOUT: readonly MediaTimingReviewCo
     { action: 'endForward', step: 'editor', modifier: 'r1', direction: 'right' },
     { action: 'nextLineAdd', step: 'editor', modifier: 'r1', direction: 'up' },
     { action: 'nextLineRemove', step: 'editor', modifier: 'r1', direction: 'down' },
-    { action: 'useOriginal', step: 'cancel', face: 'south' },
-    { action: 'keepEditing', step: 'cancel', face: 'east' },
-    { action: 'skipMedia', step: 'cancel', face: 'west' },
-    { action: 'discard', step: 'cancel', face: 'north' },
+    { action: 'useOriginal', step: 'cancel', face: 'a' },
+    { action: 'keepEditing', step: 'cancel', face: 'b' },
+    { action: 'skipMedia', step: 'cancel', face: 'x' },
+    { action: 'discard', step: 'cancel', face: 'y' },
   ];
 
-const FACE_LABELS: Record<FaceButton, string> = { south: 'A', east: 'B', west: 'X', north: 'Y' };
+const FACE_LABELS: Record<FaceButton, string> = { a: 'A', b: 'B', x: 'X', y: 'Y' };
 const DIRECTION_LABELS: Record<DpadDirection, string> = {
   left: '◀',
   right: '▶',
@@ -126,12 +137,19 @@ function readButton(gamepad: GamepadLike, index: number, config: ResolvedControl
 
 function readInput(gamepad: GamepadLike, config: ResolvedControllerConfig): ReviewInput {
   const indices = config.buttonIndices;
+  const byPosition: Record<FacePosition, boolean> = {
+    south: readButton(gamepad, indices.buttonSouth, config),
+    east: readButton(gamepad, indices.buttonEast, config),
+    west: readButton(gamepad, indices.buttonWest, config),
+    north: readButton(gamepad, indices.buttonNorth, config),
+  };
+  const positions = FACE_POSITIONS[config.faceButtonLabels] ?? FACE_POSITIONS.xbox;
   return {
     face: {
-      south: readButton(gamepad, indices.buttonSouth, config),
-      east: readButton(gamepad, indices.buttonEast, config),
-      west: readButton(gamepad, indices.buttonWest, config),
-      north: readButton(gamepad, indices.buttonNorth, config),
+      a: byPosition[positions.a],
+      b: byPosition[positions.b],
+      x: byPosition[positions.x],
+      y: byPosition[positions.y],
     },
     l1: readButton(gamepad, indices.leftShoulder, config),
     r1: readButton(gamepad, indices.rightShoulder, config),
@@ -151,12 +169,7 @@ export function createMediaTimingReviewControllerLayout(options: {
   getStep: () => MediaTimingReviewStep;
   dispatch: (action: MediaTimingReviewControllerAction) => void;
 }): ControllerScreenLayout {
-  let previousFace: Record<FaceButton, boolean> = {
-    south: false,
-    east: false,
-    west: false,
-    north: false,
-  };
+  let previousFace: Record<FaceButton, boolean> = { a: false, b: false, x: false, y: false };
   let previousChord = false;
   const horizontal = createDpadChannel();
   const vertical = createDpadChannel();
@@ -237,7 +250,7 @@ export function createMediaTimingReviewControllerLayout(options: {
     poll(gamepad, config, now) {
       const input = readInput(gamepad, config);
 
-      for (const face of ['south', 'east', 'west', 'north'] as const) {
+      for (const face of ['a', 'b', 'x', 'y'] as const) {
         if (input.face[face] && !previousFace[face]) {
           fire(findBinding((binding) => 'face' in binding && binding.face === face));
         }

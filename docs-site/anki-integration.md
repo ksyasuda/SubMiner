@@ -164,6 +164,8 @@ When you cancel, you can go back to editing, keep the original timing, create th
 
 With [controller support](/usage#controller-support) on, the dialog has its own fixed controller layout, and each button shows its controller shortcut while a controller is connected. It works with or without keyboard-only mode, and the controller's usual actions pause until the dialog closes. Buttons that were already held when the dialog opened, such as the mine button, wait for a fresh press.
 
+`A`, `B`, `X` and `Y` mean the letters printed on your controller. If yours has A on the right and B at the bottom (Switch-style and many 8BitDo pads), set `controller.faceButtonLabels` to `"nintendo"`; PlayStation pads use the default (`A` is ✕, `B` ○, `X` □, `Y` △).
+
 Hold `L1` or `R1` and press the D-pad for the combos. `L1` covers the clip start and the lines before it, and `R1` the clip end and the lines after it. D-pad actions repeat while held.
 
 | Controller              | Editing                          | After Cancel        |

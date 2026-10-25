@@ -215,6 +215,10 @@ const W3C_STANDARD_AXIS_NAMES: Record<number, string> = {
 };
 
 type ControllerMapping = string | null | undefined;
+type FaceButtonLabels = ResolvedControllerConfig['faceButtonLabels'] | undefined;
+
+/** Nintendo-style pads print B at the bottom and A on the right; positions 0-3 are the same. */
+const NINTENDO_FACE_BUTTON_NAMES: Record<number, string> = { 0: 'B', 1: 'A', 2: 'Y', 3: 'X' };
 
 const DPAD_FALLBACK_LABELS: Record<ControllerDpadFallback, string> = {
   none: 'None',
@@ -222,7 +226,14 @@ const DPAD_FALLBACK_LABELS: Record<ControllerDpadFallback, string> = {
   vertical: 'D-pad \u2195',
 };
 
-export function getFriendlyButtonName(buttonIndex: number, mapping?: ControllerMapping): string {
+export function getFriendlyButtonName(
+  buttonIndex: number,
+  mapping?: ControllerMapping,
+  faceButtonLabels?: FaceButtonLabels,
+): string {
+  const nintendoName =
+    faceButtonLabels === 'nintendo' ? NINTENDO_FACE_BUTTON_NAMES[buttonIndex] : undefined;
+  if (nintendoName) return nintendoName;
   const names = mapping === 'standard' ? W3C_STANDARD_BUTTON_NAMES : RAW_LAYOUT_BUTTON_NAMES;
   return names[buttonIndex] ?? `Button ${buttonIndex}`;
 }
@@ -261,13 +272,16 @@ function formatFriendlyStickLabel(
 function formatFriendlyBindingLabel(
   binding: ResolvedControllerDiscreteBinding | ResolvedControllerAxisBinding,
   mapping: ControllerMapping,
+  faceButtonLabels: FaceButtonLabels,
 ): string {
   if (binding.kind === 'none') return 'None';
   if ('direction' in binding) {
     const name = getFriendlyAxisName(binding.axisIndex, mapping);
     return `${name} ${binding.direction === 'positive' ? '+' : '\u2212'}`;
   }
-  if ('buttonIndex' in binding) return getFriendlyButtonName(binding.buttonIndex, mapping);
+  if ('buttonIndex' in binding) {
+    return getFriendlyButtonName(binding.buttonIndex, mapping, faceButtonLabels);
+  }
   return getFriendlyAxisName(binding.axisIndex, mapping);
 }
 
@@ -287,6 +301,8 @@ export function createControllerConfigForm(options: {
   onDpadReset: (actionId: ControllerBindingActionId) => void;
   /** Gamepad API `mapping` of the controller being configured; picks the button names. */
   getControllerMapping?: () => ControllerMapping;
+  /** `controller.faceButtonLabels`; names the face buttons as printed on the pad. */
+  getFaceButtonLabels?: () => FaceButtonLabels;
 }) {
   let expandedRowKey: ExpandedRowKey | null = null;
 
@@ -338,7 +354,11 @@ export function createControllerConfigForm(options: {
 
     const row = createRow(
       definition.label,
-      formatFriendlyBindingLabel(binding, options.getControllerMapping?.()),
+      formatFriendlyBindingLabel(
+        binding,
+        options.getControllerMapping?.(),
+        options.getFaceButtonLabels?.(),
+      ),
       binding.kind === 'none',
       isExpanded,
       `Learn ${definition.label}`,

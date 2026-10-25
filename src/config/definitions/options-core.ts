@@ -225,6 +225,14 @@ export function buildCoreConfigOptionRegistry(
         'How controller triggers are interpreted: auto, pressed-only, or thresholded analog.',
     },
     {
+      path: 'controller.faceButtonLabels',
+      kind: 'enum',
+      enumValues: ['xbox', 'nintendo'],
+      defaultValue: defaultConfig.controller.faceButtonLabels,
+      description:
+        "Letters printed on your controller's face buttons: xbox (A at the bottom; also PlayStation) or nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads). Used by fixed controller layouts and button names in Alt+C.",
+    },
+    {
       path: 'controller.triggerDeadzone',
       kind: 'number',
       defaultValue: defaultConfig.controller.triggerDeadzone,

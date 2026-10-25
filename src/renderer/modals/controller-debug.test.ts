@@ -46,6 +46,7 @@ test('controller debug modal renders active controller axes, buttons, and config
       stickDeadzone: 0.2,
       triggerInputMode: 'auto',
       triggerDeadzone: 0.5,
+      faceButtonLabels: 'xbox',
       repeatDelayMs: 320,
       repeatIntervalMs: 120,
       buttonIndices: {
@@ -164,6 +165,7 @@ test('controller debug modal copies buttonIndices config to clipboard', async ()
       stickDeadzone: 0.2,
       triggerInputMode: 'auto',
       triggerDeadzone: 0.5,
+      faceButtonLabels: 'xbox',
       repeatDelayMs: 320,
       repeatIntervalMs: 120,
       buttonIndices: {
@@ -281,6 +283,7 @@ test('controller debug modal stays closed and notifies when controller support i
       stickDeadzone: 0.2,
       triggerInputMode: 'auto',
       triggerDeadzone: 0.5,
+      faceButtonLabels: 'xbox',
       repeatDelayMs: 320,
       repeatIntervalMs: 120,
       buttonIndices: {

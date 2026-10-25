@@ -322,6 +322,18 @@ export function applyControllerConfig(context: ResolveContext): void {
     );
   }
 
+  const faceButtonLabels = asString(src.controller.faceButtonLabels);
+  if (faceButtonLabels === 'xbox' || faceButtonLabels === 'nintendo') {
+    resolved.controller.faceButtonLabels = faceButtonLabels;
+  } else if (src.controller.faceButtonLabels !== undefined) {
+    warn(
+      'controller.faceButtonLabels',
+      src.controller.faceButtonLabels,
+      resolved.controller.faceButtonLabels,
+      "Expected 'xbox' or 'nintendo'.",
+    );
+  }
+
   const boundedNumberKeys = [
     'scrollPixelsPerSecond',
     'horizontalJumpPixels',

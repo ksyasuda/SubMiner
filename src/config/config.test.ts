@@ -2190,3 +2190,28 @@ test('template generator shows built-in default keybindings in the keybindings a
 
   assert.deepEqual(parsed.keybindings, DEFAULT_KEYBINDINGS);
 });
+
+test('parses controller face button labels and warns on unknown styles', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    '{ "controller": { "faceButtonLabels": "nintendo" } }',
+    'utf-8',
+  );
+  const validService = new ConfigService(validDir);
+  assert.equal(DEFAULT_CONFIG.controller.faceButtonLabels, 'xbox');
+  assert.equal(validService.getConfig().controller.faceButtonLabels, 'nintendo');
+  assert.deepEqual(validService.getWarnings(), []);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    '{ "controller": { "faceButtonLabels": "sega" } }',
+    'utf-8',
+  );
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(invalidService.getConfig().controller.faceButtonLabels, 'xbox');
+  assert.ok(
+    invalidService.getWarnings().some((warning) => warning.path === 'controller.faceButtonLabels'),
+  );
+});

@@ -292,17 +292,18 @@ Adds a modal for choosing mpv's primary and secondary subtitle tracks. Open it w
 
 Gamepad input for the overlay, through the browser Gamepad API. Most actions only work while keyboard-only mode is on; the toggle for that mode and the secondary subtitle hold (`controller.bindings.holdSecondarySub`) work either way. Use the `Alt+C` modal to pick a controller and learn bindings, and `Alt+Shift+C` to see raw button and axis values. Default button actions are on [Keyboard shortcuts](/shortcuts).
 
-| Key                                | Default  | What it does                                                                          |
-| ---------------------------------- | -------- | ------------------------------------------------------------------------------------- |
-| `controller.enabled`               | `false`  | Enable controller support. The `Alt+C` and `Alt+Shift+C` modals stay closed while off |
-| `controller.smoothScroll`          | `true`   | Smooth popup scrolling                                                                |
-| `controller.scrollPixelsPerSecond` | `900`    | Popup scroll speed                                                                    |
-| `controller.horizontalJumpPixels`  | `160`    | Popup page-jump distance                                                              |
-| `controller.stickDeadzone`         | `0.2`    | Stick deadzone                                                                        |
-| `controller.triggerInputMode`      | `"auto"` | `auto`, `digital`, or `analog`. Use `analog` if your L2/R2 report analog values       |
-| `controller.triggerDeadzone`       | `0.5`    | Trigger threshold for `auto` and `analog`                                             |
-| `controller.repeatDelayMs`         | `320`    | Delay before a held button repeats                                                    |
-| `controller.repeatIntervalMs`      | `120`    | Repeat interval for held buttons                                                      |
+| Key                                | Default  | What it does                                                                                                                                                   |
+| ---------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `controller.enabled`               | `false`  | Enable controller support. The `Alt+C` and `Alt+Shift+C` modals stay closed while off                                                                          |
+| `controller.smoothScroll`          | `true`   | Smooth popup scrolling                                                                                                                                         |
+| `controller.scrollPixelsPerSecond` | `900`    | Popup scroll speed                                                                                                                                             |
+| `controller.horizontalJumpPixels`  | `160`    | Popup page-jump distance                                                                                                                                       |
+| `controller.stickDeadzone`         | `0.2`    | Stick deadzone                                                                                                                                                 |
+| `controller.triggerInputMode`      | `"auto"` | `auto`, `digital`, or `analog`. Use `analog` if your L2/R2 report analog values                                                                                |
+| `controller.triggerDeadzone`       | `0.5`    | Trigger threshold for `auto` and `analog`                                                                                                                      |
+| `controller.faceButtonLabels`      | `"xbox"` | Letters printed on your face buttons. Use `nintendo` if A is on the right and B at the bottom (Switch-style and many 8BitDo pads); PlayStation pads use `xbox` |
+| `controller.repeatDelayMs`         | `320`    | Delay before a held button repeats                                                                                                                             |
+| `controller.repeatIntervalMs`      | `120`    | Repeat interval for held buttons                                                                                                                               |
 
 Bindings are set with `Alt+C` learn mode, which saves them per controller.
 
