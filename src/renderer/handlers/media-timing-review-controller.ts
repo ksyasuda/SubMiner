@@ -230,6 +230,16 @@ export function createMediaTimingReviewControllerLayout(options: {
     );
   }
 
+  function resetToIdle(): void {
+    previousFace = { a: false, b: false, x: false, y: false };
+    previousChord = false;
+    for (const channel of [horizontal, vertical]) {
+      channel.key = null;
+      channel.latched = false;
+      resetHeldAction(channel.hold);
+    }
+  }
+
   function latch(input: ReviewInput): void {
     previousFace = { ...input.face };
     previousChord = input.l1 && input.r1;
@@ -243,29 +253,36 @@ export function createMediaTimingReviewControllerLayout(options: {
     }
   }
 
+  function poll(gamepad: GamepadLike, config: ResolvedControllerConfig, now: number): void {
+    const input = readInput(gamepad, config);
+
+    for (const face of ['a', 'b', 'x', 'y'] as const) {
+      if (input.face[face] && !previousFace[face]) {
+        fire(findBinding((binding) => 'face' in binding && binding.face === face));
+      }
+    }
+    previousFace = { ...input.face };
+
+    const chord = input.l1 && input.r1;
+    if (chord && !previousChord) {
+      fire(findBinding((binding) => 'shoulders' in binding));
+    }
+    previousChord = chord;
+
+    const modifier = resolveModifier(input);
+    updateDpadChannel(horizontal, input.horizontal, 'left', 'right', modifier, config, now);
+    updateDpadChannel(vertical, input.vertical, 'up', 'down', modifier, config, now);
+  }
+
   return {
-    activate(gamepad, config) {
-      latch(readInput(gamepad, config));
-    },
-    poll(gamepad, config, now) {
-      const input = readInput(gamepad, config);
-
-      for (const face of ['a', 'b', 'x', 'y'] as const) {
-        if (input.face[face] && !previousFace[face]) {
-          fire(findBinding((binding) => 'face' in binding && binding.face === face));
-        }
+    activate(gamepad, config, now, { latchHeld }) {
+      if (latchHeld) {
+        latch(readInput(gamepad, config));
+        return;
       }
-      previousFace = { ...input.face };
-
-      const chord = input.l1 && input.r1;
-      if (chord && !previousChord) {
-        fire(findBinding((binding) => 'shoulders' in binding));
-      }
-      previousChord = chord;
-
-      const modifier = resolveModifier(input);
-      updateDpadChannel(horizontal, input.horizontal, 'left', 'right', modifier, config, now);
-      updateDpadChannel(vertical, input.vertical, 'up', 'down', modifier, config, now);
+      resetToIdle();
+      poll(gamepad, config, now);
     },
+    poll,
   };
 }

@@ -396,19 +396,23 @@ function applyControllerSnapshot(snapshot: {
   rawAxes: number[];
   rawButtons: Array<{ value: number; pressed: boolean; touched?: boolean }>;
 }): void {
-  controllerStatusIndicator.update({
-    connectedGamepads: snapshot.connectedGamepads,
-    activeGamepadId: snapshot.activeGamepadId,
-  });
+  // Modal windows are fresh documents that only see the pad after a press; announcing
+  // that as "Controller detected" on every dialog reads like a reconnection.
+  if (!ctx.platform.isModalLayer) {
+    controllerStatusIndicator.update({
+      connectedGamepads: snapshot.connectedGamepads,
+      activeGamepadId: snapshot.activeGamepadId,
+    });
+  }
   ctx.state.connectedGamepads = snapshot.connectedGamepads;
   ctx.state.activeGamepadId = snapshot.activeGamepadId;
   ctx.state.controllerRawAxes = snapshot.rawAxes;
   ctx.state.controllerRawButtons = snapshot.rawButtons;
   controllerSelectModal.updateDevices();
   controllerDebugModal.updateSnapshot();
-  mediaTimingReviewModal.setControllerHintsVisible(
-    ctx.state.controllerConfig?.enabled === true && snapshot.connectedGamepads.length > 0,
-  );
+  // Shown whenever controller support is on: a fresh dialog window cannot see the pad
+  // until its first press, so "connected" would hide the hints exactly when needed.
+  mediaTimingReviewModal.setControllerHintsVisible(ctx.state.controllerConfig?.enabled === true);
 }
 
 function showControllerDisabledNotice(): void {

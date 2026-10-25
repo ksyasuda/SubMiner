@@ -24,11 +24,17 @@ export type GamepadLike = {
 
 /**
  * A screen that takes over every controller input while it is open (for example the
- * media timing review). `activate` runs on the first poll of a new session so buttons
- * already held when the screen opened do not fire; `poll` runs on every later frame.
+ * media timing review). `activate` runs on the first poll of a new session; with
+ * `latchHeld` it ignores buttons already held (so the press that opened the screen does
+ * not fire), otherwise it treats them as fresh presses. `poll` runs on every later frame.
  */
 export type ControllerScreenLayout = {
-  activate: (gamepad: GamepadLike, config: ResolvedControllerConfig, now: number) => void;
+  activate: (
+    gamepad: GamepadLike,
+    config: ResolvedControllerConfig,
+    now: number,
+    options: { latchHeld: boolean },
+  ) => void;
   poll: (gamepad: GamepadLike, config: ResolvedControllerConfig, now: number) => void;
 };
 
@@ -278,6 +284,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
   let lastPollAt: number | null = null;
   let secondarySubHeld = false;
   let activeScreenLayout: ControllerScreenLayout | null = null;
+  let screenLayoutWaitingForPad = false;
 
   function getConnectedGamepads(): GamepadLike[] {
     return resolveConnectedGamepads(options.getGamepads());
@@ -439,6 +446,10 @@ export function createGamepadController(options: GamepadControllerOptions) {
     if (!activeGamepad) {
       syncSecondarySubHold(false);
       activeScreenLayout = null;
+      // Browsers hide a pad from a page until a button is pressed while it is open, and
+      // each review opens in a fresh window. When a screen is already waiting for the pad,
+      // the press that reveals it started after the screen opened, so it should count.
+      screenLayoutWaitingForPad = config.enabled && (options.getScreenLayout?.() ?? null) !== null;
       previousActions = new Map();
       resetHeldAction(selectionHold);
       resetHeldAction(jumpHold);
@@ -465,15 +476,20 @@ export function createGamepadController(options: GamepadControllerOptions) {
       syncBlockedInteractionState(activeGamepad, activeConfig, now);
       if (screenLayout === null) {
         activeScreenLayout = null;
+        screenLayoutWaitingForPad = false;
       } else if (screenLayout !== activeScreenLayout) {
         activeScreenLayout = screenLayout;
-        screenLayout.activate(activeGamepad, activeConfig, now);
+        screenLayout.activate(activeGamepad, activeConfig, now, {
+          latchHeld: !screenLayoutWaitingForPad,
+        });
+        screenLayoutWaitingForPad = false;
       } else {
         screenLayout.poll(activeGamepad, activeConfig, now);
       }
       return;
     }
     activeScreenLayout = null;
+    screenLayoutWaitingForPad = false;
 
     // Unlike most actions, this one does not require keyboard-only mode, so it can be
     // used while simply watching.

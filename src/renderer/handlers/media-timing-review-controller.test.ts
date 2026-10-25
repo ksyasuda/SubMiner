@@ -32,7 +32,7 @@ function createLayout(step: MediaTimingReviewStep = 'editor') {
     getStep: () => state.step,
     dispatch: (action) => actions.push(action),
   });
-  layout.activate(pad(), CONFIG, 0);
+  layout.activate(pad(), CONFIG, 0, { latchHeld: true });
   return { layout, actions, state };
 }
 
@@ -89,7 +89,7 @@ test('buttons already held when the review opens wait for a fresh press', () => 
   });
 
   // X mined the card that opened this review; it must not also start the preview.
-  layout.activate(pad(['X', 'RIGHT']), CONFIG, 0);
+  layout.activate(pad(['X', 'RIGHT']), CONFIG, 0, { latchHeld: true });
   layout.poll(pad(['X', 'RIGHT']), CONFIG, 1_000);
   assert.deepEqual(actions, []);
 
@@ -192,7 +192,7 @@ test('Nintendo-style pads press the button labelled A to confirm, wherever it si
     getStep: () => 'editor',
     dispatch: (action) => actions.push(action),
   });
-  layout.activate(pad(), nintendo, 0);
+  layout.activate(pad(), nintendo, 0, { latchHeld: true });
 
   // Positions, not letters: on these pads A is the right button (index 1), B the bottom
   // one (0), X the top one (3) and Y the left one (2).
@@ -202,4 +202,17 @@ test('Nintendo-style pads press the button labelled A to confirm, wherever it si
   }
 
   assert.deepEqual(actions, ['confirm', 'cancel', 'play', 'resetTiming']);
+});
+
+test('a press that first reveals the pad to a fresh dialog window counts', () => {
+  const actions: MediaTimingReviewControllerAction[] = [];
+  const layout = createMediaTimingReviewControllerLayout({
+    getStep: () => 'editor',
+    dispatch: (action) => actions.push(action),
+  });
+
+  layout.activate(pad(['A']), CONFIG, 0, { latchHeld: false });
+  layout.poll(pad(['A']), CONFIG, 16);
+
+  assert.deepEqual(actions, ['confirm']);
 });
