@@ -1310,17 +1310,19 @@ test('an open subtitle sidebar only keeps imported mpv input aimed at the sideba
     await handlers.setupMpvInputForwarding();
     await wait(0);
     ctx.state.subtitleSidebarModalOpen = true;
+    const sidebarTarget = testGlobals.createInteractiveTarget();
     const playbackTarget = testGlobals.createPlaybackTarget();
+
+    // Sidebar input runs first, while no key or button is held, so a held key cannot
+    // hide a forwarded press. Its release has no matching press to forward.
+    testGlobals.dispatchKeydown({ key: '0', code: 'Digit0', target: sidebarTarget });
+    testGlobals.dispatchMousedown({ button: 0, target: sidebarTarget });
+    testGlobals.dispatchMousedown({ button: 0, type: 'mouseup', target: sidebarTarget });
+    assert.deepEqual(testGlobals.mpvCommands, []);
 
     testGlobals.dispatchKeydown({ key: '0', code: 'Digit0', target: playbackTarget });
     testGlobals.dispatchMousedown({ button: 0, target: playbackTarget });
     testGlobals.dispatchMousedown({ button: 0, type: 'mouseup', target: playbackTarget });
-    testGlobals.dispatchKeydown({
-      key: '0',
-      code: 'Digit0',
-      target: testGlobals.createInteractiveTarget(),
-    });
-    testGlobals.dispatchMousedown({ button: 0, target: testGlobals.createInteractiveTarget() });
 
     assert.deepEqual(testGlobals.mpvCommands, [
       ['keydown', '0'],
