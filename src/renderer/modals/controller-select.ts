@@ -58,8 +58,13 @@ export function createControllerSelectModal(
     return ctx.state.connectedGamepads[ctx.state.controllerDeviceSelectedIndex] ?? null;
   }
 
+  /**
+   * The controller whose profile Alt+C shows and edits. A freshly opened window cannot see
+   * any pad until a button is pressed in it, so until then use the saved (preferred)
+   * controller rather than the global defaults it does not actually use.
+   */
   function getSelectedControllerId(): string | null {
-    return getSelectedController()?.id ?? null;
+    return getSelectedController()?.id ?? (ctx.state.controllerConfig?.preferredGamepadId || null);
   }
 
   function getSelectedControllerConfig() {
@@ -357,8 +362,8 @@ export function createControllerSelectModal(
     actionId: ControllerBindingKey,
     binding: ControllerBindingValue,
   ): Parameters<typeof window.electronAPI.saveControllerConfig>[0] {
-    const selected = getSelectedController();
-    if (!selected) {
+    const profileId = getSelectedControllerId();
+    if (!profileId) {
       return {
         bindings: {
           [actionId]: binding,
@@ -367,7 +372,7 @@ export function createControllerSelectModal(
     }
     return {
       profiles: {
-        [selected.id]: {
+        [profileId]: {
           bindings: {
             [actionId]: binding,
           },
@@ -398,11 +403,11 @@ export function createControllerSelectModal(
     bindings: Partial<Record<ControllerReviewAction, ResolvedControllerReviewBinding>>,
     message: string,
   ): Promise<void> {
-    const selected = getSelectedController();
+    const profileId = getSelectedControllerId();
     try {
       await saveControllerConfig(
-        selected
-          ? { profiles: { [selected.id]: { reviewBindings: bindings } } }
+        profileId
+          ? { profiles: { [profileId]: { reviewBindings: bindings } } }
           : { reviewBindings: bindings },
       );
       cancelReviewLearning();
@@ -522,13 +527,11 @@ export function createControllerSelectModal(
       controllerConfigForm.render();
     }
 
-    if (
-      ctx.state.connectedGamepads.length === 0 &&
-      !learningActionId &&
-      !dpadLearningActionId &&
-      !reviewLearning
-    ) {
+    const idle = !learningActionId && !dpadLearningActionId && !reviewLearning;
+    if (ctx.state.connectedGamepads.length === 0 && idle) {
       setStatus('No controllers detected.');
+    } else if (idle && ctx.dom.controllerSelectStatus.textContent === 'No controllers detected.') {
+      setStatus('Choose a controller or click Learn to remap an action.');
     }
   }
 
@@ -548,7 +551,11 @@ export function createControllerSelectModal(
     renderPicker();
     controllerConfigForm.render();
     if (ctx.state.connectedGamepads.length === 0) {
-      setStatus('No controllers detected.');
+      setStatus(
+        ctx.state.controllerConfig?.preferredGamepadId
+          ? 'Press any button on your controller so this window can see it.'
+          : 'No controllers detected.',
+      );
     } else {
       setStatus('Choose a controller or click Learn to remap an action.');
     }

@@ -446,6 +446,8 @@ test('controller select modal learn mode falls back to global bindings without a
   try {
     const { state, dom } = buildContext();
     state.connectedGamepads = [];
+    // No controller visible and none saved: edits go to the global bindings.
+    state.controllerConfig!.preferredGamepadId = '';
     state.activeGamepadId = null;
     const modal = createControllerSelectModal({ state, dom } as never, {
       modalStateReader: { isAnyModalOpen: () => false },
@@ -713,6 +715,81 @@ test('controller select modal learns a review combo and saves it to the controll
       kind: 'combo',
       press: { kind: 'button', buttonIndex: 0 },
       hold: { kind: 'button', buttonIndex: 6 },
+    });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal shows and edits the saved controller before this window sees it', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    // A fresh Alt+C window has not seen the pad yet (no button pressed in it).
+    state.connectedGamepads = [];
+    state.activeGamepadId = null;
+    const config = state.controllerConfig!;
+    config.profiles = {
+      'pad-1': {
+        label: 'pad-1',
+        buttonIndices: config.buttonIndices,
+        bindings: config.bindings,
+        reviewBindings: {
+          ...config.reviewBindings,
+          startBack: {
+            kind: 'combo',
+            press: { kind: 'button', buttonIndex: 15 },
+            hold: { kind: 'button', buttonIndex: 6 },
+          },
+        },
+      },
+    };
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    findByClass(dom.controllerConfigList, 'controller-config-group-toggle').dispatch('click');
+    const row = findReviewRow(dom.controllerConfigList, 'Start \u22120.1s');
+    assert.equal(row.children[1].children[0].textContent, 'L2 + D-pad \u25b6');
+    assert.equal(
+      dom.controllerSelectStatus.textContent,
+      'Press any button on your controller so this window can see it.',
+    );
+
+    // Reset goes to the saved controller's profile, not the global layout.
+    row.children[1].children[1].dispatch('click');
+    await Promise.resolve();
+    assert.deepEqual(saved.at(-1), {
+      profiles: {
+        'pad-1': {
+          reviewBindings: {
+            startBack: {
+              kind: 'combo',
+              press: { kind: 'dpad', direction: 'left' },
+              hold: { kind: 'button', buttonIndex: 4 },
+            },
+          },
+        },
+      },
     });
   } finally {
     domHandle.restore();
