@@ -38,8 +38,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 // A recording AnkiConnect stand-in: one deck and one Lapis-shaped note type.
-// Added notes are echoed back by `notesInfo` so the app can resolve their fields;
-// scenarios still assert on `requests`, not on stored notes.
+// Added notes (with later `updateNoteFields` writes) are echoed back by `notesInfo`
+// so the app can resolve their fields; scenarios still assert on `requests`.
 export async function startFakeAnki(): Promise<FakeAnki> {
   const requests: AnkiRequest[] = [];
   const addedNotes = new Map<number, Record<string, unknown>>();
@@ -64,27 +64,32 @@ export async function startFakeAnki(): Promise<FakeAnki> {
       case 'addNote': {
         const noteId = nextNoteId++;
         const note = isRecord(params.note) ? params.note : {};
-        addedNotes.set(noteId, isRecord(note.fields) ? note.fields : {});
+        addedNotes.set(noteId, isRecord(note.fields) ? { ...note.fields } : {});
         return noteId;
       }
+      case 'updateNoteFields': {
+        const note = isRecord(params.note) ? params.note : {};
+        const fields = typeof note.id === 'number' ? addedNotes.get(note.id) : undefined;
+        if (fields && isRecord(note.fields)) Object.assign(fields, note.fields);
+        return null;
+      }
       case 'notesInfo': {
+        // Like AnkiConnect: one entry per requested id, `{}` for unknown notes.
         const ids = Array.isArray(params.notes) ? params.notes : [];
-        return ids.flatMap((id) => {
+        return ids.map((id) => {
           const fields = typeof id === 'number' ? addedNotes.get(id) : undefined;
-          if (!fields) return [];
-          return [
-            {
-              noteId: id,
-              modelName: FAKE_ANKI_MODEL,
-              tags: [],
-              fields: Object.fromEntries(
-                MODEL_FIELDS.map((name, order) => [
-                  name,
-                  { value: String(fields[name] ?? ''), order },
-                ]),
-              ),
-            },
-          ];
+          if (!fields) return {};
+          return {
+            noteId: id,
+            modelName: FAKE_ANKI_MODEL,
+            tags: [],
+            fields: Object.fromEntries(
+              MODEL_FIELDS.map((name, order) => [
+                name,
+                { value: String(fields[name] ?? ''), order },
+              ]),
+            ),
+          };
         });
       }
       case 'findNotes':
