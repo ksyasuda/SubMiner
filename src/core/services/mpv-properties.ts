@@ -38,6 +38,7 @@ const MPV_SUBTITLE_PROPERTY_OBSERVATIONS: string[] = [
   'path',
   'sub-start',
   'sub-end',
+  'sub-delay',
   'time-pos',
   'secondary-sub-text',
   'aid',

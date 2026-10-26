@@ -23,6 +23,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       currentSubText?: string;
       currentSecondarySubText?: string;
       currentTimePos?: number;
+      currentSubDelay?: number;
       requestProperty?: (name: string) => Promise<unknown>;
     } | null;
     immersionTracker: {
@@ -231,6 +232,9 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     hasSubtitleTimingTracker: () => Boolean(deps.appState.subtitleTimingTracker),
     recordSubtitleTiming: (text: string, start: number, end: number) => {
       const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || undefined;
+      // The tracker feeds multi-line mining, so it stores video-clock times: the subtitle
+      // timings plus the `sub-delay` in effect while the line was on screen.
+      const subDelay = deps.appState.mpvClient?.currentSubDelay ?? 0;
       const canonical = resolveCanonicalSample(text, start);
       if (!canonical) {
         const recordableText = resolveTextForRecording(text, start);
@@ -239,8 +243,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
         }
         deps.appState.subtitleTimingTracker?.recordSubtitle?.(
           recordableText,
-          start,
-          end,
+          start + subDelay,
+          end + subDelay,
           secondaryText,
         );
         return;
@@ -253,8 +257,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
         recordedTimingCanonicalKeys.add(key);
         deps.appState.subtitleTimingTracker?.recordSubtitle?.(
           cue.text,
-          cue.startTime,
-          cue.endTime,
+          cue.startTime + subDelay,
+          cue.endTime + subDelay,
           secondaryText,
         );
       }

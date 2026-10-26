@@ -73,6 +73,7 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       getCurrentSubStart: () => 0,
       setCurrentSubEnd: () => {},
       getCurrentSubEnd: () => 0,
+      setCurrentSubDelay: () => {},
       emitMediaPathChange: (payload) => {
         state.mediaPath = payload.path;
       },
@@ -129,6 +130,22 @@ test('dispatchMpvProtocolMessage emits subtitle text on property change', async 
 
   assert.equal(state.subText, '字幕');
   assert.deepEqual(state.events, [{ text: '字幕', isOverlayVisible: false }]);
+});
+
+test('dispatchMpvProtocolMessage tracks sub-delay retiming', async () => {
+  const delays: number[] = [];
+  const { deps } = createDeps({ setCurrentSubDelay: (value) => delays.push(value) });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'sub-delay', data: 1.5 },
+    deps,
+  );
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'sub-delay', data: null },
+    deps,
+  );
+
+  assert.deepEqual(delays, [1.5, 0]);
 });
 
 test('dispatchMpvProtocolMessage widens halfwidth katakana in subtitle text', async () => {

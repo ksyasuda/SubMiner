@@ -91,6 +91,14 @@ async function showCue(cue: (typeof FIXTURE_CUES)[number]): Promise<RenderedToke
     });
 }
 
+// Card-kind flags are written before media, so wait for the update carrying audio.
+function findMediaUpdate(session: E2eSession) {
+  return session.anki.requests.find(
+    (request) =>
+      request.action === 'updateNoteFields' && JSON.stringify(request.params).includes('[sound:'),
+  );
+}
+
 function hasToken(tokens: RenderedToken[], surface: string, headword: string): boolean {
   return tokens.some((token) => token.surface === surface && token.headword === headword);
 }
@@ -126,10 +134,10 @@ test(
     session.anki.requests.length = 0;
 
     await session.runAppCommand('--mine-sentence');
-    const update = await waitUntil(
-      () => session.anki.requests.find((request) => request.action === 'updateNoteFields'),
-      { description: 'media fields to be written to the mined note', timeoutMs: 30_000 },
-    );
+    const update = await waitUntil(() => findMediaUpdate(session), {
+      description: 'media fields to be written to the mined note',
+      timeoutMs: 30_000,
+    });
 
     const added = session.anki.requests.filter((request) => request.action === 'addNote');
     assert.equal(added.length, 1);
@@ -153,6 +161,38 @@ test(
 
     const updatedFields = JSON.stringify(update.params);
     for (const filename of stored) assert.ok(updatedFields.includes(filename), filename);
+  },
+);
+
+test(
+  'mining a line retimed with sub-delay clips it where mpv plays it',
+  { timeout: TEST_TIMEOUT_MS },
+  async () => {
+    const { session, overlay } = await useSession();
+    const cue = FIXTURE_CUES[1];
+    const delay = 2;
+    await session.mpv.command('set_property', 'sub-delay', delay);
+    try {
+      // Past the cue's own end, so the line is only on screen because of the delay.
+      await session.mpv.command('seek', cue.end + delay / 2, 'absolute+exact');
+      await overlay.waitFor(
+        `document.getElementById('subtitleRoot').textContent === ${JSON.stringify(cue.text)}`,
+        { description: 'overlay to show the delayed line' },
+      );
+      session.anki.requests.length = 0;
+
+      await session.runAppCommand('--mine-sentence');
+      await waitUntil(() => findMediaUpdate(session), {
+        description: 'media fields to be written to the mined note',
+        timeoutMs: 30_000,
+      });
+
+      // MiscInfo stamps the clip start: the cue's start on the video clock.
+      const written = JSON.stringify(session.anki.requests);
+      assert.ok(written.includes(`(00:00:0${cue.start + delay})`), written);
+    } finally {
+      await session.mpv.command('set_property', 'sub-delay', 0);
+    }
   },
 );
 

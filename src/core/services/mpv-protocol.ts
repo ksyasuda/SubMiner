@@ -64,6 +64,7 @@ export interface MpvProtocolHandleMessageDeps {
   getCurrentSubStart: () => number;
   setCurrentSubEnd: (value: number) => void;
   getCurrentSubEnd: () => number;
+  setCurrentSubDelay: (value: number) => void;
   emitMediaPathChange: (payload: { path: string }) => void;
   emitMediaTitleChange: (payload: { title: string | null }) => void;
   emitTimePosChange: (payload: { time: number }) => void;
@@ -272,6 +273,9 @@ export async function dispatchMpvProtocolMessage(
         start: deps.getCurrentSubStart(),
         end: deps.getCurrentSubEnd(),
       });
+    } else if (msg.name === 'sub-delay') {
+      const delay = typeof msg.data === 'number' ? msg.data : Number(msg.data);
+      deps.setCurrentSubDelay(Number.isFinite(delay) ? delay : 0);
     } else if (msg.name === 'secondary-sub-text') {
       const nextSubText = (msg.data as string) || '';
       deps.setCurrentSecondarySubText(nextSubText);

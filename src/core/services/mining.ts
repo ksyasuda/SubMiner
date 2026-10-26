@@ -25,6 +25,7 @@ interface MpvClientLike {
   currentSubText: string;
   currentSubStart: number;
   currentSubEnd: number;
+  currentSubDelay: number;
   currentSecondarySubText?: string;
   requestProperty?: (name: string) => Promise<unknown>;
 }
@@ -56,13 +57,31 @@ export function handleMultiCopyDigit(
 }
 
 /**
+ * mpv's `sub-start`/`sub-end` and parsed cues carry the subtitle file's own timestamps,
+ * but mpv plays each line `sub-delay` seconds later (z/x retiming). Media is cut from the
+ * video, so subtitle timings move onto the video clock before they reach mining.
+ */
+export function shiftSubtitleRangeToVideoClock<T extends { startTime: number; endTime: number }>(
+  range: T,
+  subDelay: number,
+): T {
+  if (!Number.isFinite(subDelay) || subDelay === 0) {
+    return range;
+  }
+  return { ...range, startTime: range.startTime + subDelay, endTime: range.endTime + subDelay };
+}
+
+/**
  * Snapshot the live mpv subtitle line and its timings as a mining context. Media
  * generation can run tens of seconds after the user mines (slow audio extraction),
  * so anything that reads `currentSubStart`/`currentSubEnd` lazily clips whichever
  * line is on screen by then; callers capture here at mining time instead.
  */
 export function captureLiveSubtitleMiningContext(
-  client: Pick<MpvClientLike, 'currentSubText' | 'currentSubStart' | 'currentSubEnd'> | null,
+  client: Pick<
+    MpvClientLike,
+    'currentSubText' | 'currentSubStart' | 'currentSubEnd' | 'currentSubDelay'
+  > | null,
   now: () => number = Date.now,
 ): SubtitleMiningContext | null {
   if (!client) {
@@ -73,7 +92,10 @@ export function captureLiveSubtitleMiningContext(
   if (!text || !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
     return null;
   }
-  return { source: 'overlay', text, startTime, endTime, capturedAtMs: now() };
+  return shiftSubtitleRangeToVideoClock<SubtitleMiningContext>(
+    { source: 'overlay', text, startTime, endTime, capturedAtMs: now() },
+    client.currentSubDelay,
+  );
 }
 
 export function copyCurrentSubtitle(deps: {
@@ -167,6 +189,7 @@ export async function markLastCardAsAudioCard(deps: {
 export async function mineSentenceCard(deps: {
   ankiIntegration: AnkiIntegrationLike | null;
   mpvClient: MpvClientLike | null;
+  /** Already on the video clock, like every `SubtitleMiningContext`. */
   primarySubtitle?: Pick<SubtitleMiningContext, 'text' | 'startTime' | 'endTime'>;
   showMpvOsd: (text: string) => void;
 }): Promise<boolean> {
@@ -185,10 +208,16 @@ export async function mineSentenceCard(deps: {
   }
 
   const secondarySubText = getCurrentSecondarySubTextForSentenceCard(mpvClient, primaryText);
+  const range =
+    deps.primarySubtitle ??
+    shiftSubtitleRangeToVideoClock(
+      { startTime: mpvClient.currentSubStart, endTime: mpvClient.currentSubEnd },
+      mpvClient.currentSubDelay,
+    );
   return await anki.createSentenceCard(
     primaryText,
-    deps.primarySubtitle?.startTime ?? mpvClient.currentSubStart,
-    deps.primarySubtitle?.endTime ?? mpvClient.currentSubEnd,
+    range.startTime,
+    range.endTime,
     secondarySubText,
   );
 }

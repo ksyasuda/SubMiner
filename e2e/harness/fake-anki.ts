@@ -37,10 +37,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-// A recording AnkiConnect stand-in: an empty collection with one deck and one
-// Lapis-shaped note type. Scenarios assert on `requests`, not on stored notes.
+// A recording AnkiConnect stand-in: one deck and one Lapis-shaped note type.
+// Added notes are echoed back by `notesInfo` so the app can resolve their fields;
+// scenarios still assert on `requests`, not on stored notes.
 export async function startFakeAnki(): Promise<FakeAnki> {
   const requests: AnkiRequest[] = [];
+  const addedNotes = new Map<number, Record<string, unknown>>();
   let nextNoteId = 1000;
 
   const handle = (body: unknown): unknown => {
@@ -59,10 +61,33 @@ export async function startFakeAnki(): Promise<FakeAnki> {
         return [FAKE_ANKI_MODEL];
       case 'modelFieldNames':
         return MODEL_FIELDS;
-      case 'addNote':
-        return nextNoteId++;
+      case 'addNote': {
+        const noteId = nextNoteId++;
+        const note = isRecord(params.note) ? params.note : {};
+        addedNotes.set(noteId, isRecord(note.fields) ? note.fields : {});
+        return noteId;
+      }
+      case 'notesInfo': {
+        const ids = Array.isArray(params.notes) ? params.notes : [];
+        return ids.flatMap((id) => {
+          const fields = typeof id === 'number' ? addedNotes.get(id) : undefined;
+          if (!fields) return [];
+          return [
+            {
+              noteId: id,
+              modelName: FAKE_ANKI_MODEL,
+              tags: [],
+              fields: Object.fromEntries(
+                MODEL_FIELDS.map((name, order) => [
+                  name,
+                  { value: String(fields[name] ?? ''), order },
+                ]),
+              ),
+            },
+          ];
+        });
+      }
       case 'findNotes':
-      case 'notesInfo':
         return [];
       case 'storeMediaFile':
         return params.filename ?? null;

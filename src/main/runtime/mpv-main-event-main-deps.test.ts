@@ -176,6 +176,21 @@ test('subtitle-track transitions ignore stale parsed cues until replacement cues
   assert.deepEqual(recordedStarts.slice(-1), [20]);
 });
 
+test('subtitle timing history records lines on the video clock under sub-delay', () => {
+  const timing: Array<{ text: string; start: number; end: number }> = [];
+  const { handlers } = buildMainDeps({
+    mpvClient: { currentSubDelay: 2 },
+    subtitleTimingTracker: {
+      recordSubtitle: (text: string, start: number, end: number) =>
+        timing.push({ text, start, end }),
+    },
+  });
+
+  handlers.recordSubtitleTiming('食べる', 5, 8);
+
+  assert.deepEqual(timing, [{ text: '食べる', start: 7, end: 10 }]);
+});
+
 test('canonical ASS cues replace live glyph spam for display, history, and immersion', () => {
   const immersion: Array<{ text: string; start: number; end: number }> = [];
   const timing: Array<{ text: string; start: number; end: number }> = [];

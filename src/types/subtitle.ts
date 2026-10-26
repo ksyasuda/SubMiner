@@ -251,6 +251,7 @@ export interface SubtitleSidebarSnapshot extends SubtitleSidebarPlaybackState {
 export interface SubtitleMiningContext {
   source: 'subtitle-sidebar' | 'overlay';
   text: string;
+  /** Video-clock seconds: subtitle timings plus mpv `sub-delay` at capture time. */
   startTime: number;
   endTime: number;
   capturedAtMs?: number;
