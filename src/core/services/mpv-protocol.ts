@@ -277,8 +277,15 @@ export async function dispatchMpvProtocolMessage(
         end: deps.getCurrentSubEnd(),
       });
     } else if (msg.name === 'sub-delay') {
-      const delay = typeof msg.data === 'number' ? msg.data : Number(msg.data);
-      deps.setCurrentSubDelay(Number.isFinite(delay) ? delay : 0);
+      const parsed = typeof msg.data === 'number' ? msg.data : Number(msg.data);
+      const delay = Number.isFinite(parsed) ? parsed : 0;
+      // A scheduled replay pause sits at the line's end on the video clock; retiming
+      // mid-replay moves that end, so the pause moves with it.
+      const pauseAtTime = deps.getPauseAtTime();
+      if (pauseAtTime !== null) {
+        deps.setPauseAtTime(pauseAtTime + delay - deps.getCurrentSubDelay());
+      }
+      deps.setCurrentSubDelay(delay);
     } else if (msg.name === 'secondary-sub-text') {
       const nextSubText = (msg.data as string) || '';
       deps.setCurrentSecondarySubText(nextSubText);

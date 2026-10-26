@@ -399,17 +399,25 @@ test('dispatchMpvProtocolMessage pauses on sub-end when pendingPauseAtSubEnd is 
 
 test('dispatchMpvProtocolMessage pauses at the sub-delay retimed sub-end', async () => {
   let pauseAtTime: number | null = null;
+  let subDelay = 1.5;
   const { deps } = createDeps({
     getPendingPauseAtSubEnd: () => true,
-    getCurrentSubDelay: () => 1.5,
+    getCurrentSubDelay: () => subDelay,
+    setCurrentSubDelay: (next) => {
+      subDelay = next;
+    },
+    getPauseAtTime: () => pauseAtTime,
     setPauseAtTime: (next) => {
       pauseAtTime = next;
     },
   });
 
   await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sub-end', data: 42 }, deps);
-
   assert.equal(pauseAtTime, 43.5);
+
+  // Retiming before the replay reaches its end moves the pause with the line.
+  await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sub-delay', data: 2 }, deps);
+  assert.equal(pauseAtTime, 44);
 });
 
 test('dispatchMpvProtocolMessage updates current time before emitting time-pos change', async () => {
