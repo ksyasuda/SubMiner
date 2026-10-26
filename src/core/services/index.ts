@@ -22,7 +22,6 @@ export {
   handleMultiCopyDigit,
   markLastCardAsAudioCard,
   mineSentenceCard,
-  shiftSubtitleRangeToVideoClock,
   triggerFieldGrouping,
   updateLastCardFromClipboard,
 } from './mining';
@@ -56,6 +55,7 @@ export {
   subtitleCueListSeekTime,
   subtitleCueSeekTime,
 } from './subtitle-cue-navigation';
+export { shiftSubtitleRangeToVideoClock, toSubtitleClock, toVideoClock } from './subtitle-clock';
 export { createFrequencyDictionaryLookup } from './frequency-dictionary';
 export { createJlptVocabularyLookup } from './jlpt-vocab';
 export {

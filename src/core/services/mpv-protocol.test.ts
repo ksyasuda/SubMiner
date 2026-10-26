@@ -74,6 +74,7 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       setCurrentSubEnd: () => {},
       getCurrentSubEnd: () => 0,
       setCurrentSubDelay: () => {},
+      getCurrentSubDelay: () => 0,
       emitMediaPathChange: (payload) => {
         state.mediaPath = payload.path;
       },
@@ -394,6 +395,21 @@ test('dispatchMpvProtocolMessage pauses on sub-end when pendingPauseAtSubEnd is 
   assert.deepEqual(state.commands[state.commands.length - 1], {
     command: ['set_property', 'pause', false],
   });
+});
+
+test('dispatchMpvProtocolMessage pauses at the sub-delay retimed sub-end', async () => {
+  let pauseAtTime: number | null = null;
+  const { deps } = createDeps({
+    getPendingPauseAtSubEnd: () => true,
+    getCurrentSubDelay: () => 1.5,
+    setPauseAtTime: (next) => {
+      pauseAtTime = next;
+    },
+  });
+
+  await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sub-end', data: 42 }, deps);
+
+  assert.equal(pauseAtTime, 43.5);
 });
 
 test('dispatchMpvProtocolMessage updates current time before emitting time-pos change', async () => {

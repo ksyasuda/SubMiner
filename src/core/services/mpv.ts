@@ -464,6 +464,7 @@ export class MpvIpcClient implements MpvClient {
       setCurrentSubDelay: (value: number) => {
         this.currentSubDelay = value;
       },
+      getCurrentSubDelay: () => this.currentSubDelay,
       emitMediaPathChange: (payload) => {
         this.emit('media-path-change', payload);
       },

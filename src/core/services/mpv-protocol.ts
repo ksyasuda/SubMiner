@@ -1,6 +1,7 @@
 import { MpvSubtitleRenderMetrics } from '../../types';
 import { sanitizeMediaTitle } from '../../shared/media-identity';
 import { widenHalfwidthKana } from '../utils/halfwidth-kana';
+import { toVideoClock } from './subtitle-clock';
 
 export type MpvMessage = {
   event?: string;
@@ -65,6 +66,7 @@ export interface MpvProtocolHandleMessageDeps {
   setCurrentSubEnd: (value: number) => void;
   getCurrentSubEnd: () => number;
   setCurrentSubDelay: (value: number) => void;
+  getCurrentSubDelay: () => number;
   emitMediaPathChange: (payload: { path: string }) => void;
   emitMediaTitleChange: (payload: { title: string | null }) => void;
   emitTimePosChange: (payload: { time: number }) => void;
@@ -264,7 +266,8 @@ export async function dispatchMpvProtocolMessage(
       const subEnd = (msg.data as number) || 0;
       deps.setCurrentSubEnd(subEnd);
       if (deps.getPendingPauseAtSubEnd() && subEnd > 0) {
-        deps.setPauseAtTime(subEnd);
+        // `sub-end` is on the subtitle clock; the pause check compares it with `time-pos`.
+        deps.setPauseAtTime(toVideoClock(subEnd, deps.getCurrentSubDelay()));
         deps.setPendingPauseAtSubEnd(false);
         deps.sendCommand({ command: ['set_property', 'pause', false] });
       }

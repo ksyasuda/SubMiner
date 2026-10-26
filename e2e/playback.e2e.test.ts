@@ -224,6 +224,49 @@ test(
   },
 );
 
+test(
+  'subtitle sidebar follows and seeks a sub-delay retimed track',
+  { timeout: TEST_TIMEOUT_MS },
+  async () => {
+    const { session, overlay } = await useSession();
+    const delay = 2;
+    await session.mpv.command('set_property', 'sub-delay', delay);
+    try {
+      // At 9s cue 2 starts on the file's clock, but mpv is still showing cue 1.
+      await session.mpv.command('seek', FIXTURE_CUES[2].start, 'absolute+exact');
+      await overlay.waitFor(
+        `document.getElementById('subtitleRoot').textContent === ${JSON.stringify(FIXTURE_CUES[1].text)}`,
+        { description: 'overlay to show the delayed line' },
+      );
+      await session.runAppCommand('--toggle-subtitle-sidebar');
+      await overlay.waitFor(
+        `document.querySelector('#subtitleSidebarList .subtitle-sidebar-item.active')?.dataset.index === '1'`,
+        { description: 'sidebar to highlight the delayed line' },
+      );
+
+      await overlay.evaluate(
+        `document.querySelector('#subtitleSidebarList .subtitle-sidebar-item[data-index="2"]').click()`,
+      );
+      const target = FIXTURE_CUES[2].start + delay;
+      await waitUntil(
+        async () => {
+          const time = Number(await session.mpv.command('get_property', 'time-pos'));
+          return time >= target && time < target + 0.5;
+        },
+        { description: `click to seek to cue 2 at ${target}s on the video clock` },
+      );
+
+      await session.runAppCommand('--toggle-subtitle-sidebar');
+      await overlay.waitFor(
+        `document.getElementById('subtitleSidebarModal').classList.contains('hidden')`,
+        { description: 'sidebar to close' },
+      );
+    } finally {
+      await session.mpv.command('set_property', 'sub-delay', 0);
+    }
+  },
+);
+
 // Runs last: it leaves the lookup popup open over the overlay.
 test(
   'holding Shift over a word opens the Yomitan popup with its dictionary entry',

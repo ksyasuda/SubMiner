@@ -1,3 +1,4 @@
+import { toSubtitleClock } from '../../core/services/subtitle-clock';
 import type { SubtitleCue, SubtitleData } from '../../types';
 import { selectAutoplayStartupCue } from './autoplay-subtitle-primer';
 import { primeVisibleOverlaySubtitleFromMpv } from './current-subtitle-snapshot';
@@ -12,6 +13,7 @@ type AutoplaySubtitlePrimingMpvClient = {
   requestProperty: (name: string) => Promise<unknown>;
   currentVideoPath?: string;
   currentTimePos?: number;
+  currentSubDelay?: number;
   currentSubText?: string;
   currentSecondarySubText?: string;
   setCurrentSecondarySubText?: (text: string) => void;
@@ -156,7 +158,7 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     const currentTimeSec = Number(client?.currentTimePos ?? deps.getLastObservedTimePos());
     return resolvePrimarySubtitleText({
       liveText: text,
-      currentTimeSec,
+      currentTimeSec: toSubtitleClock(currentTimeSec, client?.currentSubDelay ?? 0),
       cues: deps.getActiveParsedSubtitleCues(),
     });
   }
@@ -270,7 +272,10 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     const currentTimeSeconds = Number(
       timePosRaw ?? client?.currentTimePos ?? deps.getLastObservedTimePos() ?? 0,
     );
-    const resolvedTimeSeconds = Number.isFinite(currentTimeSeconds) ? currentTimeSeconds : 0;
+    const resolvedTimeSeconds = toSubtitleClock(
+      Number.isFinite(currentTimeSeconds) ? currentTimeSeconds : 0,
+      client?.currentSubDelay ?? 0,
+    );
     const cue = selectAutoplayStartupCue(
       cues,
       resolvedTimeSeconds,

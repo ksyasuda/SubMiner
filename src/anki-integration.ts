@@ -44,10 +44,8 @@ import {
   getPreferredWordValueFromExtractedFields,
 } from './anki-field-config';
 import { createLogger } from './logger';
-import {
-  captureLiveSubtitleMiningContext,
-  shiftSubtitleRangeToVideoClock,
-} from './core/services/mining';
+import { captureLiveSubtitleMiningContext } from './core/services/mining';
+import { shiftSubtitleRangeToVideoClock } from './core/services/subtitle-clock';
 import {
   createUiFeedbackState,
   beginUpdateProgress,

@@ -1,3 +1,4 @@
+import { toSubtitleClock } from '../../core/services/subtitle-clock';
 import { createSubtitleLineDedupGate } from '../../core/services/subtitle-line-dedup-gate';
 import type { MergedToken, SubtitleCue, SubtitleData } from '../../types';
 import {
@@ -162,7 +163,10 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     resolveSubtitleText: (liveText: string) =>
       resolvePrimarySubtitleText({
         liveText,
-        currentTimeSec: Number(deps.appState.mpvClient?.currentTimePos),
+        currentTimeSec: toSubtitleClock(
+          Number(deps.appState.mpvClient?.currentTimePos),
+          deps.appState.mpvClient?.currentSubDelay ?? 0,
+        ),
         cues: deps.appState.activeParsedSubtitleCues,
       }),
     getCurrentLiveSubtitleText: () => deps.appState.mpvClient?.currentSubText ?? '',

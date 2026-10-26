@@ -1,5 +1,6 @@
 import type { SubtitleTimingBlock } from '../../subtitle-timing-tracker';
 import type { SubtitleMiningContext } from '../../types/subtitle';
+import { shiftSubtitleRangeToVideoClock } from './subtitle-clock';
 
 interface SubtitleTimingTrackerLike {
   getRecentBlocks: (count: number) => string[];
@@ -54,21 +55,6 @@ export function handleMultiCopyDigit(
   } else {
     deps.showMpvOsd(`Copied ${actualCount} lines`);
   }
-}
-
-/**
- * mpv's `sub-start`/`sub-end` and parsed cues carry the subtitle file's own timestamps,
- * but mpv plays each line `sub-delay` seconds later (z/x retiming). Media is cut from the
- * video, so subtitle timings move onto the video clock before they reach mining.
- */
-export function shiftSubtitleRangeToVideoClock<T extends { startTime: number; endTime: number }>(
-  range: T,
-  subDelay: number,
-): T {
-  if (!Number.isFinite(subDelay) || subDelay === 0) {
-    return range;
-  }
-  return { ...range, startTime: range.startTime + subDelay, endTime: range.endTime + subDelay };
 }
 
 /**

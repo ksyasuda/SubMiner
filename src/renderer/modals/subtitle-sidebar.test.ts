@@ -199,6 +199,7 @@ function createSidebarHarness(options: SidebarHarnessOptions = {}) {
     cues: options.cues ?? [{ startTime: 1, endTime: 2, text: 'first' }],
     currentSubtitle: options.currentSubtitle ?? { text: 'first', startTime: 1, endTime: 2 },
     currentTimeSec: 'currentTimeSec' in options ? (options.currentTimeSec ?? null) : 1.1,
+    subDelay: 0,
     config: { ...DEFAULT_SIDEBAR_CONFIG, ...options.config },
   };
   const requests = { snapshot: 0, playback: 0 };
@@ -226,8 +227,8 @@ function createSidebarHarness(options: SidebarHarnessOptions = {}) {
         },
         getSubtitleSidebarPlaybackState: async (): Promise<SubtitleSidebarPlaybackState> => {
           requests.playback += 1;
-          const { sourceKey, cuesRevision, currentTimeSec, currentSubtitle } = snapshot;
-          return { sourceKey, cuesRevision, currentTimeSec, currentSubtitle };
+          const { sourceKey, cuesRevision, currentTimeSec, subDelay, currentSubtitle } = snapshot;
+          return { sourceKey, cuesRevision, currentTimeSec, subDelay, currentSubtitle };
         },
         getPlaybackPaused: async () => false,
         sendMpvCommand: (command: MpvCommand) => {
@@ -526,6 +527,16 @@ test('subtitle sidebar seeks to the selected cue start using the overlap-aware s
 
   h.modal.seekToCue(overlappingCues[1]!);
   assert.deepEqual(h.mpvCommands.at(-1), ['seek', 3.48, 'absolute+exact']);
+});
+
+test('subtitle sidebar seeks to where mpv plays a sub-delay retimed cue', async () => {
+  const h = createSidebarHarness();
+  h.setSnapshot({ subDelay: 2 });
+  await h.modal.openSubtitleSidebarModal();
+
+  h.modal.seekToCue({ startTime: 1, endTime: 2, text: 'first' });
+
+  assert.deepEqual(h.mpvCommands.at(-1), ['seek', 3.08, 'absolute+exact']);
 });
 
 test('subtitle sidebar close reports hidden visibility and notifies the modal close', async () => {

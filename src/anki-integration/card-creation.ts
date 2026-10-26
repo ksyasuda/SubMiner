@@ -10,7 +10,7 @@ import {
   type MediaTimingReviewRequest,
   type WordCardKind,
 } from '../types/anki';
-import { shiftSubtitleRangeToVideoClock } from '../core/services/mining';
+import { shiftSubtitleRangeToVideoClock } from '../core/services/subtitle-clock';
 import { createLogger } from '../logger';
 import type { MediaInput } from '../media-input';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';

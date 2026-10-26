@@ -332,6 +332,7 @@ import {
   showMpvOsdRuntime,
   JellyfinPlaybackReporter,
   tokenizeSubtitle as tokenizeSubtitleCore,
+  toSubtitleClock,
   triggerFieldGrouping as triggerFieldGroupingCore,
   upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
@@ -1938,7 +1939,10 @@ let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null =
 function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
   const canonical = resolveCanonicalPrimarySubtitle({
     liveText: payload.text,
-    currentTimeSec: Number(appState.mpvClient?.currentTimePos),
+    currentTimeSec: toSubtitleClock(
+      Number(appState.mpvClient?.currentTimePos),
+      appState.mpvClient?.currentSubDelay ?? 0,
+    ),
     cues: appState.activeParsedSubtitleCues,
   });
   return {
@@ -1956,7 +1960,7 @@ function captureCurrentPrimarySubtitleMiningContext(): SubtitleMiningContext | n
   const subDelay = appState.mpvClient?.currentSubDelay ?? 0;
   const resolved = resolvePrimarySubtitle({
     liveText: appState.mpvClient?.currentSubText ?? '',
-    currentTimeSec: Number(appState.mpvClient?.currentTimePos) - subDelay,
+    currentTimeSec: toSubtitleClock(Number(appState.mpvClient?.currentTimePos), subDelay),
     cues: appState.activeParsedSubtitleCues,
   });
   // Same validity bar as the live capture path: an unusable resolved span must fall
@@ -2122,13 +2126,18 @@ function getSubtitleSidebarPlaybackState(): SubtitleSidebarPlaybackState {
     subtitleSidebarCuesRef = appState.activeParsedSubtitleCues;
     subtitleSidebarCuesRevision += 1;
   }
+  const subDelay = appState.mpvClient?.currentSubDelay ?? 0;
   return {
     sourceKey: JSON.stringify([
       appState.activeParsedSubtitleMediaPath,
       appState.activeParsedSubtitleSource,
     ]),
     cuesRevision: subtitleSidebarCuesRevision,
-    currentTimeSec: appState.mpvClient?.currentTimePos ?? null,
+    currentTimeSec:
+      appState.mpvClient?.currentTimePos === undefined
+        ? null
+        : toSubtitleClock(appState.mpvClient.currentTimePos, subDelay),
+    subDelay,
     currentSubtitle: {
       text: appState.currentSubText,
       startTime: appState.mpvClient?.currentSubStart ?? null,
@@ -2167,6 +2176,7 @@ function sendRendererMpvCommand(rawCommand: (string | number)[]): void {
       rawCommand,
       appState.activeParsedSubtitleCues,
       appState.mpvClient?.currentTimePos ?? Number.NaN,
+      appState.mpvClient?.currentSubDelay ?? 0,
     ) ?? rawCommand;
   if (isExplicitMpvSeekCommand(command)) {
     explicitSeekIntentExpiresAtMs = Date.now() + EXPLICIT_SEEK_INTENT_TTL_MS;
