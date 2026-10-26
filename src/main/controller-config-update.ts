@@ -2,7 +2,9 @@ import type { ControllerConfigUpdate, RawConfig } from '../types';
 
 type RawControllerConfig = NonNullable<RawConfig['controller']>;
 type RawControllerBindings = NonNullable<RawControllerConfig['bindings']>;
-type RawControllerReviewBindings = NonNullable<RawControllerConfig['reviewBindings']>;
+type RawControllerScreenBindings = Record<string, unknown>;
+/** Per-dialog controller layouts stored as per-action patches. */
+const SCREEN_BINDING_KEYS = ['reviewBindings', 'fieldGroupingBindings'] as const;
 type RawControllerButtonIndices = NonNullable<RawControllerConfig['buttonIndices']>;
 type RawControllerProfiles = NonNullable<RawControllerConfig['profiles']>;
 type RawControllerProfile = NonNullable<RawControllerProfiles[string]>;
@@ -28,17 +30,32 @@ function mergeBindingPatch(
   return nextBindings;
 }
 
-function mergeReviewBindingPatch(
-  currentBindings: RawControllerReviewBindings | undefined,
-  updateBindings: RawControllerReviewBindings | undefined,
-): RawControllerReviewBindings | undefined {
+function mergeScreenBindingPatch(
+  currentBindings: RawControllerScreenBindings | undefined,
+  updateBindings: RawControllerScreenBindings | undefined,
+): RawControllerScreenBindings | undefined {
   if (!currentBindings && !updateBindings) return undefined;
-  const nextBindings: RawControllerReviewBindings = { ...(currentBindings ?? {}) };
+  const nextBindings: RawControllerScreenBindings = { ...(currentBindings ?? {}) };
   for (const [action, binding] of Object.entries(updateBindings ?? {})) {
     if (binding === undefined) continue;
-    (nextBindings as Record<string, unknown>)[action] = structuredClone(binding);
+    nextBindings[action] = structuredClone(binding);
   }
   return nextBindings;
+}
+
+/** Merges every per-dialog layout patch from `update` onto `current` into `target`. */
+function mergeScreenBindingPatches(
+  current: Partial<Record<(typeof SCREEN_BINDING_KEYS)[number], unknown>> | undefined,
+  update: Partial<Record<(typeof SCREEN_BINDING_KEYS)[number], unknown>>,
+  target: Partial<Record<(typeof SCREEN_BINDING_KEYS)[number], unknown>>,
+): void {
+  for (const key of SCREEN_BINDING_KEYS) {
+    const merged = mergeScreenBindingPatch(
+      current?.[key] as RawControllerScreenBindings | undefined,
+      update[key] as RawControllerScreenBindings | undefined,
+    );
+    if (merged) target[key] = merged;
+  }
 }
 
 function mergeButtonIndexPatch(
@@ -74,13 +91,7 @@ function mergeControllerProfile(
     nextProfile.bindings = bindings;
   }
 
-  const reviewBindings = mergeReviewBindingPatch(
-    currentProfile?.reviewBindings,
-    updateProfile.reviewBindings,
-  );
-  if (reviewBindings) {
-    nextProfile.reviewBindings = reviewBindings;
-  }
+  mergeScreenBindingPatches(currentProfile, updateProfile, nextProfile);
 
   return nextProfile;
 }
@@ -107,13 +118,7 @@ export function applyControllerConfigUpdate(
     nextController.bindings = bindings;
   }
 
-  const reviewBindings = mergeReviewBindingPatch(
-    currentController?.reviewBindings,
-    update.reviewBindings,
-  );
-  if (reviewBindings) {
-    nextController.reviewBindings = reviewBindings;
-  }
+  mergeScreenBindingPatches(currentController, update, nextController);
 
   if (currentController?.profiles || update.profiles) {
     const nextProfiles: RawControllerProfiles = {};

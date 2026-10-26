@@ -1,15 +1,26 @@
 import {
-  CONTROLLER_REVIEW_ACTIONS,
-  findControllerReviewBindingIssues,
+  findControllerScreenBindingIssues,
   formatControllerReviewBinding,
-  type ControllerReviewActionDefinition,
   type ControllerReviewInputContext,
+  type ControllerScreenActionDefinition,
+  type ControllerScreenBindings,
+  type ControllerScreenDefinition,
 } from '../../shared/controller-review';
-import type {
-  ControllerReviewAction,
-  ResolvedControllerReviewBinding,
-  ResolvedControllerReviewBindings,
-} from '../../types';
+import type { ControllerScreenId } from '../../shared/controller-screens';
+import type { ResolvedControllerReviewBinding } from '../../types';
+
+/** A dialog layout shown as a collapsible group in Alt+C. */
+export type ControllerScreenGroup = {
+  screen: ControllerScreenDefinition;
+  bindings: ControllerScreenBindings;
+};
+
+/** The dialog action being learned, and the hold button pressed so far, if any. */
+export type ControllerScreenLearning = {
+  screenId: ControllerScreenId;
+  actionId: string;
+  holdLabel: string | null;
+};
 import type {
   ControllerDpadFallback,
   ResolvedControllerAxisBinding,
@@ -315,18 +326,18 @@ export function createControllerConfigForm(options: {
   getControllerMapping?: () => ControllerMapping;
   /** `controller.faceButtonLabels`; names the face buttons as printed on the pad. */
   getFaceButtonLabels?: () => FaceButtonLabels;
-  /** Review media timing bindings of the controller being configured; null hides the group. */
-  getReviewBindings?: () => ResolvedControllerReviewBindings | null;
-  getReviewInputContext?: () => ControllerReviewInputContext;
-  /** The review action being learned, and the hold button pressed so far, if any. */
-  getReviewLearning?: () => { actionId: ControllerReviewAction; holdLabel: string | null } | null;
-  onReviewLearn?: (actionId: ControllerReviewAction) => void;
-  onReviewClear?: (actionId: ControllerReviewAction) => void;
-  onReviewReset?: (actionId: ControllerReviewAction) => void;
-  onReviewResetAll?: () => void;
+  /** Dialog layouts (review, field grouping) of the controller being configured. */
+  getScreenGroups?: () => ControllerScreenGroup[];
+  getScreenInputContext?: () => ControllerReviewInputContext;
+  getScreenLearning?: () => ControllerScreenLearning | null;
+  onScreenLearn?: (screenId: ControllerScreenId, actionId: string) => void;
+  onScreenClear?: (screenId: ControllerScreenId, actionId: string) => void;
+  onScreenReset?: (screenId: ControllerScreenId, actionId: string) => void;
+  onScreenResetAll?: (screenId: ControllerScreenId) => void;
 }) {
   let expandedRowKey: ExpandedRowKey | null = null;
-  let reviewExpanded = false;
+  /** Dialog groups start collapsed; this holds the opened ones. */
+  const expandedScreens = new Set<ControllerScreenId>();
 
   function render(): void {
     options.container.innerHTML = '';
@@ -364,77 +375,92 @@ export function createControllerConfigForm(options: {
       }
     }
 
-    renderReviewGroup();
+    const context = options.getScreenInputContext?.();
+    if (context) {
+      for (const group of options.getScreenGroups?.() ?? []) {
+        renderScreenGroup(group, context);
+      }
+    }
   }
 
-  function renderReviewGroup(): void {
-    const bindings = options.getReviewBindings?.() ?? null;
-    const context = options.getReviewInputContext?.();
-    if (!bindings || !context) return;
-    const learning = options.getReviewLearning?.() ?? null;
-    if (learning) {
-      reviewExpanded = true;
-      expandedRowKey = `review:${learning.actionId}`;
+  function renderScreenGroup(
+    { screen, bindings }: ControllerScreenGroup,
+    context: ControllerReviewInputContext,
+  ): void {
+    const learning = options.getScreenLearning?.() ?? null;
+    const learningHere = learning?.screenId === screen.id ? learning : null;
+    if (learningHere) {
+      expandedScreens.add(screen.id);
+      expandedRowKey = `${screen.id}:${learningHere.actionId}`;
     }
+    const expanded = expandedScreens.has(screen.id);
 
     const header = document.createElement('div');
     header.className = 'controller-config-group controller-config-group-toggle';
     header.setAttribute('role', 'button');
-    header.setAttribute('aria-expanded', String(reviewExpanded));
-    header.textContent = `${reviewExpanded ? '\u25be' : '\u25b8'} Review media timing`;
+    header.setAttribute('aria-expanded', String(expanded));
+    header.textContent = `${expanded ? '\u25be' : '\u25b8'} ${screen.title}`;
     header.addEventListener('click', () => {
-      reviewExpanded = !reviewExpanded;
+      if (expanded) expandedScreens.delete(screen.id);
+      else expandedScreens.add(screen.id);
       render();
     });
-    if (reviewExpanded) {
+    if (expanded) {
       const resetAll = document.createElement('button');
       resetAll.type = 'button';
       resetAll.className = 'btn-secondary controller-config-group-action';
       resetAll.textContent = 'Reset all';
       resetAll.addEventListener('click', (e) => {
         e.stopPropagation();
-        options.onReviewResetAll?.();
+        options.onScreenResetAll?.(screen.id);
       });
       header.appendChild(resetAll);
     }
     options.container.appendChild(header);
-    if (!reviewExpanded) return;
+    if (!expanded) return;
 
-    const issues = findControllerReviewBindingIssues(bindings, context);
-    let lastStep = '';
-    for (const action of CONTROLLER_REVIEW_ACTIONS) {
-      if (action.step !== lastStep) {
-        const subgroup = document.createElement('div');
-        subgroup.className = 'controller-config-subgroup';
-        subgroup.textContent = action.step === 'editor' ? 'While editing' : 'After Cancel';
-        options.container.appendChild(subgroup);
-        lastStep = action.step;
+    const issues = findControllerScreenBindingIssues(screen, bindings, context);
+    for (const step of screen.steps) {
+      const subgroup = document.createElement('div');
+      subgroup.className = 'controller-config-subgroup';
+      subgroup.textContent = step.label;
+      options.container.appendChild(subgroup);
+      for (const action of screen.actions) {
+        if (action.step !== step.id) continue;
+        renderScreenRow(
+          screen,
+          action,
+          bindings[action.id] ?? { kind: 'none' },
+          context,
+          issues[action.id],
+          learningHere,
+        );
       }
-      renderReviewRow(action, bindings[action.id], context, issues[action.id], learning);
     }
   }
 
-  function renderReviewRow(
-    action: ControllerReviewActionDefinition,
+  function renderScreenRow(
+    screen: ControllerScreenDefinition,
+    action: ControllerScreenActionDefinition,
     binding: ResolvedControllerReviewBinding,
     context: ControllerReviewInputContext,
     issue: string | undefined,
-    learning: { actionId: ControllerReviewAction; holdLabel: string | null } | null,
+    learning: ControllerScreenLearning | null,
   ): void {
-    const rowKey = `review:${action.id}`;
+    const rowKey = `${screen.id}:${action.id}`;
     const isExpanded = expandedRowKey === rowKey;
-    const holdLabel = learning?.actionId === action.id ? learning.holdLabel : null;
     const isLearning = learning?.actionId === action.id;
+    const holdLabel = isLearning ? learning.holdLabel : null;
     const current = formatControllerReviewBinding(binding, context, { dpadPrefix: true });
 
     const learn = (e: Event) => {
       e.stopPropagation();
       expandedRowKey = rowKey;
-      options.onReviewLearn?.(action.id);
+      options.onScreenLearn?.(screen.id, action.id);
     };
     const reset = (e: Event) => {
       e.stopPropagation();
-      options.onReviewReset?.(action.id);
+      options.onScreenReset?.(screen.id, action.id);
     };
     const row = createRow(
       action.label,
@@ -463,7 +489,7 @@ export function createControllerConfigForm(options: {
         onLearn: learn,
         onClear: (e) => {
           e.stopPropagation();
-          options.onReviewClear?.(action.id);
+          options.onScreenClear?.(screen.id, action.id);
         },
         onReset: reset,
       });

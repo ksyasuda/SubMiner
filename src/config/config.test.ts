@@ -2265,3 +2265,42 @@ test('parses controller review bindings globally and per profile, and warns on b
   assert.ok(warnedPaths.includes('controller.reviewBindings.play'));
   assert.ok(warnedPaths.includes('controller.reviewBindings.notAnAction'));
 });
+
+test('parses duplicate card field grouping bindings globally and per profile', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    JSON.stringify({
+      controller: {
+        fieldGroupingBindings: {
+          cancelMerge: { press: { kind: 'button', buttonIndex: 8 } },
+          // A review action is not a field grouping action.
+          confirm: { kind: 'none' },
+        },
+        profiles: {
+          'pad-1': { fieldGroupingBindings: { back: { kind: 'none' } } },
+        },
+      },
+    }),
+    'utf-8',
+  );
+  const service = new ConfigService(dir);
+  const controller = service.getConfig().controller;
+
+  assert.deepEqual(controller.fieldGroupingBindings.cancelMerge, {
+    kind: 'combo',
+    press: { kind: 'button', buttonIndex: 8 },
+    hold: null,
+  });
+  assert.deepEqual(
+    controller.fieldGroupingBindings.continue,
+    DEFAULT_CONFIG.controller.fieldGroupingBindings.continue,
+  );
+  const profile = controller.profiles['pad-1']!.fieldGroupingBindings;
+  assert.deepEqual(profile.cancelMerge, controller.fieldGroupingBindings.cancelMerge);
+  assert.deepEqual(profile.back, { kind: 'none' });
+  // The review layout is untouched.
+  assert.deepEqual(controller.reviewBindings, DEFAULT_CONFIG.controller.reviewBindings);
+  const warnedPaths = service.getWarnings().map((warning) => warning.path);
+  assert.ok(warnedPaths.includes('controller.fieldGroupingBindings.confirm'));
+});

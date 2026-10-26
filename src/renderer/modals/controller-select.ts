@@ -4,12 +4,17 @@ import { createControllerBindingCapture } from '../handlers/controller-binding-c
 import { createControllerComboCapture } from '../handlers/controller-combo-capture.js';
 import {
   formatControllerReviewInput,
-  getControllerReviewAction,
-  getDefaultControllerReviewBinding,
-  getDefaultControllerReviewBindings,
+  getControllerScreenAction,
+  getDefaultControllerScreenBindings,
   type ControllerReviewInputContext,
+  type ControllerScreenBindings,
+  type ControllerScreenDefinition,
 } from '../../shared/controller-review';
-import type { ControllerReviewAction, ResolvedControllerReviewBinding } from '../../types';
+import {
+  CONTROLLER_SCREENS,
+  getControllerScreen,
+  type ControllerScreenBindingsKey,
+} from '../../shared/controller-screens';
 import {
   createControllerConfigForm,
   getControllerBindingDefinition,
@@ -48,8 +53,9 @@ export function createControllerSelectModal(
   let learningActionId: ControllerBindingKey | null = null;
   let dpadLearningActionId: ControllerBindingKey | null = null;
   let bindingCapture: ReturnType<typeof createControllerBindingCapture> | null = null;
-  let reviewLearning: {
-    actionId: ControllerReviewAction;
+  let screenLearning: {
+    screen: ControllerScreenDefinition;
+    actionId: string;
     capture: ReturnType<typeof createControllerComboCapture>;
     holdLabel: string | null;
   } | null = null;
@@ -73,7 +79,7 @@ export function createControllerSelectModal(
     return resolveControllerConfigForGamepad(config, getSelectedControllerId());
   }
 
-  function getReviewInputContext(): ControllerReviewInputContext {
+  function getScreenInputContext(): ControllerReviewInputContext {
     const config = getSelectedControllerConfig();
     return {
       mapping: getSelectedController()?.mapping ?? 'standard',
@@ -94,8 +100,12 @@ export function createControllerSelectModal(
     };
   }
 
-  function cancelReviewLearning(): void {
-    reviewLearning = null;
+  function cancelScreenLearning(): void {
+    screenLearning = null;
+  }
+
+  function actionLabel(screen: ControllerScreenDefinition, actionId: string): string {
+    return getControllerScreenAction(screen, actionId).label;
   }
 
   const controllerConfigForm = createControllerConfigForm({
@@ -121,13 +131,24 @@ export function createControllerSelectModal(
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
-    getReviewBindings: () => getSelectedControllerConfig()?.reviewBindings ?? null,
-    getReviewInputContext,
-    getReviewLearning: () =>
-      reviewLearning
-        ? { actionId: reviewLearning.actionId, holdLabel: reviewLearning.holdLabel }
+    getScreenGroups: () => {
+      const config = getSelectedControllerConfig();
+      if (!config) return [];
+      return CONTROLLER_SCREENS.map((screen) => ({
+        screen,
+        bindings: config[screen.configKey] as ControllerScreenBindings,
+      }));
+    },
+    getScreenInputContext,
+    getScreenLearning: () =>
+      screenLearning
+        ? {
+            screenId: screenLearning.screen.id,
+            actionId: screenLearning.actionId,
+            holdLabel: screenLearning.holdLabel,
+          }
         : null,
-    onReviewLearn: (actionId) => {
+    onScreenLearn: (screenId, actionId) => {
       learningActionId = null;
       dpadLearningActionId = null;
       bindingCapture = null;
@@ -137,28 +158,35 @@ export function createControllerSelectModal(
         stickDeadzone: config?.stickDeadzone ?? 0.2,
       });
       capture.arm({ axes: ctx.state.controllerRawAxes, buttons: ctx.state.controllerRawButtons });
-      reviewLearning = { actionId, capture, holdLabel: null };
+      const screen = getControllerScreen(screenId);
+      screenLearning = { screen, actionId, capture, holdLabel: null };
       controllerConfigForm.render();
       setStatus(
-        `Press a button for ${getControllerReviewAction(actionId).label}, or hold one and press another for a combo.`,
+        `Press a button for ${actionLabel(screen, actionId)}, or hold one and press another for a combo.`,
       );
     },
-    onReviewClear: (actionId) => {
-      void saveReviewBindings(
+    onScreenClear: (screenId, actionId) => {
+      const screen = getControllerScreen(screenId);
+      void saveScreenBindings(
+        screen,
         { [actionId]: { kind: 'none' } },
-        `${getControllerReviewAction(actionId).label} cleared.`,
+        `${actionLabel(screen, actionId)} cleared.`,
       );
     },
-    onReviewReset: (actionId) => {
-      void saveReviewBindings(
-        { [actionId]: getDefaultControllerReviewBinding(actionId) },
-        `${getControllerReviewAction(actionId).label} reset.`,
+    onScreenReset: (screenId, actionId) => {
+      const screen = getControllerScreen(screenId);
+      void saveScreenBindings(
+        screen,
+        { [actionId]: structuredClone(screen.defaults[actionId]!) },
+        `${actionLabel(screen, actionId)} reset.`,
       );
     },
-    onReviewResetAll: () => {
-      void saveReviewBindings(
-        getDefaultControllerReviewBindings(),
-        'Review media timing layout reset.',
+    onScreenResetAll: (screenId) => {
+      const screen = getControllerScreen(screenId);
+      void saveScreenBindings(
+        screen,
+        getDefaultControllerScreenBindings(screen),
+        `${screen.title} layout reset.`,
       );
     },
     getLearningActionId: () => learningActionId,
@@ -167,7 +195,7 @@ export function createControllerSelectModal(
       const definition = getControllerBindingDefinition(actionId);
       if (!definition) return;
       dpadLearningActionId = null;
-      cancelReviewLearning();
+      cancelScreenLearning();
       const config = ctx.state.controllerConfig;
       bindingCapture = createControllerBindingCapture({
         triggerDeadzone: config?.triggerDeadzone ?? 0.5,
@@ -208,7 +236,7 @@ export function createControllerSelectModal(
       const definition = getControllerBindingDefinition(actionId);
       if (!definition) return;
       learningActionId = null;
-      cancelReviewLearning();
+      cancelScreenLearning();
       const config = ctx.state.controllerConfig;
       bindingCapture = createControllerBindingCapture({
         triggerDeadzone: config?.triggerDeadzone ?? 0.5,
@@ -323,11 +351,14 @@ export function createControllerSelectModal(
         ...update.bindings,
       } as typeof ctx.state.controllerConfig.bindings;
     }
-    if (update.reviewBindings) {
-      ctx.state.controllerConfig.reviewBindings = {
-        ...ctx.state.controllerConfig.reviewBindings,
-        ...update.reviewBindings,
-      } as typeof ctx.state.controllerConfig.reviewBindings;
+    const config = ctx.state.controllerConfig;
+    for (const { configKey } of CONTROLLER_SCREENS) {
+      if (update[configKey]) {
+        (config as Record<ControllerScreenBindingsKey, unknown>)[configKey] = {
+          ...config[configKey],
+          ...update[configKey],
+        };
+      }
     }
     if (update.profiles) {
       ctx.state.controllerConfig.profiles = ctx.state.controllerConfig.profiles ?? {};
@@ -338,6 +369,7 @@ export function createControllerSelectModal(
           buttonIndices: ctx.state.controllerConfig.buttonIndices,
           bindings: ctx.state.controllerConfig.bindings,
           reviewBindings: ctx.state.controllerConfig.reviewBindings,
+          fieldGroupingBindings: ctx.state.controllerConfig.fieldGroupingBindings,
         };
         ctx.state.controllerConfig.profiles[profileId] = {
           label: profileUpdate.label ?? baseProfile.label,
@@ -352,6 +384,11 @@ export function createControllerSelectModal(
           reviewBindings: {
             ...(baseProfile.reviewBindings ?? ctx.state.controllerConfig.reviewBindings),
             ...(profileUpdate.reviewBindings ?? {}),
+          },
+          fieldGroupingBindings: {
+            ...(baseProfile.fieldGroupingBindings ??
+              ctx.state.controllerConfig.fieldGroupingBindings),
+            ...(profileUpdate.fieldGroupingBindings ?? {}),
           },
         } as (typeof ctx.state.controllerConfig.profiles)[string];
       }
@@ -399,23 +436,21 @@ export function createControllerSelectModal(
     }
   }
 
-  async function saveReviewBindings(
-    bindings: Partial<Record<ControllerReviewAction, ResolvedControllerReviewBinding>>,
+  async function saveScreenBindings(
+    screen: ControllerScreenDefinition,
+    bindings: Partial<ControllerScreenBindings>,
     message: string,
   ): Promise<void> {
     const profileId = getSelectedControllerId();
+    const patch = { [screen.configKey]: bindings };
     try {
-      await saveControllerConfig(
-        profileId
-          ? { profiles: { [profileId]: { reviewBindings: bindings } } }
-          : { reviewBindings: bindings },
-      );
-      cancelReviewLearning();
+      await saveControllerConfig(profileId ? { profiles: { [profileId]: patch } } : patch);
+      cancelScreenLearning();
       controllerConfigForm.render();
       setStatus(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus(`Failed to save review binding: ${message}`, true);
+      setStatus(`Failed to save ${screen.title} binding: ${message}`, true);
     }
   }
 
@@ -494,14 +529,14 @@ export function createControllerSelectModal(
       }
     }
 
-    if (reviewLearning) {
-      const learning = reviewLearning;
+    if (screenLearning) {
+      const learning = screenLearning;
       const state = learning.capture.poll({
         axes: ctx.state.controllerRawAxes,
         buttons: ctx.state.controllerRawButtons,
       });
       if (state.status === 'holding') {
-        const holdLabel = formatControllerReviewInput(state.hold, getReviewInputContext(), {
+        const holdLabel = formatControllerReviewInput(state.hold, getScreenInputContext(), {
           dpadPrefix: true,
         });
         if (holdLabel !== learning.holdLabel) {
@@ -509,10 +544,11 @@ export function createControllerSelectModal(
           controllerConfigForm.render();
         }
       } else if (state.status === 'done') {
-        reviewLearning = null;
-        void saveReviewBindings(
+        screenLearning = null;
+        void saveScreenBindings(
+          learning.screen,
           { [learning.actionId]: state.binding },
-          `${getControllerReviewAction(learning.actionId).label} updated.`,
+          `${actionLabel(learning.screen, learning.actionId)} updated.`,
         );
       }
     }
@@ -527,7 +563,7 @@ export function createControllerSelectModal(
       controllerConfigForm.render();
     }
 
-    const idle = !learningActionId && !dpadLearningActionId && !reviewLearning;
+    const idle = !learningActionId && !dpadLearningActionId && !screenLearning;
     if (ctx.state.connectedGamepads.length === 0 && idle) {
       setStatus('No controllers detected.');
     } else if (idle && ctx.dom.controllerSelectStatus.textContent === 'No controllers detected.') {
@@ -567,7 +603,7 @@ export function createControllerSelectModal(
     learningActionId = null;
     dpadLearningActionId = null;
     bindingCapture = null;
-    cancelReviewLearning();
+    cancelScreenLearning();
     ctx.state.controllerSelectModalOpen = false;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.controllerSelectModal.classList.add('hidden');
@@ -581,11 +617,11 @@ export function createControllerSelectModal(
   function handleControllerSelectKeydown(event: KeyboardEvent): boolean {
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (learningActionId || dpadLearningActionId || reviewLearning) {
+      if (learningActionId || dpadLearningActionId || screenLearning) {
         learningActionId = null;
         dpadLearningActionId = null;
         bindingCapture = null;
-        cancelReviewLearning();
+        cancelScreenLearning();
         controllerConfigForm.render();
         setStatus('Controller learn mode cancelled.');
         return true;
@@ -622,7 +658,7 @@ export function createControllerSelectModal(
       return true;
     }
 
-    if (event.key === 'Enter' && !learningActionId && !dpadLearningActionId && !reviewLearning) {
+    if (event.key === 'Enter' && !learningActionId && !dpadLearningActionId && !screenLearning) {
       event.preventDefault();
       void saveSelectedController();
       return true;

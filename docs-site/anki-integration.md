@@ -265,6 +265,21 @@ The manual dialog cancels itself after 90 seconds. Identical entries are not ded
 | `Backspace` | Back from the merge preview           |
 | `Esc`       | Cancel and leave both cards unchanged |
 
+### With a controller {#field-grouping-with-a-controller}
+
+With [controller support](/usage#controller-support) on, the dialog has its own controller layout, and each control shows its controller shortcut. Like the [media timing review](#with-a-controller), it works with or without keyboard-only mode, `A`/`B`/`X`/`Y` are the printed letters (see `controller.faceButtonLabels`), and a button already held when the dialog opens waits for a fresh press.
+
+| Controller         | Choosing the card                 | Merge preview           |
+| ------------------ | --------------------------------- | ----------------------- |
+| D-pad left / right | Original card / New card          |                         |
+| D-pad up / down    |                                   | Scroll (repeats)        |
+| `A`                | Continue                          | Confirm merge           |
+| `B`                | Cancel                            | Back to the card choice |
+| `X`                | Turn "Delete duplicate" on or off |                         |
+| `Y`                |                                   | Compact / Full          |
+
+To cancel from the preview, press `B` twice, or bind the preview's **Cancel** row (unbound by default). Change any of it in the **Duplicate card (field grouping)** group of `Alt+C`, the same way as the review layout.
+
 ## Config validation
 
 Invalid `ankiConnect` values produce a warning and fall back to the default. Use JSON booleans (`true`, not `"true"`) and a positive number for `pollingRate`.

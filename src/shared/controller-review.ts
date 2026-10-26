@@ -10,16 +10,47 @@ import type {
   ResolvedControllerReviewBindings,
 } from '../types/runtime';
 
-/** The review shows either the timing editor or the "Stop reviewing?" step. */
-export type ControllerReviewStep = 'editor' | 'cancel';
+/**
+ * A dialog with its own controller layout (media timing review, field grouping). Each
+ * action presses one on-screen control on one step of the dialog; bindings are
+ * press-or-combo, remappable in Alt+C, and stored under `controller.<configKey>`.
+ */
+export type ControllerScreenDefinition<A extends string = string, S extends string = string> = {
+  id: 'review' | 'fieldGrouping';
+  /** Alt+C group title. */
+  title: string;
+  /** Config key on `controller` and on each profile. */
+  configKey: 'reviewBindings' | 'fieldGroupingBindings';
+  /** Prefix for generated config descriptions, e.g. `Review dialog`. */
+  describe: string;
+  steps: readonly { id: S; label: string }[];
+  actions: readonly ControllerScreenActionDefinition<A, S>[];
+  defaults: Readonly<Record<A, ResolvedControllerReviewBinding>>;
+};
 
-export type ControllerReviewActionDefinition = {
-  id: ControllerReviewAction;
+export type ControllerScreenActionDefinition<
+  A extends string = string,
+  S extends string = string,
+> = {
+  id: A;
   label: string;
-  step: ControllerReviewStep;
+  step: S;
   /** Repeats while held, like a held arrow key. */
   repeat: boolean;
 };
+
+export type ControllerScreenBindings<A extends string = string> = Record<
+  A,
+  ResolvedControllerReviewBinding
+>;
+
+/** The review shows either the timing editor or the "Stop reviewing?" step. */
+export type ControllerReviewStep = 'editor' | 'cancel';
+
+export type ControllerReviewActionDefinition = ControllerScreenActionDefinition<
+  ControllerReviewAction,
+  ControllerReviewStep
+>;
 
 /** Every review action, in the order Alt+C lists them. */
 export const CONTROLLER_REVIEW_ACTIONS: readonly ControllerReviewActionDefinition[] = [
@@ -58,14 +89,37 @@ export function isControllerReviewAction(value: string): value is ControllerRevi
   return ACTION_BY_ID.has(value as ControllerReviewAction);
 }
 
-const face = (letter: ControllerFaceLetter): ControllerReviewInput => ({ kind: 'face', letter });
-const dpad = (direction: ControllerDpadDirection): ControllerReviewInput => ({
+export function getControllerScreenAction<A extends string, S extends string>(
+  screen: ControllerScreenDefinition<A, S>,
+  id: A,
+): ControllerScreenActionDefinition<A, S> {
+  return screen.actions.find((action) => action.id === id)!;
+}
+
+export function isControllerScreenAction<A extends string>(
+  screen: ControllerScreenDefinition<A>,
+  value: string,
+): value is A {
+  return screen.actions.some((action) => action.id === value);
+}
+
+export function getDefaultControllerScreenBindings<A extends string>(
+  screen: ControllerScreenDefinition<A>,
+): ControllerScreenBindings<A> {
+  return structuredClone(screen.defaults) as ControllerScreenBindings<A>;
+}
+
+export const face = (letter: ControllerFaceLetter): ControllerReviewInput => ({
+  kind: 'face',
+  letter,
+});
+export const dpad = (direction: ControllerDpadDirection): ControllerReviewInput => ({
   kind: 'dpad',
   direction,
 });
 const LEFT_SHOULDER: ControllerReviewInput = { kind: 'button', buttonIndex: 4 };
 const RIGHT_SHOULDER: ControllerReviewInput = { kind: 'button', buttonIndex: 5 };
-const combo = (
+export const combo = (
   press: ControllerReviewInput,
   hold: ControllerReviewInput | null = null,
 ): ResolvedControllerReviewBinding => ({ kind: 'combo', press, hold });
@@ -97,6 +151,22 @@ const DEFAULT_CONTROLLER_REVIEW_BINDINGS: ResolvedControllerReviewBindings = {
   keepEditing: combo(face('b')),
   skipMedia: combo(face('x')),
   discard: combo(face('y')),
+};
+
+export const CONTROLLER_REVIEW_SCREEN: ControllerScreenDefinition<
+  ControllerReviewAction,
+  ControllerReviewStep
+> = {
+  id: 'review',
+  title: 'Review media timing',
+  configKey: 'reviewBindings',
+  describe: 'Review dialog',
+  steps: [
+    { id: 'editor', label: 'While editing' },
+    { id: 'cancel', label: 'After Cancel' },
+  ],
+  actions: CONTROLLER_REVIEW_ACTIONS,
+  defaults: DEFAULT_CONTROLLER_REVIEW_BINDINGS,
 };
 
 export function getDefaultControllerReviewBindings(): ResolvedControllerReviewBindings {
@@ -235,8 +305,8 @@ export function controllerReviewInputSourceKey(source: ControllerReviewInputSour
   return `axis:${source.axisIndex}:${source.direction}`;
 }
 
-export type CompiledControllerReviewBinding = {
-  action: ControllerReviewAction;
+export type CompiledControllerScreenBinding<A extends string = string> = {
+  action: A;
   repeat: boolean;
   press: ControllerReviewInputSource;
   pressKey: string;
@@ -244,14 +314,18 @@ export type CompiledControllerReviewBinding = {
   holdKey: string | null;
 };
 
-/** The bindings active on one step, resolved to physical inputs, in Alt+C order. */
-export function compileControllerReviewBindings(
-  bindings: ResolvedControllerReviewBindings,
-  step: ControllerReviewStep,
+export type CompiledControllerReviewBinding =
+  CompiledControllerScreenBinding<ControllerReviewAction>;
+
+/** The bindings active on one step of a screen, resolved to physical inputs, in Alt+C order. */
+export function compileControllerScreenBindings<A extends string, S extends string>(
+  screen: ControllerScreenDefinition<A, S>,
+  bindings: Partial<ControllerScreenBindings<A>>,
+  step: S,
   context: ControllerReviewInputContext,
-): CompiledControllerReviewBinding[] {
-  const compiled: CompiledControllerReviewBinding[] = [];
-  for (const action of CONTROLLER_REVIEW_ACTIONS) {
+): CompiledControllerScreenBinding<A>[] {
+  const compiled: CompiledControllerScreenBinding<A>[] = [];
+  for (const action of screen.actions) {
     if (action.step !== step) continue;
     const binding = bindings[action.id];
     if (!binding || binding.kind !== 'combo') continue;
@@ -267,6 +341,15 @@ export function compileControllerReviewBindings(
     });
   }
   return compiled;
+}
+
+/** The review bindings active on one step, resolved to physical inputs, in Alt+C order. */
+export function compileControllerReviewBindings(
+  bindings: ResolvedControllerReviewBindings,
+  step: ControllerReviewStep,
+  context: ControllerReviewInputContext,
+): CompiledControllerReviewBinding[] {
+  return compileControllerScreenBindings(CONTROLLER_REVIEW_SCREEN, bindings, step, context);
 }
 
 const DPAD_GLYPHS: Record<ControllerDpadDirection, string> = {
@@ -390,18 +473,20 @@ export function formatControllerReviewBinding(
  * Problems Alt+C should point out, per action: two actions on the same input in one step,
  * or a button used alone that other actions on that step use as their hold button.
  */
-export function findControllerReviewBindingIssues(
-  bindings: ResolvedControllerReviewBindings,
+export function findControllerScreenBindingIssues<A extends string, S extends string>(
+  screen: ControllerScreenDefinition<A, S>,
+  bindings: Partial<ControllerScreenBindings<A>>,
   context: ControllerReviewInputContext,
-): Partial<Record<ControllerReviewAction, string>> {
-  const issues: Partial<Record<ControllerReviewAction, string>> = {};
-  for (const step of ['editor', 'cancel'] as const) {
-    const compiled = compileControllerReviewBindings(bindings, step, context);
+): Partial<Record<A, string>> {
+  const issues: Partial<Record<A, string>> = {};
+  const label = (id: A) => getControllerScreenAction(screen, id).label;
+  for (const step of screen.steps) {
+    const compiled = compileControllerScreenBindings(screen, bindings, step.id, context);
     const holdKeys = new Map<string, ControllerReviewInputSource>();
     for (const entry of compiled) {
       if (entry.hold && entry.holdKey) holdKeys.set(entry.holdKey, entry.hold);
     }
-    const firstByInput = new Map<string, ControllerReviewAction>();
+    const firstByInput = new Map<string, A>();
     for (const entry of compiled) {
       if (entry.holdKey === entry.pressKey) {
         issues[entry.action] = 'Hold and press are the same button';
@@ -410,8 +495,8 @@ export function findControllerReviewBindingIssues(
       const inputKey = `${entry.holdKey ?? ''}|${entry.pressKey}`;
       const first = firstByInput.get(inputKey);
       if (first) {
-        issues[entry.action] = `Same as ${getControllerReviewAction(first).label}`;
-        issues[first] ??= `Same as ${getControllerReviewAction(entry.action).label}`;
+        issues[entry.action] = `Same as ${label(first)}`;
+        issues[first] ??= `Same as ${label(entry.action)}`;
         continue;
       }
       firstByInput.set(inputKey, entry.action);
@@ -423,4 +508,11 @@ export function findControllerReviewBindingIssues(
     }
   }
   return issues;
+}
+
+export function findControllerReviewBindingIssues(
+  bindings: ResolvedControllerReviewBindings,
+  context: ControllerReviewInputContext,
+): Partial<Record<ControllerReviewAction, string>> {
+  return findControllerScreenBindingIssues(CONTROLLER_REVIEW_SCREEN, bindings, context);
 }

@@ -19,5 +19,6 @@ export function resolveControllerConfigForGamepad(
     buttonIndices: profile.buttonIndices,
     bindings: profile.bindings,
     reviewBindings: profile.reviewBindings ?? config.reviewBindings,
+    fieldGroupingBindings: profile.fieldGroupingBindings ?? config.fieldGroupingBindings,
   };
 }

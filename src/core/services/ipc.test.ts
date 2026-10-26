@@ -5,6 +5,7 @@ import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from '
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import type { SessionActionDispatchRequest, SubtitleSidebarSnapshot } from '../../types';
 import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
+import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 
 interface FakeIpcRegistrar {
   on: Map<string, (event: unknown, ...args: unknown[]) => void>;
@@ -85,6 +86,7 @@ function createControllerConfigFixture() {
       rightStickVertical: { kind: 'axis' as const, axisIndex: 4, dpadFallback: 'none' as const },
     },
     reviewBindings: getDefaultControllerReviewBindings(),
+    fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
     profiles: {},
   };
 }

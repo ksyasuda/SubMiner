@@ -56,6 +56,14 @@ import {
 } from './handlers/media-timing-review-controller.js';
 import { resolveControllerConfigForGamepad } from './controller-profile-config.js';
 import { getDefaultControllerReviewBindings } from '../shared/controller-review';
+import {
+  CONTROLLER_FIELD_GROUPING_SCREEN,
+  getDefaultControllerFieldGroupingBindings,
+} from '../shared/controller-field-grouping';
+import {
+  createControllerComboScreenLayout,
+  formatControllerScreenHints,
+} from './handlers/controller-screen-layout.js';
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
@@ -323,6 +331,14 @@ const mediaTimingReviewControllerLayout = createMediaTimingReviewControllerLayou
     mediaTimingReviewModal.handleControllerAction(action);
   },
 });
+const fieldGroupingControllerLayout = createControllerComboScreenLayout({
+  screen: CONTROLLER_FIELD_GROUPING_SCREEN,
+  getBindings: (config) => config.fieldGroupingBindings,
+  getStep: () => kikuModal.getControllerStep(),
+  dispatch: (action) => {
+    kikuModal.handleControllerAction(action);
+  },
+});
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
@@ -418,16 +434,33 @@ function applyControllerSnapshot(snapshot: {
   // Shown whenever controller support is on: a fresh dialog window cannot see the pad
   // until its first press, so "connected" would hide the hints exactly when needed.
   const controllerConfig = ctx.state.controllerConfig;
-  mediaTimingReviewModal.setControllerHintsVisible(controllerConfig?.enabled === true);
-  if (controllerConfig?.enabled === true && ctx.state.mediaTimingReviewModalOpen) {
-    // Before the dialog window has seen the pad, use the saved controller's bindings.
-    const gamepadId = snapshot.activeGamepadId ?? controllerConfig.preferredGamepadId;
-    const mapping =
-      snapshot.connectedGamepads.find((device) => device.id === snapshot.activeGamepadId)
-        ?.mapping ?? 'standard';
+  const hintsVisible = controllerConfig?.enabled === true;
+  mediaTimingReviewModal.setControllerHintsVisible(hintsVisible);
+  kikuModal.setControllerHintsVisible(hintsVisible);
+  if (
+    !controllerConfig ||
+    !hintsVisible ||
+    (!ctx.state.mediaTimingReviewModalOpen && !ctx.state.kikuModalOpen)
+  ) {
+    return;
+  }
+  // Before the dialog window has seen the pad, use the saved controller's bindings.
+  const gamepadId = snapshot.activeGamepadId ?? controllerConfig.preferredGamepadId;
+  const mapping =
+    snapshot.connectedGamepads.find((device) => device.id === snapshot.activeGamepadId)?.mapping ??
+    'standard';
+  const padConfig = resolveControllerConfigForGamepad(controllerConfig, gamepadId);
+  if (ctx.state.mediaTimingReviewModalOpen) {
     mediaTimingReviewModal.setControllerHints(
-      formatMediaTimingReviewControllerHints(
-        resolveControllerConfigForGamepad(controllerConfig, gamepadId),
+      formatMediaTimingReviewControllerHints(padConfig, mapping),
+    );
+  }
+  if (ctx.state.kikuModalOpen) {
+    kikuModal.setControllerHints(
+      formatControllerScreenHints(
+        CONTROLLER_FIELD_GROUPING_SCREEN,
+        padConfig.fieldGroupingBindings,
+        padConfig,
         mapping,
       ),
     );
@@ -504,6 +537,7 @@ function startControllerPolling(): void {
           rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
         },
         reviewBindings: getDefaultControllerReviewBindings(),
+        fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
         profiles: {},
       },
     getKeyboardModeEnabled: () => ctx.state.keyboardDrivenModeEnabled,
@@ -555,7 +589,11 @@ function startControllerPolling(): void {
       applyControllerSnapshot(snapshot);
     },
     getScreenLayout: () =>
-      ctx.state.mediaTimingReviewModalOpen ? mediaTimingReviewControllerLayout : null,
+      ctx.state.mediaTimingReviewModalOpen
+        ? mediaTimingReviewControllerLayout
+        : ctx.state.kikuModalOpen
+          ? fieldGroupingControllerLayout
+          : null,
     getSuspended: () => ctx.state.controllerSuspendedByModalWindow,
   });
 

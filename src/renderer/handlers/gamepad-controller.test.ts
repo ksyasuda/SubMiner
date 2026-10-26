@@ -291,6 +291,7 @@ test('gamepad controller uses active controller profile bindings before global b
           buttonIndices: globalConfig.buttonIndices,
           bindings: { ...globalConfig.bindings, toggleLookup: { kind: 'button', buttonIndex: 11 } },
           reviewBindings: globalConfig.reviewBindings,
+          fieldGroupingBindings: globalConfig.fieldGroupingBindings,
         },
       },
     },

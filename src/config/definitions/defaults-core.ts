@@ -1,3 +1,4 @@
+import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
 import { ResolvedConfig } from '../../types/config';
 
@@ -90,6 +91,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
       rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
     },
     reviewBindings: getDefaultControllerReviewBindings(),
+    fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
     profiles: {},
   },
   shortcuts: {

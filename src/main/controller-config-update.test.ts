@@ -170,3 +170,19 @@ test('applyControllerConfigUpdate merges review bindings per action inside a pro
     },
   });
 });
+
+test('applyControllerConfigUpdate merges field grouping bindings next to review bindings', () => {
+  const next = applyControllerConfigUpdate(
+    {
+      reviewBindings: { confirm: { kind: 'none' } },
+      fieldGroupingBindings: { back: { kind: 'none' } },
+    },
+    { fieldGroupingBindings: { cancelMerge: { press: { kind: 'face', letter: 'b' } } } },
+  );
+
+  assert.deepEqual(next.reviewBindings, { confirm: { kind: 'none' } });
+  assert.deepEqual(next.fieldGroupingBindings, {
+    back: { kind: 'none' },
+    cancelMerge: { press: { kind: 'face', letter: 'b' } },
+  });
+});

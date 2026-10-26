@@ -2072,9 +2072,11 @@ body:focus-visible,
   text-align: center;
 }
 
-/* Controller hints: shown beside each button while a controller is connected. */
-.media-timing-review-modal.controller-hints-visible button[data-controller-hint]::after {
+/* Controller hints: shown beside each control while controller support is on. */
+.media-timing-review-modal.controller-hints-visible button[data-controller-hint]::after,
+#kikuFieldGroupingModal.controller-hints-visible [data-controller-hint]::after {
   content: attr(data-controller-hint);
+  text-transform: none;
   display: inline-block;
   margin-left: 6px;
   padding: 1px 5px;
@@ -2977,7 +2979,21 @@ iframe[id^='yomitan-popup'],
 
 .kiku-preview-toggle {
   display: inline-flex;
+  align-items: center;
   gap: 6px;
+}
+
+/* "Scroll ▲ ▼" tag in the preview header, only while controller hints show. */
+.kiku-preview-scroll-hint {
+  display: none;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ctp-subtext0);
+}
+
+#kikuFieldGroupingModal.controller-hints-visible .kiku-preview-scroll-hint[data-controller-hint] {
+  display: inline;
 }
 
 .kiku-preview-toggle button {

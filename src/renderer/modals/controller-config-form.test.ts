@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { CORE_DEFAULT_CONFIG } from '../../config/definitions/defaults-core';
+import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
-import type { ControllerReviewAction, ResolvedControllerConfig } from '../../types';
+import { CONTROLLER_SCREENS } from '../../shared/controller-screens';
+import type { ResolvedControllerConfig } from '../../types';
+import type { ControllerScreenLearning } from './controller-config-form';
 import { createControllerConfigForm } from './controller-config-form.js';
 
 type ActionId = keyof ResolvedControllerConfig['bindings'];
@@ -292,10 +295,11 @@ test('controller config form names face buttons Nintendo-style when configured',
 
 type ReviewFormOptions = {
   reviewBindings?: ResolvedControllerConfig['reviewBindings'];
-  learning?: { actionId: ControllerReviewAction; holdLabel: string | null } | null;
+  fieldGroupingBindings?: ResolvedControllerConfig['fieldGroupingBindings'];
+  learning?: ControllerScreenLearning | null;
 };
 
-/** Renders the form with the review group; `act` runs while `document` is still stubbed. */
+/** Renders the form with the dialog groups; `act` runs while `document` is still stubbed. */
 function withReviewForm(
   options: ReviewFormOptions,
   act: (env: {
@@ -323,17 +327,27 @@ function withReviewForm(
       onDpadLearn: () => {},
       onDpadClear: () => {},
       onDpadReset: () => {},
-      getReviewBindings: () => options.reviewBindings ?? getDefaultControllerReviewBindings(),
-      getReviewInputContext: () => ({
+      getScreenGroups: () => {
+        const bindings = {
+          reviewBindings: options.reviewBindings ?? getDefaultControllerReviewBindings(),
+          fieldGroupingBindings:
+            options.fieldGroupingBindings ?? getDefaultControllerFieldGroupingBindings(),
+        };
+        return CONTROLLER_SCREENS.map((screen) => ({
+          screen,
+          bindings: bindings[screen.configKey],
+        }));
+      },
+      getScreenInputContext: () => ({
         mapping: 'standard',
         faceButtonLabels: 'xbox',
         buttonIndices: CORE_DEFAULT_CONFIG.controller.buttonIndices,
       }),
-      getReviewLearning: () => options.learning ?? null,
-      onReviewLearn: (actionId) => calls.push(`reviewLearn:${actionId}`),
-      onReviewClear: (actionId) => calls.push(`reviewClear:${actionId}`),
-      onReviewReset: (actionId) => calls.push(`reviewReset:${actionId}`),
-      onReviewResetAll: () => calls.push('reviewResetAll'),
+      getScreenLearning: () => options.learning ?? null,
+      onScreenLearn: (screenId, actionId) => calls.push(`learn:${screenId}:${actionId}`),
+      onScreenClear: (screenId, actionId) => calls.push(`clear:${screenId}:${actionId}`),
+      onScreenReset: (screenId, actionId) => calls.push(`reset:${screenId}:${actionId}`),
+      onScreenResetAll: (screenId) => calls.push(`resetAll:${screenId}`),
     }).render();
     const reviewRow = (label: string) => {
       const match = findAll(container, 'controller-config-row').find(
@@ -379,16 +393,16 @@ test('controller config form keeps the review group collapsed until opened', () 
     findOne(reviewRow('Start +0.1s'), 'controller-config-edit-icon').click();
     findOne(reviewRow('Start +0.1s'), 'controller-config-reset-icon').click();
     assert.deepEqual(calls, [
-      'reviewResetAll',
-      'reviewLearn:startForward',
-      'reviewReset:startForward',
+      'resetAll:review',
+      'learn:review:startForward',
+      'reset:review:startForward',
     ]);
   });
 });
 
 test('controller config form shows the hold button while a review combo is being learned', () => {
   withReviewForm(
-    { learning: { actionId: 'startForward', holdLabel: 'L2' } },
+    { learning: { screenId: 'review', actionId: 'startForward', holdLabel: 'L2' } },
     ({ container, reviewRow }) => {
       assert.equal(badgeOf(reviewRow('Start +0.1s')), 'L2 + …');
       assert.match(
@@ -414,4 +428,58 @@ test('controller config form warns about review bindings that clash', () => {
     assert.deepEqual(warnings, ['⚠ Same as Play selection', '⚠ Same as Use this timing']);
     assert.equal(reviewRow('Play selection').classList.contains('has-warning'), true);
   });
+});
+
+/** The dialog group headers, in order. */
+const groupHeaders = (container: FakeElement) =>
+  findAll(container, 'controller-config-group-toggle');
+
+test('controller config form lists the duplicate card layout as its own group', () => {
+  withReviewForm({}, ({ calls, container, reviewRow }) => {
+    const headers = groupHeaders(container);
+    assert.deepEqual(
+      headers.map((el) => el.textContent.replace(/Reset all$/, '')),
+      ['▸ Review media timing', '▸ Duplicate card (field grouping)'],
+    );
+
+    headers[1]!.click();
+    assert.deepEqual(
+      findAll(container, 'controller-config-subgroup').map((el) => el.textContent),
+      ['Choosing the card', 'Merge preview'],
+      'only the opened group shows rows',
+    );
+    assert.equal(badgeOf(reviewRow('Original card')), 'D-pad ◀');
+    assert.equal(badgeOf(reviewRow('New card')), 'D-pad ▶');
+    assert.equal(badgeOf(reviewRow('Delete duplicate on/off')), 'X');
+    assert.equal(badgeOf(reviewRow('Continue')), 'A');
+    assert.equal(badgeOf(reviewRow('Confirm merge')), 'A');
+    assert.equal(badgeOf(reviewRow('Back')), 'B');
+    assert.equal(badgeOf(reviewRow('Compact / Full')), 'Y');
+    assert.equal(badgeOf(reviewRow('Scroll down')), 'D-pad ▼');
+    // Cancel on the preview is unbound by default (B goes back, B again cancels).
+    const cancels = findAll(container, 'controller-config-row').filter(
+      (el) => findOne(el, 'controller-config-label').textContent === 'Cancel',
+    );
+    assert.deepEqual(cancels.map(badgeOf), ['B', 'None']);
+    assert.equal(findAll(container, 'controller-config-warning').length, 0);
+
+    findOne(container, 'controller-config-group-action', 'Reset all').click();
+    findOne(reviewRow('Continue'), 'controller-config-edit-icon').click();
+    assert.deepEqual(calls, ['resetAll:fieldGrouping', 'learn:fieldGrouping:continue']);
+  });
+});
+
+test('learning a duplicate card action opens only that group', () => {
+  withReviewForm(
+    { learning: { screenId: 'fieldGrouping', actionId: 'back', holdLabel: null } },
+    ({ container }) => {
+      const headers = groupHeaders(container);
+      assert.equal(headers[0]!.getAttribute('aria-expanded'), 'false');
+      assert.equal(headers[1]!.getAttribute('aria-expanded'), 'true');
+      assert.match(
+        findOne(container, 'controller-config-edit-hint').textContent,
+        /Press a button, or hold one and press another for a combo/,
+      );
+    },
+  );
 });

@@ -9,10 +9,12 @@ import type {
   ResolvedControllerDiscreteBinding,
 } from '../../types/runtime';
 import {
-  isControllerReviewAction,
+  isControllerScreenAction,
   parseControllerReviewBinding,
+  type ControllerScreenBindings,
+  type ControllerScreenDefinition,
 } from '../../shared/controller-review';
-import type { ResolvedControllerReviewBindings } from '../../types/runtime';
+import { CONTROLLER_SCREENS } from '../../shared/controller-screens';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
 
@@ -273,20 +275,21 @@ function applyControllerBindings(
   }
 }
 
-function applyControllerReviewBindings(
+function applyControllerScreenBindings(
+  screen: ControllerScreenDefinition,
   source: unknown,
-  target: ResolvedControllerReviewBindings,
+  target: ControllerScreenBindings,
   pathPrefix: string,
   warn: ResolveContext['warn'],
 ): void {
   if (source === undefined) return;
   if (!isObject(source)) {
-    warn(pathPrefix, source, target, 'Expected an object keyed by review action.');
+    warn(pathPrefix, source, target, `Expected an object keyed by ${screen.describe} action.`);
     return;
   }
   for (const [action, value] of Object.entries(source)) {
-    if (!isControllerReviewAction(action)) {
-      warn(`${pathPrefix}.${action}`, value, undefined, 'Unknown media timing review action.');
+    if (!isControllerScreenAction(screen, action)) {
+      warn(`${pathPrefix}.${action}`, value, undefined, `Unknown ${screen.describe} action.`);
       continue;
     }
     const parsed = parseControllerReviewBinding(value);
@@ -417,12 +420,15 @@ export function applyControllerConfig(context: ResolveContext): void {
     'controller.bindings',
     warn,
   );
-  applyControllerReviewBindings(
-    src.controller.reviewBindings,
-    resolved.controller.reviewBindings,
-    'controller.reviewBindings',
-    warn,
-  );
+  for (const screen of CONTROLLER_SCREENS) {
+    applyControllerScreenBindings(
+      screen,
+      src.controller[screen.configKey],
+      resolved.controller[screen.configKey],
+      `controller.${screen.configKey}`,
+      warn,
+    );
+  }
 
   if (isObject(src.controller.profiles)) {
     for (const [profileId, rawProfile] of Object.entries(src.controller.profiles)) {
@@ -460,6 +466,7 @@ export function applyControllerConfig(context: ResolveContext): void {
         buttonIndices: structuredClone(resolved.controller.buttonIndices),
         bindings: structuredClone(resolved.controller.bindings),
         reviewBindings: structuredClone(resolved.controller.reviewBindings),
+        fieldGroupingBindings: structuredClone(resolved.controller.fieldGroupingBindings),
       };
       applyControllerButtonIndices(
         rawProfile.buttonIndices,
@@ -474,12 +481,15 @@ export function applyControllerConfig(context: ResolveContext): void {
         `controller.profiles.${profileId}.bindings`,
         warn,
       );
-      applyControllerReviewBindings(
-        rawProfile.reviewBindings,
-        profile.reviewBindings,
-        `controller.profiles.${profileId}.reviewBindings`,
-        warn,
-      );
+      for (const screen of CONTROLLER_SCREENS) {
+        applyControllerScreenBindings(
+          screen,
+          rawProfile[screen.configKey],
+          profile[screen.configKey],
+          `controller.profiles.${profileId}.${screen.configKey}`,
+          warn,
+        );
+      }
       resolved.controller.profiles[profileId] = profile;
     }
   }

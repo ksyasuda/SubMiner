@@ -4,6 +4,7 @@ import test from 'node:test';
 import { createRendererState } from '../state.js';
 import { createControllerSelectModal } from './controller-select.js';
 import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
+import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -164,6 +165,7 @@ function buildContext() {
       rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
     },
     reviewBindings: getDefaultControllerReviewBindings(),
+    fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
     profiles: {},
   };
   state.connectedGamepads = [
@@ -332,6 +334,7 @@ test('controller select modal reset control stores the default binding in the se
             toggleLookup: { kind: 'button', buttonIndex: 11 },
           },
           reviewBindings: state.controllerConfig.reviewBindings,
+          fieldGroupingBindings: state.controllerConfig.fieldGroupingBindings,
         },
       };
     }
@@ -721,6 +724,81 @@ test('controller select modal learns a review combo and saves it to the controll
   }
 });
 
+function findAllByClass(root: any, className: string, found: any[] = []): any[] {
+  for (const child of root.children ?? []) {
+    if (
+      String(child.className ?? '')
+        .split(' ')
+        .includes(className)
+    )
+      found.push(child);
+    findAllByClass(child, className, found);
+  }
+  return found;
+}
+
+test('controller select modal learns a duplicate card button and saves it to the profile', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const headers = findAllByClass(dom.controllerConfigList, 'controller-config-group-toggle');
+    assert.equal(headers.length, 2, 'review and duplicate card groups');
+    headers[1].dispatch('click');
+    const row = findReviewRow(dom.controllerConfigList, 'Back');
+    assert.ok(row, 'Back row');
+    row.children[1].children[0].dispatch('click');
+
+    const buttons = (pressed: number[]) =>
+      Array.from({ length: 17 }, (_, index) => ({
+        value: pressed.includes(index) ? 1 : 0,
+        pressed: pressed.includes(index),
+        touched: pressed.includes(index),
+      }));
+
+    // Press and release Select.
+    state.controllerRawButtons = buttons([8]);
+    modal.updateDevices();
+    state.controllerRawButtons = buttons([]);
+    modal.updateDevices();
+
+    await Promise.resolve();
+
+    const back = { kind: 'combo', press: { kind: 'button', buttonIndex: 8 }, hold: null };
+    assert.deepEqual(saved.at(-1), {
+      profiles: { 'pad-1': { fieldGroupingBindings: { back } } },
+    });
+    const profile = state.controllerConfig?.profiles['pad-1'];
+    assert.deepEqual(profile?.fieldGroupingBindings.back, back);
+    // Other dialogs keep their layout.
+    assert.deepEqual(profile?.reviewBindings, state.controllerConfig?.reviewBindings);
+  } finally {
+    domHandle.restore();
+  }
+});
+
 test('controller select modal shows and edits the saved controller before this window sees it', async () => {
   const domHandle = installFakeDom();
   const saved: unknown[] = [];
@@ -749,6 +827,7 @@ test('controller select modal shows and edits the saved controller before this w
         label: 'pad-1',
         buttonIndices: config.buttonIndices,
         bindings: config.bindings,
+        fieldGroupingBindings: config.fieldGroupingBindings,
         reviewBindings: {
           ...config.reviewBindings,
           startBack: {

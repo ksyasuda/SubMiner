@@ -361,7 +361,7 @@
           "letter": "a" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
         }, // Input that triggers the action.
         "hold": null // Optional input held while pressing; null for none.
-      }, // Review dialog: Use original timing (after Cancel).
+      }, // Review dialog: Use original timing (after cancel).
       "keepEditing": {
         "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
         "press": {
@@ -369,7 +369,7 @@
           "letter": "b" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
         }, // Input that triggers the action.
         "hold": null // Optional input held while pressing; null for none.
-      }, // Review dialog: Keep editing (after Cancel).
+      }, // Review dialog: Keep editing (after cancel).
       "skipMedia": {
         "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
         "press": {
@@ -377,7 +377,7 @@
           "letter": "x" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
         }, // Input that triggers the action.
         "hold": null // Optional input held while pressing; null for none.
-      }, // Review dialog: Without media (after Cancel).
+      }, // Review dialog: Without media (after cancel).
       "discard": {
         "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
         "press": {
@@ -385,8 +385,93 @@
           "letter": "y" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
         }, // Input that triggers the action.
         "hold": null // Optional input held while pressing; null for none.
-      } // Review dialog: Discard card (after Cancel).
+      } // Review dialog: Discard card (after cancel).
     }, // Controller layout for the media timing review dialog, one entry per action. Set it with the Review media timing group in Alt+C. Each entry is {"kind": "none"} or {"press": input, "hold": input}, where an input is {"kind": "button", "buttonIndex"}, {"kind": "axis", "axisIndex", "direction"}, {"kind": "face", "letter": "a"|"b"|"x"|"y"} (printed letter) or {"kind": "dpad", "direction": "left"|"right"|"up"|"down"}.
+    "fieldGroupingBindings": {
+      "selectOriginal": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "left" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Original card.
+      "selectNew": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "right" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: New card.
+      "toggleDeleteDuplicate": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "x" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Delete duplicate on/off.
+      "continue": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "a" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Continue.
+      "cancel": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "b" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Cancel.
+      "confirmMerge": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "a" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Confirm merge (merge preview).
+      "back": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "b" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Back (merge preview).
+      "cancelMerge": {
+        "kind": "none" // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+      }, // Duplicate card dialog: Cancel (merge preview).
+      "toggleView": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "y" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Compact / Full (merge preview).
+      "scrollUp": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "up" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Scroll up (merge preview). Repeats while held.
+      "scrollDown": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "down" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      } // Duplicate card dialog: Scroll down (merge preview). Repeats while held.
+    }, // Controller layout for the duplicate card (field grouping) dialog, one entry per action. Set it with the Duplicate card (field grouping) group in Alt+C. Each entry is {"kind": "none"} or {"press": input, "hold": input}, where an input is {"kind": "button", "buttonIndex"}, {"kind": "axis", "axisIndex", "direction"}, {"kind": "face", "letter": "a"|"b"|"x"|"y"} (printed letter) or {"kind": "dpad", "direction": "left"|"right"|"up"|"down"}.
     "profiles": {} // Per-controller binding and button-index overrides keyed by the controller id reported by the Gamepad API.
   }, // Gamepad support for the visible overlay while keyboard-only mode is active.
 

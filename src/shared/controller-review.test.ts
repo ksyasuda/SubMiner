@@ -130,3 +130,21 @@ test('controller config updates from Alt+C accept review bindings and reject bad
     null,
   );
 });
+
+test('Alt+C updates accept field grouping bindings, checked against that dialog', () => {
+  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(
+    plain(
+      parseControllerConfigUpdate({
+        profiles: { 'pad-1': { fieldGroupingBindings: { back: { kind: 'none' } } } },
+      }),
+    ),
+    { profiles: { 'pad-1': { fieldGroupingBindings: { back: { kind: 'none' } } } } },
+  );
+  // Each dialog only accepts its own actions.
+  assert.equal(
+    parseControllerConfigUpdate({ fieldGroupingBindings: { confirm: { kind: 'none' } } }),
+    null,
+  );
+  assert.equal(parseControllerConfigUpdate({ reviewBindings: { back: { kind: 'none' } } }), null);
+});

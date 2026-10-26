@@ -17,7 +17,7 @@ import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-op
 import type { SessionActionId, SessionActionPayload } from '../../types/session-bindings';
 import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
-import { isControllerReviewAction, parseControllerReviewBinding } from '../controller-review';
+import { CONTROLLER_SCREENS, parseControllerScreenBindingsPatch } from '../controller-screens';
 
 const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -243,18 +243,18 @@ function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindin
   return bindings;
 }
 
-function parseControllerReviewBindings(
-  value: unknown,
-): ControllerConfigUpdate['reviewBindings'] | null {
-  if (!isObject(value)) return null;
-  const bindings: NonNullable<ControllerConfigUpdate['reviewBindings']> = {};
-  for (const [action, rawBinding] of Object.entries(value)) {
-    if (!isControllerReviewAction(action)) return null;
-    const parsed = parseControllerReviewBinding(rawBinding);
-    if (!parsed) return null;
-    bindings[action] = parsed;
+/** Copies each screen's per-action patch (`reviewBindings`, `fieldGroupingBindings`). */
+function parseControllerScreenBindingPatches(
+  source: Record<string, unknown>,
+  target: Pick<ControllerConfigUpdate, 'reviewBindings' | 'fieldGroupingBindings'>,
+): boolean {
+  for (const screen of CONTROLLER_SCREENS) {
+    if (source[screen.configKey] === undefined) continue;
+    const parsed = parseControllerScreenBindingsPatch(screen, source[screen.configKey]);
+    if (!parsed) return false;
+    (target as Record<string, unknown>)[screen.configKey] = parsed;
   }
-  return bindings;
+  return true;
 }
 
 export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpdate | null {
@@ -284,11 +284,7 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
     if (!parsed) return null;
     update.bindings = parsed;
   }
-  if (value.reviewBindings !== undefined) {
-    const parsed = parseControllerReviewBindings(value.reviewBindings);
-    if (!parsed) return null;
-    update.reviewBindings = parsed;
-  }
+  if (!parseControllerScreenBindingPatches(value, update)) return null;
 
   if (value.profiles !== undefined) {
     if (!isObject(value.profiles)) return null;
@@ -311,11 +307,7 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
         if (!parsed) return null;
         profile.bindings = parsed;
       }
-      if (rawProfile.reviewBindings !== undefined) {
-        const parsed = parseControllerReviewBindings(rawProfile.reviewBindings);
-        if (!parsed) return null;
-        profile.reviewBindings = parsed;
-      }
+      if (!parseControllerScreenBindingPatches(rawProfile, profile)) return null;
       profiles[profileId] = profile;
     }
     update.profiles = profiles;

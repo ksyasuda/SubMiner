@@ -182,7 +182,7 @@ The secondary subtitle hold works with or without keyboard-only mode. Assign it 
 
 **Previous Entry** and **Next Entry** move one word entry at a time in the open popup, and Mine Card then mines the selected entry. They send Yomitan's default `Alt+Up` / `Alt+Down` entry shortcuts, so they stop working if you rebind those in Yomitan's keyboard settings. If you assign them to the D-pad, click **Clear** on the **Popup Scroll (D-pad)** row too, or the D-pad will also scroll the popup.
 
-The media timing review dialog has its own controller layout, which you can change in the **Review media timing** group of `Alt+C`; see [Review media timing](/anki-integration#with-a-controller).
+The media timing review and duplicate card (field grouping) dialogs have their own controller layouts, which you can change in the **Review media timing** and **Duplicate card (field grouping)** groups of `Alt+C`; see [Review media timing](/anki-integration#with-a-controller) and [Field grouping](/anki-integration#field-grouping-with-a-controller).
 
 On controllers that report the W3C standard layout, the default quit button lands on `L2` instead of `Select`, and the default pause button on `Start` instead of `L3`. The default right-stick popup jump does nothing on these controllers; click **Learn** on **Popup Jump (Stick)** and move the right stick up or down to set it. Remap anything else with `Alt+C`, which names buttons according to the layout your controller reports. All options are in [Configuration](/configuration#controller-support).
 
