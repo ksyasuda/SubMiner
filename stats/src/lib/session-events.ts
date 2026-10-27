@@ -65,6 +65,11 @@ function readNoteIds(value: unknown): number[] {
   );
 }
 
+/** Cards added by one CARD_MINED event; older events without a count mean one card. */
+export function readCardsMinedDelta(event: SessionEvent): number {
+  return readNumberField(parsePayload(event.payload)?.cardsMined) ?? 1;
+}
+
 function stripHtml(value: string): string {
   return value
     .replace(/\[sound:[^\]]+\]/gi, ' ')
@@ -272,7 +277,7 @@ export function buildSessionChartEvents(events: SessionEvent[]): SessionChartEve
           anchorTsMs: event.tsMs,
           eventTsMs: event.tsMs,
           noteIds: readNoteIds(payload?.noteIds),
-          cardsDelta: readNumberField(payload?.cardsMined) ?? 1,
+          cardsDelta: readCardsMinedDelta(event),
         });
         break;
       }

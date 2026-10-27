@@ -1,4 +1,5 @@
 import type { KnownWordsTimelinePoint } from '../hooks/useSessions';
+import { readCardsMinedDelta } from './session-events';
 import { EventType } from '../types/stats';
 import type { SessionEvent, SessionTimelinePoint } from '../types/stats';
 
@@ -23,17 +24,21 @@ export interface SessionDensity {
   buckets: SessionDensityBucket[];
 }
 
-const BUCKET_SIZE_CANDIDATES_MS = [10_000, 15_000, 30_000, 60_000, 120_000, 300_000, 600_000];
-const LARGEST_BUCKET_MS = 1_800_000;
+const BUCKET_SIZE_CANDIDATES_MS = [
+  10_000, 15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 1_800_000,
+];
 
 export const MAX_DENSITY_BUCKETS = 60;
 
-/** Smallest candidate bucket size that keeps the whole span within MAX_DENSITY_BUCKETS. */
+/**
+ * Smallest candidate bucket size that keeps the whole span within maxBuckets.
+ * Spans too long for every candidate get whole-minute buckets sized to fit.
+ */
 export function pickDensityBucketMs(spanMs: number, maxBuckets = MAX_DENSITY_BUCKETS): number {
   for (const candidate of BUCKET_SIZE_CANDIDATES_MS) {
     if (Math.ceil(spanMs / candidate) <= maxBuckets) return candidate;
   }
-  return LARGEST_BUCKET_MS;
+  return Math.ceil(spanMs / maxBuckets / 60_000) * 60_000;
 }
 
 export function formatBucketSize(bucketMs: number): string {
@@ -136,7 +141,7 @@ export function buildSessionDensity(
     if (event.eventType === EventType.YOMITAN_LOOKUP) {
       bucket.lookups += 1;
     } else {
-      bucket.cards += 1;
+      bucket.cards += readCardsMinedDelta(event);
     }
   }
 

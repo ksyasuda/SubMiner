@@ -13,6 +13,13 @@ test('pickDensityBucketMs grows the bucket until the session fits in the bucket 
   assert.equal(pickDensityBucketMs(3 * 3_600_000), 300_000);
 });
 
+test('pickDensityBucketMs scales past the largest candidate so very long spans stay in budget', () => {
+  const spanMs = 48 * 3_600_000;
+  const bucketMs = pickDensityBucketMs(spanMs);
+  assert.ok(Math.ceil(spanMs / bucketMs) <= 60);
+  assert.equal(bucketMs % 60_000, 0);
+});
+
 test('buildSessionDensity converts cumulative samples into per-bucket known/unknown deltas', () => {
   const density = buildSessionDensity(
     [sample(0, 0, 0), sample(5_000, 1, 10), sample(12_000, 2, 25), sample(25_000, 3, 40)],
@@ -24,7 +31,7 @@ test('buildSessionDensity converts cumulative samples into per-bucket known/unkn
     [
       { eventType: EventType.YOMITAN_LOOKUP, tsMs: 3_000, payload: null },
       { eventType: EventType.YOMITAN_LOOKUP, tsMs: 14_000, payload: null },
-      { eventType: EventType.CARD_MINED, tsMs: 24_000, payload: null },
+      { eventType: EventType.CARD_MINED, tsMs: 24_000, payload: '{"cardsMined":2}' },
       { eventType: EventType.PAUSE_START, tsMs: 24_500, payload: null },
     ],
   );
@@ -36,7 +43,7 @@ test('buildSessionDensity converts cumulative samples into per-bucket known/unkn
     [
       [4, 4, 1, 0],
       [6, 6, 1, 0],
-      [10, 2, 0, 1],
+      [10, 2, 0, 2],
     ],
   );
 });
