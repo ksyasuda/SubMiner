@@ -952,7 +952,7 @@ test('controller select modal shows and saves the button style per controller', 
     // Toggle Lookup is on the bottom face button.
     assert.equal(
       findReviewRow(dom.controllerConfigList, 'Toggle Lookup').children[1].children[0].textContent,
-      '×',
+      '╳',
     );
 
     // The other controller still uses the default style.

@@ -504,7 +504,7 @@ test('controller config form names face buttons with PlayStation symbols when co
   };
 
   const form = renderForm(null, { bindings, mapping: 'standard', faceButtonLabels: 'playstation' });
-  assert.equal(badge(form.row('Toggle Lookup')), '×');
+  assert.equal(badge(form.row('Toggle Lookup')), '╳');
   assert.equal(badge(form.row('Close Lookup')), '○');
   assert.equal(badge(form.row('Mine Card')), '□');
   assert.equal(badge(form.row('Toggle Keyboard-Only Mode')), '△');
@@ -513,7 +513,7 @@ test('controller config form names face buttons with PlayStation symbols when co
   // The dialog groups print the same symbols.
   withReviewForm({ faceButtonLabels: 'playstation' }, ({ container, reviewRow }) => {
     findOne(container, 'controller-config-group-toggle').click();
-    assert.equal(badgeOf(reviewRow('Use this timing')), '×');
+    assert.equal(badgeOf(reviewRow('Use this timing')), '╳');
     assert.equal(badgeOf(reviewRow('Keep editing')), '○');
     assert.equal(badgeOf(reviewRow('Play selection')), '□');
     assert.equal(badgeOf(reviewRow('Reset timing')), '△');

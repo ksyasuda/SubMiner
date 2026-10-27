@@ -178,7 +178,7 @@ export type ControllerAxisBinding = 'leftStickX' | 'leftStickY' | 'rightStickX' 
 export type ControllerTriggerInputMode = 'auto' | 'digital' | 'analog';
 /**
  * Face button style: Xbox (A at the bottom), Nintendo (A on the right) or PlayStation
- * (× at the bottom, laid out like Xbox). Decides button names and where letters land.
+ * (╳ at the bottom, laid out like Xbox). Decides button names and where letters land.
  */
 export type ControllerFaceButtonLabels = 'xbox' | 'nintendo' | 'playstation';
 export type ControllerAxisDirection = 'negative' | 'positive';

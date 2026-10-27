@@ -156,7 +156,7 @@ test('PlayStation pads print symbols at the Xbox positions', () => {
   const name = (input: Parameters<typeof formatControllerReviewInput>[0]) =>
     formatControllerReviewInput(input, playstation);
 
-  // Same physical buttons as Xbox: A is the bottom button, shown as ×.
+  // Same physical buttons as Xbox: A is the bottom button, shown as ╳.
   assert.equal(
     controllerReviewInputSourceKey(
       resolveControllerReviewInput({ kind: 'face', letter: 'a' }, playstation),
@@ -165,7 +165,7 @@ test('PlayStation pads print symbols at the Xbox positions', () => {
   );
   assert.deepEqual(
     (['a', 'b', 'x', 'y'] as const).map((letter) => name({ kind: 'face', letter })),
-    ['×', '○', '□', '△'],
+    ['╳', '○', '□', '△'],
   );
   assert.equal(name({ kind: 'button', buttonIndex: 3 }), '△');
   assert.equal(
@@ -177,7 +177,7 @@ test('PlayStation pads print symbols at the Xbox positions', () => {
       },
       playstation,
     ),
-    'L1 + ×',
+    'L1 + ╳',
   );
   assert.equal(getControllerFaceButtonName(1, 'nintendo'), 'A');
   assert.equal(getControllerFaceButtonName(4, 'playstation'), null);

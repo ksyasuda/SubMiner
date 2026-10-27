@@ -2077,8 +2077,8 @@ body:focus-visible,
 #kikuFieldGroupingModal.controller-hints-visible [data-controller-hint]::after {
   content: attr(data-controller-hint);
   text-transform: none;
-  /* Buttons use the system UI font, where ○ □ △ are small; Japanese fonts draw them at
-     full size, and SubMiner's overlay already expects one. */
+  /* Buttons use the system UI font, where ○ □ △ are small; Japanese fonts draw them (and
+     the ╳ used for the PlayStation cross) at full size, and SubMiner already expects one. */
   font-family:
     'M PLUS 1', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', 'DejaVu Sans', sans-serif;
   display: inline-block;

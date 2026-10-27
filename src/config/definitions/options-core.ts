@@ -263,7 +263,7 @@ export function buildCoreConfigOptionRegistry(
       enumValues: ['xbox', 'nintendo', 'playstation'],
       defaultValue: defaultConfig.controller.faceButtonLabels,
       description:
-        'Face button style of your controller: xbox (A at the bottom), nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads) or playstation (× ○ □ △, laid out like xbox). Places the A/B/X/Y of the dialog layouts and names buttons in Alt+C and the dialog hints. Alt+C sets it per controller (controller.profiles.<id>.faceButtonLabels); this is the default for the others.',
+        'Face button style of your controller: xbox (A at the bottom), nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads) or playstation (╳ ○ □ △, laid out like xbox). Places the A/B/X/Y of the dialog layouts and names buttons in Alt+C and the dialog hints. Alt+C sets it per controller (controller.profiles.<id>.faceButtonLabels); this is the default for the others.',
     },
     {
       path: 'controller.triggerDeadzone',

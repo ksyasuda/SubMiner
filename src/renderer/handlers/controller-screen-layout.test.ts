@@ -181,7 +181,7 @@ test('dialog hints follow the button style of the controller in use', () => {
     );
   };
 
-  assert.equal(hintsFor('pad-ps').continue, '×');
+  assert.equal(hintsFor('pad-ps').continue, '╳');
   assert.equal(hintsFor('pad-ps').toggleView, '△');
   // Controllers without their own style use controller.faceButtonLabels.
   assert.equal(hintsFor('other-pad').continue, 'A');

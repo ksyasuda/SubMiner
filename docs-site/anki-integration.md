@@ -164,7 +164,7 @@ When you cancel, you can go back to editing, keep the original timing, create th
 
 With [controller support](/usage#controller-support) on, the dialog has its own controller layout, and each button shows its controller shortcut. It works with or without keyboard-only mode, and the controller's usual actions pause until the dialog closes. Buttons that were already held when the dialog opened, such as the mine button, wait for a fresh press.
 
-`A`, `B`, `X` and `Y` mean the letters printed on your controller. Pick your controller's **Button Style** in `Alt+C`: choose Nintendo if A is on the right and B at the bottom (Switch-style and many 8BitDo pads). On PlayStation, `A` is ×, `B` ○, `X` □ and `Y` △, and the shortcuts on screen show those symbols.
+`A`, `B`, `X` and `Y` mean the letters printed on your controller. Pick your controller's **Button Style** in `Alt+C`: choose Nintendo if A is on the right and B at the bottom (Switch-style and many 8BitDo pads). On PlayStation, `A` is ╳, `B` ○, `X` □ and `Y` △, and the shortcuts on screen show those symbols.
 
 Hold `L1` or `R1` and press the D-pad for the combos. `L1` covers the clip start and the lines before it, and `R1` the clip end and the lines after it. D-pad actions repeat while held.
 
