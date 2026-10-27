@@ -70,6 +70,10 @@ const VOID_ACTIONS = [
   'previousEntry',
   'nextEntry',
   'toggleMpvPause',
+  'previousSubtitle',
+  'nextSubtitle',
+  'replaySubtitle',
+  'playNextSubtitle',
 ] as const;
 const DELTA_ACTIONS = ['moveSelection', 'scrollPopup', 'jumpPopup'] as const;
 
@@ -114,6 +118,10 @@ function createHarness(
     previousEntry: () => {},
     nextEntry: () => {},
     toggleMpvPause: () => {},
+    previousSubtitle: () => {},
+    nextSubtitle: () => {},
+    replaySubtitle: () => {},
+    playNextSubtitle: () => {},
     setSecondarySubHeld: () => {},
     scrollPopup: () => {},
     jumpPopup: () => {},
@@ -783,4 +791,73 @@ test('gamepad controller still ignores a button held when the screen opened', ()
   harness.poll(16);
 
   assert.deepEqual(events, ['activate:pad-1:latch']);
+});
+
+const SUBTITLE_NAVIGATION_BINDINGS = {
+  previousSubtitle: { kind: 'button', buttonIndex: 10 },
+  nextSubtitle: { kind: 'button', buttonIndex: 11 },
+  replaySubtitle: { kind: 'button', buttonIndex: 8 },
+  playNextSubtitle: { kind: 'button', buttonIndex: 16 },
+} as const;
+
+test('gamepad controller leaves subtitle navigation unbound by default', () => {
+  for (const action of [
+    'previousSubtitle',
+    'nextSubtitle',
+    'replaySubtitle',
+    'playNextSubtitle',
+  ] as const) {
+    assert.deepEqual(CORE_DEFAULT_CONFIG.controller.bindings[action], { kind: 'none' }, action);
+  }
+});
+
+test('gamepad controller navigates subtitles once per press, even outside keyboard-only mode', () => {
+  let pressed: number[] = [];
+  const harness = createHarness({
+    gamepads: () => [
+      createGamepad('pad-1', {
+        buttons: Object.fromEntries(pressed.map((index) => [index, PRESSED])),
+      }),
+    ],
+    config: createControllerConfig({ bindings: SUBTITLE_NAVIGATION_BINDINGS }),
+    deps: { getKeyboardModeEnabled: () => false },
+  });
+
+  harness.poll(0);
+  for (const index of [11, 10, 8, 16]) {
+    pressed = [index];
+    // Holding the button does not repeat.
+    harness.poll(16, 500, 1_000);
+    pressed = [];
+    harness.poll(1_016);
+  }
+
+  assert.deepEqual(harness.calls, [
+    'nextSubtitle',
+    'previousSubtitle',
+    'replaySubtitle',
+    'playNextSubtitle',
+  ]);
+});
+
+test('gamepad controller pauses subtitle navigation while a blocking modal is open', () => {
+  let blocked = true;
+  let pressed = true;
+  const harness = createHarness({
+    gamepads: () => [createGamepad('pad-1', { buttons: pressed ? { 11: PRESSED } : {} })],
+    config: createControllerConfig({ bindings: SUBTITLE_NAVIGATION_BINDINGS }),
+    deps: { getInteractionBlocked: () => blocked },
+  });
+
+  harness.poll(0, 16);
+  // Still held when the modal closes: not a fresh press.
+  blocked = false;
+  harness.poll(32);
+  assert.deepEqual(harness.calls, []);
+
+  pressed = false;
+  harness.poll(48);
+  pressed = true;
+  harness.poll(64);
+  assert.deepEqual(harness.calls, ['nextSubtitle']);
 });

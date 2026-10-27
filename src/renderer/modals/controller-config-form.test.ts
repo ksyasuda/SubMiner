@@ -24,6 +24,10 @@ const BINDINGS: ResolvedControllerConfig['bindings'] = {
   holdSecondarySub: { kind: 'none' },
   previousEntry: { kind: 'none' },
   nextEntry: { kind: 'none' },
+  previousSubtitle: { kind: 'none' },
+  nextSubtitle: { kind: 'none' },
+  replaySubtitle: { kind: 'none' },
+  playNextSubtitle: { kind: 'none' },
   leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
   leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
   rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
@@ -148,7 +152,7 @@ test('controller config form renders grouped rows with friendly binding labels',
 
   assert.deepEqual(
     findAll(container, 'controller-config-group').map((el) => el.textContent),
-    ['Lookup', 'Playback', 'Popup Audio', 'Navigation'],
+    ['Lookup', 'Playback', 'Subtitles', 'Popup Audio', 'Navigation'],
   );
   assert.deepEqual(
     findAll(container, 'controller-config-row').map((row) => [
@@ -165,6 +169,10 @@ test('controller config form renders grouped rows with friendly binding labels',
       ['Toggle MPV Pause', 'R3 / RS'],
       ['Show Secondary Subtitle (Hold)', 'None'],
       ['Quit MPV', 'Back / Select'],
+      ['Previous Subtitle', 'None'],
+      ['Next Subtitle', 'None'],
+      ['Replay Subtitle', 'None'],
+      ['Play Next Subtitle', 'None'],
       ['Previous Audio', 'None'],
       ['Next Audio', 'RB / R1'],
       ['Play Current Audio', 'LB / L1'],
@@ -180,7 +188,7 @@ test('controller config form renders grouped rows with friendly binding labels',
   );
   assert.deepEqual(
     findAll(container, 'disabled').map((badge) => badge.textContent),
-    ['None', 'None', 'None', 'None', 'None', 'None'],
+    ['None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None'],
   );
   assert.deepEqual(findAll(container, 'expanded'), []);
   assert.deepEqual(findAll(container, 'controller-config-edit-panel'), []);

@@ -239,6 +239,10 @@ export interface ControllerBindingsConfig {
   holdSecondarySub?: ControllerDiscreteBindingConfig;
   previousEntry?: ControllerDiscreteBindingConfig;
   nextEntry?: ControllerDiscreteBindingConfig;
+  previousSubtitle?: ControllerDiscreteBindingConfig;
+  nextSubtitle?: ControllerDiscreteBindingConfig;
+  replaySubtitle?: ControllerDiscreteBindingConfig;
+  playNextSubtitle?: ControllerDiscreteBindingConfig;
   leftStickHorizontal?: ControllerAxisBindingConfig;
   leftStickVertical?: ControllerAxisBindingConfig;
   rightStickHorizontal?: ControllerAxisBindingConfig;
@@ -258,6 +262,10 @@ export interface ResolvedControllerBindingsConfig {
   holdSecondarySub?: ResolvedControllerDiscreteBinding;
   previousEntry?: ResolvedControllerDiscreteBinding;
   nextEntry?: ResolvedControllerDiscreteBinding;
+  previousSubtitle?: ResolvedControllerDiscreteBinding;
+  nextSubtitle?: ResolvedControllerDiscreteBinding;
+  replaySubtitle?: ResolvedControllerDiscreteBinding;
+  playNextSubtitle?: ResolvedControllerDiscreteBinding;
   leftStickHorizontal?: ResolvedControllerAxisBinding;
   leftStickVertical?: ResolvedControllerAxisBinding;
   rightStickHorizontal?: ResolvedControllerAxisBinding;

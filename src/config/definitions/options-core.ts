@@ -81,6 +81,30 @@ export function buildCoreConfigOptionRegistry(
       description:
         'Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry.',
     },
+    {
+      id: 'previousSubtitle',
+      defaultValue: defaultConfig.controller.bindings.previousSubtitle,
+      description:
+        'Controller binding descriptor that jumps to the previous subtitle line, like Shift+H. Works with or without keyboard-only mode.',
+    },
+    {
+      id: 'nextSubtitle',
+      defaultValue: defaultConfig.controller.bindings.nextSubtitle,
+      description:
+        'Controller binding descriptor that jumps to the next subtitle line, like Shift+L. Works with or without keyboard-only mode.',
+    },
+    {
+      id: 'replaySubtitle',
+      defaultValue: defaultConfig.controller.bindings.replaySubtitle,
+      description:
+        'Controller binding descriptor that replays the current subtitle line, then pauses, like Ctrl+Shift+H. Works with or without keyboard-only mode.',
+    },
+    {
+      id: 'playNextSubtitle',
+      defaultValue: defaultConfig.controller.bindings.playNextSubtitle,
+      description:
+        'Controller binding descriptor that plays the next subtitle line, then pauses, like Ctrl+Shift+L. Works with or without keyboard-only mode.',
+    },
   ] as const;
 
   const axisBindings = [

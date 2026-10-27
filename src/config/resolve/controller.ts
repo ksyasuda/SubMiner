@@ -98,6 +98,10 @@ const CONTROLLER_DISCRETE_BINDING_KEYS = [
   'holdSecondarySub',
   'previousEntry',
   'nextEntry',
+  'previousSubtitle',
+  'nextSubtitle',
+  'replaySubtitle',
+  'playNextSubtitle',
 ] as const;
 
 const CONTROLLER_AXIS_BINDING_KEYS = [

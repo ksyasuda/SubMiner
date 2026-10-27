@@ -76,6 +76,10 @@ function createControllerConfigFixture() {
       holdSecondarySub: { kind: 'none' as const },
       previousEntry: { kind: 'none' as const },
       nextEntry: { kind: 'none' as const },
+      previousSubtitle: { kind: 'none' as const },
+      nextSubtitle: { kind: 'none' as const },
+      replaySubtitle: { kind: 'none' as const },
+      playNextSubtitle: { kind: 'none' as const },
       leftStickHorizontal: {
         kind: 'axis' as const,
         axisIndex: 0,

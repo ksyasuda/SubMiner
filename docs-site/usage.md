@@ -177,8 +177,13 @@ Press `Alt+C` to choose a controller and remap buttons. Click an action's **Lear
 | Unbound by default    | Show the secondary subtitle while held |
 | Unbound by default    | Previous word entry in the popup       |
 | Unbound by default    | Next word entry in the popup           |
+| Unbound by default    | Previous / next subtitle line          |
+| Unbound by default    | Replay the current line, then pause    |
+| Unbound by default    | Play the next line, then pause         |
 
 The secondary subtitle hold works with or without keyboard-only mode. Assign it with **Learn** on the **Show Secondary Subtitle (Hold)** row in `Alt+C`. While held, the secondary subtitle shows as if its mode were `visible`; releasing the button returns it to your chosen mode.
+
+The **Subtitles** rows in `Alt+C` do the same as the keyboard shortcuts: **Previous Subtitle** and **Next Subtitle** jump a line like `Shift+H` / `Shift+L` (a paused video stays paused), **Replay Subtitle** is `Ctrl+Shift+H` and **Play Next Subtitle** is `Ctrl+Shift+L`. Like the secondary subtitle hold, they work with or without keyboard-only mode. If you put them on the D-pad, click **Clear** on the matching **(D-pad)** row under **Navigation** too, or in keyboard-only mode the D-pad will also move between words or scroll the popup.
 
 **Previous Entry** and **Next Entry** move one word entry at a time in the open popup, and Mine Card then mines the selected entry. They send Yomitan's default `Alt+Up` / `Alt+Down` entry shortcuts, so they stop working if you rebind those in Yomitan's keyboard settings. If you assign them to the D-pad, click **Clear** on the **Popup Scroll (D-pad)** row too, or the D-pad will also scroll the popup.
 
