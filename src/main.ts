@@ -2088,6 +2088,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         configService.patchRawConfig({
           controller: applyControllerConfigUpdate(currentRawConfig.controller, update),
         });
+        // The overlay reads controller settings once at startup, and Alt+C runs in its own
+        // window, so remaps would otherwise only apply after a restart.
+        overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.controllerConfigChanged);
       },
       getSecondarySubMode: () => appState.secondarySubMode,
       getRuntimeOptions: () => getRuntimeOptionsStateHandler(),

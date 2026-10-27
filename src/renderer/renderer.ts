@@ -827,6 +827,16 @@ function registerKeyboardCommandHandlers(): void {
     ctx.state.controllerSuspendedByModalWindow = suspended;
   });
 
+  // Alt+C saves in its own window; pick up remaps and the button style without a restart.
+  window.electronAPI.onControllerConfigChanged(() => {
+    window.electronAPI
+      .getControllerConfig()
+      .then((config) => {
+        ctx.state.controllerConfig = config;
+      })
+      .catch((error: unknown) => console.error('Could not reload controller config', error));
+  });
+
   window.electronAPI.onKeyboardModeToggleRequested(() => {
     runGuarded('keyboard-mode-toggle:requested', () => {
       keyboardHandlers.handleKeyboardModeToggleRequested();

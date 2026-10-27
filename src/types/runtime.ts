@@ -681,6 +681,8 @@ export interface ElectronAPI {
   ) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
   onControllerSuspendedChanged: (callback: (suspended: boolean) => void) => void;
+  /** Alt+C saved controller settings; reload them with `getControllerConfig`. */
+  onControllerConfigChanged: (callback: () => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (path: string) => Promise<PlaylistBrowserMutationResult>;

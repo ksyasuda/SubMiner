@@ -190,6 +190,9 @@ const onControllerSuspendedChangedEvent = createQueuedIpcListenerWithPayload<boo
   IPC_CHANNELS.event.controllerSuspendedChanged,
   (payload) => payload === true,
 );
+const onControllerConfigChangedEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.controllerConfigChanged,
+);
 const onKeyboardModeToggleRequestedEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.keyboardModeToggleRequested,
 );
@@ -496,6 +499,7 @@ const electronAPI: ElectronAPI = {
   onSessionNumericSelectionStart: onSessionNumericSelectionStartEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
   onControllerSuspendedChanged: onControllerSuspendedChangedEvent,
+  onControllerConfigChanged: onControllerConfigChangedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
   getPlaylistBrowserSnapshot: (): Promise<PlaylistBrowserSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getPlaylistBrowserSnapshot),

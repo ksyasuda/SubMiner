@@ -159,6 +159,7 @@ export const IPC_CHANNELS = {
     sessionNumericSelectionStart: 'session:numeric-selection-start',
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
     controllerSuspendedChanged: 'controller:suspended-changed',
+    controllerConfigChanged: 'controller:config-changed',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     sessionHelpOpen: 'session-help:open',
     changelogOpen: 'changelog:open',
