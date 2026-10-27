@@ -108,7 +108,7 @@
     "stickDeadzone": 0.2, // Deadzone applied to controller stick axes.
     "triggerInputMode": "auto", // How controller triggers are interpreted: auto, pressed-only, or thresholded analog. Values: auto | digital | analog
     "triggerDeadzone": 0.5, // Minimum analog trigger value required when trigger input uses auto or analog mode.
-    "faceButtonLabels": "xbox", // Face button style of your controller: xbox (A at the bottom), nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads) or playstation (✕ ○ □ △, laid out like xbox). Places the A/B/X/Y of the dialog layouts and names buttons in Alt+C and the dialog hints. Alt+C sets it per controller (controller.profiles.<id>.faceButtonLabels); this is the default for the others. Values: xbox | nintendo | playstation
+    "faceButtonLabels": "xbox", // Face button style of your controller: xbox (A at the bottom), nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads) or playstation (× ○ □ △, laid out like xbox). Places the A/B/X/Y of the dialog layouts and names buttons in Alt+C and the dialog hints. Alt+C sets it per controller (controller.profiles.<id>.faceButtonLabels); this is the default for the others. Values: xbox | nintendo | playstation
     "repeatDelayMs": 320, // Delay before repeating held controller actions.
     "repeatIntervalMs": 120, // Repeat interval for held controller actions.
     "buttonIndices": {

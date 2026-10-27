@@ -2077,6 +2077,10 @@ body:focus-visible,
 #kikuFieldGroupingModal.controller-hints-visible [data-controller-hint]::after {
   content: attr(data-controller-hint);
   text-transform: none;
+  /* Buttons use the system UI font, where ○ □ △ are small; Japanese fonts draw them at
+     full size, and SubMiner's overlay already expects one. */
+  font-family:
+    'M PLUS 1', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', 'DejaVu Sans', sans-serif;
   display: inline-block;
   margin-left: 6px;
   padding: 1px 5px;
@@ -2085,7 +2089,6 @@ body:focus-visible,
   border-radius: 5px;
   background: var(--ctp-mantle);
   color: var(--ctp-subtext0);
-  font-family: inherit;
   font-size: 9px;
   font-weight: 750;
   letter-spacing: 0.02em;
@@ -3595,6 +3598,7 @@ iframe[id^='yomitan-popup'],
   padding: 2px 8px;
   border: 0;
   border-radius: 4px;
+  font-family: inherit; /* the overlay's Japanese-first fonts draw ○ □ △ at full size */
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;

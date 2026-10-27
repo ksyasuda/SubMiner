@@ -248,7 +248,7 @@ type FacePosition = 'south' | 'east' | 'west' | 'north';
 
 /**
  * Where each layout letter sits. Xbox pads put A at the bottom, Nintendo-style pads on the
- * right. PlayStation pads follow the Xbox layout, so A is ✕, B ○, X □ and Y △.
+ * right. PlayStation pads follow the Xbox layout, so A is ×, B ○, X □ and Y △.
  */
 const FACE_POSITIONS: Record<
   ControllerFaceButtonLabels,
@@ -268,7 +268,7 @@ export const CONTROLLER_FACE_BUTTON_STYLES: readonly {
 }[] = [
   { id: 'xbox', name: 'Xbox', hint: 'A at the bottom, B on the right' },
   { id: 'nintendo', name: 'Nintendo', hint: 'B at the bottom, A on the right' },
-  { id: 'playstation', name: 'PlayStation', hint: '\u2715 at the bottom, \u25cb on the right' },
+  { id: 'playstation', name: 'PlayStation', hint: '\u00d7 at the bottom, \u25cb on the right' },
 ];
 
 export function isControllerFaceButtonLabels(value: unknown): value is ControllerFaceButtonLabels {
@@ -390,7 +390,7 @@ const FACE_POSITION_BY_INDEX: Record<number, FacePosition> = {
 const LETTER_AT_POSITION: Record<ControllerFaceButtonLabels, Record<FacePosition, string>> = {
   xbox: { south: 'A', east: 'B', west: 'X', north: 'Y' },
   nintendo: { south: 'B', east: 'A', west: 'Y', north: 'X' },
-  playstation: { south: '\u2715', east: '\u25cb', west: '\u25a1', north: '\u25b3' },
+  playstation: { south: '\u00d7', east: '\u25cb', west: '\u25a1', north: '\u25b3' },
 };
 
 /** The printed name of the face button at index 0-3 (south, east, west, north), if any. */
@@ -403,7 +403,7 @@ export function getControllerFaceButtonName(
   return (LETTER_AT_POSITION[faceButtonLabels] ?? LETTER_AT_POSITION.xbox)[position];
 }
 
-/** How a layout letter is printed on this style, e.g. `a` is `A` on Xbox and `✕` on PlayStation. */
+/** How a layout letter is printed on this style, e.g. `a` is `A` on Xbox and `×` on PlayStation. */
 function formatFaceLetter(
   letter: ControllerFaceLetter,
   faceButtonLabels: ControllerFaceButtonLabels,
