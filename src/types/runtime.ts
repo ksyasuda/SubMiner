@@ -176,8 +176,11 @@ export type ControllerButtonBinding =
 
 export type ControllerAxisBinding = 'leftStickX' | 'leftStickY' | 'rightStickX' | 'rightStickY';
 export type ControllerTriggerInputMode = 'auto' | 'digital' | 'analog';
-/** Letters printed on the face buttons: Xbox-style (A at the bottom) or Nintendo-style (A on the right). */
-export type ControllerFaceButtonLabels = 'xbox' | 'nintendo';
+/**
+ * Face button style: Xbox (A at the bottom), Nintendo (A on the right) or PlayStation
+ * (✕ at the bottom, laid out like Xbox). Decides button names and where letters land.
+ */
+export type ControllerFaceButtonLabels = 'xbox' | 'nintendo' | 'playstation';
 export type ControllerAxisDirection = 'negative' | 'positive';
 export type ControllerDpadFallback = 'none' | 'horizontal' | 'vertical';
 
@@ -365,6 +368,8 @@ export type ResolvedControllerFieldGroupingBindings = Record<
 
 export interface ControllerProfileConfig {
   label?: string;
+  /** Overrides `controller.faceButtonLabels` for this controller; set from Alt+C. */
+  faceButtonLabels?: ControllerFaceButtonLabels;
   buttonIndices?: ControllerButtonIndicesConfig;
   bindings?: ControllerBindingsConfig;
   reviewBindings?: ControllerReviewBindingsConfig;
@@ -373,6 +378,7 @@ export interface ControllerProfileConfig {
 
 export interface ResolvedControllerProfileConfig {
   label: string;
+  faceButtonLabels: ControllerFaceButtonLabels;
   buttonIndices: Required<ControllerButtonIndicesConfig>;
   bindings: Required<ResolvedControllerBindingsConfig>;
   reviewBindings: ResolvedControllerReviewBindings;

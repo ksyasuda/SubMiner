@@ -246,14 +246,34 @@ export type ControllerReviewInputSource =
 
 type FacePosition = 'south' | 'east' | 'west' | 'north';
 
-/** Xbox (and PlayStation) pads put A at the bottom; Nintendo-style pads put it on the right. */
+/**
+ * Where each layout letter sits. Xbox pads put A at the bottom, Nintendo-style pads on the
+ * right. PlayStation pads follow the Xbox layout, so A is ✕, B ○, X □ and Y △.
+ */
 const FACE_POSITIONS: Record<
   ControllerFaceButtonLabels,
   Record<ControllerFaceLetter, FacePosition>
 > = {
   xbox: { a: 'south', b: 'east', x: 'west', y: 'north' },
   nintendo: { a: 'east', b: 'south', x: 'north', y: 'west' },
+  playstation: { a: 'south', b: 'east', x: 'west', y: 'north' },
 };
+
+/** Every face button style, in the order Alt+C offers them. */
+export const CONTROLLER_FACE_BUTTON_STYLES: readonly {
+  id: ControllerFaceButtonLabels;
+  name: string;
+  /** Tells the layouts apart, since 8BitDo and other pads come in more than one. */
+  hint: string;
+}[] = [
+  { id: 'xbox', name: 'Xbox', hint: 'A at the bottom, B on the right' },
+  { id: 'nintendo', name: 'Nintendo', hint: 'B at the bottom, A on the right' },
+  { id: 'playstation', name: 'PlayStation', hint: '\u2715 at the bottom, \u25cb on the right' },
+];
+
+export function isControllerFaceButtonLabels(value: unknown): value is ControllerFaceButtonLabels {
+  return CONTROLLER_FACE_BUTTON_STYLES.some((style) => style.id === value);
+}
 
 const POSITION_INDEX_KEYS = {
   south: 'buttonSouth',
@@ -359,17 +379,38 @@ const DPAD_GLYPHS: Record<ControllerDpadDirection, string> = {
   down: '▼',
 };
 
-const LETTER_AT_POSITION: Record<ControllerFaceButtonLabels, Record<FacePosition, string>> = {
-  xbox: { south: 'A', east: 'B', west: 'X', north: 'Y' },
-  nintendo: { south: 'B', east: 'A', west: 'Y', north: 'X' },
-};
-
 const FACE_POSITION_BY_INDEX: Record<number, FacePosition> = {
   0: 'south',
   1: 'east',
   2: 'west',
   3: 'north',
 };
+
+/** What is printed at each position, per style. */
+const LETTER_AT_POSITION: Record<ControllerFaceButtonLabels, Record<FacePosition, string>> = {
+  xbox: { south: 'A', east: 'B', west: 'X', north: 'Y' },
+  nintendo: { south: 'B', east: 'A', west: 'Y', north: 'X' },
+  playstation: { south: '\u2715', east: '\u25cb', west: '\u25a1', north: '\u25b3' },
+};
+
+/** The printed name of the face button at index 0-3 (south, east, west, north), if any. */
+export function getControllerFaceButtonName(
+  buttonIndex: number,
+  faceButtonLabels: ControllerFaceButtonLabels,
+): string | null {
+  const position = FACE_POSITION_BY_INDEX[buttonIndex];
+  if (!position) return null;
+  return (LETTER_AT_POSITION[faceButtonLabels] ?? LETTER_AT_POSITION.xbox)[position];
+}
+
+/** How a layout letter is printed on this style, e.g. `a` is `A` on Xbox and `✕` on PlayStation. */
+function formatFaceLetter(
+  letter: ControllerFaceLetter,
+  faceButtonLabels: ControllerFaceButtonLabels,
+): string {
+  const positions = FACE_POSITIONS[faceButtonLabels] ?? FACE_POSITIONS.xbox;
+  return (LETTER_AT_POSITION[faceButtonLabels] ?? LETTER_AT_POSITION.xbox)[positions[letter]];
+}
 
 const STANDARD_BUTTON_NAMES: Record<number, string> = {
   4: 'L1',
@@ -420,10 +461,8 @@ function formatSource(
   }
   const standard = isStandardMapping(context.mapping);
   if (source.kind === 'button') {
-    const position = FACE_POSITION_BY_INDEX[source.buttonIndex];
-    if (position) {
-      return (LETTER_AT_POSITION[context.faceButtonLabels] ?? LETTER_AT_POSITION.xbox)[position];
-    }
+    const faceName = getControllerFaceButtonName(source.buttonIndex, context.faceButtonLabels);
+    if (faceName) return faceName;
     const names = standard ? STANDARD_BUTTON_NAMES : RAW_BUTTON_NAMES;
     return names[source.buttonIndex] ?? `Button ${source.buttonIndex}`;
   }
@@ -448,7 +487,7 @@ export function formatControllerReviewInput(
   options: { dpadPrefix?: boolean } = {},
 ): string {
   // Letters are shown as printed, whatever position they resolve to.
-  if (input.kind === 'face') return input.letter.toUpperCase();
+  if (input.kind === 'face') return formatFaceLetter(input.letter, context.faceButtonLabels);
   return formatSource(
     resolveControllerReviewInput(input, context),
     context,

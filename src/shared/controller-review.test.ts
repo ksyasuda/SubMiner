@@ -6,6 +6,8 @@ import {
   controllerReviewInputSourceKey,
   formatControllerReviewBinding,
   formatControllerReviewInput,
+  getControllerFaceButtonName,
+  isControllerFaceButtonLabels,
   parseControllerReviewBinding,
   resolveControllerReviewInput,
   type ControllerReviewInputContext,
@@ -147,4 +149,56 @@ test('Alt+C updates accept field grouping bindings, checked against that dialog'
     null,
   );
   assert.equal(parseControllerConfigUpdate({ reviewBindings: { back: { kind: 'none' } } }), null);
+});
+
+test('PlayStation pads print symbols at the Xbox positions', () => {
+  const playstation = { ...standardXbox, faceButtonLabels: 'playstation' as const };
+  const name = (input: Parameters<typeof formatControllerReviewInput>[0]) =>
+    formatControllerReviewInput(input, playstation);
+
+  // Same physical buttons as Xbox: A is the bottom button, shown as ✕.
+  assert.equal(
+    controllerReviewInputSourceKey(
+      resolveControllerReviewInput({ kind: 'face', letter: 'a' }, playstation),
+    ),
+    'button:0',
+  );
+  assert.deepEqual(
+    (['a', 'b', 'x', 'y'] as const).map((letter) => name({ kind: 'face', letter })),
+    ['✕', '○', '□', '△'],
+  );
+  assert.equal(name({ kind: 'button', buttonIndex: 3 }), '△');
+  assert.equal(
+    formatControllerReviewBinding(
+      {
+        kind: 'combo',
+        press: { kind: 'face', letter: 'a' },
+        hold: { kind: 'button', buttonIndex: 4 },
+      },
+      playstation,
+    ),
+    'L1 + ✕',
+  );
+  assert.equal(getControllerFaceButtonName(1, 'nintendo'), 'A');
+  assert.equal(getControllerFaceButtonName(4, 'playstation'), null);
+  assert.equal(isControllerFaceButtonLabels('playstation'), true);
+  assert.equal(isControllerFaceButtonLabels('sega'), false);
+});
+
+test('Alt+C updates accept a button style globally and per controller', () => {
+  const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(
+    plain(
+      parseControllerConfigUpdate({
+        faceButtonLabels: 'xbox',
+        profiles: { 'pad-1': { faceButtonLabels: 'playstation' } },
+      }),
+    ),
+    { faceButtonLabels: 'xbox', profiles: { 'pad-1': { faceButtonLabels: 'playstation' } } },
+  );
+  assert.equal(parseControllerConfigUpdate({ faceButtonLabels: 'sega' }), null);
+  assert.equal(
+    parseControllerConfigUpdate({ profiles: { 'pad-1': { faceButtonLabels: 1 } } }),
+    null,
+  );
 });

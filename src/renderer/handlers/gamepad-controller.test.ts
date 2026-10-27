@@ -296,6 +296,7 @@ test('gamepad controller uses active controller profile bindings before global b
       profiles: {
         'pad-profile': {
           label: 'Profile Pad',
+          faceButtonLabels: globalConfig.faceButtonLabels,
           buttonIndices: globalConfig.buttonIndices,
           bindings: { ...globalConfig.bindings, toggleLookup: { kind: 'button', buttonIndex: 11 } },
           reviewBindings: globalConfig.reviewBindings,

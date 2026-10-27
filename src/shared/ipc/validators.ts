@@ -17,6 +17,7 @@ import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-op
 import type { SessionActionId, SessionActionPayload } from '../../types/session-bindings';
 import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
+import { isControllerFaceButtonLabels } from '../controller-review';
 import { CONTROLLER_SCREENS, parseControllerScreenBindingsPatch } from '../controller-screens';
 
 const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -277,6 +278,10 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
     if (typeof value.preferredGamepadLabel !== 'string') return null;
     update.preferredGamepadLabel = value.preferredGamepadLabel;
   }
+  if (value.faceButtonLabels !== undefined) {
+    if (!isControllerFaceButtonLabels(value.faceButtonLabels)) return null;
+    update.faceButtonLabels = value.faceButtonLabels;
+  }
   if (value.buttonIndices !== undefined) {
     const parsed = parseControllerButtonIndices(value.buttonIndices);
     if (!parsed) return null;
@@ -300,6 +305,10 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
       if (rawProfile.label !== undefined) {
         if (typeof rawProfile.label !== 'string') return null;
         profile.label = rawProfile.label;
+      }
+      if (rawProfile.faceButtonLabels !== undefined) {
+        if (!isControllerFaceButtonLabels(rawProfile.faceButtonLabels)) return null;
+        profile.faceButtonLabels = rawProfile.faceButtonLabels;
       }
       if (rawProfile.buttonIndices !== undefined) {
         const parsed = parseControllerButtonIndices(rawProfile.buttonIndices);

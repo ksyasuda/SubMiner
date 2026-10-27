@@ -5,7 +5,7 @@ import { CORE_DEFAULT_CONFIG } from '../../config/definitions/defaults-core';
 import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
 import { CONTROLLER_SCREENS } from '../../shared/controller-screens';
-import type { ResolvedControllerConfig } from '../../types';
+import type { ControllerFaceButtonLabels, ResolvedControllerConfig } from '../../types';
 import type { ControllerScreenLearning } from './controller-config-form';
 import { createControllerConfigForm } from './controller-config-form.js';
 
@@ -103,7 +103,7 @@ function renderForm(
   options: {
     bindings?: typeof BINDINGS;
     mapping?: string;
-    faceButtonLabels?: 'xbox' | 'nintendo';
+    faceButtonLabels?: ControllerFaceButtonLabels;
   } = {},
 ) {
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
@@ -305,6 +305,7 @@ type ReviewFormOptions = {
   reviewBindings?: ResolvedControllerConfig['reviewBindings'];
   fieldGroupingBindings?: ResolvedControllerConfig['fieldGroupingBindings'];
   learning?: ControllerScreenLearning | null;
+  faceButtonLabels?: ControllerFaceButtonLabels;
 };
 
 /** Renders the form with the dialog groups; `act` runs while `document` is still stubbed. */
@@ -348,7 +349,7 @@ function withReviewForm(
       },
       getScreenInputContext: () => ({
         mapping: 'standard',
-        faceButtonLabels: 'xbox',
+        faceButtonLabels: options.faceButtonLabels ?? 'xbox',
         buttonIndices: CORE_DEFAULT_CONFIG.controller.buttonIndices,
       }),
       getScreenLearning: () => options.learning ?? null,
@@ -490,4 +491,31 @@ test('learning a duplicate card action opens only that group', () => {
       );
     },
   );
+});
+
+test('controller config form names face buttons with PlayStation symbols when configured', () => {
+  const badge = (row: FakeElement) => findOne(row, 'controller-config-badge').textContent;
+  const bindings: typeof BINDINGS = {
+    ...BINDINGS,
+    toggleLookup: { kind: 'button', buttonIndex: 0 },
+    closeLookup: { kind: 'button', buttonIndex: 1 },
+    mineCard: { kind: 'button', buttonIndex: 2 },
+    toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+  };
+
+  const form = renderForm(null, { bindings, mapping: 'standard', faceButtonLabels: 'playstation' });
+  assert.equal(badge(form.row('Toggle Lookup')), '✕');
+  assert.equal(badge(form.row('Close Lookup')), '○');
+  assert.equal(badge(form.row('Mine Card')), '□');
+  assert.equal(badge(form.row('Toggle Keyboard-Only Mode')), '△');
+  assert.equal(badge(form.row('Next Audio')), 'RB / R1');
+
+  // The dialog groups print the same symbols.
+  withReviewForm({ faceButtonLabels: 'playstation' }, ({ container, reviewRow }) => {
+    findOne(container, 'controller-config-group-toggle').click();
+    assert.equal(badgeOf(reviewRow('Use this timing')), '✕');
+    assert.equal(badgeOf(reviewRow('Keep editing')), '○');
+    assert.equal(badgeOf(reviewRow('Play selection')), '□');
+    assert.equal(badgeOf(reviewRow('Reset timing')), '△');
+  });
 });

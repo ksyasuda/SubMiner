@@ -2216,6 +2216,34 @@ test('parses controller face button labels and warns on unknown styles', () => {
   );
 });
 
+test('controller profiles inherit the button style unless they set their own', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    JSON.stringify({
+      controller: {
+        faceButtonLabels: 'nintendo',
+        profiles: {
+          'pad-ps': { faceButtonLabels: 'playstation' },
+          'pad-plain': { label: 'Plain' },
+          'pad-bad': { faceButtonLabels: 'sega' },
+        },
+      },
+    }),
+    'utf-8',
+  );
+  const service = new ConfigService(dir);
+  const { profiles } = service.getConfig().controller;
+
+  assert.equal(profiles['pad-ps']!.faceButtonLabels, 'playstation');
+  assert.equal(profiles['pad-plain']!.faceButtonLabels, 'nintendo');
+  assert.equal(profiles['pad-bad']!.faceButtonLabels, 'nintendo');
+  assert.deepEqual(
+    service.getWarnings().map((warning) => warning.path),
+    ['controller.profiles.pad-bad.faceButtonLabels'],
+  );
+});
+
 test('parses controller review bindings globally and per profile, and warns on bad entries', () => {
   const dir = makeTempDir();
   fs.writeFileSync(

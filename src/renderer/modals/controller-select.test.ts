@@ -183,6 +183,7 @@ function buildContext() {
     controllerSelectModal: { classList: createClassList(['hidden']), setAttribute: () => {} },
     controllerSelectClose: createFakeElement(),
     controllerSelectPicker: createFakeElement(),
+    controllerSelectFaceButtonStyle: createFakeElement(),
     controllerSelectSummary: createFakeElement(),
     controllerConfigList: createFakeElement(),
     controllerSelectStatus: { textContent: '', classList: createClassList() },
@@ -332,6 +333,7 @@ test('controller select modal reset control stores the default binding in the se
       state.controllerConfig.profiles = {
         'pad-1': {
           label: 'pad-1',
+          faceButtonLabels: state.controllerConfig.faceButtonLabels,
           buttonIndices: state.controllerConfig.buttonIndices,
           bindings: {
             ...state.controllerConfig.bindings,
@@ -829,6 +831,7 @@ test('controller select modal shows and edits the saved controller before this w
     config.profiles = {
       'pad-1': {
         label: 'pad-1',
+        faceButtonLabels: config.faceButtonLabels,
         buttonIndices: config.buttonIndices,
         bindings: config.bindings,
         fieldGroupingBindings: config.fieldGroupingBindings,
@@ -897,6 +900,65 @@ test('controller select modal shows and edits the saved controller before this w
       dom.controllerSelectStatus.textContent,
       'Choose a controller or click Learn to remap an action.',
     );
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal shows and saves the button style per controller', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const stylePicker = dom.controllerSelectFaceButtonStyle;
+    assert.deepEqual(
+      stylePicker.children.map((option: any) => option.value),
+      ['xbox', 'nintendo', 'playstation'],
+    );
+    assert.equal(stylePicker.value, 'xbox');
+
+    stylePicker.value = 'playstation';
+    stylePicker.dispatch('change');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(saved.at(-1), {
+      profiles: { 'pad-1': { faceButtonLabels: 'playstation' } },
+    });
+    assert.equal(state.controllerConfig?.profiles['pad-1']?.faceButtonLabels, 'playstation');
+    assert.equal(state.controllerConfig?.faceButtonLabels, 'xbox', 'other controllers keep theirs');
+    assert.equal(dom.controllerSelectStatus.textContent, 'Button style: PlayStation.');
+    // Toggle Lookup is on the bottom face button.
+    assert.equal(
+      findReviewRow(dom.controllerConfigList, 'Toggle Lookup').children[1].children[0].textContent,
+      '✕',
+    );
+
+    // The other controller still uses the default style.
+    dom.controllerSelectPicker.value = 'pad-2:1';
+    dom.controllerSelectPicker.dispatch('change');
+    assert.equal(stylePicker.value, 'xbox');
   } finally {
     domHandle.restore();
   }
