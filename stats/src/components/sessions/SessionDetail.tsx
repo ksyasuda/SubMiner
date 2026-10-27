@@ -1,35 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AreaChart,
-  Area,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceArea,
-  ReferenceLine,
+  Bar,
+  BarChart,
   CartesianGrid,
   Customized,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 import { useSessionDetail } from '../../hooks/useSessions';
 import { getStatsClient } from '../../hooks/useStatsApi';
-import type { KnownWordsTimelinePoint } from '../../hooks/useSessions';
 import { CHART_THEME } from '../../lib/chart-theme';
+import { formatClockDuration, formatDuration, formatNumber } from '../../lib/formatters';
+import {
+  buildSessionDensity,
+  formatBucketSize,
+  type SessionDensity,
+  type SessionDensityBucket,
+} from '../../lib/session-density';
 import {
   buildSessionChartEvents,
   collectPendingSessionEventNoteIds,
   getSessionEventCardRequest,
   mergeSessionEventNoteInfos,
+  projectSessionMarkerLeftPx,
   resolveActiveSessionMarkerKey,
   type SessionChartMarker,
   type SessionEventNoteInfo,
   type SessionChartPlotArea,
 } from '../../lib/session-events';
-import { buildLookupRateDisplay } from '../../lib/yomitan-lookup';
 import { getSessionDisplayWordCount } from '../../lib/session-word-count';
-import { EventType } from '../../types/stats';
+import { buildLookupRateDisplay } from '../../lib/yomitan-lookup';
 import type { SessionEvent, SessionSummary } from '../../types/stats';
 import { SessionEventOverlay } from './SessionEventOverlay';
 
@@ -37,15 +39,21 @@ interface SessionDetailProps {
   session: SessionSummary;
 }
 
-const tooltipStyle = {
-  background: CHART_THEME.tooltipBg,
-  border: `1px solid ${CHART_THEME.tooltipBorder}`,
-  borderRadius: 6,
-  color: CHART_THEME.tooltipText,
-  fontSize: 11,
-};
+const SERIES_COLORS = {
+  known: '#a6da95',
+  unknown: '#c6a0f6',
+  words: '#8aadf4',
+  lookup: '#b7bdf8',
+  card: '#f5bde6',
+} as const;
+
+const CHART_HEIGHT = 150;
 
 function formatTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatTimeWithSeconds(ms: number): string {
   return new Date(ms).toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
@@ -53,85 +61,7 @@ function formatTime(ms: number): string {
   });
 }
 
-type KnownWordsLineCounts = {
-  knownWordsSeen: number;
-  totalWordsSeen: number;
-};
-
-/** Build a lookup: linesSeen -> filtered known/total word counts */
-function buildKnownWordsLookup(
-  knownWordsTimeline: KnownWordsTimelinePoint[],
-): Map<number, KnownWordsLineCounts> {
-  const map = new Map<number, KnownWordsLineCounts>();
-  for (const pt of knownWordsTimeline) {
-    map.set(pt.linesSeen, {
-      knownWordsSeen: pt.knownWordsSeen,
-      totalWordsSeen: pt.totalWordsSeen,
-    });
-  }
-  return map;
-}
-
-/** For a given linesSeen value, find the closest filtered word counts (floor lookup). */
-function lookupKnownWordCounts(
-  map: Map<number, KnownWordsLineCounts>,
-  linesSeen: number,
-): KnownWordsLineCounts {
-  if (map.size === 0) return { knownWordsSeen: 0, totalWordsSeen: 0 };
-  if (map.has(linesSeen)) return map.get(linesSeen)!;
-  let best = 0;
-  for (const k of map.keys()) {
-    if (k <= linesSeen && k > best) {
-      best = k;
-    }
-  }
-  return best > 0 ? map.get(best)! : { knownWordsSeen: 0, totalWordsSeen: 0 };
-}
-
-interface RatioChartPoint {
-  tsMs: number;
-  knownWords: number;
-  unknownWords: number;
-  totalWords: number;
-}
-
-interface FallbackChartPoint {
-  tsMs: number;
-  totalWords: number;
-}
-
-type TimelineEntry = {
-  sampleMs: number;
-  linesSeen: number;
-  tokensSeen: number;
-};
-
-export function buildKnownWordsRatioChartData(
-  sorted: TimelineEntry[],
-  knownWordsMap: Map<number, KnownWordsLineCounts>,
-): RatioChartPoint[] {
-  const chartData: RatioChartPoint[] = [];
-  for (const t of sorted) {
-    const counts = lookupKnownWordCounts(knownWordsMap, t.linesSeen);
-    const totalWords = counts.totalWordsSeen;
-    if (totalWords === 0) continue;
-    const knownWords = Math.min(counts.knownWordsSeen, totalWords);
-    const unknownWords = totalWords - knownWords;
-    chartData.push({
-      tsMs: t.sampleMs,
-      knownWords,
-      unknownWords,
-      totalWords,
-    });
-  }
-  return chartData;
-}
-
-export function getKnownPctAxisMax(values: number[]): number {
-  const max = Math.max(0, ...values.filter((value) => Number.isFinite(value)));
-  return Math.min(100, Math.ceil((max + 5) / 10) * 10);
-}
-
+/** Reads the plot offset recharts computed so the event lane can line up with the bars. */
 function SessionChartOffsetProbe({
   offset,
   onPlotAreaChange,
@@ -160,18 +90,11 @@ export function SessionDetail({ session }: SessionDetailProps) {
   const [loadingNoteIds, setLoadingNoteIds] = useState<Set<number>>(new Set());
   const pendingNoteIdsRef = useRef<Set<number>>(new Set());
 
-  const sorted = [...timeline].reverse();
-  const knownWordsMap = buildKnownWordsLookup(knownWordsTimeline);
-  const hasKnownWords = knownWordsMap.size > 0;
-
-  const { cardEvents, yomitanLookupEvents, pauseRegions, markers } =
-    buildSessionChartEvents(events);
-  const lookupRate = buildLookupRateDisplay(
-    session.yomitanLookupCount,
-    getSessionDisplayWordCount(session),
+  const density = useMemo(
+    () => buildSessionDensity(timeline, knownWordsTimeline, events),
+    [timeline, knownWordsTimeline, events],
   );
-  const pauseCount = events.filter((e) => e.eventType === EventType.PAUSE_START).length;
-  const cardEventCount = cardEvents.length;
+  const { yomitanLookupEvents, markers } = useMemo(() => buildSessionChartEvents(events), [events]);
   const activeMarkerKey = resolveActiveSessionMarkerKey(hoveredMarkerKey, pinnedMarkerKey);
   const activeMarker = useMemo<SessionChartMarker | null>(
     () => markers.find((marker) => marker.key === activeMarkerKey) ?? null,
@@ -259,544 +182,378 @@ export function SessionDetail({ session }: SessionDetailProps) {
     void getStatsClient().ankiBrowse(noteId);
   };
 
-  if (loading) return <div className="text-ctp-overlay2 text-xs p-2">Loading timeline...</div>;
+  if (loading) return <div className="text-ctp-overlay2 text-xs p-2">Loading session...</div>;
   if (error) return <div className="text-ctp-red text-xs p-2">Error: {error}</div>;
-
-  if (hasKnownWords) {
-    return (
-      <RatioView
-        sorted={sorted}
-        knownWordsMap={knownWordsMap}
-        cardEvents={cardEvents}
-        yomitanLookupEvents={yomitanLookupEvents}
-        pauseRegions={pauseRegions}
-        markers={markers}
-        hoveredMarkerKey={hoveredMarkerKey}
-        onHoveredMarkerChange={setHoveredMarkerKey}
-        pinnedMarkerKey={pinnedMarkerKey}
-        onPinnedMarkerChange={setPinnedMarkerKey}
-        noteInfos={noteInfos}
-        loadingNoteIds={loadingNoteIds}
-        onOpenNote={handleOpenNote}
-        pauseCount={pauseCount}
-        cardEventCount={cardEventCount}
-        lookupRate={lookupRate}
-        session={session}
-      />
-    );
-  }
-
-  return (
-    <FallbackView
-      sorted={sorted}
-      cardEvents={cardEvents}
-      yomitanLookupEvents={yomitanLookupEvents}
-      pauseRegions={pauseRegions}
-      markers={markers}
-      hoveredMarkerKey={hoveredMarkerKey}
-      onHoveredMarkerChange={setHoveredMarkerKey}
-      pinnedMarkerKey={pinnedMarkerKey}
-      onPinnedMarkerChange={setPinnedMarkerKey}
-      noteInfos={noteInfos}
-      loadingNoteIds={loadingNoteIds}
-      onOpenNote={handleOpenNote}
-      pauseCount={pauseCount}
-      cardEventCount={cardEventCount}
-      lookupRate={lookupRate}
-      session={session}
-    />
-  );
-}
-
-/* ── Ratio View (primary design) ────────────────────────────────── */
-
-function RatioView({
-  sorted,
-  knownWordsMap,
-  cardEvents,
-  yomitanLookupEvents,
-  pauseRegions,
-  markers,
-  hoveredMarkerKey,
-  onHoveredMarkerChange,
-  pinnedMarkerKey,
-  onPinnedMarkerChange,
-  noteInfos,
-  loadingNoteIds,
-  onOpenNote,
-  pauseCount,
-  cardEventCount,
-  lookupRate,
-  session,
-}: {
-  sorted: TimelineEntry[];
-  knownWordsMap: Map<number, KnownWordsLineCounts>;
-  cardEvents: SessionEvent[];
-  yomitanLookupEvents: SessionEvent[];
-  pauseRegions: Array<{ startMs: number; endMs: number }>;
-  markers: SessionChartMarker[];
-  hoveredMarkerKey: string | null;
-  onHoveredMarkerChange: (markerKey: string | null) => void;
-  pinnedMarkerKey: string | null;
-  onPinnedMarkerChange: (markerKey: string | null) => void;
-  noteInfos: Map<number, SessionEventNoteInfo>;
-  loadingNoteIds: Set<number>;
-  onOpenNote: (noteId: number) => void;
-  pauseCount: number;
-  cardEventCount: number;
-  lookupRate: ReturnType<typeof buildLookupRateDisplay>;
-  session: SessionSummary;
-}) {
-  const [plotArea, setPlotArea] = useState<SessionChartPlotArea | null>(null);
-  const chartData = buildKnownWordsRatioChartData(sorted, knownWordsMap);
-
-  if (chartData.length === 0) {
-    return <div className="text-ctp-overlay2 text-xs p-2">No word data for this session.</div>;
-  }
-
-  const tsMin = chartData[0]!.tsMs;
-  const tsMax = chartData[chartData.length - 1]!.tsMs;
-  const finalTotal = chartData[chartData.length - 1]!.totalWords;
-
-  const sparkData = chartData.map((d) => ({ tsMs: d.tsMs, totalWords: d.totalWords }));
-
-  return (
-    <div className="bg-ctp-mantle border border-ctp-surface1 rounded-lg p-3 mt-1 space-y-1">
-      {/* ── Top: Percentage area chart ── */}
-      <div className="relative">
-        <ResponsiveContainer width="100%" height={130}>
-          <AreaChart data={chartData}>
-            <Customized
-              component={
-                <SessionChartOffsetProbe
-                  onPlotAreaChange={(nextPlotArea) => {
-                    setPlotArea((prevPlotArea) =>
-                      prevPlotArea &&
-                      prevPlotArea.left === nextPlotArea.left &&
-                      prevPlotArea.width === nextPlotArea.width
-                        ? prevPlotArea
-                        : nextPlotArea,
-                    );
-                  }}
-                />
-              }
-            />
-            <defs>
-              <linearGradient id={`knownGrad-${session.sessionId}`} x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0%" stopColor="#a6da95" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="#a6da95" stopOpacity={0.15} />
-              </linearGradient>
-              <linearGradient id={`unknownGrad-${session.sessionId}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#c6a0f6" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="#c6a0f6" stopOpacity={0.08} />
-              </linearGradient>
-            </defs>
-
-            <CartesianGrid
-              horizontal
-              vertical={false}
-              stroke="#494d64"
-              strokeDasharray="4 4"
-              strokeOpacity={0.4}
-            />
-
-            <XAxis
-              dataKey="tsMs"
-              type="number"
-              domain={[tsMin, tsMax]}
-              tick={{ fontSize: 9, fill: CHART_THEME.tick }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={formatTime}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              yAxisId="pct"
-              orientation="right"
-              domain={[0, finalTotal]}
-              allowDataOverflow
-              tick={{ fontSize: 9, fill: CHART_THEME.tick }}
-              tickFormatter={(v: number) => `${v.toLocaleString()}`}
-              axisLine={false}
-              tickLine={false}
-              width={32}
-            />
-
-            <Tooltip
-              contentStyle={tooltipStyle}
-              labelFormatter={formatTime}
-              formatter={(_value: number, name: string, props: { payload?: RatioChartPoint }) => {
-                const d = props.payload;
-                if (!d) return [_value, name];
-                if (name === 'Known words') {
-                  const knownPct = d.totalWords === 0 ? 0 : (d.knownWords / d.totalWords) * 100;
-                  return [`${d.knownWords.toLocaleString()} (${knownPct.toFixed(1)}%)`, name];
-                }
-                if (name === 'Unknown words') return [d.unknownWords.toLocaleString(), name];
-                return [_value, name];
-              }}
-              itemSorter={() => -1}
-            />
-
-            {/* Pause shaded regions */}
-            {pauseRegions.map((r, i) => (
-              <ReferenceArea
-                key={`pause-${i}`}
-                yAxisId="pct"
-                x1={r.startMs}
-                x2={r.endMs}
-                y1={0}
-                y2={finalTotal}
-                fill="#f5a97f"
-                fillOpacity={0.15}
-                stroke="#f5a97f"
-                strokeOpacity={0.4}
-                strokeDasharray="3 3"
-                strokeWidth={1}
-              />
-            ))}
-
-            {/* Card mine markers */}
-            {cardEvents.map((e, i) => (
-              <ReferenceLine
-                key={`card-${i}`}
-                yAxisId="pct"
-                x={e.tsMs}
-                stroke="#a6da95"
-                strokeWidth={2}
-                strokeOpacity={0.8}
-              />
-            ))}
-
-            {/* Yomitan lookup markers */}
-            {yomitanLookupEvents.map((e, i) => (
-              <ReferenceLine
-                key={`yomitan-${i}`}
-                yAxisId="pct"
-                x={e.tsMs}
-                stroke="#b7bdf8"
-                strokeWidth={1.5}
-                strokeDasharray="2 3"
-                strokeOpacity={0.7}
-              />
-            ))}
-
-            <Area
-              yAxisId="pct"
-              dataKey="knownWords"
-              stackId="ratio"
-              stroke="#a6da95"
-              strokeWidth={1.5}
-              fill={`url(#knownGrad-${session.sessionId})`}
-              name="Known words"
-              type="monotone"
-              dot={false}
-              activeDot={{ r: 3, fill: '#a6da95', stroke: '#1e2030', strokeWidth: 1 }}
-              isAnimationActive={false}
-            />
-            <Area
-              yAxisId="pct"
-              dataKey="unknownWords"
-              stackId="ratio"
-              stroke="#c6a0f6"
-              strokeWidth={0}
-              fill={`url(#unknownGrad-${session.sessionId})`}
-              name="Unknown words"
-              type="monotone"
-              isAnimationActive={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-        <SessionEventOverlay
-          markers={markers}
-          tsMin={tsMin}
-          tsMax={tsMax}
-          plotArea={plotArea}
-          hoveredMarkerKey={hoveredMarkerKey}
-          onHoveredMarkerChange={onHoveredMarkerChange}
-          pinnedMarkerKey={pinnedMarkerKey}
-          onPinnedMarkerChange={onPinnedMarkerChange}
-          noteInfos={noteInfos}
-          loadingNoteIds={loadingNoteIds}
-          onOpenNote={onOpenNote}
-        />
-      </div>
-
-      {/* ── Bottom: Token accumulation sparkline ── */}
-      <div className="flex items-center gap-2 border-t border-ctp-surface1 pt-1">
-        <span className="text-[9px] text-ctp-overlay0 whitespace-nowrap">total words</span>
-        <div className="flex-1 h-[28px]">
-          <ResponsiveContainer width="100%" height={28}>
-            <LineChart data={sparkData}>
-              <XAxis dataKey="tsMs" type="number" domain={[tsMin, tsMax]} hide />
-              <YAxis hide />
-              <Line
-                dataKey="totalWords"
-                stroke="#8aadf4"
-                strokeWidth={1.5}
-                strokeOpacity={0.8}
-                dot={false}
-                type="monotone"
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <span className="text-[10px] text-ctp-blue font-semibold whitespace-nowrap tabular-nums">
-          {finalTotal.toLocaleString()}
-        </span>
-      </div>
-
-      {/* ── Stats bar ── */}
-      <StatsBar
-        hasKnownWords
-        pauseCount={pauseCount}
-        cardEventCount={cardEventCount}
-        session={session}
-        lookupRate={lookupRate}
-      />
-    </div>
-  );
-}
-
-/* ── Fallback View (no known words data) ────────────────────────── */
-
-function FallbackView({
-  sorted,
-  cardEvents,
-  yomitanLookupEvents,
-  pauseRegions,
-  markers,
-  hoveredMarkerKey,
-  onHoveredMarkerChange,
-  pinnedMarkerKey,
-  onPinnedMarkerChange,
-  noteInfos,
-  loadingNoteIds,
-  onOpenNote,
-  pauseCount,
-  cardEventCount,
-  lookupRate,
-  session,
-}: {
-  sorted: TimelineEntry[];
-  cardEvents: SessionEvent[];
-  yomitanLookupEvents: SessionEvent[];
-  pauseRegions: Array<{ startMs: number; endMs: number }>;
-  markers: SessionChartMarker[];
-  hoveredMarkerKey: string | null;
-  onHoveredMarkerChange: (markerKey: string | null) => void;
-  pinnedMarkerKey: string | null;
-  onPinnedMarkerChange: (markerKey: string | null) => void;
-  noteInfos: Map<number, SessionEventNoteInfo>;
-  loadingNoteIds: Set<number>;
-  onOpenNote: (noteId: number) => void;
-  pauseCount: number;
-  cardEventCount: number;
-  lookupRate: ReturnType<typeof buildLookupRateDisplay>;
-  session: SessionSummary;
-}) {
-  const [plotArea, setPlotArea] = useState<SessionChartPlotArea | null>(null);
-  const chartData: FallbackChartPoint[] = [];
-  for (const t of sorted) {
-    const totalWords = getSessionDisplayWordCount(t);
-    if (totalWords === 0) continue;
-    chartData.push({ tsMs: t.sampleMs, totalWords });
-  }
-
-  if (chartData.length === 0) {
-    return <div className="text-ctp-overlay2 text-xs p-2">No word data for this session.</div>;
-  }
-
-  const tsMin = chartData[0]!.tsMs;
-  const tsMax = chartData[chartData.length - 1]!.tsMs;
 
   return (
     <div className="bg-ctp-mantle border border-ctp-surface1 rounded-lg p-3 mt-1 space-y-3">
-      <div className="relative">
-        <ResponsiveContainer width="100%" height={130}>
-          <LineChart data={chartData}>
-            <Customized
-              component={
-                <SessionChartOffsetProbe
-                  onPlotAreaChange={(nextPlotArea) => {
-                    setPlotArea((prevPlotArea) =>
-                      prevPlotArea &&
-                      prevPlotArea.left === nextPlotArea.left &&
-                      prevPlotArea.width === nextPlotArea.width
-                        ? prevPlotArea
-                        : nextPlotArea,
-                    );
-                  }}
-                />
-              }
-            />
-            <XAxis
-              dataKey="tsMs"
-              type="number"
-              domain={[tsMin, tsMax]}
-              tick={{ fontSize: 9, fill: CHART_THEME.tick }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={formatTime}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              tick={{ fontSize: 9, fill: CHART_THEME.tick }}
-              axisLine={false}
-              tickLine={false}
-              width={30}
-              allowDecimals={false}
-            />
-            <Tooltip
-              contentStyle={tooltipStyle}
-              labelFormatter={formatTime}
-              formatter={(value: number) => [`${value.toLocaleString()}`, 'Total words']}
-            />
-
-            {pauseRegions.map((r, i) => (
-              <ReferenceArea
-                key={`pause-${i}`}
-                x1={r.startMs}
-                x2={r.endMs}
-                fill="#f5a97f"
-                fillOpacity={0.15}
-                stroke="#f5a97f"
-                strokeOpacity={0.4}
-                strokeDasharray="3 3"
-                strokeWidth={1}
-              />
-            ))}
-
-            {cardEvents.map((e, i) => (
-              <ReferenceLine
-                key={`card-${i}`}
-                x={e.tsMs}
-                stroke="#a6da95"
-                strokeWidth={2}
-                strokeOpacity={0.8}
-              />
-            ))}
-            {yomitanLookupEvents.map((e, i) => (
-              <ReferenceLine
-                key={`yomitan-${i}`}
-                x={e.tsMs}
-                stroke="#b7bdf8"
-                strokeWidth={1.5}
-                strokeDasharray="2 3"
-                strokeOpacity={0.7}
-              />
-            ))}
-
-            <Line
-              dataKey="totalWords"
-              stroke="#8aadf4"
-              strokeWidth={1.5}
-              dot={false}
-              activeDot={{ r: 3, fill: '#8aadf4', stroke: '#1e2030', strokeWidth: 1 }}
-              name="Total words"
-              type="monotone"
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-        <SessionEventOverlay
+      <SessionStatTiles session={session} />
+      {density.buckets.length === 0 ? (
+        <div className="text-ctp-overlay2 text-xs">No activity samples for this session.</div>
+      ) : (
+        <SessionDensityChart
+          density={density}
+          lookupEvents={yomitanLookupEvents}
           markers={markers}
-          tsMin={tsMin}
-          tsMax={tsMax}
-          plotArea={plotArea}
           hoveredMarkerKey={hoveredMarkerKey}
-          onHoveredMarkerChange={onHoveredMarkerChange}
+          onHoveredMarkerChange={setHoveredMarkerKey}
           pinnedMarkerKey={pinnedMarkerKey}
-          onPinnedMarkerChange={onPinnedMarkerChange}
+          onPinnedMarkerChange={setPinnedMarkerKey}
           noteInfos={noteInfos}
           loadingNoteIds={loadingNoteIds}
-          onOpenNote={onOpenNote}
+          onOpenNote={handleOpenNote}
         />
-      </div>
-
-      <StatsBar
-        hasKnownWords={false}
-        pauseCount={pauseCount}
-        cardEventCount={cardEventCount}
-        session={session}
-        lookupRate={lookupRate}
-      />
+      )}
     </div>
   );
 }
 
-/* ── Stats Bar ──────────────────────────────────────────────────── */
+/* ── Stat tiles ─────────────────────────────────────────────────── */
 
-function StatsBar({
-  hasKnownWords,
-  pauseCount,
-  cardEventCount,
-  session,
-  lookupRate,
-}: {
-  hasKnownWords: boolean;
-  pauseCount: number;
-  cardEventCount: number;
-  session: SessionSummary;
-  lookupRate: ReturnType<typeof buildLookupRateDisplay>;
-}) {
+export function buildSessionStatTiles(session: SessionSummary): Array<{
+  key: string;
+  label: string;
+  value: string;
+  detail: string;
+  colorClass: string;
+}> {
+  const words = getSessionDisplayWordCount(session);
+  const activeMin = session.activeWatchedMs / 60_000;
+  const wordsPerMin = activeMin > 0 ? words / activeMin : 0;
+  const linesPerMin = activeMin > 0 ? session.linesSeen / activeMin : 0;
+  const pausedMs = Math.max(0, session.totalWatchedMs - session.activeWatchedMs);
+  const pausedPct =
+    session.totalWatchedMs > 0 ? Math.round((pausedMs / session.totalWatchedMs) * 100) : 0;
+  const lookupRate = buildLookupRateDisplay(session.yomitanLookupCount, words);
+  const hasKnownRate = session.knownWordsSeen > 0 && words > 0;
+
+  return [
+    {
+      key: 'pace',
+      label: 'Pace',
+      value: activeMin > 0 ? `${wordsPerMin.toFixed(0)} words/min` : '—',
+      detail: activeMin > 0 ? `${linesPerMin.toFixed(1)} lines/min` : 'no active time',
+      colorClass: 'text-ctp-blue',
+    },
+    {
+      key: 'lines',
+      label: 'Lines',
+      value: formatNumber(session.linesSeen),
+      detail: `${formatNumber(words)} words`,
+      colorClass: 'text-ctp-mauve',
+    },
+    {
+      key: 'known',
+      label: 'Known',
+      value: hasKnownRate ? `${session.knownWordRate.toFixed(0)}%` : '—',
+      detail: hasKnownRate
+        ? `${formatNumber(session.knownWordsSeen)} known words`
+        : 'no known-word data',
+      colorClass: 'text-ctp-green',
+    },
+    {
+      key: 'lookups',
+      label: 'Lookups',
+      value: formatNumber(session.yomitanLookupCount),
+      detail: lookupRate ? lookupRate.longValue : 'Yomitan lookups',
+      colorClass: 'text-ctp-lavender',
+    },
+    {
+      key: 'paused',
+      label: 'Paused',
+      value: pausedMs > 0 ? formatClockDuration(pausedMs) : 'none',
+      detail: `${pausedPct}% of ${formatDuration(session.totalWatchedMs)} wall time`,
+      colorClass: 'text-ctp-peach',
+    },
+  ];
+}
+
+function SessionStatTiles({ session }: { session: SessionSummary }) {
+  const tiles = buildSessionStatTiles(session);
   return (
-    <div className="flex flex-wrap items-center gap-4 text-[11px] pt-1">
-      {/* Group 1: Legend */}
-      {hasKnownWords && (
-        <>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="inline-block w-2.5 h-2.5 rounded-sm"
-              style={{ background: 'rgba(166,218,149,0.4)', border: '1px solid #a6da95' }}
-            />
-            <span className="text-ctp-overlay2">Known</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="inline-block w-2.5 h-2.5 rounded-sm"
-              style={{ background: 'rgba(198,160,246,0.2)', border: '1px solid #c6a0f6' }}
-            />
-            <span className="text-ctp-overlay2">Unknown</span>
-          </span>
-          <span className="text-ctp-surface2">|</span>
-        </>
-      )}
-
-      {/* Group 2: Playback stats */}
-      {pauseCount > 0 && (
-        <span className="text-ctp-overlay2">
-          <span className="text-ctp-peach">{pauseCount}</span> pause
-          {pauseCount !== 1 ? 's' : ''}
-        </span>
-      )}
-      {pauseCount > 0 && <span className="text-ctp-surface2">|</span>}
-
-      {/* Group 3: Learning events */}
-      <span className="flex items-center gap-1.5">
-        <span
-          className="inline-block w-3 h-0.5 rounded"
-          style={{ background: '#b7bdf8', opacity: 0.8 }}
-        />
-        <span className="text-ctp-overlay2">
-          {session.yomitanLookupCount} Yomitan lookup
-          {session.yomitanLookupCount !== 1 ? 's' : ''}
-        </span>
-      </span>
-      {lookupRate && (
-        <span className="text-ctp-overlay2">
-          lookup rate: <span className="text-ctp-sapphire">{lookupRate.shortValue}</span>{' '}
-          <span className="text-ctp-subtext0">({lookupRate.longValue})</span>
-        </span>
-      )}
-      <span className="flex items-center gap-1.5">
-        <span className="text-[12px]">{'\u26CF'}</span>
-        <span className="text-ctp-cards-mined">
-          {Math.max(cardEventCount, session.cardsMined)} card
-          {Math.max(cardEventCount, session.cardsMined) !== 1 ? 's' : ''} mined
-        </span>
-      </span>
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      {tiles.map((tile) => (
+        <div
+          key={tile.key}
+          className="rounded-md border border-ctp-surface1 bg-ctp-base/60 px-2.5 py-2 min-w-0"
+        >
+          <div className="text-[10px] uppercase tracking-wide text-ctp-overlay1">{tile.label}</div>
+          <div className={`text-sm font-semibold tabular-nums truncate ${tile.colorClass}`}>
+            {tile.value}
+          </div>
+          <div className="text-[10px] text-ctp-overlay2 truncate">{tile.detail}</div>
+        </div>
+      ))}
     </div>
+  );
+}
+
+/* ── Density chart + event lane ─────────────────────────────────── */
+
+interface SessionDensityChartProps {
+  density: SessionDensity;
+  lookupEvents: SessionEvent[];
+  markers: SessionChartMarker[];
+  hoveredMarkerKey: string | null;
+  onHoveredMarkerChange: (markerKey: string | null) => void;
+  pinnedMarkerKey: string | null;
+  onPinnedMarkerChange: (markerKey: string | null) => void;
+  noteInfos: Map<number, SessionEventNoteInfo>;
+  loadingNoteIds: Set<number>;
+  onOpenNote: (noteId: number) => void;
+}
+
+/** Roughly five evenly spaced tick indexes, always including the first bucket. */
+export function pickDensityTickIndexes(bucketCount: number, maxTicks = 5): number[] {
+  if (bucketCount <= 0) return [];
+  const step = Math.max(1, Math.ceil(bucketCount / maxTicks));
+  const ticks: number[] = [];
+  for (let index = 0; index < bucketCount; index += step) {
+    ticks.push(index);
+  }
+  return ticks;
+}
+
+function DensityTooltip({
+  active,
+  payload,
+  hasKnownWords,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: SessionDensityBucket }>;
+  hasKnownWords: boolean;
+}) {
+  const bucket = payload?.[0]?.payload;
+  if (!active || !bucket) return null;
+  const knownPct = bucket.words > 0 ? Math.round((bucket.knownWords / bucket.words) * 100) : 0;
+
+  return (
+    <div className="rounded-md border border-ctp-surface1 bg-ctp-surface0 px-2.5 py-2 text-[11px] text-ctp-text shadow-lg">
+      <div className="text-ctp-subtext0 tabular-nums">
+        {formatTimeWithSeconds(bucket.startMs)} – {formatTimeWithSeconds(bucket.endMs)}
+      </div>
+      <div className="mt-1 font-semibold tabular-nums">
+        {formatNumber(bucket.words)} {bucket.words === 1 ? 'word' : 'words'}
+      </div>
+      {hasKnownWords && bucket.words > 0 ? (
+        <div className="tabular-nums">
+          <span style={{ color: SERIES_COLORS.known }}>
+            {formatNumber(bucket.knownWords)} known
+          </span>
+          <span className="text-ctp-overlay1"> ({knownPct}%)</span>
+          <span className="text-ctp-overlay1"> · </span>
+          <span style={{ color: SERIES_COLORS.unknown }}>
+            {formatNumber(bucket.unknownWords)} unknown
+          </span>
+        </div>
+      ) : null}
+      {bucket.lookups > 0 ? (
+        <div className="tabular-nums" style={{ color: SERIES_COLORS.lookup }}>
+          {bucket.lookups} {bucket.lookups === 1 ? 'lookup' : 'lookups'}
+        </div>
+      ) : null}
+      {bucket.cards > 0 ? (
+        <div className="tabular-nums" style={{ color: SERIES_COLORS.card }}>
+          {bucket.cards} {bucket.cards === 1 ? 'card' : 'cards'} mined
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SessionDensityChart({
+  density,
+  lookupEvents,
+  markers,
+  hoveredMarkerKey,
+  onHoveredMarkerChange,
+  pinnedMarkerKey,
+  onPinnedMarkerChange,
+  noteInfos,
+  loadingNoteIds,
+  onOpenNote,
+}: SessionDensityChartProps) {
+  const [plotArea, setPlotArea] = useState<SessionChartPlotArea | null>(null);
+  const { buckets, startMs, endMs, hasKnownWords } = density;
+  const tickIndexes = pickDensityTickIndexes(buckets.length);
+  const hasLane = lookupEvents.length > 0 || markers.length > 0;
+
+  const laneLeft = (tsMs: number): string => {
+    if (plotArea) {
+      return `${projectSessionMarkerLeftPx({
+        anchorTsMs: tsMs,
+        tsMin: startMs,
+        tsMax: endMs,
+        plotLeftPx: plotArea.left,
+        plotWidthPx: plotArea.width,
+      })}px`;
+    }
+    const ratio = endMs > startMs ? (tsMs - startMs) / (endMs - startMs) : 0.5;
+    return `${Math.max(0, Math.min(100, ratio * 100))}%`;
+  };
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1">
+        <div className="text-xs font-semibold text-ctp-text">Reading density</div>
+        <div className="text-[10px] text-ctp-overlay1">
+          words per {formatBucketSize(density.bucketMs)}
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+        <BarChart
+          data={buckets}
+          margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+          barCategoryGap="22%"
+        >
+          <Customized
+            component={
+              <SessionChartOffsetProbe
+                onPlotAreaChange={(nextPlotArea) => {
+                  setPlotArea((prevPlotArea) =>
+                    prevPlotArea &&
+                    prevPlotArea.left === nextPlotArea.left &&
+                    prevPlotArea.width === nextPlotArea.width
+                      ? prevPlotArea
+                      : nextPlotArea,
+                  );
+                }}
+              />
+            }
+          />
+          <CartesianGrid
+            horizontal
+            vertical={false}
+            stroke={CHART_THEME.grid}
+            strokeDasharray="3 3"
+            strokeOpacity={0.35}
+          />
+          <XAxis
+            dataKey="index"
+            type="category"
+            ticks={tickIndexes}
+            interval={0}
+            tickFormatter={(index: number) => formatTime(buckets[index]?.startMs ?? startMs)}
+            tick={{ fontSize: 9, fill: CHART_THEME.tick }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 9, fill: CHART_THEME.tick }}
+            axisLine={false}
+            tickLine={false}
+            width={30}
+            allowDecimals={false}
+          />
+          <Tooltip
+            cursor={{ fill: 'rgba(202,211,245,0.08)' }}
+            content={<DensityTooltip hasKnownWords={hasKnownWords} />}
+            isAnimationActive={false}
+          />
+          {/* recharts only registers direct Bar children, so no fragment wrapper here */}
+          {hasKnownWords ? (
+            <Bar
+              key="known"
+              dataKey="knownWords"
+              stackId="words"
+              name="Known"
+              fill={SERIES_COLORS.known}
+              fillOpacity={0.85}
+              isAnimationActive={false}
+            />
+          ) : null}
+          {hasKnownWords ? (
+            <Bar
+              key="unknown"
+              dataKey="unknownWords"
+              stackId="words"
+              name="Unknown"
+              fill={SERIES_COLORS.unknown}
+              fillOpacity={0.85}
+              radius={[3, 3, 0, 0]}
+              isAnimationActive={false}
+            />
+          ) : (
+            <Bar
+              key="words"
+              dataKey="words"
+              name="Words"
+              fill={SERIES_COLORS.words}
+              fillOpacity={0.85}
+              radius={[3, 3, 0, 0]}
+              isAnimationActive={false}
+            />
+          )}
+        </BarChart>
+      </ResponsiveContainer>
+
+      {hasLane ? (
+        <div className="relative h-7" aria-label="Lookup and card events">
+          <div
+            className="absolute top-1/2 h-px bg-ctp-surface1"
+            style={
+              plotArea ? { left: plotArea.left, width: plotArea.width } : { left: 0, right: 0 }
+            }
+          />
+          {lookupEvents.map((event, index) => (
+            <span
+              key={`lookup-${event.tsMs}-${index}`}
+              title={`Yomitan lookup at ${formatTimeWithSeconds(event.tsMs)}`}
+              className="absolute top-1.5 bottom-1.5 w-0.5 -translate-x-1/2 rounded-full"
+              style={{ left: laneLeft(event.tsMs), background: SERIES_COLORS.lookup, opacity: 0.8 }}
+            />
+          ))}
+          <SessionEventOverlay
+            markers={markers}
+            tsMin={startMs}
+            tsMax={endMs}
+            plotArea={plotArea}
+            hoveredMarkerKey={hoveredMarkerKey}
+            onHoveredMarkerChange={onHoveredMarkerChange}
+            pinnedMarkerKey={pinnedMarkerKey}
+            onPinnedMarkerChange={onPinnedMarkerChange}
+            noteInfos={noteInfos}
+            loadingNoteIds={loadingNoteIds}
+            onOpenNote={onOpenNote}
+          />
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-ctp-overlay2 mt-1">
+        {hasKnownWords ? (
+          <>
+            <LegendSwatch color={SERIES_COLORS.known} label="Known words" />
+            <LegendSwatch color={SERIES_COLORS.unknown} label="Unknown words" />
+          </>
+        ) : (
+          <LegendSwatch color={SERIES_COLORS.words} label="Words" />
+        )}
+        {lookupEvents.length > 0 ? (
+          <span className="flex items-center gap-1.5">
+            <span
+              className="inline-block w-0.5 h-3 rounded-full"
+              style={{ background: SERIES_COLORS.lookup }}
+            />
+            Yomitan lookup
+          </span>
+        ) : null}
+        {markers.length > 0 ? (
+          <span className="flex items-center gap-1.5">
+            <span style={{ color: SERIES_COLORS.card }}>{'⛏'}</span>
+            Card mined (click for note)
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function LegendSwatch({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
+      {label}
+    </span>
   );
 }

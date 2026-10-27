@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   epochDayToDate,
   epochMsFromDbTimestamp,
+  formatClockDuration,
   formatRelativeDate,
   formatSessionDayLabel,
 } from './formatters';
@@ -152,4 +153,10 @@ test('formatSessionDayLabel includes year for past-year dates', () => {
     });
     assert.notEqual(label, withoutYear);
   }, fixedNow);
+});
+
+test('formatClockDuration keeps seconds for sub-hour spans', () => {
+  assert.equal(formatClockDuration(42_000), '42s');
+  assert.equal(formatClockDuration(372_000), '6m 12s');
+  assert.equal(formatClockDuration(3_780_000), '1h 3m');
 });

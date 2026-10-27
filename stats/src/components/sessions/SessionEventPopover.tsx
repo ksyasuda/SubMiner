@@ -1,8 +1,4 @@
-import {
-  formatEventSeconds,
-  type SessionChartMarker,
-  type SessionEventNoteInfo,
-} from '../../lib/session-events';
+import type { SessionChartMarker, SessionEventNoteInfo } from '../../lib/session-events';
 
 interface SessionEventPopoverProps {
   marker: SessionChartMarker;
@@ -35,10 +31,7 @@ export function SessionEventPopover({
     <div className="relative z-50 w-64 rounded-xl border border-ctp-surface2 bg-ctp-surface0/95 p-3 shadow-2xl shadow-black/30 backdrop-blur-sm">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold text-ctp-text">
-            {marker.kind === 'pause' && 'Paused'}
-            {marker.kind === 'card' && 'Card mined'}
-          </div>
+          <div className="text-xs font-semibold text-ctp-text">Card mined</div>
           <div className="text-[10px] text-ctp-overlay1">{formatEventTime(marker.eventTsMs)}</div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -64,78 +57,65 @@ export function SessionEventPopover({
               ×
             </button>
           ) : null}
-          <div className="text-sm">
-            {marker.kind === 'pause' && '||'}
-            {marker.kind === 'card' && '\u26CF'}
-          </div>
+          <div className="text-sm text-ctp-cards-mined">{'\u26CF'}</div>
         </div>
       </div>
 
-      {marker.kind === 'pause' && (
-        <div className="text-xs text-ctp-subtext0">
-          Duration: <span className="text-ctp-peach">{formatEventSeconds(marker.durationMs)}</span>
+      <div className="space-y-2">
+        <div className="text-xs text-ctp-cards-mined">
+          +{marker.cardsDelta} {marker.cardsDelta === 1 ? 'card' : 'cards'}
         </div>
-      )}
-
-      {marker.kind === 'card' && (
-        <div className="space-y-2">
-          <div className="text-xs text-ctp-cards-mined">
-            +{marker.cardsDelta} {marker.cardsDelta === 1 ? 'card' : 'cards'}
-          </div>
-          {loading ? (
-            <div className="text-xs text-ctp-overlay1">Loading Anki note info...</div>
-          ) : null}
-          <div className="space-y-1.5">
-            {marker.noteIds.length > 0 ? (
-              marker.noteIds.map((noteId) => {
-                const info = noteInfos.get(noteId);
-                const hasPreview = Boolean(info?.expression || info?.context || info?.meaning);
-                const showUnavailableFallback = !loading && !hasPreview;
-                return (
-                  <div
-                    key={noteId}
-                    className="rounded-lg border border-ctp-surface1 bg-ctp-mantle/80 px-2.5 py-2"
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <div className="rounded-full bg-ctp-surface1 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ctp-overlay1">
-                        Note {noteId}
-                      </div>
-                      {showUnavailableFallback ? (
-                        <div className="text-[10px] text-ctp-overlay1">Preview unavailable</div>
-                      ) : null}
+        {loading ? (
+          <div className="text-xs text-ctp-overlay1">Loading Anki note info...</div>
+        ) : null}
+        <div className="space-y-1.5">
+          {marker.noteIds.length > 0 ? (
+            marker.noteIds.map((noteId) => {
+              const info = noteInfos.get(noteId);
+              const hasPreview = Boolean(info?.expression || info?.context || info?.meaning);
+              const showUnavailableFallback = !loading && !hasPreview;
+              return (
+                <div
+                  key={noteId}
+                  className="rounded-lg border border-ctp-surface1 bg-ctp-mantle/80 px-2.5 py-2"
+                >
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <div className="rounded-full bg-ctp-surface1 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ctp-overlay1">
+                      Note {noteId}
                     </div>
-                    {info?.expression ? (
-                      <div className="mb-1 text-sm font-medium text-ctp-text">
-                        {info.expression}
-                      </div>
-                    ) : null}
-                    {info?.context ? (
-                      <div className="mb-1 text-xs text-ctp-subtext0">{info.context}</div>
-                    ) : null}
-                    {info?.meaning ? (
-                      <div className="mb-2 text-xs text-ctp-teal">{info.meaning}</div>
-                    ) : null}
                     {showUnavailableFallback ? (
-                      <div className="mb-2 text-xs text-ctp-overlay1">
-                        Preview unavailable from AnkiConnect.
-                      </div>
+                      <div className="text-[10px] text-ctp-overlay1">Preview unavailable</div>
                     ) : null}
-                    <button
-                      type="button"
-                      onClick={() => onOpenNote(noteId)}
-                      className="rounded-md bg-ctp-surface1 px-2 py-1 text-[10px] text-ctp-blue transition-colors hover:bg-ctp-surface2"
-                    >
-                      Open in Anki
-                    </button>
                   </div>
-                );
-              })
-            ) : (
-              <div className="text-xs text-ctp-overlay1">No linked note ids recorded.</div>
-            )}
-          </div>
+                  {info?.expression ? (
+                    <div className="mb-1 text-sm font-medium text-ctp-text">{info.expression}</div>
+                  ) : null}
+                  {info?.context ? (
+                    <div className="mb-1 text-xs text-ctp-subtext0">{info.context}</div>
+                  ) : null}
+                  {info?.meaning ? (
+                    <div className="mb-2 text-xs text-ctp-teal">{info.meaning}</div>
+                  ) : null}
+                  {showUnavailableFallback ? (
+                    <div className="mb-2 text-xs text-ctp-overlay1">
+                      Preview unavailable from AnkiConnect.
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onOpenNote(noteId)}
+                    className="rounded-md bg-ctp-surface1 px-2 py-1 text-[10px] text-ctp-blue transition-colors hover:bg-ctp-surface2"
+                  >
+                    Open in Anki
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-xs text-ctp-overlay1">No linked note ids recorded.</div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

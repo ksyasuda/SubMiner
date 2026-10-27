@@ -1,21 +1,10 @@
 import { EventType, type SessionEvent } from '../types/stats';
 
-export const SESSION_CHART_EVENT_TYPES = [
-  EventType.CARD_MINED,
-  EventType.PAUSE_START,
-  EventType.PAUSE_END,
-  EventType.YOMITAN_LOOKUP,
-] as const;
-
-export interface PauseRegion {
-  startMs: number;
-  endMs: number;
-}
+export const SESSION_CHART_EVENT_TYPES = [EventType.CARD_MINED, EventType.YOMITAN_LOOKUP] as const;
 
 export interface SessionChartEvents {
   cardEvents: SessionEvent[];
   yomitanLookupEvents: SessionEvent[];
-  pauseRegions: PauseRegion[];
   markers: SessionChartMarker[];
 }
 
@@ -45,24 +34,15 @@ interface SessionEventNoteRecord {
   fields?: Record<string, SessionEventNoteField> | null;
 }
 
-export type SessionChartMarker =
-  | {
-      key: string;
-      kind: 'pause';
-      anchorTsMs: number;
-      eventTsMs: number;
-      startMs: number;
-      endMs: number;
-      durationMs: number;
-    }
-  | {
-      key: string;
-      kind: 'card';
-      anchorTsMs: number;
-      eventTsMs: number;
-      noteIds: number[];
-      cardsDelta: number;
-    };
+/** Interactive card-mined marker shown on the session event lane. */
+export interface SessionChartMarker {
+  key: string;
+  kind: 'card';
+  anchorTsMs: number;
+  eventTsMs: number;
+  noteIds: number[];
+  cardsDelta: number;
+}
 
 function parsePayload(payload: string | null): Record<string, unknown> | null {
   if (!payload) return null;
@@ -257,11 +237,6 @@ export function togglePinnedSessionMarkerKey(
   return currentPinnedMarkerKey === nextMarkerKey ? null : nextMarkerKey;
 }
 
-export function formatEventSeconds(ms: number | null): string | null {
-  if (ms == null || !Number.isFinite(ms)) return null;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
 export function projectSessionMarkerLeftPx({
   anchorTsMs,
   tsMin,
@@ -284,71 +259,32 @@ export function projectSessionMarkerLeftPx({
 export function buildSessionChartEvents(events: SessionEvent[]): SessionChartEvents {
   const cardEvents: SessionEvent[] = [];
   const yomitanLookupEvents: SessionEvent[] = [];
-  const pauseRegions: PauseRegion[] = [];
   const markers: SessionChartMarker[] = [];
-  let pendingPauseStartMs: number | null = null;
 
   for (const event of events) {
     switch (event.eventType) {
-      case EventType.CARD_MINED:
+      case EventType.CARD_MINED: {
         cardEvents.push(event);
-        {
-          const payload = parsePayload(event.payload);
-          markers.push({
-            key: `card-${event.tsMs}`,
-            kind: 'card',
-            anchorTsMs: event.tsMs,
-            eventTsMs: event.tsMs,
-            noteIds: readNoteIds(payload?.noteIds),
-            cardsDelta: readNumberField(payload?.cardsMined) ?? 1,
-          });
-        }
+        const payload = parsePayload(event.payload);
+        markers.push({
+          key: `card-${event.tsMs}`,
+          kind: 'card',
+          anchorTsMs: event.tsMs,
+          eventTsMs: event.tsMs,
+          noteIds: readNoteIds(payload?.noteIds),
+          cardsDelta: readNumberField(payload?.cardsMined) ?? 1,
+        });
         break;
+      }
       case EventType.YOMITAN_LOOKUP:
         yomitanLookupEvents.push(event);
-        break;
-      case EventType.PAUSE_START:
-        pendingPauseStartMs = event.tsMs;
-        break;
-      case EventType.PAUSE_END:
-        if (pendingPauseStartMs !== null) {
-          pauseRegions.push({ startMs: pendingPauseStartMs, endMs: event.tsMs });
-          markers.push({
-            key: `pause-${pendingPauseStartMs}-${event.tsMs}`,
-            kind: 'pause',
-            anchorTsMs: pendingPauseStartMs + Math.round((event.tsMs - pendingPauseStartMs) / 2),
-            eventTsMs: pendingPauseStartMs,
-            startMs: pendingPauseStartMs,
-            endMs: event.tsMs,
-            durationMs: Math.max(0, event.tsMs - pendingPauseStartMs),
-          });
-          pendingPauseStartMs = null;
-        }
         break;
       default:
         break;
     }
   }
 
-  if (pendingPauseStartMs !== null) {
-    pauseRegions.push({ startMs: pendingPauseStartMs, endMs: pendingPauseStartMs + 2_000 });
-    markers.push({
-      key: `pause-${pendingPauseStartMs}-${pendingPauseStartMs + 2_000}`,
-      kind: 'pause',
-      anchorTsMs: pendingPauseStartMs + 1_000,
-      eventTsMs: pendingPauseStartMs,
-      startMs: pendingPauseStartMs,
-      endMs: pendingPauseStartMs + 2_000,
-      durationMs: 2_000,
-    });
-  }
-
   markers.sort((left, right) => left.anchorTsMs - right.anchorTsMs);
 
-  return {
-    cardEvents,
-    yomitanLookupEvents,
-    pauseRegions,
-    markers,
-  };
+  return { cardEvents, yomitanLookupEvents, markers };
 }
