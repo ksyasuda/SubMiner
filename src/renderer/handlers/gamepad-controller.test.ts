@@ -436,7 +436,8 @@ for (const c of [
 
     harness.poll(0);
 
-    assert.deepEqual(harness.calls, c.fired ? ['playCurrentAudio', 'toggleMpvPause'] : []);
+    // Pause works outside keyboard-only mode, so it is handled before the popup actions.
+    assert.deepEqual(harness.calls, c.fired ? ['toggleMpvPause', 'playCurrentAudio'] : []);
   });
 }
 
@@ -861,4 +862,31 @@ test('gamepad controller pauses subtitle navigation while a blocking modal is op
   pressed = true;
   harness.poll(64);
   assert.deepEqual(harness.calls, ['nextSubtitle']);
+});
+
+test('gamepad controller pauses mpv outside keyboard-only mode, but not under a blocking modal', () => {
+  let blocked = false;
+  let pressed = false;
+  const harness = createHarness({
+    gamepads: () => [createGamepad('pad-1', { buttons: pressed ? { 9: PRESSED } : {} })],
+    config: createControllerConfig({
+      bindings: { toggleMpvPause: { kind: 'button', buttonIndex: 9 } },
+    }),
+    deps: {
+      getKeyboardModeEnabled: () => false,
+      getInteractionBlocked: () => blocked,
+    },
+  });
+
+  harness.poll(0);
+  pressed = true;
+  // Held: fires once.
+  harness.poll(16, 500);
+  pressed = false;
+  harness.poll(516);
+  blocked = true;
+  pressed = true;
+  harness.poll(532);
+
+  assert.deepEqual(harness.calls, ['toggleMpvPause']);
 });

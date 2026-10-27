@@ -61,7 +61,8 @@ export function buildCoreConfigOptionRegistry(
     {
       id: 'toggleMpvPause',
       defaultValue: defaultConfig.controller.bindings.toggleMpvPause,
-      description: 'Controller binding descriptor for toggling mpv play/pause.',
+      description:
+        'Controller binding descriptor for toggling mpv play/pause. Works with or without keyboard-only mode.',
     },
     {
       id: 'holdSecondarySub',
