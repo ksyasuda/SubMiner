@@ -56,6 +56,7 @@ import {
 } from './handlers/media-timing-review-controller.js';
 import { resolveControllerConfigForGamepad } from './controller-profile-config.js';
 import { dispatchConfiguredMpvCommand } from './utils/mpv-command-dispatch.js';
+import { createKeyboardModeAutoPause } from './keyboard-mode-auto-pause.js';
 import { getDefaultControllerReviewBindings } from '../shared/controller-review';
 import {
   CONTROLLER_FIELD_GROUPING_SCREEN,
@@ -340,7 +341,16 @@ const fieldGroupingControllerLayout = createControllerComboScreenLayout({
     kikuModal.handleControllerAction(action);
   },
 });
+const keyboardModeAutoPause = createKeyboardModeAutoPause({
+  isEnabled: () => ctx.state.autoPauseVideoOnKeyboardMode,
+  getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
+  sendMpvCommand: (command) => window.electronAPI.sendMpvCommand(command),
+  handOffPause: () => mouseHandlers.adoptPauseForYomitanPopup(),
+});
 const keyboardHandlers = createKeyboardHandlers(ctx, {
+  onKeyboardDrivenModeChanged: (enabled) => {
+    void keyboardModeAutoPause.handleModeChanged(enabled);
+  },
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
   handleSubtitleSelectionKeydown: subtitleSelectionModal.handleKeydown,
@@ -825,6 +835,10 @@ function registerKeyboardCommandHandlers(): void {
 
   window.electronAPI.onControllerSuspendedChanged((suspended: boolean) => {
     ctx.state.controllerSuspendedByModalWindow = suspended;
+  });
+
+  window.electronAPI.onPlaybackPauseChanged((paused: boolean) => {
+    keyboardModeAutoPause.handlePlaybackPauseChanged(paused);
   });
 
   // Alt+C saves in its own window; pick up remaps and the button style without a restart.

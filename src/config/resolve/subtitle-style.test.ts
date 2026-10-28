@@ -346,3 +346,28 @@ test('subtitleStyle frequencyDictionary.matchMode accepts valid values and warns
     ),
   );
 });
+
+test('subtitleStyle autoPauseVideoOnKeyboardMode is off by default and falls back on invalid value', () => {
+  const defaults = createResolveContext({});
+  applySubtitleDomainConfig(defaults.context);
+  assert.equal(defaults.context.resolved.subtitleStyle.autoPauseVideoOnKeyboardMode, false);
+
+  const enabled = createResolveContext({ subtitleStyle: { autoPauseVideoOnKeyboardMode: true } });
+  applySubtitleDomainConfig(enabled.context);
+  assert.equal(enabled.context.resolved.subtitleStyle.autoPauseVideoOnKeyboardMode, true);
+
+  const { context, warnings } = createResolveContext({
+    subtitleStyle: {
+      autoPauseVideoOnKeyboardMode: 'yes' as unknown as boolean,
+    },
+  });
+  applySubtitleDomainConfig(context);
+  assert.equal(context.resolved.subtitleStyle.autoPauseVideoOnKeyboardMode, false);
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.autoPauseVideoOnKeyboardMode' &&
+        warning.message === 'Expected boolean.',
+    ),
+  );
+});

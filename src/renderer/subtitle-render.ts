@@ -964,6 +964,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     ctx.state.preserveSubtitleLineBreaks = style.preserveLineBreaks ?? false;
     ctx.state.autoPauseVideoOnSubtitleHover = style.autoPauseVideoOnHover ?? false;
     ctx.state.autoPauseVideoOnYomitanPopup = style.autoPauseVideoOnYomitanPopup ?? false;
+    ctx.state.autoPauseVideoOnKeyboardMode = style.autoPauseVideoOnKeyboardMode ?? false;
     ctx.state.primaryVisibleOnYomitanPopup = style.primaryVisibleOnYomitanPopup ?? true;
     syncPrimaryVisibleOnYomitanPopupClass(ctx);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n1-color', jlptColors.N1);

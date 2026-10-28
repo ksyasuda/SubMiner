@@ -101,6 +101,13 @@ export function buildSubtitleConfigOptionRegistry(
         'Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes.',
     },
     {
+      path: 'subtitleStyle.autoPauseVideoOnKeyboardMode',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleStyle.autoPauseVideoOnKeyboardMode,
+      description:
+        'Pause mpv when keyboard-only mode turns on (from the keyboard or a controller) and resume when it turns off. Leaving the mode resumes only a pause it made: a video that was already paused, or that you played or paused yourself meanwhile, is left as it is.',
+    },
+    {
       path: 'subtitleStyle.primaryVisibleOnYomitanPopup',
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.primaryVisibleOnYomitanPopup,

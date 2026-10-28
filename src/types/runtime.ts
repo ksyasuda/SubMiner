@@ -689,6 +689,8 @@ export interface ElectronAPI {
   onControllerSuspendedChanged: (callback: (suspended: boolean) => void) => void;
   /** Alt+C saved controller settings; reload them with `getControllerConfig`. */
   onControllerConfigChanged: (callback: () => void) => void;
+  /** mpv's pause property changed, from any source. */
+  onPlaybackPauseChanged: (callback: (paused: boolean) => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (path: string) => Promise<PlaylistBrowserMutationResult>;
