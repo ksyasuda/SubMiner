@@ -505,7 +505,10 @@ export function createMouseHandlers(
 
     window.addEventListener(YOMITAN_POPUP_MOUSE_LEAVE_EVENT, () => {
       ctx.state.isOverYomitanPopup = false;
-      reconcilePopupInteraction({ assumeVisible: true });
+      // A popup that hides under a resting pointer also reports a leave, right after its
+      // hidden event. Only keep a popup marked open if it still was; otherwise the next
+      // keyboard or controller word move would look it up again and reopen it.
+      reconcilePopupInteraction({ assumeVisible: yomitanPopupVisible });
     });
 
     window.addEventListener('focus', () => {

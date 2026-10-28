@@ -509,6 +509,21 @@ test('popup hidden on macOS releases click-away capture back to mpv', (t) => {
   assert.deepEqual(h.ignoreCalls.at(-1), { ignore: true, forward: true });
 });
 
+test('a pointer leaving a popup that just closed does not mark it open again', (t) => {
+  const h = createMouseHarness(t, { platform: 'macos', popupHostVisible: true });
+  h.handlers.setupYomitanObserver();
+  h.fire('window', YOMITAN_POPUP_MOUSE_ENTER_EVENT);
+
+  // The popup hides under the pointer: hidden, then the leave it causes.
+  h.popupHostVisible = false;
+  h.fire('window', YOMITAN_POPUP_HIDDEN_EVENT);
+  h.fire('window', YOMITAN_POPUP_MOUSE_LEAVE_EVENT);
+
+  assert.equal(h.ctx.state.yomitanPopupVisible, false);
+  assert.equal(h.ctx.state.isOverYomitanPopup, false);
+  assert.equal(h.isInteractive(), false);
+});
+
 test('yomitan popup visibility marks primary subtitle hover hold while enabled', (t) => {
   const h = createMouseHarness(t);
   h.ctx.state.primaryVisibleOnYomitanPopup = true;
