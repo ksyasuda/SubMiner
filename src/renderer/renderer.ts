@@ -345,7 +345,6 @@ const keyboardModeAutoPause = createKeyboardModeAutoPause({
   isEnabled: () => ctx.state.autoPauseVideoOnKeyboardMode,
   getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
   sendMpvCommand: (command) => window.electronAPI.sendMpvCommand(command),
-  handOffPause: () => mouseHandlers.adoptPauseForYomitanPopup(),
 });
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   onKeyboardDrivenModeChanged: (enabled) => {

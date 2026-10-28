@@ -11,8 +11,6 @@ export function createKeyboardModeAutoPause(deps: {
   isEnabled: () => boolean;
   getPlaybackPaused: () => Promise<boolean | null>;
   sendMpvCommand: (command: MpvCommand) => void;
-  /** Another auto-pause (an open dictionary popup) takes over the pause; true if it did. */
-  handOffPause?: () => boolean;
 }) {
   let pausedByMode = false;
   /** Our own pause command is still to be reported back by mpv. */
@@ -39,8 +37,6 @@ export function createKeyboardModeAutoPause(deps: {
     if (!pausedByMode) return;
     pausedByMode = false;
     awaitingOwnPause = false;
-    // The popup is still open: it resumes the video when it closes.
-    if (deps.handOffPause?.()) return;
     deps.sendMpvCommand(['set_property', 'pause', 'no']);
   }
 

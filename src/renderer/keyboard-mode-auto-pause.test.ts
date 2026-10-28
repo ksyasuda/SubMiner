@@ -105,24 +105,3 @@ test('an unknown pause state is left alone', async () => {
 
   assert.deepEqual(commands, []);
 });
-
-test('leaving the mode with the dictionary popup open leaves the pause to the popup', async () => {
-  const commands: string[] = [];
-  let popupOwnsPause = false;
-  const autoPause = createKeyboardModeAutoPause({
-    isEnabled: () => true,
-    getPlaybackPaused: async () => false,
-    sendMpvCommand: (command) => commands.push(command.join(' ')),
-    handOffPause: () => {
-      popupOwnsPause = true;
-      return true;
-    },
-  });
-
-  await autoPause.handleModeChanged(true);
-  autoPause.handlePlaybackPauseChanged(true);
-  await autoPause.handleModeChanged(false);
-
-  assert.deepEqual(commands, ['set_property pause yes']);
-  assert.equal(popupOwnsPause, true);
-});

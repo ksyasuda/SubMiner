@@ -74,7 +74,9 @@ See [Launcher script](/launcher-script#video-picker) for picker and history deta
 
 Hovering subtitle text pauses mpv, and moving away resumes it. An open dictionary popup also keeps playback paused. Turn these off with `subtitleStyle.autoPauseVideoOnHover` and `subtitleStyle.autoPauseVideoOnYomitanPopup`.
 
-**Pause Video In Keyboard-Only Mode** (`subtitleStyle.autoPauseVideoOnKeyboardMode`, off by default) pauses mpv when keyboard-only mode turns on, from the keyboard or a controller, and resumes it when the mode turns off. It only resumes a pause it made: if the video was already paused, or you played or paused it yourself in the meantime, leaving the mode leaves playback as it is. If the dictionary popup is still open when you leave, the video stays paused until the popup closes.
+**Pause Video In Keyboard-Only Mode** (`subtitleStyle.autoPauseVideoOnKeyboardMode`, off by default) pauses mpv when keyboard-only mode turns on, from the keyboard or a controller, and resumes it when the mode turns off. It only resumes a pause it made: if the video was already paused, or you played or paused it yourself in the meantime, leaving the mode leaves playback as it is.
+
+Turning keyboard-only mode off also closes the dictionary popup, whether or not this setting is on.
 
 You can drop files onto the overlay:
 

@@ -300,18 +300,6 @@ export function createMouseHandlers(
     pausedByYomitanPopup = true;
   }
 
-  /**
-   * Keyboard-only mode is letting go of its pause while the popup is open: keep the video
-   * paused for the popup, which resumes it when it closes. False when the popup does not
-   * auto-pause (closed, or the setting is off).
-   */
-  function adoptPauseForYomitanPopup(): boolean {
-    if (!canPauseForYomitanPopup()) return false;
-    popupPauseRequestId += 1;
-    pausedByYomitanPopup = true;
-    return true;
-  }
-
   function enablePopupInteraction(): void {
     sustainPopupInteraction();
     if (ctx.platform.isMacOSPlatform) {
@@ -561,7 +549,6 @@ export function createMouseHandlers(
   }
 
   return {
-    adoptPauseForYomitanPopup,
     handlePrimaryMouseEnter: (event?: MouseEvent) => handleMouseEnter(event, false),
     handlePrimaryMouseLeave: (event?: MouseEvent) => handleMouseLeave(event, false),
     handleSecondaryMouseEnter: (event?: MouseEvent) => handleMouseEnter(event, true),

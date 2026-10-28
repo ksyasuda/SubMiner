@@ -2554,3 +2554,32 @@ test('controller popup entry navigation forwards Alt+Up / Alt+Down only while th
     testGlobals.restore();
   }
 });
+
+test('keyboard mode: leaving the mode closes an open popup', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+  const closeEvents = () =>
+    testGlobals.commandEvents.filter(
+      (event) => event.type === 'setVisible' && event.visible === false,
+    );
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    handlers.handleKeyboardModeToggleRequested();
+    await wait(0);
+
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
+    assert.equal(closeEvents().length, 1);
+
+    // Turning the mode on again leaves a popup alone.
+    handlers.handleKeyboardModeToggleRequested();
+    await wait(0);
+    assert.equal(closeEvents().length, 1);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
