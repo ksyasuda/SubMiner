@@ -353,6 +353,11 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getControllerConfig),
   saveControllerConfig: (update: ControllerConfigUpdate): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.command.saveControllerConfig, update),
+  reportActiveController: (gamepadId: string | null): void => {
+    ipcRenderer.send(IPC_CHANNELS.command.reportActiveController, gamepadId);
+  },
+  getActiveControllerId: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getActiveControllerId),
 
   getJimakuMediaInfo: (): Promise<JimakuMediaInfo> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.jimakuGetMediaInfo),

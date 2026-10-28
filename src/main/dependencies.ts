@@ -78,6 +78,8 @@ export interface MainIpcRuntimeServiceDepsParams {
   getOverlayNotificationPosition: IpcDepsRuntimeOptions['getOverlayNotificationPosition'];
   getControllerConfig: IpcDepsRuntimeOptions['getControllerConfig'];
   saveControllerConfig: IpcDepsRuntimeOptions['saveControllerConfig'];
+  reportActiveController: IpcDepsRuntimeOptions['reportActiveController'];
+  getActiveControllerId: IpcDepsRuntimeOptions['getActiveControllerId'];
   getSecondarySubMode: IpcDepsRuntimeOptions['getSecondarySubMode'];
   getMpvClient: IpcDepsRuntimeOptions['getMpvClient'];
   runSubsyncManual: IpcDepsRuntimeOptions['runSubsyncManual'];
@@ -256,6 +258,8 @@ export function createMainIpcRuntimeServiceDeps(
     getOverlayNotificationPosition: params.getOverlayNotificationPosition,
     getControllerConfig: params.getControllerConfig,
     saveControllerConfig: params.saveControllerConfig,
+    reportActiveController: params.reportActiveController,
+    getActiveControllerId: params.getActiveControllerId,
     focusMainWindow: params.focusMainWindow ?? (() => {}),
     activatePlaybackWindowForOverlayInteraction: params.activatePlaybackWindowForOverlayInteraction,
     getSecondarySubMode: params.getSecondarySubMode,

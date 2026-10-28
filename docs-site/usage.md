@@ -164,7 +164,7 @@ You can drive the overlay with a gamepad.
 3. Press `Y` on the controller to turn on keyboard-only mode. Most controller actions only work in this mode.
 4. Move between words with the left stick, press `A` to look one up, and `X` to mine it.
 
-Press `Alt+C` to choose a controller and remap buttons. Click an action's **Learn** button, then press the button you want. Set **Button Style** to Xbox, Nintendo or PlayStation so buttons are named as printed on your controller; it is saved per controller. Changes apply right away. `Alt+Shift+C` shows raw input values for unusual pads.
+Press `Alt+C` to choose a controller and remap buttons. Click an action's **Learn** button, then press the button you want. Set **Button Style** to Xbox, Nintendo or PlayStation so buttons are named as printed on your controller; it is saved per controller. Changes apply right away. The window only sees a controller after you press one of its buttons; until then it shows the bindings of the controller in use as a preview, and editing stays locked. With several controllers connected, it selects the one you pressed last. `Alt+Shift+C` shows raw input values for unusual pads.
 
 | Button                | Action                                 |
 | --------------------- | -------------------------------------- |

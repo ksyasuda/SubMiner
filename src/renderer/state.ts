@@ -100,6 +100,8 @@ export type RendererState = {
   controllerDebugModalOpen: boolean;
   subtitleSidebarModalOpen: boolean;
   controllerDeviceSelectedIndex: number;
+  /** While Alt+C is open, the controller selected in it; that window then reads this pad. */
+  controllerSelectGamepadId: string | null;
   controllerConfig: ResolvedControllerConfig | null;
   connectedGamepads: ControllerDeviceInfo[];
   activeGamepadId: string | null;
@@ -242,6 +244,7 @@ export function createRendererState(): RendererState {
     controllerDebugModalOpen: false,
     subtitleSidebarModalOpen: false,
     controllerDeviceSelectedIndex: 0,
+    controllerSelectGamepadId: null,
     controllerConfig: null,
     connectedGamepads: [],
     activeGamepadId: null,

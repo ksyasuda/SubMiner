@@ -341,6 +341,8 @@ const texthookerService = new Texthooker(() => {
     },
   };
 });
+/** The controller the overlay is reading, as it last reported; null before it sees one. */
+let activeControllerIdFromOverlay: string | null = null;
 const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler({
   platform: process.platform,
 });
@@ -2083,6 +2085,12 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getMarkWatchedKey: () => configService.getConfig().stats.markWatchedKey,
       getOverlayNotificationPosition: () => configService.getConfig().notifications.overlayPosition,
       getControllerConfig: () => configService.getConfig().controller,
+      // Alt+C opens in its own window, which cannot see a pad until a button is pressed in
+      // it; the overlay has usually seen it already, so Alt+C asks which one is in use.
+      reportActiveController: (gamepadId) => {
+        activeControllerIdFromOverlay = gamepadId;
+      },
+      getActiveControllerId: () => activeControllerIdFromOverlay,
       saveControllerConfig: (update) => {
         const currentRawConfig = configService.getRawConfig();
         configService.patchRawConfig({

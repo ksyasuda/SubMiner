@@ -18,6 +18,8 @@ export type GamepadLike = {
   index: number;
   connected: boolean;
   mapping: string;
+  /** When the pad last reported new input (Gamepad API). */
+  timestamp?: number;
   axes: readonly number[];
   buttons: readonly ControllerButtonState[];
 };
@@ -325,6 +327,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
         index: gamepad.index,
         mapping: gamepad.mapping,
         connected: gamepad.connected,
+        timestamp: gamepad.timestamp,
       })) satisfies ControllerDeviceInfo[],
       activeGamepadId,
       rawAxes: activeGamepad?.axes ? [...activeGamepad.axes] : [],

@@ -412,6 +412,8 @@ export interface ControllerDeviceInfo {
   index: number;
   mapping: string;
   connected: boolean;
+  /** Gamepad API timestamp of the pad's last input; the newest is the one being used. */
+  timestamp?: number;
 }
 
 export interface ControllerButtonSnapshot {
@@ -607,6 +609,10 @@ export interface ElectronAPI {
   markActiveVideoWatched: () => Promise<boolean>;
   getControllerConfig: () => Promise<ResolvedControllerConfig>;
   saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;
+  /** The overlay reports which controller it is reading (null when none). */
+  reportActiveController: (gamepadId: string | null) => void;
+  /** The controller the overlay last reported, for Alt+C before it sees a pad itself. */
+  getActiveControllerId: () => Promise<string | null>;
   getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;
   jimakuSearchEntries: (query: JimakuSearchQuery) => Promise<JimakuApiResponse<JimakuEntry[]>>;
   jimakuListFiles: (query: JimakuFilesQuery) => Promise<JimakuApiResponse<JimakuFileEntry[]>>;

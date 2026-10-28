@@ -356,6 +356,8 @@ export function createControllerConfigForm(options: {
   getControllerMapping?: () => ControllerMapping;
   /** `controller.faceButtonLabels`; names the face buttons as printed on the pad. */
   getFaceButtonLabels?: () => FaceButtonLabels;
+  /** True until the window sees a controller: rows are a preview and actions are dimmed. */
+  isEditingLocked?: () => boolean;
   /** Dialog layouts (review, field grouping) of the controller being configured. */
   getScreenGroups?: () => ControllerScreenGroup[];
   getScreenInputContext?: () => ControllerReviewInputContext;
@@ -371,6 +373,10 @@ export function createControllerConfigForm(options: {
 
   function render(): void {
     options.container.innerHTML = '';
+    options.container.classList?.toggle(
+      'controller-config-locked',
+      options.isEditingLocked?.() ?? false,
+    );
     let lastGroup = '';
     const learningActionId = options.getLearningActionId();
     const dpadLearningActionId = options.getDpadLearningActionId();

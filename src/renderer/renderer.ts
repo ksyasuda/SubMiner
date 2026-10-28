@@ -24,6 +24,7 @@ import type {
   SubtitlePosition,
   SubsyncManualPayload,
   ConfigHotReloadPayload,
+  ResolvedControllerConfig,
 } from '../types';
 import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import { createKeyboardHandlers } from './handlers/keyboard.js';
@@ -437,6 +438,12 @@ function applyControllerSnapshot(snapshot: {
   }
   ctx.state.connectedGamepads = snapshot.connectedGamepads;
   ctx.state.activeGamepadId = snapshot.activeGamepadId;
+  // Alt+C opens in its own window that cannot see a pad until a press there; it asks main
+  // which controller the overlay is reading so it can preview the right one.
+  if (!ctx.platform.isModalLayer && snapshot.activeGamepadId !== reportedActiveControllerId) {
+    reportedActiveControllerId = snapshot.activeGamepadId;
+    window.electronAPI.reportActiveController?.(snapshot.activeGamepadId);
+  }
   ctx.state.controllerRawAxes = snapshot.rawAxes;
   ctx.state.controllerRawButtons = snapshot.rawButtons;
   controllerSelectModal.updateDevices();
@@ -477,6 +484,19 @@ function applyControllerSnapshot(snapshot: {
   }
 }
 
+/**
+ * While Alt+C is open, its window reads the controller selected there instead of the saved
+ * one, so Learn hears the pad being configured when several are connected.
+ */
+function withAltCSelectedController(config: ResolvedControllerConfig): ResolvedControllerConfig {
+  const selectedId = ctx.state.controllerSelectModalOpen
+    ? ctx.state.controllerSelectGamepadId
+    : null;
+  return selectedId ? { ...config, preferredGamepadId: selectedId } : config;
+}
+
+let reportedActiveControllerId: string | null | undefined;
+
 function showControllerDisabledNotice(): void {
   controllerStatusIndicator.show(
     'Controller support disabled. Set controller.enabled to true in config to use controller tools.',
@@ -510,58 +530,60 @@ function startControllerPolling(): void {
   const gamepadController = createGamepadController({
     getGamepads: () => Array.from(navigator.getGamepads?.() ?? []),
     getConfig: () =>
-      ctx.state.controllerConfig ?? {
-        enabled: false,
-        preferredGamepadId: '',
-        preferredGamepadLabel: '',
-        smoothScroll: true,
-        scrollPixelsPerSecond: 900,
-        horizontalJumpPixels: 160,
-        stickDeadzone: 0.2,
-        triggerInputMode: 'auto',
-        triggerDeadzone: 0.5,
-        faceButtonLabels: 'xbox',
-        repeatDelayMs: 320,
-        repeatIntervalMs: 120,
-        buttonIndices: {
-          select: 6,
-          buttonSouth: 0,
-          buttonEast: 1,
-          buttonWest: 2,
-          buttonNorth: 3,
-          leftShoulder: 4,
-          rightShoulder: 5,
-          leftStickPress: 9,
-          rightStickPress: 10,
-          leftTrigger: 6,
-          rightTrigger: 7,
+      withAltCSelectedController(
+        ctx.state.controllerConfig ?? {
+          enabled: false,
+          preferredGamepadId: '',
+          preferredGamepadLabel: '',
+          smoothScroll: true,
+          scrollPixelsPerSecond: 900,
+          horizontalJumpPixels: 160,
+          stickDeadzone: 0.2,
+          triggerInputMode: 'auto',
+          triggerDeadzone: 0.5,
+          faceButtonLabels: 'xbox',
+          repeatDelayMs: 320,
+          repeatIntervalMs: 120,
+          buttonIndices: {
+            select: 6,
+            buttonSouth: 0,
+            buttonEast: 1,
+            buttonWest: 2,
+            buttonNorth: 3,
+            leftShoulder: 4,
+            rightShoulder: 5,
+            leftStickPress: 9,
+            rightStickPress: 10,
+            leftTrigger: 6,
+            rightTrigger: 7,
+          },
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 0 },
+            closeLookup: { kind: 'button', buttonIndex: 1 },
+            toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+            mineCard: { kind: 'button', buttonIndex: 2 },
+            quitMpv: { kind: 'button', buttonIndex: 6 },
+            previousAudio: { kind: 'none' },
+            nextAudio: { kind: 'button', buttonIndex: 5 },
+            playCurrentAudio: { kind: 'button', buttonIndex: 4 },
+            toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+            holdSecondarySub: { kind: 'none' },
+            previousEntry: { kind: 'none' },
+            nextEntry: { kind: 'none' },
+            previousSubtitle: { kind: 'none' },
+            nextSubtitle: { kind: 'none' },
+            replaySubtitle: { kind: 'none' },
+            playNextSubtitle: { kind: 'none' },
+            leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
+            leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
+            rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+            rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
+          },
+          reviewBindings: getDefaultControllerReviewBindings(),
+          fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
+          profiles: {},
         },
-        bindings: {
-          toggleLookup: { kind: 'button', buttonIndex: 0 },
-          closeLookup: { kind: 'button', buttonIndex: 1 },
-          toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
-          mineCard: { kind: 'button', buttonIndex: 2 },
-          quitMpv: { kind: 'button', buttonIndex: 6 },
-          previousAudio: { kind: 'none' },
-          nextAudio: { kind: 'button', buttonIndex: 5 },
-          playCurrentAudio: { kind: 'button', buttonIndex: 4 },
-          toggleMpvPause: { kind: 'button', buttonIndex: 9 },
-          holdSecondarySub: { kind: 'none' },
-          previousEntry: { kind: 'none' },
-          nextEntry: { kind: 'none' },
-          previousSubtitle: { kind: 'none' },
-          nextSubtitle: { kind: 'none' },
-          replaySubtitle: { kind: 'none' },
-          playNextSubtitle: { kind: 'none' },
-          leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
-          leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
-          rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
-          rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
-        },
-        reviewBindings: getDefaultControllerReviewBindings(),
-        fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
-        profiles: {},
-      },
+      ),
     getKeyboardModeEnabled: () => ctx.state.keyboardDrivenModeEnabled,
     getLookupWindowOpen: () => isLookupPopupOpen(ctx.state, document),
     getInteractionBlocked: () => isControllerInputBlocked(),

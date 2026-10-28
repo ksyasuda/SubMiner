@@ -49,6 +49,12 @@ class FakeElement {
       this.className = [...new Set([...this.classes(), ...tokens])].join(' ');
     },
     contains: (token: string) => this.classes().includes(token),
+    toggle: (token: string, force?: boolean) => {
+      const on = force ?? !this.classes().includes(token);
+      const rest = this.classes().filter((existing) => existing !== token);
+      this.className = (on ? [...rest, token] : rest).join(' ');
+      return on;
+    },
   };
 
   set innerHTML(value: string) {

@@ -3636,6 +3636,15 @@ iframe[id^='yomitan-popup'],
   color: var(--ctp-overlay2);
 }
 
+/* Before Alt+C sees a controller the rows are a preview: actions look unavailable. */
+.controller-config-locked .controller-config-reset-icon,
+.controller-config-locked .controller-config-edit-icon,
+.controller-config-locked .controller-config-group-action,
+.controller-config-locked .controller-config-edit-panel button {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .controller-config-edit-panel {
   overflow: hidden;
   animation: configEditSlideIn 180ms ease-out;
