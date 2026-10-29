@@ -117,7 +117,9 @@ linuxTest('keepalive script releases the mount only after straggler processes ex
   // after AppRun itself exits — mimicking Chromium utility children. AppRun waits
   // until the straggler has exec'd, otherwise under load the supervisor can scan
   // /proc while the forked child is still /bin/sh and release the mount early.
-  const stragglerPath = path.join(mountDir, 'straggler');
+  // The copy must keep the name `sleep`: multicall coreutils (uutils on Ubuntu
+  // 26.04+, busybox) pick the utility from argv[0] and exit immediately otherwise.
+  const stragglerPath = path.join(mountDir, 'sleep');
   fs.copyFileSync('/usr/bin/sleep', stragglerPath);
   fs.chmodSync(stragglerPath, 0o755);
   writeExecutable(
@@ -126,7 +128,8 @@ linuxTest('keepalive script releases the mount only after straggler processes ex
       '#!/bin/sh',
       `"${stragglerPath}" 1 &`,
       'straggler=$!',
-      `until [ "$(readlink "/proc/$straggler/exe")" = "${stragglerPath}" ]; do sleep 0.01; done`,
+      // Bail out if the straggler dies early so the drain assertion reports it.
+      `while kill -0 "$straggler" 2>/dev/null && [ "$(readlink "/proc/$straggler/exe")" != "${stragglerPath}" ]; do sleep 0.01; done`,
       `date +%s%N > "${resultsDir}/apprun-exited"`,
       'exit 42',
     ].join('\n'),
