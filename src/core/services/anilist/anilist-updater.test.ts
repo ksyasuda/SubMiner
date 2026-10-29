@@ -401,7 +401,83 @@ test('updateAnilistPostWatchProgress skips when progress already reached', async
   }
 });
 
-test('updateAnilistPostWatchProgress returns non-retryable error when media is not planning or watching', async () => {
+test('updateAnilistPostWatchProgress adds an exactly matched show missing from the list', async () => {
+  const originalFetch = globalThis.fetch;
+  let call = 0;
+  let saveVariables: Record<string, unknown> | undefined;
+  globalThis.fetch = (async (_input, init) => {
+    call += 1;
+    if (call === 1) {
+      return createJsonResponse({
+        data: {
+          Page: {
+            media: [{ id: 33, episodes: 12, title: { english: 'New Show' } }],
+          },
+        },
+      });
+    }
+    if (call === 2) {
+      return createJsonResponse({
+        data: {
+          Media: { id: 33, mediaListEntry: null },
+        },
+      });
+    }
+    saveVariables = (JSON.parse(String(init?.body)) as { variables?: Record<string, unknown> })
+      .variables;
+    return createJsonResponse({
+      data: { SaveMediaListEntry: { progress: 1, status: 'CURRENT' } },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'New Show', 1);
+    assert.equal(result.status, 'updated');
+    assert.match(result.message, /added "New Show" to Watching at episode 1/i);
+    assert.deepEqual(saveVariables, { mediaId: 33, progress: 1, status: 'CURRENT' });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress adds a pinned media id missing from the list', async () => {
+  const originalFetch = globalThis.fetch;
+  let call = 0;
+  let saveVariables: Record<string, unknown> | undefined;
+  globalThis.fetch = (async (_input, init) => {
+    call += 1;
+    if (call === 1) {
+      return createJsonResponse({
+        data: {
+          Media: {
+            id: 108489,
+            episodes: 12,
+            title: { english: 'Pinned Show' },
+            mediaListEntry: null,
+          },
+        },
+      });
+    }
+    saveVariables = (JSON.parse(String(init?.body)) as { variables?: Record<string, unknown> })
+      .variables;
+    return createJsonResponse({
+      data: { SaveMediaListEntry: { progress: 12, status: 'COMPLETED' } },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Wrong Guess', 12, {
+      mediaId: 108489,
+    });
+    assert.equal(result.status, 'updated');
+    assert.match(result.message, /added "Pinned Show" at episode 12 and marked it completed/i);
+    assert.deepEqual(saveVariables, { mediaId: 108489, progress: 12, status: 'COMPLETED' });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress does not add a loosely matched show missing from the list', async () => {
   const originalFetch = globalThis.fetch;
   let call = 0;
   globalThis.fetch = (async () => {
@@ -410,7 +486,7 @@ test('updateAnilistPostWatchProgress returns non-retryable error when media is n
       return createJsonResponse({
         data: {
           Page: {
-            media: [{ id: 33, episodes: 12, title: { english: 'Missing Show' } }],
+            media: [{ id: 33, episodes: 12, title: { english: 'Missing Show Abridged Edition' } }],
           },
         },
       });
@@ -427,6 +503,39 @@ test('updateAnilistPostWatchProgress returns non-retryable error when media is n
     assert.equal(result.status, 'error');
     assert.equal(result.retryable, false);
     assert.match(result.message, /not in your AniList Planning or Watching list/i);
+    assert.equal(call, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress does not add the season 1 entry when the title carries an unparsed season marker', async () => {
+  const originalFetch = globalThis.fetch;
+  let call = 0;
+  globalThis.fetch = (async () => {
+    call += 1;
+    if (call === 1) {
+      return createJsonResponse({
+        data: {
+          Page: {
+            media: [{ id: 33, episodes: 12, format: 'TV', title: { english: 'Demo Show' } }],
+          },
+        },
+      });
+    }
+    return createJsonResponse({
+      data: {
+        Media: { id: 33, mediaListEntry: null },
+      },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Demo Show S2', 3);
+    assert.equal(result.status, 'error');
+    assert.equal(result.retryable, false);
+    assert.match(result.message, /not in your AniList Planning or Watching list/i);
+    assert.equal(call, 2);
   } finally {
     globalThis.fetch = originalFetch;
   }
