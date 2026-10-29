@@ -28,7 +28,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     deck: '',
     fields: {
       word: 'Expression',
-      audio: 'ExpressionAudio',
+      audio: 'SentenceAudio',
       wordAudio: 'ExpressionAudio',
       image: 'Picture',
       sentence: 'Sentence',

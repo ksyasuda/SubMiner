@@ -103,7 +103,7 @@ Field names are matched case-insensitively. A mapped field that is missing from 
 
 Hachidori prepares downloadable word audio before it saves a note through the proxy, so the animated image delay works on the first mine. Set a downloadable pronunciation source in Hachidori's Audio settings. Browser speech cannot be saved to Anki. Without word audio, Hachidori shows a warning and the card gets no word-audio hold.
 
-`fields.audio` gets sentence audio, not word audio. Yomitan writes its own dictionary audio into your note, so point `fields.audio` at a separate field such as `SentenceAudio`. The default, `ExpressionAudio`, is the field many note types use for Yomitan's word audio, so leaving it would overwrite that audio.
+`fields.audio` gets sentence audio, not word audio. Yomitan writes its own dictionary audio into your note (often `ExpressionAudio`), so keep `fields.audio` pointed at a separate field such as the default `SentenceAudio`. Pointing it at Yomitan's word-audio field would overwrite that audio.
 
 `ankiConnect.tags` adds tags to every mined or updated card. Set it to `[]` to add none.
 

@@ -578,7 +578,7 @@
     "deck": "", // Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to use the Yomitan mining deck when available.
     "fields": {
       "word": "Expression", // Card field for the mined word or expression text.
-      "audio": "ExpressionAudio", // Card field that receives generated sentence audio.
+      "audio": "SentenceAudio", // Card field that receives generated sentence audio.
       "wordAudio": "ExpressionAudio", // Existing word-audio field read to time the frozen first frame of animated images. This mapping is only used for synchronization.
       "image": "Picture", // Card field that receives the captured screenshot or animated image.
       "sentence": "Sentence", // Card field that receives the source sentence text.
