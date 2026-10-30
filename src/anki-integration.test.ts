@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { AnkiIntegration } from './anki-integration';
+import type { PluginMinedNote, PluginMiningProvenance } from './plugin-api';
 import type { MediaInput } from './media-input';
 import { AnkiConnectConfig } from './types';
 
@@ -83,6 +84,7 @@ type IntegrationInternals = {
   }) => void;
   rememberMergedNoteIds: (deletedNoteId: number, keptNoteId: number) => void;
   reportCardsReady: (noteIds: number[]) => void;
+  rememberMiningProvenance: (noteIds: number[], provenance: PluginMiningProvenance | null) => void;
 };
 
 /** Named stand-ins for AnkiIntegration's long positional constructor arguments. */
@@ -284,6 +286,32 @@ test('AnkiIntegration reports ready cards under the note that kept them after a 
   internals.reportCardsReady([111, 222, 444]);
 
   assert.deepEqual(ready, [[222, 444]]);
+});
+
+test('ready events preserve each mining source when multiple notes merge into an older note', () => {
+  const integration = createIntegration({});
+  const ready: PluginMinedNote[][] = [];
+  integration.setCardsReadyCallback((_ids, notes) => ready.push(notes));
+  const internals = internalsOf(integration);
+  const provenance = {
+    minedAt: 1234,
+    media: { playbackId: 1, path: 'Show - 02.mkv', title: null },
+    subtitle: { text: 'テスト', startTime: 1, endTime: 2 },
+  };
+  internals.rememberMiningProvenance([111, 222], provenance);
+  provenance.media.path = 'Show - 03.mkv';
+  internals.rememberMergedNoteIds(111, 7);
+  internals.rememberMergedNoteIds(222, 7);
+  internals.reportCardsReady([111, 222]);
+  assert.deepEqual(
+    ready[0]?.map((note) => [note.originalNoteId, note.noteId, note.provenance?.media?.path]),
+    [
+      [111, 7, 'Show - 02.mkv'],
+      [222, 7, 'Show - 02.mkv'],
+    ],
+  );
+  internals.reportCardsReady([333]);
+  assert.equal(ready[1]?.[0]?.provenance, null);
 });
 
 // --- Sentence highlighting --------------------------------------------------

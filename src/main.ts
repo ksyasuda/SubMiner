@@ -3150,6 +3150,10 @@ const pluginHost = createPluginHost({
     if (!appState.mpvClient) throw new Error('mpv is not connected.');
     return await appState.mpvClient.requestProperty(name);
   },
+  requestMpvCommand: async (command) => {
+    if (!appState.mpvClient) throw new Error('mpv is not connected.');
+    return await appState.mpvClient.requestCommand(command);
+  },
   ensureMpvRunning: () => ensureMpvConnectedForPlayback(),
   invokeAnkiConnect: (action, params, options) => {
     const ankiConfig = configService.getConfig().ankiConnect;
@@ -5515,8 +5519,13 @@ function initializeOverlayRuntime(): void {
     overlayModalRuntime.primeModalWindow();
   }
   appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
-  appState.ankiIntegration?.setCardsReadyCallback((noteIds) =>
-    pluginHost.emitAnkiEvent('card-mined', { noteIds }),
+  appState.ankiIntegration?.setMiningProvenanceProvider(() => ({
+    minedAt: Date.now(),
+    media: pluginHost.getMediaSnapshot(),
+    subtitle: getPluginCurrentSubtitle(),
+  }));
+  appState.ankiIntegration?.setCardsReadyCallback((noteIds, notes) =>
+    pluginHost.emitAnkiEvent('card-mined', { noteIds, notes }),
   );
   appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(refreshCurrentSubtitleAnnotations);
   appState.ankiIntegration?.setSubtitleMiningContextConsumer(consumePendingSubtitleMiningContext);

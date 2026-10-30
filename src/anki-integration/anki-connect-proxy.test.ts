@@ -3,6 +3,7 @@ import http from 'node:http';
 import { once } from 'node:events';
 import test from 'node:test';
 import { AnkiConnectProxyServer } from './anki-connect-proxy';
+import type { PluginMiningProvenance } from '../plugin-api';
 
 async function waitForCondition(
   condition: () => boolean,
@@ -401,8 +402,11 @@ test('proxy tracks duplicate note ids from addNote request metadata before enric
   assert.deepEqual(processed, [42]);
 });
 
-test('proxy strips SubMiner duplicate metadata before forwarding upstream addNote request', async () => {
+test('proxy strips duplicate metadata and captures mining provenance before the upstream request', async () => {
   let upstreamBody = '';
+  let mediaPath = 'Show - 02.mkv';
+  let captureCount = 0;
+  const sources: Array<PluginMiningProvenance | null> = [];
   const upstream = http.createServer(async (req, res) => {
     upstreamBody = await new Promise<string>((resolve) => {
       const chunks: Buffer[] = [];
@@ -410,6 +414,7 @@ test('proxy strips SubMiner duplicate metadata before forwarding upstream addNot
       req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     });
     res.statusCode = 200;
+    mediaPath = 'Show - 03.mkv';
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ result: 42, error: null }));
   });
@@ -421,6 +426,15 @@ test('proxy strips SubMiner duplicate metadata before forwarding upstream addNot
 
   const tracked: Array<{ noteId: number; duplicateNoteIds: number[] }> = [];
   const proxy = new AnkiConnectProxyServer({
+    captureMiningProvenance: () => {
+      captureCount++;
+      return {
+        minedAt: 1234,
+        media: { playbackId: 1, path: mediaPath, title: null },
+        subtitle: null,
+      };
+    },
+    onNotesAdded: (_ids, provenance) => sources.push(provenance),
     shouldAutoUpdateNewCards: () => true,
     processNewCard: async () => undefined,
     trackAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
@@ -475,6 +489,16 @@ test('proxy strips SubMiner duplicate metadata before forwarding upstream addNot
     await waitForCondition(() => tracked.length === 1);
     assert.equal(upstreamBody.includes('subminerDuplicateNoteIds'), false);
     assert.deepEqual(tracked, [{ noteId: 42, duplicateNoteIds: [7, 18] }]);
+    assert.equal(sources[0]?.media?.path, 'Show - 02.mkv');
+    assert.equal(captureCount, 1);
+    const preflight = await fetch(`http://127.0.0.1:${proxyPort}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'canAddNotes', version: 6, params: { notes: [] } }),
+    });
+    assert.equal(preflight.status, 200);
+    await preflight.json();
+    assert.equal(captureCount, 1);
   } finally {
     proxy.stop();
     upstream.close();

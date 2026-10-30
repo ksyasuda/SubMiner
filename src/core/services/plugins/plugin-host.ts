@@ -7,7 +7,9 @@ import type { BrowserWindow } from 'electron';
 import type { SessionActionDispatchRequest } from '../../../types/runtime';
 import { execPluginCommand } from './exec';
 import { isValidPluginName, parsePluginManifest, resolvePluginFilePath } from './manifest';
+import { createPluginMediaState } from './media-state';
 import {
+  PLUGIN_API_VERSION,
   PLUGIN_MPV_EVENT_NAMES,
   type PluginAnkiEventMap,
   type PluginAnkiEventName,
@@ -17,6 +19,7 @@ import {
   type PluginLogger,
   type PluginModule,
   type PluginMpvEventName,
+  type PluginMpvEventMap,
   type PluginNotifyVariant,
   type PluginPanelContent,
   type PluginPanelHandle,
@@ -33,10 +36,19 @@ const DEFAULT_WINDOW_HEIGHT = 720;
  * The forced-exit fallback in main adds its own budget on top of this.
  */
 export const PLUGIN_DEACTIVATE_TIMEOUT_MS = 2_000;
+export const PLUGIN_ACTIVATE_TIMEOUT_MS = 10_000;
 
 interface MpvClientEvents {
-  on: (event: PluginMpvEventName, listener: (payload: unknown) => void) => void;
-  off: (event: PluginMpvEventName, listener: (payload: unknown) => void) => void;
+  currentVideoPath?: string;
+  currentMediaTitle?: string | null;
+  on: <E extends PluginMpvEventName>(
+    event: E,
+    listener: (payload: PluginMpvEventMap[E]) => void,
+  ) => void;
+  off: <E extends PluginMpvEventName>(
+    event: E,
+    listener: (payload: PluginMpvEventMap[E]) => void,
+  ) => void;
 }
 
 export interface PluginHostDeps<TUnstable> {
@@ -48,6 +60,7 @@ export interface PluginHostDeps<TUnstable> {
   isMpvConnected: () => boolean;
   sendMpvCommand: (command: (string | number)[]) => void;
   requestMpvProperty: (name: string) => Promise<unknown>;
+  requestMpvCommand: (command: (string | number | boolean)[]) => Promise<unknown>;
   ensureMpvRunning: () => Promise<boolean>;
   invokeAnkiConnect: (
     action: string,
@@ -67,21 +80,25 @@ export interface PluginHostDeps<TUnstable> {
   exec?: typeof execPluginCommand;
   /** How long unload waits, in total, for loading and deactivate before disposing anyway. */
   deactivateTimeoutMs?: number;
+  /** Async activation is bounded; synchronous plugin code still shares the main thread. */
+  activateTimeoutMs?: number;
 }
 
 interface LoadedPlugin {
   id: string;
   disposers: Set<() => void>;
   deactivate: (() => unknown) | null;
+  deactivation: Promise<void> | null;
+  disposed: boolean;
   /** Aborted on unload so in-flight `exec` children die with the plugin. */
   lifetime: AbortController;
 }
 
 /** Resolves when `promise` settles, or rejects once `timeoutMs` passes first. */
-async function settleWithin(promise: Promise<unknown>, timeoutMs: number): Promise<void> {
+async function settleWithin<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
+    return await Promise.race([
       promise,
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs} ms`)), timeoutMs);
@@ -124,17 +141,17 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
   mpvEvents.setMaxListeners(0);
   const ankiEvents = new EventEmitter();
   ankiEvents.setMaxListeners(0);
+  const mediaEvents = new EventEmitter();
+  mediaEvents.setMaxListeners(0);
+  const media = createPluginMediaState((snapshot) => mediaEvents.emit('change', snapshot));
   const plugins = new Map<string, LoadedPlugin>();
   const actions = new Map<string, { pluginId: string; handler: () => unknown }>();
   const loadModule = deps.loadModule ?? ((entryPath: string) => require(entryPath) as PluginModule);
   const exec = deps.exec ?? execPluginCommand;
-  let attachedClient: {
-    client: MpvClientEvents;
-    forwarders: Map<string, (p: unknown) => void>;
-  } | null = null;
+  let detachClient: (() => void) | null = null;
   let loadPromise: Promise<void> | null = null;
-  // Set once unloadAll has picked the plugins to unload; anything that activates later cleans up itself.
-  let unloaded = false;
+  const pluginLoads = new Map<string, Promise<void>>();
+  let unloading = false;
 
   function runGuarded(log: PluginLogger, label: string, callback: () => unknown): void {
     try {
@@ -156,6 +173,9 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
     entry: PluginConfigEntry,
     log: PluginLogger,
   ): PluginContext<TUnstable> {
+    const assertActive = (): void => {
+      if (plugin.disposed) throw new Error(`Plugin "${plugin.id}" has been disposed.`);
+    };
     const track = (dispose: () => void): (() => void) => {
       let disposed = false;
       const disposer = (): void => {
@@ -164,12 +184,16 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
         plugin.disposers.delete(disposer);
         dispose();
       };
-      plugin.disposers.add(disposer);
+      if (plugin.lifetime.signal.aborted) disposer();
+      else plugin.disposers.add(disposer);
       return disposer;
     };
 
     return {
+      apiVersion: PLUGIN_API_VERSION,
       id: plugin.id,
+      signal: plugin.lifetime.signal,
+      onDispose: (dispose) => track(() => runGuarded(log, 'Cleanup', dispose)),
       dir,
       settings: Object.freeze({ ...entry.settings }),
       dataDir,
@@ -204,9 +228,36 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
           mpvEvents.on(event, wrapped);
           return track(() => mpvEvents.off(event, wrapped));
         },
-        command: (command) => deps.sendMpvCommand(command),
-        getProperty: (name) => deps.requestMpvProperty(name),
-        ensureRunning: () => deps.ensureMpvRunning(),
+        command: (command) => {
+          assertActive();
+          deps.sendMpvCommand(command);
+        },
+        request: async (command) => {
+          assertActive();
+          return deps.requestMpvCommand(command);
+        },
+        getProperty: async (name) => {
+          assertActive();
+          return deps.requestMpvProperty(name);
+        },
+        ensureRunning: async () => {
+          assertActive();
+          return deps.ensureMpvRunning();
+        },
+      },
+      media: {
+        current: () => media.current(),
+        on: (event, listener, options) => {
+          if (event !== 'change') throw new Error(`Unknown media event "${event}".`);
+          const wrapped = (snapshot: ReturnType<typeof media.current>): void =>
+            runGuarded(log, 'media change listener', () => listener(snapshot));
+          mediaEvents.on('change', wrapped);
+          const dispose = track(() => mediaEvents.off('change', wrapped));
+          if (!plugin.lifetime.signal.aborted && options?.emitCurrent !== false) {
+            wrapped(media.current());
+          }
+          return dispose;
+        },
       },
       anki: {
         on: (event, listener) => {
@@ -217,8 +268,10 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
           ankiEvents.on(event, wrapped);
           return track(() => ankiEvents.off(event, wrapped));
         },
-        invoke: (action, params = {}, options = {}) =>
-          deps.invokeAnkiConnect(action, params, options),
+        invoke: async (action, params = {}, options = {}) => {
+          assertActive();
+          return deps.invokeAnkiConnect(action, params, options);
+        },
       },
       subtitles: {
         current: () => deps.getCurrentSubtitle(),
@@ -236,12 +289,20 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
           actions.set(actionId, { pluginId: plugin.id, handler });
           return track(() => actions.delete(actionId));
         },
-        run: (actionId, payload) =>
-          deps.dispatchSessionAction(payload === undefined ? { actionId } : { actionId, payload }),
+        run: async (actionId, payload) => {
+          assertActive();
+          return deps.dispatchSessionAction(
+            payload === undefined ? { actionId } : { actionId, payload },
+          );
+        },
       },
-      notify: (message, options) => deps.notify(message, options?.variant ?? 'info'),
+      notify: (message, options) => {
+        assertActive();
+        deps.notify(message, options?.variant ?? 'info');
+      },
       ui: {
         panel: (content) => {
+          plugin.lifetime.signal.throwIfAborted();
           const handle = deps.openPanel({
             title: content.title ?? plugin.id,
             markdown: content.markdown,
@@ -251,6 +312,7 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
           return handle;
         },
         openWindow: (options) => {
+          plugin.lifetime.signal.throwIfAborted();
           const resolveFile = (label: string, file: string): string => {
             const resolved = resolvePluginFilePath(dir, file);
             if (!resolved) throw new Error(`Window ${label} "${file}" must stay inside ${dir}.`);
@@ -291,6 +353,8 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
   }
 
   function disposePlugin(plugin: LoadedPlugin): void {
+    if (plugin.disposed) return;
+    plugin.disposed = true;
     plugin.lifetime.abort();
     for (const dispose of [...plugin.disposers]) {
       try {
@@ -300,6 +364,31 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
       }
     }
     plugins.delete(plugin.id);
+  }
+
+  /** Shares one bounded deactivate call between unload and an activation that finishes late. */
+  function finishPlugin(
+    plugin: LoadedPlugin,
+    timeoutMs = deps.deactivateTimeoutMs ?? PLUGIN_DEACTIVATE_TIMEOUT_MS,
+  ): Promise<void> {
+    if (plugin.deactivation) return plugin.deactivation;
+    if (!plugin.deactivate) {
+      disposePlugin(plugin);
+      return Promise.resolve();
+    }
+    plugin.deactivation = (async () => {
+      try {
+        await settleWithin(
+          Promise.resolve().then(() => plugin.deactivate?.()),
+          timeoutMs,
+        );
+      } catch (error) {
+        deps.createLogger(`plugin:${plugin.id}`).error(`deactivate failed: ${errorMessage(error)}`);
+      } finally {
+        disposePlugin(plugin);
+      }
+    })();
+    return plugin.deactivation;
   }
 
   async function loadPlugin(id: string, entry: PluginConfigEntry): Promise<void> {
@@ -336,13 +425,15 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
       return;
     }
 
+    if (unloading) return;
     const plugin: LoadedPlugin = {
       id,
       disposers: new Set(),
       deactivate: null,
+      deactivation: null,
+      disposed: false,
       lifetime: new AbortController(),
     };
-    if (unloaded) return;
     plugins.set(id, plugin);
     try {
       const mod = loadModule(entryPath);
@@ -350,20 +441,18 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
       if (!activate) {
         throw new Error(`${parsed.manifest.main} does not export an activate(ctx) function.`);
       }
-      const returned = await activate(
-        createContext(plugin, dir, dataDir, entry, log) as PluginContext,
-      );
-      plugin.deactivate =
-        typeof returned === 'function'
-          ? (returned as () => unknown)
-          : pickExport(mod, 'deactivate');
-      if (unloaded) {
-        // activate outlasted unloadAll's wait, so unloadAll skipped or only half-disposed it.
-        log.warn('Activated after unload started; unloading it now.');
-        runGuarded(log, 'deactivate', () => plugin.deactivate?.());
-        disposePlugin(plugin);
-        return;
-      }
+      const activation = Promise.resolve(
+        activate(createContext(plugin, dir, dataDir, entry, log)),
+      ).then((returned) => {
+        plugin.deactivate =
+          typeof returned === 'function'
+            ? (returned as () => unknown)
+            : pickExport(mod, 'deactivate');
+        // Unload owns cleanup while it is waiting for activation. A timed-out plugin owns it later.
+        if (plugin.disposed) void finishPlugin(plugin);
+      });
+      await settleWithin(activation, deps.activateTimeoutMs ?? PLUGIN_ACTIVATE_TIMEOUT_MS);
+      if (plugin.lifetime.signal.aborted) return;
       const version = parsed.manifest.version ? ` v${parsed.manifest.version}` : '';
       log.info(`Loaded ${parsed.manifest.name}${version}.`);
     } catch (error) {
@@ -373,22 +462,41 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
   }
 
   return {
+    getMediaSnapshot: () => media.current(),
     /** Forwards the client's events to plugin listeners, replacing any previously attached client. */
     attachMpvClient(client: MpvClientEvents): void {
-      if (attachedClient) {
-        for (const [event, forward] of attachedClient.forwarders) {
-          attachedClient.client.off(event as PluginMpvEventName, forward);
-        }
-      }
-      const forwarders = new Map<string, (payload: unknown) => void>();
+      detachClient?.();
+      const disposers: Array<() => void> = [];
+      const listen = <E extends PluginMpvEventName>(
+        event: E,
+        listener: (payload: PluginMpvEventMap[E]) => void,
+      ): void => {
+        client.on(event, listener);
+        disposers.push(() => client.off(event, listener));
+      };
+      listen('media-path-change', ({ path }) => media.pathChanged(path));
+      listen('media-title-change', ({ title }) => media.titleChanged(title));
+      listen('file-loaded', () =>
+        media.fileLoaded(
+          client.currentVideoPath ?? media.current()?.path ?? '',
+          client.currentMediaTitle === undefined
+            ? (media.current()?.title ?? null)
+            : client.currentMediaTitle,
+        ),
+      );
+      listen('end-file', () => media.reset());
+      listen('connection-change', ({ connected }) => {
+        if (!connected) media.reset();
+      });
       for (const event of PLUGIN_MPV_EVENT_NAMES) {
-        const forward = (payload: unknown): void => {
+        listen(event, (payload) => {
           mpvEvents.emit(event, payload);
-        };
-        client.on(event, forward);
-        forwarders.set(event, forward);
+        });
       }
-      attachedClient = { client, forwarders };
+      detachClient = () => {
+        for (const dispose of disposers) dispose();
+      };
+      media.reset(client.currentVideoPath, client.currentMediaTitle);
     },
 
     /** Delivers an Anki event to every plugin listening for it. */
@@ -398,15 +506,22 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
 
     /** Loads every enabled plugin once; later calls return the first load. */
     loadAll(): Promise<void> {
+      if (unloading) return Promise.resolve();
       loadPromise ??= Promise.all(
         Object.entries(deps.getPluginConfig())
           .filter(([, entry]) => entry.enabled)
-          .map(([id, entry]) => loadPlugin(id, entry)),
+          .map(([id, entry]) => {
+            const loading = loadPlugin(id, entry);
+            pluginLoads.set(id, loading);
+            return loading;
+          }),
       ).then(() => undefined);
       return loadPromise;
     },
 
     async unloadAll(): Promise<void> {
+      unloading = true;
+      for (const plugin of plugins.values()) plugin.lifetime.abort();
       // One budget covers the load wait and every deactivate, so quit is bounded by it.
       const timeoutMs = deps.deactivateTimeoutMs ?? PLUGIN_DEACTIVATE_TIMEOUT_MS;
       const deadline = Date.now() + timeoutMs;
@@ -421,21 +536,10 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
         }
       }
       loadPromise = null;
-      unloaded = true;
       await Promise.all(
-        [...plugins.values()].map(async (plugin) => {
-          try {
-            await settleWithin(
-              Promise.resolve().then(() => plugin.deactivate?.()),
-              Math.max(0, deadline - Date.now()),
-            );
-          } catch (error) {
-            deps
-              .createLogger(`plugin:${plugin.id}`)
-              .error(`deactivate failed: ${errorMessage(error)}`);
-          }
-          disposePlugin(plugin);
-        }),
+        [...plugins.values()].map((plugin) =>
+          finishPlugin(plugin, Math.max(0, deadline - Date.now())),
+        ),
       );
     },
 
@@ -444,7 +548,11 @@ export function createPluginHost<TUnstable>(deps: PluginHostDeps<TUnstable>) {
      * command sent at startup is not lost. Resolves false when no plugin registered the action.
      */
     async runAction(actionId: string): Promise<boolean> {
-      await loadPromise;
+      const separator = actionId.indexOf('/');
+      if (separator < 1) return false;
+      const pluginId = actionId.slice(0, separator);
+      await pluginLoads.get(pluginId);
+      if (unloading) return false;
       const action = actions.get(actionId);
       if (!action) return false;
       runGuarded(

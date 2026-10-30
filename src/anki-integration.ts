@@ -17,6 +17,7 @@
  */
 
 import { AnkiConnectClient } from './anki-connect';
+import type { PluginMinedNote, PluginMiningProvenance } from './plugin-api';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { MediaGenerator } from './media-generator';
 import path from 'path';
@@ -240,7 +241,9 @@ export class AnkiIntegration {
   private runtime: AnkiIntegrationRuntime;
   private aiConfig: AiConfig;
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
-  private cardsReadyCallback: ((noteIds: number[]) => void) | null = null;
+  private cardsReadyCallback: ((noteIds: number[], notes: PluginMinedNote[]) => void) | null = null;
+  private miningProvenanceProvider: (() => PluginMiningProvenance | null) | null = null;
+  private miningProvenance = new Map<number, PluginMiningProvenance | null>();
   // Ready reports collected while createSentenceCard still has field grouping to run.
   private heldReadyNoteIds: number[] | null = null;
   private knownWordCacheUpdatedCallback: (() => void) | null = null;
@@ -359,10 +362,51 @@ export class AnkiIntegration {
     if (noteIds.length === 0) return;
     // Field grouping may have merged a note away; report the note that kept its content.
     const currentNoteIds = [...new Set(noteIds.map((noteId) => this.resolveCurrentNoteId(noteId)))];
+    const notes: PluginMinedNote[] = [];
+    for (const [originalNoteId, provenance] of this.miningProvenance) {
+      const noteId = this.resolveCurrentNoteId(originalNoteId);
+      if (
+        !currentNoteIds.includes(noteId) ||
+        this.pendingYoutubeMediaQueue.hasPendingNote(originalNoteId) ||
+        this.pendingYoutubeMediaQueue.hasPendingNote(noteId)
+      )
+        continue;
+      notes.push({ originalNoteId, noteId, provenance });
+      this.miningProvenance.delete(originalNoteId);
+    }
+    for (const originalNoteId of noteIds) {
+      const noteId = this.resolveCurrentNoteId(originalNoteId);
+      if (
+        !notes.some((note) => note.noteId === noteId) &&
+        ![...this.miningProvenance.keys()].some((id) => this.resolveCurrentNoteId(id) === noteId)
+      ) {
+        notes.push({ originalNoteId, noteId, provenance: null });
+      }
+    }
+    if (notes.length === 0) return;
     try {
-      this.cardsReadyCallback?.(currentNoteIds);
+      this.cardsReadyCallback?.([...new Set(notes.map((note) => note.noteId))], notes);
     } catch (error) {
       log.warn('cardsReady callback failed:', (error as Error).message);
+    }
+  }
+
+  private rememberMiningProvenance(
+    noteIds: number[],
+    provenance: PluginMiningProvenance | null,
+  ): void {
+    for (const noteId of noteIds) {
+      if (!this.miningProvenance.get(noteId)) {
+        this.miningProvenance.set(
+          noteId,
+          provenance &&
+            Object.freeze({
+              ...provenance,
+              media: provenance.media && Object.freeze({ ...provenance.media }),
+              subtitle: provenance.subtitle && Object.freeze({ ...provenance.subtitle }),
+            }),
+        );
+      }
     }
   }
 
@@ -473,6 +517,7 @@ export class AnkiIntegration {
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId) => this.processNewCard(noteId),
       recordCardsAdded: (count, noteIds) => {
+        this.rememberMiningProvenance(noteIds, null);
         this.recordCardsMinedSafely(count, noteIds, 'polling');
       },
       onCardsReady: (noteIds) => this.reportCardsReady(noteIds),
@@ -495,6 +540,8 @@ export class AnkiIntegration {
     const { AnkiConnectProxyServer } =
       require('./anki-integration/anki-connect-proxy') as typeof import('./anki-integration/anki-connect-proxy');
     return new AnkiConnectProxyServer({
+      captureMiningProvenance: () => this.miningProvenanceProvider?.() ?? null,
+      onNotesAdded: (noteIds, provenance) => this.rememberMiningProvenance(noteIds, provenance),
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId: number) => this.processNewCard(noteId),
       recordCardsAdded: (count, noteIds) => {
@@ -626,6 +673,8 @@ export class AnkiIntegration {
       recordCardsMinedCallback: (count, noteIds) => {
         this.recordCardsMinedSafely(count, noteIds, 'card creation');
       },
+      captureMiningProvenance: () => this.miningProvenanceProvider?.() ?? null,
+      onNoteCreated: (noteId, provenance) => this.rememberMiningProvenance([noteId], provenance),
       onCardsReady: (noteIds) => this.reportCardsReady(noteIds),
       reviewMediaTiming: (request) => this.reviewMediaTiming(request),
     });
@@ -1830,8 +1879,14 @@ export class AnkiIntegration {
    * media, and field grouping), or as soon as polling or the proxy sees it when auto-update is off.
    * Ids merged away by field grouping are reported as the note that kept them.
    */
-  setCardsReadyCallback(callback: ((noteIds: number[]) => void) | null): void {
+  setCardsReadyCallback(
+    callback: ((noteIds: number[], notes: PluginMinedNote[]) => void) | null,
+  ): void {
     this.cardsReadyCallback = callback;
+  }
+
+  setMiningProvenanceProvider(provider: (() => PluginMiningProvenance | null) | null): void {
+    this.miningProvenanceProvider = provider;
   }
 
   setKnownWordCacheUpdatedCallback(callback: (() => void) | null): void {

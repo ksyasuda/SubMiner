@@ -11,6 +11,7 @@ import {
   type WordCardKind,
 } from '../types/anki';
 import { createLogger } from '../logger';
+import type { PluginMiningProvenance } from '../plugin-api';
 import type { MediaInput } from '../media-input';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
 import { AiConfig } from '../types/integrations';
@@ -101,6 +102,8 @@ interface CardCreationMediaGenerator {
 }
 
 interface CardCreationDeps {
+  captureMiningProvenance?: () => PluginMiningProvenance | null;
+  onNoteCreated?: (noteId: number, provenance: PluginMiningProvenance | null) => void;
   getConfig: () => AnkiConnectConfig;
   getAiConfig: () => AiConfig;
   getTimingTracker: () => SubtitleTimingTracker;
@@ -602,6 +605,11 @@ export class CardCreationService {
     }
 
     const maxMediaDuration = this.deps.getConfig().media?.maxMediaDuration ?? 30;
+    const captured = this.deps.captureMiningProvenance?.() ?? null;
+    const provenance = captured && {
+      ...captured,
+      subtitle: { text: sentence, startTime, endTime },
+    };
     const cappedEndTime = clampMediaEndTime(startTime, endTime, maxMediaDuration);
     if (cappedEndTime !== endTime) {
       log.warn(
@@ -724,6 +732,7 @@ export class CardCreationService {
             this.getConfiguredAnkiTags(),
           );
           createdNoteId = noteId;
+          this.deps.onNoteCreated?.(noteId, provenance);
           log.info('Created sentence card:', noteId);
         } catch (error) {
           log.error('Failed to create sentence card:', (error as Error).message);

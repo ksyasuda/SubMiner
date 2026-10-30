@@ -74,7 +74,7 @@ Anki must be running and logged in to AnkiWeb. Cards mined from the stats dashbo
 
 ## Example: tag cards with the episode
 
-[`assets/plugins/episode-tags`](https://github.com/ksyasuda/SubMiner/tree/main/assets/plugins/episode-tags) tags each mined card with the show and episode it came from, such as `show::Sousou_no_Frieren::E07`. It reads them from the file name (`[Group] Show - 07 (1080p).mkv`, `Show.S01E07.mkv`, `Show 第7話.mkv`), or from the title mpv shows for streams. Each card is tagged with the file that was playing when it was added, so a card that finishes later (YouTube media, field grouping) still gets its own episode, and cards added before the plugin started are left alone. Spaces become `_`.
+[`assets/plugins/episode-tags`](https://github.com/ksyasuda/SubMiner/tree/main/assets/plugins/episode-tags) tags each mined card with the show and episode it came from, such as `show::Sousou_no_Frieren::E07`. It reads them from the file name (`[Group] Show - 07 (1080p).mkv`, `Show.S01E07.mkv`, `Show 第7話.mkv`), or from the title mpv shows for streams. It uses the source captured when mining started, so delayed media and field grouping into an older note keep the correct episode. Notes with unknown provenance, including cards discovered by polling, are left alone. Spaces become `_`.
 
 | Setting  | Default                  | What it does                                    |
 | -------- | ------------------------ | ----------------------------------------------- |
@@ -94,31 +94,25 @@ Templates can use `{show}`, `{season}`, `{episode}`, and `{ep}` (`S01E07`, or `E
 | `delayMs`   | `3000`                | Wait this long after the file starts, so external subs load     |
 | `streams`   | `false`               | Also check `http(s)` streams, which Jimaku usually can't search |
 
-## Example: daily mining goal
-
-[`assets/plugins/mining-goal`](https://github.com/ksyasuda/SubMiner/tree/main/assets/plugins/mining-goal) counts the cards you mine each day and shows a notification when you reach your goal. Its `stats` action opens a panel with today's count, your streak of days at the goal, and the last 7 days. Counts are kept in `plugin-data/mining-goal/counts.json`.
-
-| Setting        | Default | What it does                                                        |
-| -------------- | ------- | ------------------------------------------------------------------- |
-| `goal`         | `10`    | Cards per day                                                       |
-| `dayStartHour` | `4`     | Cards mined before this hour count toward the day before, like Anki |
-| `notify`       | `true`  | Show a notification when you reach the goal                         |
-
-Only cards SubMiner mines count. Cards mined from the stats dashboard or added in Anki don't.
-
 ## Write a plugin
 
 A plugin folder needs a `plugin.json`:
 
 ```json
-{ "name": "My Plugin", "version": "1.0.0", "main": "main.js" }
+{ "name": "My Plugin", "version": "1.0.0", "apiVersion": 1, "main": "main.js" }
 ```
 
-`main` points to a CommonJS module (`.js`) or an ES module (`.mjs`) that exports `activate(ctx)`. It may return a cleanup function, or the module can export `deactivate()`. On quit, SubMiner waits up to 2 seconds for it, including any promise it returns. Everything a plugin registers through `ctx` (listeners, timers, actions, panels, running programs) is cleaned up automatically when SubMiner quits.
+`apiVersion` declares the required SubMiner plugin API version. The current version is `1`; omitted values also mean v1 for existing plugins. An unsupported version is rejected before the plugin's entry module runs. `version` is the plugin's own version and does not control compatibility.
+
+`main` points to a CommonJS module (`.js`) or an ES module (`.mjs`) that exports `activate(ctx)`. Activation may be asynchronous and has a 10-second timeout. A plugin's actions wait for its own activation, so a slow plugin does not hold up other plugins. If activation fails or times out, its registrations are removed and its signal aborts. Synchronous code still shares the app's main thread.
+
+Activation may return a cleanup function, or the module can export `deactivate()`. On quit, SubMiner aborts `ctx.signal` first and waits up to 2 seconds in total for loading and deactivation. A plugin still reading its files is skipped. Everything a plugin registers through `ctx` is cleaned up automatically. A late activation cannot leave new listeners, timers, or actions behind, and its returned cleanup still runs once. Deactivation can call Anki, mpv, built-in actions, and notifications until disposal. After disposal, those calls throw or reject, including work that resumes after an activation or deactivation timeout.
 
 ```js
 function activate(ctx) {
-  ctx.mpv.on('media-path-change', ({ path }) => ctx.log.info(`Now playing ${path}`));
+  ctx.media.on('change', (media) => {
+    if (media) ctx.log.info(`Now playing ${media.path}`);
+  });
   ctx.every(60_000, () => ctx.log.info('Still watching'));
   ctx.actions.register('hello', () => {
     const line = ctx.subtitles.current();
@@ -131,19 +125,43 @@ module.exports = { activate };
 
 An error thrown by a plugin is logged and does not crash SubMiner. A plugin that blocks with a long synchronous loop still freezes the app, so keep slow work asynchronous.
 
+### Types and cleanup
+
+The public types live in [`src/plugin-api.ts`](https://github.com/ksyasuda/SubMiner/blob/main/src/plugin-api.ts). A build emits `dist/plugin-api.d.ts`; copy that file into your plugin as `subminer.d.ts`, or copy the source file with that name. It has no imports from SubMiner internals. Electron's types must be available to your editor because `ui.openWindow` returns a `BrowserWindow`.
+
+JavaScript plugins can use the types through JSDoc:
+
+```js
+/** @param {import('./subminer').PluginContext} ctx */
+function activate(ctx) {
+  const { ipcMain } = require('electron');
+  ipcMain.handle(`${ctx.id}:info`, () => ({ media: ctx.media.current() }));
+  ctx.onDispose(() => ipcMain.removeHandler(`${ctx.id}:info`));
+}
+
+module.exports = { activate };
+```
+
+Use `ctx.signal` with `fetch` or other cancellable work. It aborts when unloading starts, before `deactivate` runs. `ctx.onDispose(fn)` registers synchronous cleanup for resources outside `ctx`, such as file watchers and Electron IPC handlers. The returned function runs the cleanup early, at most once. Registering cleanup after unloading starts runs it immediately. Timers and listeners registered after that point are removed immediately too. Use the returned activation cleanup or `deactivate` for asynchronous teardown, within the shared quit timeout.
+
 ### `ctx` reference
 
 | Member                                 | What it does                                                                                                              |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `id`, `dir`, `settings`                | Plugin id, plugin folder path, and `plugins.<id>.settings`                                                                |
+| `apiVersion`                           | The host's plugin API version, currently `1`                                                                              |
+| `signal`, `onDispose(fn)`              | Lifetime cancellation and cleanup for resources created outside `ctx`                                                     |
 | `dataDir`                              | `plugin-data/<id>/` next to your config file, for caches and state. Exists before `activate` runs                         |
 | `log.debug/info/warn/error(message)`   | Write to the app log                                                                                                      |
 | `every(ms, fn)`, `after(ms, fn)`       | Repeating and one-shot timers. Return a function that cancels them                                                        |
 | `mpv.on(event, fn)`                    | Listen to mpv events (below). Returns an unsubscribe function                                                             |
 | `mpv.command(args)`                    | Send an mpv command, e.g. `['set', 'pause', 'yes']`                                                                       |
+| `mpv.request(args)`                    | Await an mpv command result; rejects on command error, disconnect, or timeout                                             |
 | `mpv.getProperty(name)`                | Read an mpv property (Promise)                                                                                            |
 | `mpv.connected`                        | Whether mpv is connected                                                                                                  |
 | `mpv.ensureRunning()`                  | Connect to mpv, starting an idle mpv if none is running. Resolves `false` if that fails                                   |
+| `media.current()`                      | Cached `{ playbackId, path, title }`, or `null` when there is no connected media                                          |
+| `media.on('change', fn, options)`      | Subscribe to playback snapshots; immediately delivers the current snapshot unless `emitCurrent: false`                    |
 | `anki.on(event, fn)`                   | Listen to Anki events (below). Returns an unsubscribe function                                                            |
 | `anki.invoke(action, params, options)` | Send an AnkiConnect action to `ankiConnect.url`, e.g. `('sync')`. Resolves its result (below)                             |
 | `subtitles.current()`                  | The displayed line as `{ text, startTime, endTime }`, or `null`                                                           |
@@ -162,8 +180,16 @@ A panel's `signal` aborts when the user closes it or another panel replaces it. 
 
 `ui.openWindow` takes `html` and an optional `preload`, both relative to the plugin folder, plus `title`, `width`, and `height`. Opening the same `html` again focuses the open window. The page runs with context isolation and no Node access. The preload is sandboxed too: it can `require('electron')` but nothing else, so bundle anything more into it. Expose what the page needs from the preload with `contextBridge`, and handle its messages with `ipcMain` from `require('electron')` in the plugin. Prefix channel names with the plugin id. Plugin windows close when SubMiner quits.
 
-mpv events: `connection-change`, `subtitle-change`, `subtitle-timing`, `time-pos-change`, `duration-change`, `pause-change`, `fullscreen-change`, `media-path-change`, `media-title-change`, `subtitle-track-change`, `subtitle-track-list-change`, `secondary-subtitle-change`, `secondary-subtitle-track-change`, `secondary-subtitle-delay-change`, `secondary-subtitle-visibility`, `client-message`, and `end-file`. `end-file` gives `{ reason, playlistEntryId, error }`, where `reason` is `eof`, `stop`, `quit`, `error`, `redirect`, or `unknown`.
+`media` snapshots are immutable. `playbackId` changes on a new load, including reopening the same path. A title may arrive later with the same id. Disconnecting or ending playback delivers `null`. Use the id to discard stale asynchronous results. Snapshots describe cached playback state; they do not promise that external subtitle discovery has finished.
 
-Anki events: `card-mined` gives `{ noteIds }` once SubMiner has finished filling in a mined card (sentence, audio, image, and field grouping). For YouTube cards whose media waits on the download, it fires once that media is added or the download fails. With `ankiConnect.behavior.autoUpdateNewCards` off, it fires as soon as SubMiner sees the card. If field grouping merged the card into an older one, you get the older card's id.
+`mpv.request` accepts string, number, and boolean arguments, e.g. `await ctx.mpv.request(['set_property', 'pause', true])`. It returns mpv's result data and rejects after 4 seconds. A timeout does not cancel the command in mpv, so a slow command may still complete. `mpv.command` remains available for commands whose result you do not need.
+
+mpv events: `connection-change`, `subtitle-change`, `subtitle-timing`, `time-pos-change`, `duration-change`, `pause-change`, `fullscreen-change`, `media-path-change`, `media-title-change`, `subtitle-track-change`, `subtitle-track-list-change`, `secondary-subtitle-change`, `secondary-subtitle-track-change`, `secondary-subtitle-delay-change`, `secondary-subtitle-visibility`, `client-message`, `file-loaded`, and `end-file`. `file-loaded` has no payload. `end-file` gives `{ reason, playlistEntryId, error }`, where `reason` is `eof`, `stop`, `quit`, `error`, `redirect`, or `unknown`.
+
+Anki events: `card-mined` gives `{ noteIds, notes }` once SubMiner has finished filling in a mined card (sentence, audio, image, and field grouping). For YouTube cards whose media waits on the download, it fires once that media is added or the download fails. With `ankiConnect.behavior.autoUpdateNewCards` off, it fires as soon as SubMiner sees the card. If field grouping merged the card into an older one, `noteIds` contains the older card's id.
+
+Each `notes` entry has `{ originalNoteId, noteId, provenance }`. `originalNoteId` identifies the note before merges; `noteId` is the note that kept its content. `provenance` is `{ minedAt, media, subtitle }`, captured before asynchronous creation or the AnkiConnect proxy's upstream request. `minedAt` is Unix time in milliseconds. `media` uses the snapshot format above, and `subtitle` uses `{ text, startTime, endTime }`. Either may be `null`. Polling cannot establish the original source, so its provenance is `null` rather than the currently playing file.
+
+Several original notes can merge into one kept note. `notes` preserves each source, while `noteIds` contains unique kept ids. Existing listeners using only `noteIds` continue to work. Cards mined from the stats dashboard do not emit this event.
 
 `anki.invoke` takes `{ timeoutMs }` (default 10 seconds), rejects on an Anki error, and never retries, so an action like `sync` or `addNote` runs at most once.

@@ -1,6 +1,7 @@
 import { MpvSubtitleRenderMetrics } from '../../types';
 import { sanitizeMediaTitle } from '../../shared/media-identity';
 import { widenHalfwidthKana } from '../utils/halfwidth-kana';
+import type { PluginMpvEventMap } from '../../plugin-api';
 
 export type MpvMessage = {
   event?: string;
@@ -15,14 +16,10 @@ export type MpvMessage = {
 };
 
 const MPV_END_FILE_REASONS = ['eof', 'stop', 'quit', 'error', 'redirect'] as const;
-export type MpvEndFileReason = (typeof MPV_END_FILE_REASONS)[number] | 'unknown';
+export type MpvEndFileReason = PluginMpvEventMap['end-file']['reason'];
 
 /** mpv's `end-file` event: why the current file stopped, and mpv's error text when it failed. */
-export interface MpvEndFileEvent {
-  reason: MpvEndFileReason;
-  playlistEntryId: number | null;
-  error: string | null;
-}
+export type MpvEndFileEvent = PluginMpvEventMap['end-file'];
 
 function parseEndFileEvent(msg: MpvMessage): MpvEndFileEvent {
   const reason = MPV_END_FILE_REASONS.find((known) => known === msg.reason) ?? 'unknown';
@@ -123,6 +120,7 @@ export interface MpvProtocolHandleMessageDeps {
   requestAppQuit: () => void;
   emitClientMessage?: (payload: { args: string[] }) => void;
   emitEndFile?: (payload: MpvEndFileEvent) => void;
+  emitFileLoaded?: () => void;
 }
 
 type SubtitleTrackCandidate = {
@@ -442,6 +440,8 @@ export async function dispatchMpvProtocolMessage(
     if (args.length > 0) {
       deps.emitClientMessage?.({ args });
     }
+  } else if (msg.event === 'file-loaded') {
+    deps.emitFileLoaded?.();
   } else if (msg.event === 'end-file') {
     deps.emitEndFile?.(parseEndFileEvent(msg));
   } else if (msg.event === 'shutdown') {

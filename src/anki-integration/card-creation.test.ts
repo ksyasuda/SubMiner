@@ -11,11 +11,36 @@ import {
 } from './card-creation-test-utils';
 import { toMpvEdlValue } from './mpv-edl-test-utils';
 import type { MediaInput } from '../media-generator';
+import type { PluginMiningProvenance } from '../plugin-api';
 
 const YOUTUBE_URL = 'https://www.youtube.com/watch?v=abc123';
 
 const mediaInputPath = (mediaInput: MediaInput): string =>
   typeof mediaInput === 'string' ? mediaInput : mediaInput.path;
+
+test('sentence provenance is captured before asynchronous creation and uses the mined line', async () => {
+  let currentPath = 'Show - 02.mkv';
+  const captured: Array<PluginMiningProvenance | null> = [];
+  const service = new CardCreationService(
+    createCardCreationDeps({
+      captureMiningProvenance: () => ({
+        minedAt: 1234,
+        media: { playbackId: 1, path: currentPath, title: null },
+        subtitle: null,
+      }),
+      client: createFakeClient({
+        addNote: async () => {
+          currentPath = 'Show - 03.mkv';
+          return 42;
+        },
+      }),
+      onNoteCreated: (_noteId, provenance) => captured.push(provenance),
+    }),
+  );
+  assert.equal(await service.createSentenceCard('テスト', 1, 2), true);
+  assert.equal(captured[0]?.media?.path, 'Show - 02.mkv');
+  assert.deepEqual(captured[0]?.subtitle, { text: 'テスト', startTime: 1, endTime: 2 });
+});
 
 test('CardCreationService counts locally created sentence cards', async () => {
   const minedCards: Array<{ count: number; noteIds?: number[] }> = [];

@@ -6,4 +6,5 @@ area: plugins
 - Added an example `anki-sync` plugin that syncs Anki to AnkiWeb after you mine cards, once mining goes quiet or playback ends.
 - Added an example `episode-tags` plugin that tags mined cards with the show and episode, such as `show::Frieren::S01E07`.
 - Added an example `auto-jimaku` plugin that opens the Jimaku search when a file starts without a Japanese subtitle track.
-- Added an example `mining-goal` plugin that tracks cards mined per day, notifies you at a daily goal, and shows your streak and the last week in a panel.
+- Added a versioned plugin API with standalone authoring types, cached playback snapshots, lifecycle cancellation and cleanup, and awaitable mpv commands. Async activation is bounded and actions wait only for their own plugin. Shutdown skips pending loads, runs each deactivation once, and blocks calls from disposed plugins.
+- Mining events preserve original and kept note ids with the media and subtitle captured when mining starts, so delayed enrichment and merges into older notes keep the source episode.

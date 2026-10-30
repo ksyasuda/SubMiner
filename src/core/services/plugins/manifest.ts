@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import type { PluginManifest } from './types';
+import { PLUGIN_API_VERSION, type PluginManifest } from './types';
 
 const PLUGIN_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/i;
 
@@ -27,10 +27,20 @@ export function parsePluginManifest(
   if (value.version !== undefined && typeof value.version !== 'string') {
     return { error: 'plugin.json "version" must be a string.' };
   }
+  const apiVersion = value.apiVersion === undefined ? 1 : value.apiVersion;
+  if (typeof apiVersion !== 'number' || !Number.isInteger(apiVersion) || apiVersion < 1) {
+    return { error: 'plugin.json "apiVersion" must be a positive integer.' };
+  }
+  if (apiVersion !== PLUGIN_API_VERSION) {
+    return {
+      error: `Plugin requires API ${apiVersion}; this SubMiner supports API ${PLUGIN_API_VERSION}.`,
+    };
+  }
   return {
     manifest: {
       name: typeof value.name === 'string' && value.name.trim() ? value.name.trim() : fallbackName,
       version: typeof value.version === 'string' ? value.version : null,
+      apiVersion,
       main: value.main.trim(),
     },
   };

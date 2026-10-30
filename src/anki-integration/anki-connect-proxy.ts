@@ -1,5 +1,6 @@
 import http, { IncomingMessage, ServerResponse } from 'node:http';
 import axios, { AxiosInstance } from 'axios';
+import type { PluginMiningProvenance } from '../plugin-api';
 
 interface StartProxyOptions {
   host: string;
@@ -13,6 +14,8 @@ interface AnkiConnectEnvelope {
 }
 
 export interface AnkiConnectProxyServerDeps {
+  captureMiningProvenance?: () => PluginMiningProvenance | null;
+  onNotesAdded?: (noteIds: number[], provenance: PluginMiningProvenance | null) => void;
   shouldAutoUpdateNewCards: () => boolean;
   processNewCard: (noteId: number) => Promise<void>;
   recordCardsAdded?: (count: number, noteIds: number[]) => void;
@@ -188,6 +191,12 @@ export class AnkiConnectProxyServer {
         typeof req.headers['content-type'] === 'string'
           ? req.headers['content-type']
           : 'application/json';
+      const action = requestJson?.action;
+      const provenance =
+        typeof action === 'string' &&
+        ['addNote', 'addNotes', 'multi', 'updateNoteFields'].includes(action)
+          ? (this.deps.captureMiningProvenance?.() ?? null)
+          : null;
       const upstreamResponse = await this.client.request<ArrayBuffer>({
         url: targetUrl,
         method: req.method,
@@ -205,7 +214,7 @@ export class AnkiConnectProxyServer {
       res.end(responseBody);
 
       if (req.method === 'POST') {
-        this.maybeEnqueueFromRequest(requestJson, responseBody);
+        this.maybeEnqueueFromRequest(requestJson, responseBody, provenance);
       }
     } catch (error) {
       this.deps.logWarn('[anki-proxy] Failed to forward request:', (error as Error).message);
@@ -217,6 +226,7 @@ export class AnkiConnectProxyServer {
   private maybeEnqueueFromRequest(
     requestJson: Record<string, unknown> | null,
     responseBody: Buffer,
+    provenance: PluginMiningProvenance | null = null,
   ): void {
     if (!requestJson) {
       return;
@@ -250,6 +260,7 @@ export class AnkiConnectProxyServer {
         response.result !== null
       )
         return;
+      this.deps.onNotesAdded?.(this.collectSingleResultId(note.id), provenance);
       this.enqueueNotes(this.collectSingleResultId(note.id), false);
       return;
     }
@@ -286,9 +297,11 @@ export class AnkiConnectProxyServer {
     }
     if (!autoUpdate) {
       // Nothing to enrich, so the added notes are already in their final state.
+      this.deps.onNotesAdded?.(noteIds, provenance);
       if (noteIds.length > 0) this.deps.onCardsReady?.(noteIds);
       return;
     }
+    this.deps.onNotesAdded?.(noteIds, provenance);
     this.maybeTrackDuplicateNoteIds(requestJson, action, responseResult);
     if (noteIds.length === 0 && shouldFallbackToLatestAdded) {
       void this.enqueueMostRecentAddedNote();

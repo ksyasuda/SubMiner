@@ -206,7 +206,7 @@ The same pattern works for n8n or Zapier workflows, Discord notifiers, or append
 
 ## mpv script messages
 
-SubMiner has no in-app plugin SDK. Besides the streams above, you can drive it from other mpv scripts and from the [launcher CLI](/launcher-script).
+SubMiner also supports [JavaScript app plugins](/plugins) for playback events, mining events, actions, and custom UI. Besides the streams above, you can drive it from other mpv scripts and from the [launcher CLI](/launcher-script).
 
 The mpv plugin accepts these script messages:
 

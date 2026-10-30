@@ -17,8 +17,7 @@ function activate(ctx) {
   const settings = { ...DEFAULT_SETTINGS, ...ctx.settings };
   const languages = new Set(settings.languages.map((lang) => lang.toLowerCase()));
   let cancelCheck = null;
-  // Bumped on every file change so a check still waiting on mpv knows it is stale.
-  let generation = 0;
+  let playbackId = null;
 
   function hasJapaneseSubtitle(trackList) {
     return trackList.some(
@@ -29,29 +28,23 @@ function activate(ctx) {
     );
   }
 
-  async function check(mediaPath, checkGeneration) {
+  async function check(media) {
     cancelCheck = null;
-    const [currentPath, trackList] = await Promise.all([
-      ctx.mpv.getProperty('path'),
-      ctx.mpv.getProperty('track-list'),
-    ]);
-    // Another file started while we waited, even if it was this one again; its own check is
-    // already scheduled.
-    if (checkGeneration !== generation) return;
-    if (currentPath !== mediaPath || !Array.isArray(trackList)) return;
+    const trackList = await ctx.mpv.getProperty('track-list');
+    if (ctx.media.current()?.playbackId !== media.playbackId || !Array.isArray(trackList)) return;
     if (hasJapaneseSubtitle(trackList)) return;
-    ctx.log.info(`No Japanese subtitles for ${mediaPath}; running ${settings.action}.`);
+    ctx.log.info(`No Japanese subtitles for ${media.path}; running ${settings.action}.`);
     await ctx.actions.run(settings.action);
   }
 
-  ctx.mpv.on('media-path-change', ({ path: mediaPath }) => {
-    generation += 1;
+  ctx.media.on('change', (media) => {
+    if (media?.playbackId === playbackId) return;
+    playbackId = media?.playbackId ?? null;
     cancelCheck?.();
     cancelCheck = null;
-    if (!mediaPath) return;
-    if (!settings.streams && /^[a-z]+:\/\//i.test(mediaPath)) return;
-    const checkGeneration = generation;
-    cancelCheck = ctx.after(settings.delayMs, () => check(mediaPath, checkGeneration));
+    if (!media) return;
+    if (!settings.streams && /^[a-z]+:\/\//i.test(media.path)) return;
+    cancelCheck = ctx.after(settings.delayMs, () => check(media));
   });
 }
 

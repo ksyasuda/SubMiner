@@ -1,10 +1,10 @@
+import type { PluginMpvEventMap } from '../../plugin-api';
 import { EventEmitter } from 'events';
 import { Config, MpvClient, MpvSubtitleRenderMetrics } from '../../types';
 import {
   dispatchMpvProtocolMessage,
   MPV_REQUEST_ID_TRACK_LIST_AUDIO,
   MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
-  type MpvEndFileEvent,
   MpvMessage,
   MpvProtocolHandleMessageDeps,
   splitMpvMessagesFromBuffer,
@@ -121,25 +121,8 @@ export interface MpvIpcClientProtocolDeps {
 
 export interface MpvIpcClientDeps extends MpvIpcClientProtocolDeps {}
 
-export interface MpvIpcClientEventMap {
-  'connection-change': { connected: boolean };
-  'subtitle-change': { text: string; isOverlayVisible: boolean };
-  'subtitle-timing': { text: string; start: number; end: number };
-  'time-pos-change': { time: number };
-  'duration-change': { duration: number };
-  'pause-change': { paused: boolean };
-  'fullscreen-change': { fullscreen: boolean };
-  'secondary-subtitle-change': { text: string };
-  'subtitle-track-change': { sid: number | null };
-  'secondary-subtitle-track-change': { sid: number | null };
-  'secondary-subtitle-delay-change': { delay: number };
-  'subtitle-track-list-change': { trackList: unknown[] | null };
-  'media-path-change': { path: string };
-  'media-title-change': { title: string | null };
+export interface MpvIpcClientEventMap extends PluginMpvEventMap {
   'subtitle-metrics-change': { patch: Partial<MpvSubtitleRenderMetrics> };
-  'secondary-subtitle-visibility': { visible: boolean };
-  'client-message': { args: string[] };
-  'end-file': MpvEndFileEvent;
 }
 
 type MpvIpcClientEventName = keyof MpvIpcClientEventMap;
@@ -524,6 +507,7 @@ export class MpvIpcClient implements MpvClient {
       emitEndFile: (payload) => {
         this.emit('end-file', payload);
       },
+      emitFileLoaded: () => this.emit('file-loaded', undefined),
     };
   }
 
@@ -599,6 +583,14 @@ export class MpvIpcClient implements MpvClient {
     const response = await this.request(['get_property', name]);
     if (response.error && response.error !== 'success') {
       throw new Error(`Failed to read MPV property '${name}': ${response.error}`);
+    }
+    return response.data;
+  }
+
+  async requestCommand(command: (string | number | boolean)[]): Promise<unknown> {
+    const response = await this.request(command);
+    if (response.error && response.error !== 'success') {
+      throw new Error(`MPV command failed: ${response.error}`);
     }
     return response.data;
   }

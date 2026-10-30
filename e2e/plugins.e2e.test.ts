@@ -18,6 +18,15 @@ const { ipcMain } = require('electron');
 
 exports.activate = (ctx) => {
   ipcMain.handle('e2e-probe:info', () => ({ dataDir: ctx.dataDir, greeting: ctx.settings.greeting }));
+  ctx.onDispose(() => ipcMain.removeHandler('e2e-probe:info'));
+  ctx.media.on('change', (media) => ctx.log.info('probe media ' + JSON.stringify(media)));
+  ctx.anki.on('card-mined', ({ notes }) => ctx.log.info('probe mined ' + JSON.stringify(notes)));
+  ctx.actions.register('request', async () => {
+    const title = await ctx.mpv.request(['get_property', 'media-title']);
+    ctx.log.info('probe request ' + JSON.stringify(title));
+    try { await ctx.mpv.request(['subminer-no-such-command']); }
+    catch { ctx.log.info('probe request rejected'); }
+  });
   ctx.actions.register('window', () => {
     ctx.ui.openWindow({ html: 'ui/index.html', preload: 'preload.js', title: 'E2E Probe Window' });
   });
@@ -45,7 +54,6 @@ exports.activate = (ctx) => {
       )
       .catch((error) => panel.update({ markdown: 'exec failed: ' + error.message }));
   });
-  return () => ipcMain.removeHandler('e2e-probe:info');
 };
 `;
 
@@ -215,3 +223,50 @@ test('plugins receive mpv end-file events', { timeout: TEST_TIMEOUT_MS }, async 
     { description: 'the plugin to log the end-file reason' },
   );
 });
+
+test(
+  'plugin requests report command failures and mined notes carry the captured source',
+  { timeout: TEST_TIMEOUT_MS },
+  async () => {
+    const { session, overlay } = await useSession();
+    const cue = FIXTURE_CUES[1];
+    await session.mpv.command('seek', cue.at, 'absolute+exact');
+    await overlay.waitFor(
+      `document.getElementById('subtitleRoot').textContent === ${JSON.stringify(cue.text)}`,
+      { description: 'the mined subtitle to be visible' },
+    );
+    await session.runAppCommand('--plugin-action', 'e2e-probe/request');
+    await waitUntil(
+      () =>
+        fs
+          .readFileSync(path.join(session.root, 'app.log'), 'utf8')
+          .includes('probe request rejected'),
+      { description: 'mpv to reject an invalid plugin request' },
+    );
+    await session.runAppCommand('--mine-sentence');
+    const log = await waitUntil(
+      () => {
+        const text = fs.readFileSync(path.join(session.root, 'app.log'), 'utf8');
+        return text.includes('probe mined ') ? text : null;
+      },
+      { description: 'the mining event to reach the plugin' },
+    );
+    assert.ok(log);
+    const line = log.split('\n').find((entry) => entry.includes('probe mined '));
+    assert.ok(line);
+    const notes: unknown = JSON.parse(
+      line.slice(line.indexOf('probe mined ') + 'probe mined '.length),
+    );
+    assert.ok(Array.isArray(notes));
+    assert.equal(notes.length, 1);
+    const note: unknown = notes[0];
+    assert.partialDeepStrictEqual(note, {
+      provenance: {
+        subtitle: { text: cue.text },
+        media: { path: await session.mpv.command('get_property', 'path') },
+      },
+    });
+    assert.ok(note && typeof note === 'object' && 'originalNoteId' in note && 'noteId' in note);
+    assert.equal(note.originalNoteId, note.noteId);
+  },
+);

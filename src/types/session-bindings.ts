@@ -1,36 +1,7 @@
-export type SessionKeyModifier = 'ctrl' | 'alt' | 'shift' | 'meta';
+import type { SessionActionId, SessionActionPayload } from '../plugin-api';
+export type { SessionActionId, SessionActionPayload } from '../plugin-api';
 
-export type SessionActionId =
-  | 'toggleStatsOverlay'
-  | 'markWatched'
-  | 'toggleVisibleOverlay'
-  | 'copySubtitle'
-  | 'copySubtitleMultiple'
-  | 'updateLastCardFromClipboard'
-  | 'triggerFieldGrouping'
-  | 'triggerSubsync'
-  | 'mineSentence'
-  | 'mineSentenceMultiple'
-  | 'toggleSecondarySub'
-  | 'toggleSubtitleSidebar'
-  | 'toggleNotificationHistory'
-  | 'appendClipboardVideoToQueue'
-  | 'markAudioCard'
-  | 'openRuntimeOptions'
-  | 'openSessionHelp'
-  | 'openCharacterDictionaryManager'
-  | 'openControllerSelect'
-  | 'openControllerDebug'
-  | 'openJimaku'
-  | 'openTsukihime'
-  | 'openSubtitleSelection'
-  | 'openSubtitleGeneration'
-  | 'openYoutubePicker'
-  | 'openPlaylistBrowser'
-  | 'replayCurrentSubtitle'
-  | 'playNextSubtitle'
-  | 'cycleRuntimeOption'
-  | 'runPluginAction';
+export type SessionKeyModifier = 'ctrl' | 'alt' | 'shift' | 'meta';
 
 export interface SessionKeySpec {
   code: string;
@@ -48,14 +19,6 @@ export interface SessionBindingWarning {
   message: string;
   value: unknown;
   conflictingPaths?: string[];
-}
-
-export interface SessionActionPayload {
-  count?: number;
-  runtimeOptionId?: string;
-  direction?: 1 | -1;
-  /** `<plugin id>/<action name>` for runPluginAction. */
-  pluginActionId?: string;
 }
 
 type CompiledSessionBindingBase = {

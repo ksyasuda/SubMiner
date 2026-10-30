@@ -59,9 +59,6 @@ function renderTag(template, values) {
   return levels.join('::');
 }
 
-// Files remembered for matching cards to what was playing; older cards are not tagged.
-const MAX_HISTORY = 50;
-
 function mediaName(mediaPath, title) {
   // A stream URL's last segment is usually an id, so streams use the title mpv shows.
   if (typeof mediaPath === 'string' && mediaPath && !/^[a-z]+:\/\//i.test(mediaPath)) {
@@ -79,51 +76,17 @@ function renderTags(templates, name) {
 
 function activate(ctx) {
   const settings = { ...DEFAULT_SETTINGS, ...ctx.settings };
-  // Files played since activation, oldest first. An Anki note id is the time the note was
-  // added in milliseconds, so each card is tagged with the file playing when it was added,
-  // even when card-mined fires after playback moved on (YouTube media, field grouping).
-  const history = [];
-
-  function remember(mediaPath, since) {
-    history.push({ since, path: mediaPath || null, title: null });
-    if (history.length > MAX_HISTORY) history.shift();
-  }
-
-  function nameAt(noteId) {
-    for (let i = history.length - 1; i >= 0; i -= 1) {
-      const entry = history[i];
-      if (entry.since <= noteId) return mediaName(entry.path, entry.title);
-    }
-    return null;
-  }
-
-  ctx.mpv.on('media-path-change', ({ path: mediaPath }) => remember(mediaPath, Date.now()));
-  // SubMiner reads the title back after each path change, so it lands on the new file.
-  ctx.mpv.on('media-title-change', ({ title }) => {
-    const latest = history.at(-1);
-    if (latest) latest.title = title;
-  });
-
-  // A file may already be playing when the plugin starts.
-  const startedAt = Date.now();
-  Promise.all([ctx.mpv.getProperty('path'), ctx.mpv.getProperty('media-title')])
-    .then(([mediaPath, title]) => {
-      if (history.length > 0 || typeof mediaPath !== 'string' || !mediaPath) return;
-      remember(mediaPath, startedAt);
-      history[0].title = typeof title === 'string' ? title : null;
-    })
-    .catch((error) => ctx.log.debug(`Could not read the playing media: ${error.message}`));
-
-  ctx.anki.on('card-mined', async ({ noteIds }) => {
+  ctx.anki.on('card-mined', async ({ notes }) => {
     // Notes from the same file share one addTags call.
     const notesByName = new Map();
-    for (const noteId of noteIds) {
-      const name = nameAt(noteId);
+    for (const { noteId, provenance } of notes) {
+      const name = mediaName(provenance?.media?.path, provenance?.media?.title);
       if (!name) {
-        ctx.log.debug(`Note ${noteId} was not added during a file SubMiner saw; not tagging it.`);
+        ctx.log.debug(`Note ${noteId} has no known media source; not tagging it.`);
         continue;
       }
-      notesByName.set(name, [...(notesByName.get(name) ?? []), noteId]);
+      if (!notesByName.has(name)) notesByName.set(name, new Set());
+      notesByName.get(name).add(noteId);
     }
 
     for (const [name, notes] of notesByName) {
@@ -133,8 +96,8 @@ function activate(ctx) {
         continue;
       }
       try {
-        await ctx.anki.invoke('addTags', { notes, tags: tags.join(' ') });
-        ctx.log.info(`Tagged ${notes.length} note(s): ${tags.join(' ')}`);
+        await ctx.anki.invoke('addTags', { notes: [...notes], tags: tags.join(' ') });
+        ctx.log.info(`Tagged ${notes.size} note(s): ${tags.join(' ')}`);
         if (settings.notify) ctx.notify(`Tagged ${tags.join(' ')}`);
       } catch (error) {
         ctx.log.warn(`Tagging failed: ${error.message}`);

@@ -1,5 +1,6 @@
 {
   "name": "AI Explain",
   "version": "1.0.0",
+  "apiVersion": 1,
   "main": "main.js"
 }
