@@ -190,6 +190,8 @@ Anki events: `card-mined` gives `{ noteIds, notes }` once SubMiner has finished 
 
 Each `notes` entry has `{ originalNoteId, noteId, provenance }`. `originalNoteId` identifies the note before merges; `noteId` is the note that kept its content. `provenance` is `{ minedAt, media, subtitle }`, captured before asynchronous creation or the AnkiConnect proxy's upstream request. `minedAt` is Unix time in milliseconds. `media` uses the snapshot format above, and `subtitle` uses `{ text, startTime, endTime }`. Either may be `null`. Polling cannot establish the original source, so its provenance is `null` rather than the currently playing file.
 
+`subtitles.current()` resolves parsed cues using the current subtitle delay and returns their times on the subtitle file's timeline.
+
 Several original notes can merge into one kept note. `notes` preserves each source, while `noteIds` contains unique kept ids. Existing listeners using only `noteIds` continue to work. Cards mined from the stats dashboard do not emit this event.
 
 `anki.invoke` takes `{ timeoutMs }` (default 10 seconds), rejects on an Anki error, and never retries, so an action like `sync` or `addNote` runs at most once.

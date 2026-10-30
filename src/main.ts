@@ -3126,7 +3126,10 @@ function getPluginCurrentSubtitle(): PluginSubtitleLine | null {
   // Same view as mining: the parsed line with its cue timings on the subtitle file's timeline.
   const resolved = resolvePrimarySubtitle({
     liveText: appState.mpvClient?.currentSubText ?? '',
-    currentTimeSec: Number(appState.mpvClient?.currentTimePos),
+    currentTimeSec: toSubtitleClock(
+      Number(appState.mpvClient?.currentTimePos),
+      appState.mpvClient?.currentSubDelay ?? 0,
+    ),
     cues: appState.activeParsedSubtitleCues,
   });
   const resolvedText = resolved?.text.replace(/\n{2,}/g, '\n').trim();

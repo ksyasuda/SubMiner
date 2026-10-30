@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-test('plugin authors can use the copied declaration without internal SubMiner sources', () => {
+test('plugin declarations work without SubMiner sources', { timeout: 30_000 }, () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'subminer-plugin-types-'));
   try {
     copyFileSync(path.join(__dirname, 'plugin-api.ts'), path.join(root, 'subminer.d.ts'));

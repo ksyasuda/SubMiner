@@ -21,6 +21,7 @@ exports.activate = (ctx) => {
   ctx.onDispose(() => ipcMain.removeHandler('e2e-probe:info'));
   ctx.media.on('change', (media) => ctx.log.info('probe media ' + JSON.stringify(media)));
   ctx.anki.on('card-mined', ({ notes }) => ctx.log.info('probe mined ' + JSON.stringify(notes)));
+  ctx.actions.register('subtitle', () => ctx.log.info('probe subtitle ' + JSON.stringify(ctx.subtitles.current())));
   ctx.actions.register('request', async () => {
     const title = await ctx.mpv.request(['get_property', 'media-title']);
     ctx.log.info('probe request ' + JSON.stringify(title));
@@ -223,6 +224,58 @@ test('plugins receive mpv end-file events', { timeout: TEST_TIMEOUT_MS }, async 
     { description: 'the plugin to log the end-file reason' },
   );
 });
+
+test(
+  'plugin subtitle lookup uses the subtitle clock for repeated retimed lines',
+  { timeout: TEST_TIMEOUT_MS },
+  async () => {
+    const { session, overlay } = await useSession();
+    const text = FIXTURE_CUES[1].text;
+    const subtitlePath = path.join(session.root, 'repeated.srt');
+    fs.writeFileSync(
+      subtitlePath,
+      `1\n00:00:01,000 --> 00:00:03,000\n${text}\n\n2\n00:00:06,000 --> 00:00:08,000\n${text}\n`,
+    );
+    const originalSid = await session.mpv.command('get_property', 'sid');
+    try {
+      await session.mpv.command('seek', 0, 'absolute+exact');
+      await session.mpv.command('sub-add', subtitlePath, 'select');
+      await session.mpv.command('set_property', 'sub-delay', 5);
+      await session.runAppCommand('--toggle-subtitle-sidebar');
+      await overlay.waitFor(
+        `document.querySelectorAll('#subtitleSidebarList .subtitle-sidebar-item').length === 2`,
+        { description: 'the repeated subtitle cues to be parsed' },
+      );
+      await session.mpv.command('seek', 7, 'absolute+exact');
+      await overlay.waitFor(
+        `document.getElementById('subtitleRoot').textContent === ${JSON.stringify(text)}`,
+        { description: 'the first delayed line to be visible' },
+      );
+      await session.runAppCommand('--plugin-action', 'e2e-probe/subtitle');
+      const line = await waitUntil(
+        () =>
+          fs
+            .readFileSync(path.join(session.root, 'app.log'), 'utf8')
+            .split('\n')
+            .find((entry) => entry.includes('probe subtitle ')),
+        { description: 'the plugin to report its current subtitle' },
+      );
+      assert.ok(line);
+      assert.deepEqual(
+        JSON.parse(line.slice(line.indexOf('probe subtitle ') + 'probe subtitle '.length)),
+        {
+          text,
+          startTime: 1,
+          endTime: 3,
+        },
+      );
+    } finally {
+      await session.mpv.command('set_property', 'sub-delay', 0);
+      await session.mpv.command('set_property', 'sid', originalSid);
+      await session.runAppCommand('--toggle-subtitle-sidebar');
+    }
+  },
+);
 
 test(
   'plugin requests report command failures and mined notes carry the captured source',
