@@ -29,23 +29,12 @@ function toPercent(tsMs: number, tsMin: number, tsMax: number): number {
   return Math.max(0, Math.min(100, ratio));
 }
 
-function markerLabel(marker: SessionChartMarker): string {
-  switch (marker.kind) {
-    case 'pause':
-      return '||';
-    case 'card':
-      return '\u26CF';
-  }
-}
-
-function markerColors(marker: SessionChartMarker): { border: string; bg: string; text: string } {
-  switch (marker.kind) {
-    case 'pause':
-      return { border: '#f5a97f', bg: 'rgba(245,169,127,0.16)', text: '#f5a97f' };
-    case 'card':
-      return { border: '#a6da95', bg: 'rgba(166,218,149,0.16)', text: '#a6da95' };
-  }
-}
+const CARD_MARKER_LABEL = '\u26CF';
+const CARD_MARKER_COLORS = {
+  border: '#f5bde6',
+  bg: 'rgba(245,189,230,0.18)',
+  text: '#f5bde6',
+};
 
 function popupAlignment(percent: number): string {
   if (percent <= 15) return 'left-0 translate-x-0';
@@ -137,16 +126,14 @@ export function SessionEventOverlay({
               plotWidthPx: plotArea.width,
             })}px`
           : `${percent}%`;
-        const colors = markerColors(marker);
         const isActive = marker.key === activeMarkerKey;
         const isPinned = marker.key === pinnedMarkerKey;
-        const loading =
-          marker.kind === 'card' && marker.noteIds.some((noteId) => loadingNoteIds.has(noteId));
+        const loading = marker.noteIds.some((noteId) => loadingNoteIds.has(noteId));
 
         return (
           <div
             key={marker.key}
-            className="pointer-events-auto absolute top-0 -translate-x-1/2 pt-1"
+            className="pointer-events-auto absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
             style={{ left }}
             onMouseEnter={() => onHoveredMarkerChange(marker.key)}
             onMouseLeave={(event) =>
@@ -160,13 +147,14 @@ export function SessionEventOverlay({
             <div className="relative flex flex-col items-center">
               <button
                 type="button"
-                aria-label={`Show ${marker.kind} event details`}
+                aria-label="Show card mined event details"
                 aria-pressed={isPinned}
-                className="flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-[10px] font-semibold shadow-sm backdrop-blur-sm"
+                title={`${marker.cardsDelta} ${marker.cardsDelta === 1 ? 'card' : 'cards'} mined`}
+                className="flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-[10px] font-semibold shadow-sm backdrop-blur-sm transition-transform hover:scale-110"
                 style={{
-                  borderColor: colors.border,
-                  background: colors.bg,
-                  color: colors.text,
+                  borderColor: CARD_MARKER_COLORS.border,
+                  background: CARD_MARKER_COLORS.bg,
+                  color: CARD_MARKER_COLORS.text,
                 }}
                 onClick={(event) => {
                   event.preventDefault();
@@ -175,7 +163,7 @@ export function SessionEventOverlay({
                   onPinnedMarkerChange(togglePinnedSessionMarkerKey(pinnedMarkerKey, marker.key));
                 }}
               >
-                {markerLabel(marker)}
+                {CARD_MARKER_LABEL}
               </button>
               {isActive ? (
                 <div

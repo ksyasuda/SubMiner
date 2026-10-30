@@ -77,6 +77,7 @@ test('mineSentenceCard handles missing integration and disconnected mpv', async 
         currentSubText: 'line',
         currentSubStart: 1,
         currentSubEnd: 2,
+        currentSubDelay: 0,
       },
       showMpvOsd: (text) => osd.push(text),
     }),
@@ -109,6 +110,7 @@ test('mineSentenceCard creates sentence card from mpv subtitle state', async () 
       currentSubText: 'subtitle line',
       currentSubStart: 10,
       currentSubEnd: 12,
+      currentSubDelay: 0,
       currentSecondarySubText: 'secondary line',
     },
     showMpvOsd: () => {},
@@ -148,6 +150,7 @@ test('mineSentenceCard prefers a canonical primary subtitle snapshot', async () 
       currentSubText: '今今今手手手',
       currentSubStart: 11.4,
       currentSubEnd: 11.8,
+      currentSubDelay: 0,
       currentSecondarySubText: 'English subtitle',
     },
     primarySubtitle: {
@@ -187,6 +190,7 @@ test('mineSentenceCard uses normalized secondary subtitle state instead of raw m
       currentSubText: '日本語字幕',
       currentSubStart: 10,
       currentSubEnd: 12,
+      currentSubDelay: 0,
       currentSecondarySubText: 'Your\nmosaic',
       requestProperty: async () => {
         requestedRawSecondaryText = true;
@@ -218,6 +222,7 @@ test('mineSentenceCard omits normalized secondary text that matches the primary 
       currentSubText: '日本語字幕',
       currentSubStart: 10,
       currentSubEnd: 12,
+      currentSubDelay: 0,
       currentSecondarySubText: '日本語字幕',
     },
     showMpvOsd: () => {},
@@ -396,7 +401,7 @@ test('handleMineSentenceDigit joins per-entry secondary subtitles when available
 
 test('captureLiveSubtitleMiningContext snapshots the current line and timings', () => {
   const context = captureLiveSubtitleMiningContext(
-    { currentSubText: ' 食べる ', currentSubStart: 12.5, currentSubEnd: 15.25 },
+    { currentSubText: ' 食べる ', currentSubStart: 12.5, currentSubEnd: 15.25, currentSubDelay: 0 },
     () => 1234,
   );
 
@@ -409,6 +414,16 @@ test('captureLiveSubtitleMiningContext snapshots the current line and timings', 
   });
 });
 
+test('captureLiveSubtitleMiningContext moves sub-delay retimed lines onto the video clock', () => {
+  const context = captureLiveSubtitleMiningContext(
+    { currentSubText: '食べる', currentSubStart: 5, currentSubEnd: 8, currentSubDelay: -1.5 },
+    () => 1234,
+  );
+
+  assert.equal(context?.startTime, 3.5);
+  assert.equal(context?.endTime, 6.5);
+});
+
 test('captureLiveSubtitleMiningContext rejects missing client, empty text and bad timings', () => {
   assert.equal(captureLiveSubtitleMiningContext(null), null);
   assert.equal(
@@ -416,6 +431,7 @@ test('captureLiveSubtitleMiningContext rejects missing client, empty text and ba
       currentSubText: '  ',
       currentSubStart: 1,
       currentSubEnd: 2,
+      currentSubDelay: 0,
     }),
     null,
   );
@@ -424,6 +440,7 @@ test('captureLiveSubtitleMiningContext rejects missing client, empty text and ba
       currentSubText: 'line',
       currentSubStart: 5,
       currentSubEnd: 5,
+      currentSubDelay: 0,
     }),
     null,
   );
@@ -432,6 +449,7 @@ test('captureLiveSubtitleMiningContext rejects missing client, empty text and ba
       currentSubText: 'line',
       currentSubStart: NaN,
       currentSubEnd: 2,
+      currentSubDelay: 0,
     }),
     null,
   );

@@ -29,7 +29,7 @@ An episode counts as watched after 85% of its length and at least 10 minutes of 
 2. Finds the matching AniList entry. For season 2 and later, it follows the show's sequels.
 3. Sets your progress to that episode and marks the entry Watching, or Completed on the final episode.
 
-The show must already be on your Planning or Watching list. SubMiner does not add new entries, and it never lowers your progress.
+If the show is not on your list yet, SubMiner adds it as Watching, but only when the file title exactly matches an AniList title or you pinned the entry with the character dictionary's AniList override. For a looser match, add the show to Planning or Watching yourself. SubMiner never changes entries marked Completed, Paused, Dropped, or Rewatching, and it never lowers your progress.
 
 Failed updates are saved and retried in the background, up to 8 times with growing delays. The queue survives restarts.
 
@@ -61,7 +61,7 @@ Character dictionary settings live under `anilist.characterDictionary` and are c
 
 **No update after an episode.** Check that `anilist.enabled` is `true` and that you watched at least 85% of the episode.
 
-**"AniList update not possible."** Add the show to your Planning or Watching list, then mark the episode watched again.
+**"AniList update not possible."** The show is marked Completed, Paused, Dropped, or Rewatching, or it is not on your list and the title match was not exact. Add the show to your Planning or Watching list, or pin it with the character dictionary's AniList override, then mark the episode watched again.
 
 **Wrong show or episode.** Install guessit and make sure it is on your `PATH`. Unusual file names parse poorly without it.
 

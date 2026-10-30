@@ -4,6 +4,7 @@ import type {
   SubtitleMiningContext,
   SubtitleSidebarSnapshot,
 } from '../../types';
+import { toVideoClock } from '../../core/services/subtitle-clock.js';
 import { subtitleCueListSeekTime } from '../../core/services/subtitle-cue-navigation.js';
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
@@ -231,6 +232,8 @@ export function createSubtitleSidebarModal(
   let lastSubtitleSidebarLookupCueIndex = -1;
   let subtitleSourceKey: string | null = null;
   let subtitleCuesRevision: number | null = null;
+  // Latest mpv `sub-delay` from main; cue times plus this are where mpv plays the cue.
+  let subtitleSubDelay = 0;
 
   function restoreEmbeddedSidebarPassthrough(): void {
     syncOverlayMouseIgnoreState(ctx);
@@ -416,7 +419,7 @@ export function createSubtitleSidebarModal(
   function seekToCue(cue: SubtitleCue): void {
     window.electronAPI.sendMpvCommand([
       'seek',
-      subtitleCueListSeekTime(ctx.state.subtitleSidebarCues, cue),
+      toVideoClock(subtitleCueListSeekTime(ctx.state.subtitleSidebarCues, cue), subtitleSubDelay),
       'absolute+exact',
     ]);
   }
@@ -591,6 +594,7 @@ export function createSubtitleSidebarModal(
     const snapshot = await window.electronAPI.getSubtitleSidebarSnapshot();
     pollsSinceFullSnapshot = 0;
     subtitleCuesRevision = snapshot.cuesRevision;
+    subtitleSubDelay = snapshot.subDelay;
     if (snapshot.sourceKey !== subtitleSourceKey) {
       clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
       lastSubtitleSidebarLookupCueIndex = -1;
@@ -640,6 +644,7 @@ export function createSubtitleSidebarModal(
       await refreshSnapshot();
       return;
     }
+    subtitleSubDelay = playback.subDelay;
     updateActiveCue(playback.currentSubtitle, playback.currentTimeSec);
   }
 

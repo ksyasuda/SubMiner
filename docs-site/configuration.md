@@ -338,15 +338,15 @@ Creates and updates Anki cards with sentence, audio, and screenshot. Needs the [
 
 **Fields**
 
-| Key                            | Default                | What it does                                                                                                                   |
-| ------------------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `ankiConnect.fields.word`      | `"Expression"`         | Word field                                                                                                                     |
-| `ankiConnect.fields.audio`     | `"ExpressionAudio"`    | Field that receives sentence audio. Set a separate field such as `SentenceAudio` so it does not overwrite Yomitan's word audio |
-| `ankiConnect.fields.wordAudio` | `"ExpressionAudio"`    | Existing word-audio field, read only to time animated images                                                                   |
-| `ankiConnect.fields.image`     | `"Picture"`            | Screenshot field                                                                                                               |
-| `ankiConnect.fields.sentence`  | `"Sentence"`           | Sentence field                                                                                                                 |
-| `ankiConnect.fields.miscInfo`  | `"MiscInfo"`           | Metadata field. `null` disables                                                                                                |
-| `ankiConnect.metadata.pattern` | `"[SubMiner] %f (%t)"` | MiscInfo template: `%f` filename, `%F` filename with extension, `%t` time, `%T` time with ms, `<br>` newline                   |
+| Key                            | Default                | What it does                                                                                                             |
+| ------------------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `ankiConnect.fields.word`      | `"Expression"`         | Word field                                                                                                               |
+| `ankiConnect.fields.audio`     | `"SentenceAudio"`      | Field that receives sentence audio. Keep it separate from Yomitan's word-audio field so it does not overwrite that audio |
+| `ankiConnect.fields.wordAudio` | `"ExpressionAudio"`    | Existing word-audio field, read only to time animated images                                                             |
+| `ankiConnect.fields.image`     | `"Picture"`            | Screenshot field                                                                                                         |
+| `ankiConnect.fields.sentence`  | `"Sentence"`           | Sentence field                                                                                                           |
+| `ankiConnect.fields.miscInfo`  | `"MiscInfo"`           | Metadata field. `null` disables                                                                                          |
+| `ankiConnect.metadata.pattern` | `"[SubMiner] %f (%t)"` | MiscInfo template: `%f` filename, `%F` filename with extension, `%t` time, `%T` time with ms, `<br>` newline             |
 
 **Media**
 

@@ -328,9 +328,11 @@ import {
   setMpvSubVisibilityRuntime,
   setOverlayDebugVisualizationEnabledRuntime,
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
+  shiftSubtitleRangeToVideoClock,
   showMpvOsdRuntime,
   JellyfinPlaybackReporter,
   tokenizeSubtitle as tokenizeSubtitleCore,
+  toSubtitleClock,
   triggerFieldGrouping as triggerFieldGroupingCore,
   upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
@@ -1949,7 +1951,10 @@ let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null =
 function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
   const canonical = resolveCanonicalPrimarySubtitle({
     liveText: payload.text,
-    currentTimeSec: Number(appState.mpvClient?.currentTimePos),
+    currentTimeSec: toSubtitleClock(
+      Number(appState.mpvClient?.currentTimePos),
+      appState.mpvClient?.currentSubDelay ?? 0,
+    ),
     cues: appState.activeParsedSubtitleCues,
   });
   return {
@@ -1963,9 +1968,11 @@ function captureCurrentPrimarySubtitleMiningContext(): SubtitleMiningContext | n
   // Mine what the overlay shows, not raw mpv `sub-text`: the raw text lists every active
   // event, so a finished caption row lingering beside a fresh line would end up on the
   // card. The parsed view also carries the cue's own timings for the clip range.
+  // Cues sit on the subtitle clock, so the lookup undoes `sub-delay` first.
+  const subDelay = appState.mpvClient?.currentSubDelay ?? 0;
   const resolved = resolvePrimarySubtitle({
     liveText: appState.mpvClient?.currentSubText ?? '',
-    currentTimeSec: Number(appState.mpvClient?.currentTimePos),
+    currentTimeSec: toSubtitleClock(Number(appState.mpvClient?.currentTimePos), subDelay),
     cues: appState.activeParsedSubtitleCues,
   });
   // Same validity bar as the live capture path: an unusable resolved span must fall
@@ -1980,13 +1987,16 @@ function captureCurrentPrimarySubtitleMiningContext(): SubtitleMiningContext | n
   ) {
     return captureLiveSubtitleMiningContext(appState.mpvClient);
   }
-  return {
-    source: 'overlay',
-    text: resolvedText,
-    startTime: resolved.startTime,
-    endTime: resolved.endTime,
-    capturedAtMs: Date.now(),
-  };
+  return shiftSubtitleRangeToVideoClock<SubtitleMiningContext>(
+    {
+      source: 'overlay',
+      text: resolvedText,
+      startTime: resolved.startTime,
+      endTime: resolved.endTime,
+      capturedAtMs: Date.now(),
+    },
+    subDelay,
+  );
 }
 function emitSubtitlePayload(payload: SubtitleData, options?: { resumePrefetch?: boolean }): void {
   const timedPayload = withCurrentSubtitleTiming(payload);
@@ -2128,13 +2138,18 @@ function getSubtitleSidebarPlaybackState(): SubtitleSidebarPlaybackState {
     subtitleSidebarCuesRef = appState.activeParsedSubtitleCues;
     subtitleSidebarCuesRevision += 1;
   }
+  const subDelay = appState.mpvClient?.currentSubDelay ?? 0;
   return {
     sourceKey: JSON.stringify([
       appState.activeParsedSubtitleMediaPath,
       appState.activeParsedSubtitleSource,
     ]),
     cuesRevision: subtitleSidebarCuesRevision,
-    currentTimeSec: appState.mpvClient?.currentTimePos ?? null,
+    currentTimeSec:
+      appState.mpvClient?.currentTimePos === undefined
+        ? null
+        : toSubtitleClock(appState.mpvClient.currentTimePos, subDelay),
+    subDelay,
     currentSubtitle: {
       text: appState.currentSubText,
       startTime: appState.mpvClient?.currentSubStart ?? null,
@@ -2173,6 +2188,7 @@ function sendRendererMpvCommand(rawCommand: (string | number)[]): void {
       rawCommand,
       appState.activeParsedSubtitleCues,
       appState.mpvClient?.currentTimePos ?? Number.NaN,
+      appState.mpvClient?.currentSubDelay ?? 0,
     ) ?? rawCommand;
   if (isExplicitMpvSeekCommand(command)) {
     explicitSeekIntentExpiresAtMs = Date.now() + EXPLICIT_SEEK_INTENT_TTL_MS;
@@ -3224,7 +3240,10 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   acquireMediaWindow: (source, range) => getSharedRemoteMediaWindowCache().acquire(source, range),
   getSubtitleContextLines: (range) =>
     collectMediaTimingContextLines({
-      cues: appState.activeParsedSubtitleCues,
+      // Review ranges and tracker entries are on the video clock; parsed cues are not.
+      cues: appState.activeParsedSubtitleCues.map((cue) =>
+        shiftSubtitleRangeToVideoClock(cue, appState.mpvClient?.currentSubDelay ?? 0),
+      ),
       fallbackPrevious: appState.subtitleTimingTracker?.getRecentEntries(40) ?? [],
       startTime: range.startTime,
       endTime: range.endTime,
@@ -6163,7 +6182,11 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       // live mpv sub timings at lookup time so media generation clips the mined line even
       // when extraction finishes long after playback has moved on.
       recordSubtitleMiningContext: (context) =>
-        recordSubtitleMiningContext(context ?? captureCurrentPrimarySubtitleMiningContext()),
+        recordSubtitleMiningContext(
+          context
+            ? shiftSubtitleRangeToVideoClock(context, appState.mpvClient?.currentSubDelay ?? 0)
+            : captureCurrentPrimarySubtitleMiningContext(),
+        ),
       tokenizeCurrentSubtitle: async () => {
         const tokenizeSubtitleForCurrent = tokenizeSubtitleDeferred;
         return resolveCurrentSubtitleForRenderer({

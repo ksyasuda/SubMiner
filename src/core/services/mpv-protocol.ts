@@ -2,6 +2,7 @@ import { MpvSubtitleRenderMetrics } from '../../types';
 import { sanitizeMediaTitle } from '../../shared/media-identity';
 import { widenHalfwidthKana } from '../utils/halfwidth-kana';
 import type { PluginMpvEventMap } from '../../plugin-api';
+import { toVideoClock } from './subtitle-clock';
 
 export type MpvMessage = {
   event?: string;
@@ -83,6 +84,8 @@ export interface MpvProtocolHandleMessageDeps {
   getCurrentSubStart: () => number;
   setCurrentSubEnd: (value: number) => void;
   getCurrentSubEnd: () => number;
+  setCurrentSubDelay: (value: number) => void;
+  getCurrentSubDelay: () => number;
   emitMediaPathChange: (payload: { path: string }) => void;
   emitMediaTitleChange: (payload: { title: string | null }) => void;
   emitTimePosChange: (payload: { time: number }) => void;
@@ -284,7 +287,8 @@ export async function dispatchMpvProtocolMessage(
       const subEnd = (msg.data as number) || 0;
       deps.setCurrentSubEnd(subEnd);
       if (deps.getPendingPauseAtSubEnd() && subEnd > 0) {
-        deps.setPauseAtTime(subEnd);
+        // `sub-end` is on the subtitle clock; the pause check compares it with `time-pos`.
+        deps.setPauseAtTime(toVideoClock(subEnd, deps.getCurrentSubDelay()));
         deps.setPendingPauseAtSubEnd(false);
         deps.sendCommand({ command: ['set_property', 'pause', false] });
       }
@@ -293,6 +297,16 @@ export async function dispatchMpvProtocolMessage(
         start: deps.getCurrentSubStart(),
         end: deps.getCurrentSubEnd(),
       });
+    } else if (msg.name === 'sub-delay') {
+      const parsed = typeof msg.data === 'number' ? msg.data : Number(msg.data);
+      const delay = Number.isFinite(parsed) ? parsed : 0;
+      // A scheduled replay pause sits at the line's end on the video clock; retiming
+      // mid-replay moves that end, so the pause moves with it.
+      const pauseAtTime = deps.getPauseAtTime();
+      if (pauseAtTime !== null) {
+        deps.setPauseAtTime(pauseAtTime + delay - deps.getCurrentSubDelay());
+      }
+      deps.setCurrentSubDelay(delay);
     } else if (msg.name === 'secondary-sub-text') {
       const nextSubText = (msg.data as string) || '';
       deps.setCurrentSecondarySubText(nextSubText);

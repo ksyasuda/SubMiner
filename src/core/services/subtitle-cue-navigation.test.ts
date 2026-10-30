@@ -26,7 +26,7 @@ test('next subtitle navigation skips generated ASS events and seeks to the next 
     },
   ];
 
-  assert.deepEqual(resolveSanitizedSubtitleSeekCommand(['sub-seek', 1], cues, 10.2), [
+  assert.deepEqual(resolveSanitizedSubtitleSeekCommand(['sub-seek', 1], cues, 10.2, 0), [
     'seek',
     13.08,
     'absolute+exact',
@@ -41,7 +41,7 @@ test('next subtitle navigation treats simultaneous sanitized cues as one line bo
     { startTime: 13.02, endTime: 16, text: 'Next English' },
   ];
 
-  assert.deepEqual(resolveSanitizedSubtitleSeekCommand(['sub-seek', 1], cues, 10.1), [
+  assert.deepEqual(resolveSanitizedSubtitleSeekCommand(['sub-seek', 1], cues, 10.1, 0), [
     'seek',
     13.08,
     'absolute+exact',
@@ -55,7 +55,7 @@ test('next subtitle navigation advances past the latest overlapping lyric', () =
     { startTime: 16, endTime: 19, text: 'next lyric' },
   ];
 
-  assert.deepEqual(resolveSanitizedSubtitleSeekCommand(['sub-seek', 1], cues, 13.2), [
+  assert.deepEqual(resolveSanitizedSubtitleSeekCommand(['sub-seek', 1], cues, 13.2, 0), [
     'seek',
     16.08,
     'absolute+exact',
@@ -68,7 +68,7 @@ test('previous subtitle navigation leaves the current cue and seeks to the prior
     { startTime: 13, endTime: 16, text: 'current line' },
   ];
 
-  assert.deepEqual(resolveSanitizedSubtitleSeekCommand(['sub-seek', -1], cues, 14.5), [
+  assert.deepEqual(resolveSanitizedSubtitleSeekCommand(['sub-seek', -1], cues, 14.5, 0), [
     'seek',
     10.08,
     'absolute+exact',
@@ -78,8 +78,22 @@ test('previous subtitle navigation leaves the current cue and seeks to the prior
 test('subtitle navigation falls back when no sanitized destination exists', () => {
   const cues = [{ startTime: 10, endTime: 13, text: 'only line' }];
 
-  assert.equal(resolveSanitizedSubtitleSeekCommand(['sub-seek', 1], cues, 10.2), null);
-  assert.equal(resolveSanitizedSubtitleSeekCommand(['seek', 5], cues, 10.2), null);
+  assert.equal(resolveSanitizedSubtitleSeekCommand(['sub-seek', 1], cues, 10.2, 0), null);
+  assert.equal(resolveSanitizedSubtitleSeekCommand(['seek', 5], cues, 10.2, 0), null);
+});
+
+test('subtitle cue navigation finds and seeks cues on the sub-delay retimed timeline', () => {
+  const cues = [
+    { startTime: 10, endTime: 13, text: 'one' },
+    { startTime: 13, endTime: 16, text: 'two' },
+  ];
+
+  // At 14.5 with a 2s delay, mpv is showing "one" (12-15 on the video clock).
+  assert.deepEqual(resolveSanitizedSubtitleSeekCommand(['sub-seek', 1], cues, 14.5, 2), [
+    'seek',
+    15.08,
+    'absolute+exact',
+  ]);
 });
 
 test('sidebar cue seeks share the boundary-safe sanitized cue timestamp', () => {

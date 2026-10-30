@@ -1,3 +1,4 @@
+import { toSubtitleClock, toVideoClock } from './subtitle-clock';
 import type { SubtitleCue } from './subtitle-cue-parser';
 
 const CUE_START_GROUP_TOLERANCE_SECONDS = 0.05;
@@ -80,8 +81,10 @@ export function subtitleCueListSeekTime(
 export function resolveSanitizedSubtitleSeekCommand(
   command: readonly (string | number)[],
   cues: readonly SubtitleCue[],
-  currentTimeSec: number,
+  videoTimeSec: number,
+  subDelay: number,
 ): (string | number)[] | null {
+  const currentTimeSec = toSubtitleClock(videoTimeSec, subDelay);
   if (
     command.length < 2 ||
     command[0] !== 'sub-seek' ||
@@ -124,5 +127,5 @@ export function resolveSanitizedSubtitleSeekCommand(
   if (!destination) {
     return null;
   }
-  return ['seek', subtitleCueSeekTime(destination.cue), 'absolute+exact'];
+  return ['seek', toVideoClock(subtitleCueSeekTime(destination.cue), subDelay), 'absolute+exact'];
 }

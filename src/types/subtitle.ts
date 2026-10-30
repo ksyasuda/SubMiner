@@ -235,7 +235,10 @@ export interface SubtitleSidebarPlaybackState {
   sourceKey: string | null;
   /** Bumps whenever main swaps in a different parsed cue array. */
   cuesRevision: number;
+  /** Playback position on the subtitle clock (`time-pos` minus `sub-delay`), like cue times. */
   currentTimeSec: number | null;
+  /** mpv `sub-delay`: cue times plus this give the video-clock seek target. */
+  subDelay: number;
   currentSubtitle: {
     text: string;
     startTime: number | null;
@@ -251,6 +254,7 @@ export interface SubtitleSidebarSnapshot extends SubtitleSidebarPlaybackState {
 export interface SubtitleMiningContext {
   source: 'subtitle-sidebar' | 'overlay';
   text: string;
+  /** Video-clock seconds: subtitle timings plus mpv `sub-delay` at capture time. */
   startTime: number;
   endTime: number;
   capturedAtMs?: number;

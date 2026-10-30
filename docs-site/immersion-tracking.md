@@ -70,7 +70,7 @@ Charts for watch time, cards, words, and sessions per day or month, running tota
 
 ### Sessions
 
-Session history with new-word activity and pause, seek, and card markers. The **↗** button on a row opens that show's detail view.
+Session history. Expand a session for its pace, lines, known-word rate, lookups, and paused time, plus a reading density chart of known and unknown words over the session with Yomitan lookup ticks and clickable card-mined markers underneath. The **↗** button on a row opens that show's detail view.
 
 ![Stats Sessions](/screenshots/stats-sessions.png)
 

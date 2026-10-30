@@ -52,13 +52,23 @@ if [ -z "$app_run" ]; then
   kill "$holder" 2>/dev/null
   run_direct "$@"
 fi
+# One readlink per link: uutils readlink (Ubuntu 26.04+) aborts at the first
+# unreadable operand, and other users' /proc/<pid>/exe are always unreadable.
+mount_busy() {
+  for exe in /proc/[0-9]*/exe; do
+    case "$(readlink "$exe" 2>/dev/null)" in
+      "$mount_point"/*) return 0 ;;
+    esac
+  done
+  return 1
+}
 APPDIR="$mount_point" "$app_run" "$@"
 rc=$?
 # Do not release the mount while any process still executes from it; releasing
 # early SIGBUSes Chromium children that are mid-shutdown.
 tries=0
 while [ "$tries" -lt 100 ]; do
-  if readlink /proc/[0-9]*/exe 2>/dev/null | grep -qF "$mount_point/"; then
+  if mount_busy; then
     sleep 0.1
     tries=$((tries + 1))
   else

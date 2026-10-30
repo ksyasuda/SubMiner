@@ -174,8 +174,9 @@ test('runAppCommandCaptureOutput strips ELECTRON_RUN_AS_NODE from app child env'
 
 test(
   'runAppCommandCaptureOutput transports Linux AppImage args through environment',
-  { skip: process.platform !== 'linux' },
   async () => {
+    // Bun's node:test shim ignores the `skip` option, so gate the platform here.
+    if (process.platform !== 'linux') return;
     await withTempCase(({ dir }) => {
       const appPath = writeFakeApp(
         dir,

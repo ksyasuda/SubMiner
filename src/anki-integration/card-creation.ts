@@ -10,6 +10,7 @@ import {
   type MediaTimingReviewRequest,
   type WordCardKind,
 } from '../types/anki';
+import { shiftSubtitleRangeToVideoClock } from '../core/services/subtitle-clock';
 import { createLogger } from '../logger';
 import type { PluginMiningProvenance } from '../plugin-api';
 import type { MediaInput } from '../media-input';
@@ -433,10 +434,12 @@ export class CardCreationService {
         return;
       }
 
-      let startTime = mpvClient.currentSubStart;
-      let endTime = mpvClient.currentSubEnd;
+      let { startTime, endTime } = shiftSubtitleRangeToVideoClock(
+        { startTime: mpvClient.currentSubStart, endTime: mpvClient.currentSubEnd },
+        mpvClient.currentSubDelay,
+      );
 
-      if (startTime === undefined || endTime === undefined) {
+      if (mpvClient.currentSubStart === undefined || mpvClient.currentSubEnd === undefined) {
         const currentTime = mpvClient.currentTimePos || 0;
         const fallback = this.deps.getFallbackDurationSeconds() / 2;
         startTime = currentTime - fallback;

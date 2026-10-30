@@ -90,6 +90,8 @@ export interface MpvClient {
   currentTimePos: number;
   currentSubStart: number;
   currentSubEnd: number;
+  /** mpv `sub-delay`; `sub-start`/`sub-end` do not include it. */
+  currentSubDelay: number;
   currentAudioStreamIndex: number | null;
   requestProperty?: (name: string) => Promise<unknown>;
   send(command: { command: unknown[]; request_id?: number }): boolean;

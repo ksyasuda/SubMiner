@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.21.1 (2026-10-26)
+
+### Changed
+- **Stats Session View**: Redesigned the expanded session view in the stats dashboard.
+  - New stat tiles show pace, lines, known-word rate, lookups, and paused time.
+  - A reading density chart of known and unknown words replaces the cumulative chart.
+  - Yomitan lookups and mined cards now appear in their own lane below the chart.
+
+### Fixed
+- **Subtitle Retiming**: Mining, the subtitle sidebar, subtitle navigation, and replay now use the timing you set with mpv's subtitle delay keys (z/x and sub-step), so mined audio and images match the retimed line.
+- **Subtitle Sidebar**: mpv keys and mouse actions, like volume keys and double-click fullscreen, work again while the sidebar is open.
+
+### Docs
+- **README**: Refreshed the anime screenshots using the current build.
+
+<details>
+<summary>Internal changes</summary>
+
+### Internal
+- **Packaging Layout**: Packaging inputs now live under `packaging/`, and all build output lands in `dist/`, with packaged apps in `dist/release/`.
+
+</details>
+
 ## v0.21.0 (2026-10-24)
 
 ### Added

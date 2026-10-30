@@ -89,6 +89,7 @@ function createSubtitleSidebarSnapshotFixture(): SubtitleSidebarSnapshot {
     cuesRevision: 1,
     cues: [],
     currentTimeSec: null,
+    subDelay: 0,
     currentSubtitle: { text: '', startTime: null, endTime: null },
     config: {
       enabled: false,

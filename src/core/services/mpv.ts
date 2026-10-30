@@ -145,6 +145,8 @@ export class MpvIpcClient implements MpvClient {
   public currentTimePos = 0;
   public currentSubStart = 0;
   public currentSubEnd = 0;
+  /** mpv `sub-delay`: seconds each primary line plays after its `sub-start`/`sub-end`. */
+  public currentSubDelay = 0;
   public currentSubText = '';
   public currentSecondarySubText = '';
   public currentAudioStreamIndex: number | null = null;
@@ -444,6 +446,10 @@ export class MpvIpcClient implements MpvClient {
         this.currentSubEnd = value;
       },
       getCurrentSubEnd: () => this.currentSubEnd,
+      setCurrentSubDelay: (value: number) => {
+        this.currentSubDelay = value;
+      },
+      getCurrentSubDelay: () => this.currentSubDelay,
       emitMediaPathChange: (payload) => {
         this.emit('media-path-change', payload);
       },

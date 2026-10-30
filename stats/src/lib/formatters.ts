@@ -74,3 +74,17 @@ export function formatSessionDayLabel(sessionStartedAtMs: number): string {
     ...(includeYear ? { year: 'numeric' } : {}),
   });
 }
+
+/** Second-precise duration for short spans ("42s", "6m 12s", "1h 3m"). */
+export function formatClockDuration(ms: number): string {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  if (totalSec < 60) return `${totalSec}s`;
+  const totalMin = Math.floor(totalSec / 60);
+  if (totalMin < 60) {
+    const sec = totalSec % 60;
+    return sec > 0 ? `${totalMin}m ${sec}s` : `${totalMin}m`;
+  }
+  const hours = Math.floor(totalMin / 60);
+  const mins = totalMin % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
