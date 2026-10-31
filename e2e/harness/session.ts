@@ -28,6 +28,8 @@ type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;
 export type E2eSessionOptions = {
   /** Deep-merged over the harness config, for scenarios that need other settings. */
   config?: JsonObject;
+  /** Files written before launch, keyed by path relative to the config dir (e.g. plugins). */
+  files?: Record<string, string>;
 };
 
 export type AppTarget = {
@@ -193,6 +195,15 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
 
     const config = mergeConfig(buildConfig(mpvSocketPath, anki.url), options.config ?? {});
     fs.writeFileSync(path.join(userDataDir, 'config.jsonc'), JSON.stringify(config, null, 2));
+    for (const [relativePath, content] of Object.entries(options.files ?? {})) {
+      const filePath = path.resolve(userDataDir, relativePath);
+      const inside = path.relative(userDataDir, filePath);
+      if (!inside || inside.startsWith('..') || path.isAbsolute(inside)) {
+        throw new Error(`E2E file path must stay inside the config dir: ${relativePath}`);
+      }
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, content);
+    }
 
     const env: EnvDelta = {
       set: {

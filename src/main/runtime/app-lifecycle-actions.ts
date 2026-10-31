@@ -59,8 +59,17 @@ export function createOnWillQuitCleanupHandler(deps: {
   cleanupRemoteMediaWindows: () => void;
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
+  unloadPlugins: () => void | Promise<void>;
 }) {
   return async (): Promise<void> => {
+    const cleanupErrors: unknown[] = [];
+    // Plugins deactivate before any teardown so they can still reach mpv and the overlay;
+    // the plugin host bounds how long that takes.
+    try {
+      await deps.unloadPlugins();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
     deps.destroyTray();
     deps.stopConfigHotReload();
     deps.restorePreviousSecondarySubVisibility();
@@ -68,7 +77,6 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.unregisterAllGlobalShortcuts();
     deps.stopSubtitleWebsocket();
     deps.stopTexthookerService();
-    const cleanupErrors: unknown[] = [];
     const stopSyncAutoScheduler = Promise.resolve(deps.stopSyncAutoScheduler()).catch(
       (error: unknown) => {
         cleanupErrors.push(error);

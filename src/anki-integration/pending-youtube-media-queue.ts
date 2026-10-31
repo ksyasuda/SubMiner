@@ -56,6 +56,8 @@ export interface PendingYoutubeMediaQueueDeps {
   ) => string;
   showStatusNotification: (message: string) => void;
   showNotification: (noteId: number, label: string | number, errorSuffix?: string) => Promise<void>;
+  /** Called once a queued note's media was applied or dropped, so the card is in its final state. */
+  onUpdateSettled?: (noteId: number) => void;
   logInfo: (message: string, ...args: unknown[]) => void;
   logWarn: (message: string, ...args: unknown[]) => void;
   logError: (message: string, ...args: unknown[]) => void;
@@ -79,8 +81,17 @@ function shouldGenerateImage(config: AnkiConnectConfig): boolean {
 
 export class PendingYoutubeMediaQueue {
   private updates: PendingYoutubeMediaUpdate[] = [];
+  // Jobs taken off the queue whose media is still being applied or dropped.
+  private settlingNoteIds = new Set<number>();
 
   constructor(private readonly deps: PendingYoutubeMediaQueueDeps) {}
+
+  /** True while the note still waits on queued media. */
+  hasPendingNote(noteId: number): boolean {
+    return (
+      this.settlingNoteIds.has(noteId) || this.updates.some((update) => update.noteId === noteId)
+    );
+  }
 
   enqueue(job: PendingYoutubeMediaUpdate): void {
     if (!job.generateAudio && !job.generateImage) {
@@ -195,6 +206,8 @@ export class PendingYoutubeMediaQueue {
           'Failed to apply queued YouTube media update:',
           error instanceof Error ? error.message : String(error),
         );
+      } finally {
+        this.settle(job);
       }
     }
 
@@ -234,8 +247,15 @@ export class PendingYoutubeMediaQueue {
           'Failed to show queued YouTube media failure notification:',
           error instanceof Error ? error.message : String(error),
         );
+      } finally {
+        this.settle(job);
       }
     }
+  }
+
+  private settle(job: PendingYoutubeMediaUpdate): void {
+    this.settlingNoteIds.delete(job.noteId);
+    this.deps.onUpdateSettled?.(job.noteId);
   }
 
   private takeMatchingUpdates(sourceUrl: string): PendingYoutubeMediaUpdate[] {
@@ -244,6 +264,7 @@ export class PendingYoutubeMediaQueue {
     for (const job of this.updates) {
       if (youtubeMediaUrlsMatch(job.sourceUrl, sourceUrl)) {
         matched.push(job);
+        this.settlingNoteIds.add(job.noteId);
       } else {
         remaining.push(job);
       }

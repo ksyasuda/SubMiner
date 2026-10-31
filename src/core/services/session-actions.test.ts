@@ -55,6 +55,10 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     playNextSubtitle: () => calls.push('play-next'),
     cycleRuntimeOption: () => ({ ok: true }),
     playNextPlaylistItem: () => calls.push('playlist-next'),
+    runPluginAction: async (pluginActionId) => {
+      calls.push(`plugin:${pluginActionId}`);
+      return pluginActionId === 'ai-explain/explain';
+    },
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     ...overrides,
   };
@@ -80,4 +84,23 @@ test('dispatchSessionAction does not advance playlist when mark watched no-ops',
   await dispatchSessionAction({ actionId: 'markWatched' }, deps);
 
   assert.deepEqual(calls, ['mark-watched']);
+});
+
+test('dispatchSessionAction runs plugin actions and reports unregistered ones', async () => {
+  const { calls, deps } = createDeps();
+
+  await dispatchSessionAction(
+    { actionId: 'runPluginAction', payload: { pluginActionId: 'ai-explain/explain' } },
+    deps,
+  );
+  await dispatchSessionAction(
+    { actionId: 'runPluginAction', payload: { pluginActionId: 'ai-explain/missing' } },
+    deps,
+  );
+
+  assert.deepEqual(calls, [
+    'plugin:ai-explain/explain',
+    'plugin:ai-explain/missing',
+    'osd:Plugin action not available: ai-explain/missing',
+  ]);
 });

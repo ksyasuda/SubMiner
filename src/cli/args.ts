@@ -48,6 +48,8 @@ export interface CliArgs {
   cycleRuntimeOptionId?: string;
   cycleRuntimeOptionDirection?: 1 | -1;
   sessionAction?: SessionActionDispatchRequest;
+  /** `<plugin id>/<action name>` to run, like a `__plugin-action:` keybinding. */
+  pluginAction?: string;
   copySubtitleCount?: number;
   mineSentenceCount?: number;
   anilistStatus: boolean;
@@ -338,6 +340,12 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--session-action') {
       const parsed = parseSessionAction(readValue(argv[i + 1]));
       if (parsed) args.sessionAction = parsed;
+    } else if (arg.startsWith('--plugin-action=')) {
+      const value = arg.slice('--plugin-action='.length).trim();
+      if (value) args.pluginAction = value;
+    } else if (arg === '--plugin-action') {
+      const value = readValue(argv[i + 1])?.trim();
+      if (value) args.pluginAction = value;
     } else if (arg.startsWith('--copy-subtitle-count=')) {
       const value = Number(arg.split('=', 2)[1]);
       if (Number.isInteger(value) && value > 0) args.copySubtitleCount = value;
@@ -601,6 +609,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.playbackFeedback !== undefined ||
     args.cycleRuntimeOptionId !== undefined ||
     args.sessionAction !== undefined ||
+    args.pluginAction !== undefined ||
     args.copySubtitleCount !== undefined ||
     args.mineSentenceCount !== undefined ||
     args.anilistStatus ||
@@ -682,6 +691,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     args.playbackFeedback === undefined &&
     args.cycleRuntimeOptionId === undefined &&
     args.sessionAction === undefined &&
+    args.pluginAction === undefined &&
     args.copySubtitleCount === undefined &&
     args.mineSentenceCount === undefined &&
     !args.anilistStatus &&
@@ -752,6 +762,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.playbackFeedback !== undefined ||
     args.cycleRuntimeOptionId !== undefined ||
     args.sessionAction !== undefined ||
+    args.pluginAction !== undefined ||
     args.copySubtitleCount !== undefined ||
     args.mineSentenceCount !== undefined ||
     args.dictionary ||
@@ -819,6 +830,7 @@ export function shouldRunDictionarySettingsOnlyStartup(args: CliArgs): boolean {
     args.playbackFeedback === undefined &&
     args.cycleRuntimeOptionId === undefined &&
     args.sessionAction === undefined &&
+    args.pluginAction === undefined &&
     args.copySubtitleCount === undefined &&
     args.mineSentenceCount === undefined &&
     !args.anilistStatus &&

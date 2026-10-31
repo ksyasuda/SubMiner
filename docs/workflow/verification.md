@@ -123,7 +123,8 @@ whenever the behavior does not depend on a specific compositor.
   per-window screenshots), mpv over its JSON IPC socket, and app commands through the
   normal CLI handoff (`--mine-sentence`, `--toggle-subtitle-sidebar`, ...).
 - Scenarios live in `e2e/*.e2e.test.ts` and share one session per file through
-  `startE2eSession()`. Pass `config` to override settings for a scenario file.
+  `startE2eSession()`. Pass `config` to override settings for a scenario file, and `files`
+  to write files such as plugins into the isolated config dir before launch.
 - On a failed startup the temp dir is kept and its path is in the error. Set
   `SUBMINER_E2E_KEEP=1` to keep it after any run (`app-stdio.log`, `app.log`, `mpv.log`).
 

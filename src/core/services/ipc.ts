@@ -50,6 +50,7 @@ export interface IpcServiceDeps {
   onOverlayModalClosed: (
     modal: OverlayHostedModal,
     senderWindow: ElectronBrowserWindow | null,
+    instanceId?: number,
   ) => void;
   onOverlayModalOpened?: (
     modal: OverlayHostedModal,
@@ -317,6 +318,7 @@ export interface IpcDepsRuntimeOptions {
   onOverlayModalClosed: (
     modal: OverlayHostedModal,
     senderWindow: ElectronBrowserWindow | null,
+    instanceId?: number,
   ) => void;
   onOverlayModalOpened?: (
     modal: OverlayHostedModal,
@@ -527,13 +529,20 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     },
   );
 
-  ipc.on(IPC_CHANNELS.command.overlayModalClosed, (event: unknown, modal: unknown) => {
-    const parsedModal = parseOverlayHostedModal(modal);
-    if (!parsedModal) return;
-    const senderWindow =
-      electron.BrowserWindow?.fromWebContents((event as IpcMainEvent).sender) ?? null;
-    deps.onOverlayModalClosed(parsedModal, senderWindow);
-  });
+  ipc.on(
+    IPC_CHANNELS.command.overlayModalClosed,
+    (event: unknown, modal: unknown, instanceId: unknown) => {
+      const parsedModal = parseOverlayHostedModal(modal);
+      if (!parsedModal) return;
+      const senderWindow =
+        electron.BrowserWindow?.fromWebContents((event as IpcMainEvent).sender) ?? null;
+      deps.onOverlayModalClosed(
+        parsedModal,
+        senderWindow,
+        Number.isInteger(instanceId) ? (instanceId as number) : undefined,
+      );
+    },
+  );
   ipc.on(IPC_CHANNELS.command.overlayModalOpened, (event: unknown, modal: unknown) => {
     const parsedModal = parseOverlayHostedModal(modal);
     if (!parsedModal) return;

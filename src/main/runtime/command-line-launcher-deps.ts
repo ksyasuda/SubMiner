@@ -2,6 +2,11 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import {
+  buildWindowsShimInvocation,
+  isWindowsCommandShim,
+} from '../../core/utils/windows-command-shim';
+
 export interface RunCommandResult {
   exitCode: number | null;
   stdout: string;
@@ -142,43 +147,7 @@ export function failureMessage(result: RunCommandResult, fallback: string): stri
 }
 
 function needsWindowsShell(command: string): boolean {
-  return process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
-}
-
-/*!
- * Windows command escaping adapted from cross-spawn 7.0.6.
- *
- * The MIT License (MIT)
- *
- * Copyright (c) 2018 Made With MOXY Lda <hello@moxy.studio>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-const WINDOWS_SHELL_META_CHARACTERS = /([()\][%!^"`<>&|;, *?])/g;
-
-// Quote for both cmd.exe and the Windows argv parser. The outer caret escapes
-// are consumed by cmd, leaving the quoted argument unchanged for the command.
-function escapeWindowsShellArgument(value: string): string {
-  const quotesEscaped = value
-    .replace(/(?=(\\+?)?)\1"/g, '$1$1\\"')
-    .replace(/(?=(\\+?)?)\1$/, '$1$1');
-  return `"${quotesEscaped}"`.replace(WINDOWS_SHELL_META_CHARACTERS, '^$1');
+  return process.platform === 'win32' && isWindowsCommandShim(command);
 }
 
 function createDefaultRunCommand(): RunCommand {
@@ -189,12 +158,8 @@ function createDefaultRunCommand(): RunCommand {
       try {
         const env = options.env ?? process.env;
         if (useShell) {
-          const shellCommand = [
-            escapeWindowsShellArgument(command),
-            ...args.map(escapeWindowsShellArgument),
-          ].join(' ');
-          const commandProcessor = env.ComSpec ?? env.COMSPEC ?? process.env.ComSpec ?? 'cmd.exe';
-          child = spawn(commandProcessor, ['/d', '/s', '/v:off', '/c', `"${shellCommand}"`], {
+          const invocation = buildWindowsShimInvocation(command, args, env);
+          child = spawn(invocation.file, invocation.args, {
             env,
             windowsHide: false,
             windowsVerbatimArguments: true,

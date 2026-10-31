@@ -303,7 +303,7 @@ test('subtitle sidebar open state is restored for replacement visible overlay wi
     /onOverlayModalOpened:\s*\(modal,\s*senderWindow\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
   )?.groups?.body;
   const closedBlock = source.match(
-    /onOverlayModalClosed:\s*\(modal,\s*senderWindow\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
+    /onOverlayModalClosed:\s*\(modal,\s*senderWindow(?:,\s*instanceId)?\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
   )?.groups?.body;
   const depsBlock = source.match(/getSubtitleSidebarOpen:\s*\(\)\s*=>\s*(?<body>[^\n,]+)/)?.groups
     ?.body;

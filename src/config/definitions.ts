@@ -37,6 +37,7 @@ const {
   startupWarmups,
   updates,
   notifications,
+  plugins,
   auto_start_overlay,
 } = CORE_DEFAULT_CONFIG;
 const {
@@ -74,6 +75,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   startupWarmups,
   updates,
   notifications,
+  plugins,
   subtitleStyle,
   subtitleSidebar,
   auto_start_overlay,

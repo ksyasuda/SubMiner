@@ -595,6 +595,7 @@ function createKeyboardHandlerHarness() {
       changelogKeydownCount += 1;
       return true;
     },
+    handlePluginPanelKeydown: () => false,
     openSessionHelpModal: () => {},
     openControllerSelectModal: () => {
       openControllerSelectCount += 1;

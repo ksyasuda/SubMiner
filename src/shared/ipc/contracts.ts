@@ -18,6 +18,7 @@ export const OVERLAY_HOSTED_MODALS = [
   'session-help',
   'character-dictionary',
   'changelog',
+  'plugin-panel',
 ] as const;
 export type OverlayHostedModal = (typeof OVERLAY_HOSTED_MODALS)[number];
 
@@ -160,6 +161,9 @@ export const IPC_CHANNELS = {
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     sessionHelpOpen: 'session-help:open',
     changelogOpen: 'changelog:open',
+    pluginPanelOpen: 'plugin-panel:open',
+    pluginPanelUpdate: 'plugin-panel:update',
+    pluginPanelClose: 'plugin-panel:close',
     characterDictionaryManagerOpen: 'character-dictionary:manager-open',
     controllerSelectOpen: 'controller-select:open',
     controllerDebugOpen: 'controller-debug:open',

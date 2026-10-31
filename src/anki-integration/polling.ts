@@ -10,6 +10,8 @@ export interface PollingRunnerDeps {
   shouldAutoUpdateNewCards: () => boolean;
   processNewCard: (noteId: number) => Promise<void>;
   recordCardsAdded?: (count: number, noteIds: number[]) => void;
+  /** Called once SubMiner is done with a new note: after enrichment, or at detection when it is off. */
+  onCardsReady?: (noteIds: number[]) => void;
   isUpdateInProgress: () => boolean;
   setUpdateInProgress: (value: boolean) => void;
   getTrackedNoteIds: () => Set<number>;
@@ -85,9 +87,17 @@ export class PollingRunner {
 
         if (this.deps.shouldAutoUpdateNewCards()) {
           for (const noteId of newNoteIds) {
-            await this.deps.processNewCard(noteId);
+            try {
+              await this.deps.processNewCard(noteId);
+            } catch (error) {
+              // One failed note must not leave the rest of the batch unprocessed.
+              this.deps.logWarn(`Failed to auto-enrich note ${noteId}:`, (error as Error).message);
+            } finally {
+              this.deps.onCardsReady?.([noteId]);
+            }
           }
         } else {
+          this.deps.onCardsReady?.(newNoteIds);
           this.deps.logInfo(
             'New card detected (auto-update disabled). Press Ctrl+V to update from clipboard.',
           );

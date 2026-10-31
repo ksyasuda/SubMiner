@@ -108,6 +108,7 @@ export type RendererState = {
   sessionHelpSelectedIndex: number;
   changelogModalOpen: boolean;
   changelogSelectedIndex: number;
+  pluginPanelModalOpen: boolean;
   playlistBrowserModalOpen: boolean;
   playlistBrowserSnapshot: PlaylistBrowserSnapshot | null;
   playlistBrowserStatus: string;
@@ -247,6 +248,7 @@ export function createRendererState(): RendererState {
     sessionHelpSelectedIndex: 0,
     changelogModalOpen: false,
     changelogSelectedIndex: 0,
+    pluginPanelModalOpen: false,
     playlistBrowserModalOpen: false,
     playlistBrowserSnapshot: null,
     playlistBrowserStatus: '',

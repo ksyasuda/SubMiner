@@ -105,6 +105,7 @@ import type {
   OverlayNotificationEventPayload,
   OverlayNotificationPosition,
   ChangelogSnapshot,
+  PluginPanelSnapshot,
   MediaTimingReviewActionResult,
   MediaTimingReviewOpenPayload,
   MediaTimingReviewPreviewPosition,
@@ -140,6 +141,20 @@ const onOpenSessionHelpEvent = createQueuedIpcListenerWithPayload<SessionHelpOpe
   }),
 );
 const onOpenChangelogEvent = createQueuedIpcListener(IPC_CHANNELS.event.changelogOpen);
+function toPluginPanelSnapshot(payload: unknown): PluginPanelSnapshot {
+  const value = (typeof payload === 'object' && payload !== null ? payload : {}) as Partial<
+    Record<keyof PluginPanelSnapshot, unknown>
+  >;
+  return {
+    panelId: typeof value.panelId === 'number' ? value.panelId : -1,
+    title: typeof value.title === 'string' ? value.title : '',
+    markdown: typeof value.markdown === 'string' ? value.markdown : '',
+  };
+}
+const onOpenPluginPanelEvent = createQueuedIpcListenerWithPayload(
+  IPC_CHANNELS.event.pluginPanelOpen,
+  toPluginPanelSnapshot,
+);
 const onOpenCharacterDictionaryManagerEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.characterDictionaryManagerOpen,
 );
@@ -415,6 +430,17 @@ const electronAPI: ElectronAPI = {
   onOpenChangelog: onOpenChangelogEvent,
   getChangelogSnapshot: (options?: { refresh?: boolean }): Promise<ChangelogSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getChangelogSnapshot, options),
+  onOpenPluginPanel: onOpenPluginPanelEvent,
+  onPluginPanelUpdate: (callback: (snapshot: PluginPanelSnapshot) => void): void => {
+    ipcRenderer.on(IPC_CHANNELS.event.pluginPanelUpdate, (_event, payload: unknown) => {
+      callback(toPluginPanelSnapshot(payload));
+    });
+  },
+  onPluginPanelClose: (callback: (panelId: number) => void): void => {
+    ipcRenderer.on(IPC_CHANNELS.event.pluginPanelClose, (_event, panelId: unknown) => {
+      if (typeof panelId === 'number') callback(panelId);
+    });
+  },
   onOpenControllerSelect: onOpenControllerSelectEvent,
   onOpenControllerDebug: onOpenControllerDebugEvent,
   onOpenJimaku: onOpenJimakuEvent,
@@ -506,8 +532,8 @@ const electronAPI: ElectronAPI = {
       mediaId,
       direction,
     ),
-  notifyOverlayModalClosed: (modal) => {
-    ipcRenderer.send(IPC_CHANNELS.command.overlayModalClosed, modal);
+  notifyOverlayModalClosed: (modal, instanceId) => {
+    ipcRenderer.send(IPC_CHANNELS.command.overlayModalClosed, modal, instanceId);
   },
   notifyOverlayModalOpened: (modal) => {
     ipcRenderer.send(IPC_CHANNELS.command.overlayModalOpened, modal);

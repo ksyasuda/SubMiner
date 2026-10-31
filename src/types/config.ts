@@ -142,6 +142,13 @@ export interface RawShortcutsConfig extends ShortcutsConfig {
 
 export type DictionaryBackend = 'yomitan' | 'hachidori';
 
+/** One `plugins.<id>` entry; the id names the directory under `<config dir>/plugins/`. */
+export interface PluginConfig {
+  enabled?: boolean;
+  /** Passed to the plugin as `ctx.settings`. */
+  settings?: Record<string, unknown>;
+}
+
 export interface Config {
   dictionaryBackend?: DictionaryBackend;
   subtitlePosition?: SubtitlePosition;
@@ -176,6 +183,7 @@ export interface Config {
   stats?: StatsConfig;
   updates?: UpdatesConfig;
   notifications?: NotificationsConfig;
+  plugins?: Record<string, PluginConfig>;
   logging?: {
     level?: 'debug' | 'info' | 'warn' | 'error';
     rotation?: LogRotation;
@@ -427,6 +435,7 @@ export interface ResolvedConfig {
   };
   updates: Required<UpdatesConfig>;
   notifications: Required<NotificationsConfig>;
+  plugins: Record<string, Required<PluginConfig>>;
   logging: {
     level: 'debug' | 'info' | 'warn' | 'error';
     rotation: LogRotation;

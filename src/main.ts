@@ -514,6 +514,17 @@ import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/
 import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
 import { openChangelogModal as openChangelogModalRuntime } from './main/runtime/changelog-open';
 import { createChangelogRuntime } from './main/runtime/changelog/changelog-runtime';
+import {
+  createPluginHost,
+  PLUGIN_DEACTIVATE_TIMEOUT_MS,
+} from './core/services/plugins/plugin-host';
+import { buildPluginSubtitleContext } from './core/services/plugins/subtitle-context';
+import type { PluginSubtitleLine } from './core/services/plugins/types';
+import {
+  createPluginPanelRuntime,
+  openPluginPanelModal,
+} from './main/runtime/plugin-panel-runtime';
+import { createPluginWindowRuntime } from './main/runtime/plugin-window-runtime';
 import { openCharacterDictionaryManagerModal as openCharacterDictionaryManagerModalRuntime } from './main/runtime/character-dictionary-open';
 import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
 import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
@@ -1048,6 +1059,7 @@ function requestAppQuit(): void {
     logger.warn('Failed to stop stats server while quitting.', error);
   });
   if (!forceQuitTimer) {
+    // Quit cleanup unloads plugins first, so allow their budget plus 2 s for the rest.
     forceQuitTimer = setTimeout(() => {
       logger.warn('App quit timed out; forcing process exit.');
       void createForceQuitHandler({
@@ -1055,7 +1067,7 @@ function requestAppQuit(): void {
         logError: (error) => logger.error('Failed to finalize stats before forced exit.', error),
         exit: () => app.exit(0),
       })();
-    }, 2000);
+    }, PLUGIN_DEACTIVATE_TIMEOUT_MS + 2000);
   }
   app.quit();
 }
@@ -3094,6 +3106,106 @@ function createOverlayHostedModalOpenDeps(): {
   };
 }
 
+const pluginPanelRuntime = createPluginPanelRuntime({
+  openModal: (getSnapshot) => openPluginPanelModal(createOverlayHostedModalOpenDeps(), getSnapshot),
+  // The panel may live in either window; broadcastToOverlayWindows only reaches the main one.
+  broadcast: (channel, payload) => {
+    for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
+      if (window && !window.isDestroyed()) window.webContents.send(channel, payload);
+    }
+  },
+  onOpenFailed: () =>
+    overlayNotificationsRuntime.showConfiguredStatusNotification('Plugin panel unavailable.', {
+      variant: 'warning',
+    }),
+});
+
+function getPluginCurrentSubtitle(): PluginSubtitleLine | null {
+  const text = appState.currentSubText.trim();
+  if (!text) return null;
+  // Same view as mining: the parsed line with its cue timings on the subtitle file's timeline.
+  const resolved = resolvePrimarySubtitle({
+    liveText: appState.mpvClient?.currentSubText ?? '',
+    currentTimeSec: toSubtitleClock(
+      Number(appState.mpvClient?.currentTimePos),
+      appState.mpvClient?.currentSubDelay ?? 0,
+    ),
+    cues: appState.activeParsedSubtitleCues,
+  });
+  const resolvedText = resolved?.text.replace(/\n{2,}/g, '\n').trim();
+  if (
+    resolved &&
+    resolvedText &&
+    Number.isFinite(resolved.startTime) &&
+    Number.isFinite(resolved.endTime) &&
+    resolved.endTime > resolved.startTime
+  ) {
+    return { text: resolvedText, startTime: resolved.startTime, endTime: resolved.endTime };
+  }
+  const client = appState.mpvClient;
+  // The client reports a cleared sub-start as zero, so only trust timing for a live line.
+  const hasTiming = client !== null && client.currentSubEnd > client.currentSubStart;
+  return {
+    text,
+    startTime: hasTiming ? client.currentSubStart : null,
+    endTime: hasTiming ? client.currentSubEnd : null,
+  };
+}
+
+const pluginWindowRuntime = createPluginWindowRuntime({
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  promoteAboveOverlay: (window) => promoteSettingsWindowAboveOverlay(window),
+  logError: (message) => logger.error(message),
+});
+
+const pluginHost = createPluginHost({
+  pluginsDir: path.join(CONFIG_DIR, 'plugins'),
+  pluginDataDir: path.join(USER_DATA_PATH, 'plugin-data'),
+  getPluginConfig: () => configService.getConfig().plugins,
+  createLogger,
+  isMpvConnected: () => appState.mpvClient?.connected === true,
+  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+  requestMpvProperty: async (name) => {
+    if (!appState.mpvClient) throw new Error('mpv is not connected.');
+    return await appState.mpvClient.requestProperty(name);
+  },
+  requestMpvCommand: async (command) => {
+    if (!appState.mpvClient) throw new Error('mpv is not connected.');
+    return await appState.mpvClient.requestCommand(command);
+  },
+  ensureMpvRunning: () => ensureMpvConnectedForPlayback(),
+  invokeAnkiConnect: (action, params, options) => {
+    const ankiConfig = configService.getConfig().ankiConnect;
+    const url = (
+      appState.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(ankiConfig) ?? ankiConfig
+    ).url;
+    if (!url) return Promise.reject(new Error('ankiConnect.url is not configured.'));
+    // No retries: a retried `sync` or `addNote` could run twice.
+    return new AnkiConnectClient(url).invoke(action, params, {
+      timeout: options.timeoutMs,
+      maxRetries: 0,
+    });
+  },
+  dispatchSessionAction: (request) => dispatchSessionAction(request),
+  getCurrentSubtitle: () => getPluginCurrentSubtitle(),
+  getSubtitleContext: (options) =>
+    buildPluginSubtitleContext({
+      cues: appState.activeParsedSubtitleCues,
+      current: getPluginCurrentSubtitle(),
+      recentLines: (appState.subtitleTimingTracker?.getRecentEntries(40) ?? []).map((entry) => ({
+        text: entry.displayText,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+      })),
+      ...options,
+    }),
+  notify: (message, variant) =>
+    overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant }),
+  openPanel: (content) => pluginPanelRuntime.open(content),
+  openWindow: (request) => pluginWindowRuntime.open(request),
+  unstable: { appState, configService, overlayManager },
+});
+
 const mediaTimingFrameExtractor = createMediaTimingFrameExtractor();
 const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   getMpvClient: () => appState.mpvClient,
@@ -4333,6 +4445,7 @@ const {
       void appState.discordPresenceService?.stop();
       appState.discordPresenceService = null;
     },
+    unloadPlugins: () => pluginHost.unloadAll(),
   },
   shouldRestoreWindowsOnActivateMainDeps: {
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
@@ -4601,6 +4714,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     },
     createMpvClient: () => {
       appState.mpvClient = createMpvClientRuntimeService();
+    },
+    startPlugins: () => {
+      void pluginHost.loadAll();
     },
     getResolvedConfig: () => configService.getConfig(),
     getConfigWarnings: () => configService.getWarnings(),
@@ -5298,6 +5414,7 @@ function createMpvClientRuntimeService(): MpvIpcClient {
   client.on('media-path-change', aniSkipRuntime.handleMediaPathChange);
   client.on('time-pos-change', aniSkipRuntime.handleTimePosChange);
   client.on('client-message', aniSkipRuntime.handleClientMessage);
+  pluginHost.attachMpvClient(client);
   return client;
 }
 
@@ -5424,6 +5541,14 @@ function initializeOverlayRuntime(): void {
     overlayModalRuntime.primeModalWindow();
   }
   appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
+  appState.ankiIntegration?.setMiningProvenanceProvider(() => ({
+    minedAt: Date.now(),
+    media: pluginHost.getMediaSnapshot(),
+    subtitle: getPluginCurrentSubtitle(),
+  }));
+  appState.ankiIntegration?.setCardsReadyCallback((noteIds, notes) =>
+    pluginHost.emitAnkiEvent('card-mined', { noteIds, notes }),
+  );
   appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(refreshCurrentSubtitleAnnotations);
   appState.ankiIntegration?.setSubtitleMiningContextConsumer(consumePendingSubtitleMiningContext);
   appState.ankiIntegration?.setMediaTimingReviewCallback(mediaTimingReviewRuntime.requestReview);
@@ -5879,6 +6004,11 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     },
     playNextPlaylistItem: () =>
       sendMpvCommandRuntime(appState.mpvClient, ['playlist-next', 'force']),
+    runPluginAction: async (pluginActionId) => {
+      const ran = await pluginHost.runAction(pluginActionId);
+      if (!ran) logger.warn(`Plugin action is not registered: ${pluginActionId}`);
+      return ran;
+    },
     showMpvOsd: (text) => showConfiguredPlaybackFeedback(text),
   });
 }
@@ -5960,7 +6090,15 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           return false;
         }
       },
-      onOverlayModalClosed: (modal, senderWindow) => {
+      onOverlayModalClosed: (modal, senderWindow, instanceId) => {
+        // A late close for a replaced plugin panel must not hide the panel now showing.
+        if (
+          modal === 'plugin-panel' &&
+          instanceId !== undefined &&
+          !pluginPanelRuntime.handleModalClosed(instanceId)
+        ) {
+          return;
+        }
         if (modal === 'media-timing-review') {
           void mediaTimingReviewRuntime.dispose();
         }

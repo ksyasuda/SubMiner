@@ -323,6 +323,31 @@ test('compileSessionBindings maps the legacy Animetosho command to the TsukiHime
   );
 });
 
+test('compileSessionBindings maps plugin action commands to a validated session action', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: [
+      createKeybinding('Ctrl+E', [`${SPECIAL_COMMANDS.PLUGIN_ACTION_PREFIX}ai-explain/explain`]),
+      createKeybinding('Ctrl+R', [`${SPECIAL_COMMANDS.PLUGIN_ACTION_PREFIX}no-action-name`]),
+    ],
+    platform: 'linux',
+  });
+
+  const binding = result.bindings[0];
+  assert.equal(result.bindings.length, 1);
+  assert.ok(binding?.actionType === 'session-action');
+  assert.equal(binding.actionId, 'runPluginAction');
+  assert.deepEqual(binding.payload, { pluginActionId: 'ai-explain/explain' });
+  assert.deepEqual(
+    parseSessionActionDispatchRequest({ actionId: binding.actionId, payload: binding.payload }),
+    { actionId: 'runPluginAction', payload: { pluginActionId: 'ai-explain/explain' } },
+  );
+  assert.deepEqual(
+    result.warnings.map((warning) => `${warning.kind}:${warning.path}`),
+    ['unsupported:keybindings[1].command'],
+  );
+});
+
 test('compileSessionBindings leaves retired subtitle-delay shift tokens as mpv commands', () => {
   const result = compileSessionBindings({
     shortcuts: createShortcuts(),

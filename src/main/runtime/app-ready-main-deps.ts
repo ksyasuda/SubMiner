@@ -6,6 +6,7 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     loadSubtitlePosition: deps.loadSubtitlePosition,
     resolveKeybindings: deps.resolveKeybindings,
     createMpvClient: deps.createMpvClient,
+    startPlugins: deps.startPlugins,
     reloadConfig: deps.reloadConfig,
     getResolvedConfig: deps.getResolvedConfig,
     getConfigWarnings: deps.getConfigWarnings,

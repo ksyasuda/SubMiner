@@ -52,6 +52,7 @@ function buildCleanupDeps(overrides: Partial<BuilderDeps> = {}) {
     cleanupRemoteMediaWindows: noop,
     cleanupJellyfinSubtitleCache: noop,
     stopDiscordPresenceService: noop,
+    unloadPlugins: noop,
     ...overrides,
   })();
 }

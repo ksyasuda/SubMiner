@@ -32,6 +32,7 @@ export function createKeyboardHandlers(
     handleControllerDebugKeydown: (e: KeyboardEvent) => boolean;
     handleSessionHelpKeydown: (e: KeyboardEvent) => boolean;
     handleChangelogKeydown: (e: KeyboardEvent) => boolean;
+    handlePluginPanelKeydown: (e: KeyboardEvent) => boolean;
     openSessionHelpModal: (opening: {
       bindingKey: 'KeyH' | 'KeyK';
       fallbackUsed: boolean;
@@ -1169,6 +1170,11 @@ export function createKeyboardHandlers(
 
       if (ctx.state.changelogModalOpen) {
         options.handleChangelogKeydown(e);
+        return;
+      }
+
+      if (ctx.state.pluginPanelModalOpen) {
+        options.handlePluginPanelKeydown(e);
         return;
       }
 

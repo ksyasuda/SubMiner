@@ -39,6 +39,7 @@ import { prepareForKikuFieldGroupingOpen } from './kiku-open.js';
 import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
 import { createSessionHelpModal } from './modals/session-help.js';
 import { createChangelogModal } from './modals/changelog.js';
+import { createPluginPanelModal } from './modals/plugin-panel.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
 import { wireSubtitleSidebarSelection } from './modals/subtitle-sidebar-selection.js';
 import { isControllerInteractionBlocked } from './controller-interaction-blocking.js';
@@ -178,6 +179,12 @@ const modalDescriptors = [
     close: () => changelogModal.closeChangelogModal(),
     suppressesSubtitles: true,
   },
+  {
+    id: 'plugin-panel',
+    isOpen: () => ctx.state.pluginPanelModalOpen,
+    close: () => pluginPanelModal.closePluginPanelModal(),
+    suppressesSubtitles: true,
+  },
 ] satisfies readonly ModalDescriptor<OverlayHostedModal>[];
 
 const modalRegistry = createModalRegistry(modalDescriptors);
@@ -253,6 +260,10 @@ const changelogModal = createChangelogModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const pluginPanelModal = createPluginPanelModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
 const subtitleSidebarModal = createSubtitleSidebarModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   shouldRestoreOpenOnStartup: async () =>
@@ -316,6 +327,7 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
   handleChangelogKeydown: changelogModal.handleChangelogKeydown,
+  handlePluginPanelKeydown: pluginPanelModal.handlePluginPanelKeydown,
   // Route through main so it can gate help commands on mpv playback state;
   // onOpenSessionHelp re-resolves the chord hint when the open event arrives.
   openSessionHelpModal: () => {
@@ -589,6 +601,18 @@ function registerModalOpenHandlers(): void {
       changelogModal.openChangelogModal();
       window.electronAPI.notifyOverlayModalOpened('changelog');
     });
+  });
+  window.electronAPI.onOpenPluginPanel((snapshot) => {
+    runGuarded('plugin-panel:open', () => {
+      pluginPanelModal.openPluginPanelModal(snapshot);
+      window.electronAPI.notifyOverlayModalOpened('plugin-panel');
+    });
+  });
+  window.electronAPI.onPluginPanelUpdate((snapshot) => {
+    runGuarded('plugin-panel:update', () => pluginPanelModal.updatePluginPanel(snapshot));
+  });
+  window.electronAPI.onPluginPanelClose((panelId) => {
+    runGuarded('plugin-panel:close', () => pluginPanelModal.closePluginPanelFromMain(panelId));
   });
   window.electronAPI.onOpenControllerSelect(() => {
     runGuarded('controller-select:open', () => {
@@ -882,6 +906,7 @@ async function init(): Promise<void> {
   controllerDebugModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
   changelogModal.wireDomEvents();
+  pluginPanelModal.wireDomEvents();
   subtitleSidebarModal.wireDomEvents();
   characterDictionaryModal.wireDomEvents();
   window.addEventListener('beforeunload', () => {

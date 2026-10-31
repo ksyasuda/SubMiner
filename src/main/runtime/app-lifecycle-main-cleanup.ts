@@ -65,6 +65,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   cleanupRemoteMediaWindows: () => void;
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
+  unloadPlugins: () => void | Promise<void>;
 }) {
   return () => ({
     destroyTray: () => deps.destroyTray(),
@@ -154,5 +155,6 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     cleanupRemoteMediaWindows: () => deps.cleanupRemoteMediaWindows(),
     cleanupJellyfinSubtitleCache: () => deps.cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => deps.stopDiscordPresenceService(),
+    unloadPlugins: () => deps.unloadPlugins(),
   });
 }

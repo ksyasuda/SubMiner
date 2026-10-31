@@ -32,6 +32,8 @@ export interface SessionActionExecutorDeps {
   playNextSubtitle: () => void;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   playNextPlaylistItem: () => void;
+  /** Returns false when no loaded plugin registered the action. */
+  runPluginAction: (pluginActionId: string) => Promise<boolean>;
   showMpvOsd: (text: string) => void;
 }
 
@@ -148,6 +150,13 @@ export async function dispatchSessionAction(
       const result = deps.cycleRuntimeOption(runtimeOptionId, direction);
       if (!result.ok && result.error) {
         deps.showMpvOsd(result.error);
+      }
+      return;
+    }
+    case 'runPluginAction': {
+      const pluginActionId = request.payload?.pluginActionId;
+      if (!pluginActionId || !(await deps.runPluginAction(pluginActionId))) {
+        deps.showMpvOsd(`Plugin action not available: ${pluginActionId ?? 'unknown'}`);
       }
       return;
     }
