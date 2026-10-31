@@ -42,7 +42,6 @@ import {
   DICTIONARY_EXTERNAL_LINK_CHANNEL,
   parseDictionaryExternalUrl,
 } from './shared/dictionary-external-link';
-import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { readMpvInputBindings } from './main/runtime/mpv-input-bindings';
 import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
 import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
@@ -270,6 +269,7 @@ import { createAnilistAssembly } from './main/assemblies/anilist';
 import { createSettingsAssembly } from './main/assemblies/settings';
 import { createSyncAssembly } from './main/assemblies/sync';
 import { createYoutubeAssembly } from './main/assemblies/youtube';
+import { createOverlayModalsAssembly } from './main/assemblies/overlay-modals';
 import {
   createAutoplayReadyGate,
   type AutoplayReadySignal,
@@ -389,16 +389,8 @@ import {
   createMediaTimingReviewRuntime,
 } from './main/runtime/media-timing-review';
 import { openMediaTimingReviewModal } from './main/runtime/media-timing-review-open';
-import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
-import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
-import { openTsukihimeModal as openTsukihimeModalRuntime } from './main/runtime/tsukihime-open';
 import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
-import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
-import { openChangelogModal as openChangelogModalRuntime } from './main/runtime/changelog-open';
 import { createChangelogRuntime } from './main/runtime/changelog/changelog-runtime';
-import { openCharacterDictionaryManagerModal as openCharacterDictionaryManagerModalRuntime } from './main/runtime/character-dictionary-open';
-import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
-import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { createSessionBindingsRuntime } from './main/runtime/session-bindings-runtime';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
@@ -412,7 +404,6 @@ import {
   removeCharacterDictionaryManagedEntry,
   replaceCharacterDictionaryManagedEntry,
 } from './main/runtime/character-dictionary-auto-sync';
-import { openCharacterDictionaryManagerWithConfigGate } from './main/runtime/character-dictionary-manager-gate';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
 import { createOverlayGeometryRuntime } from './main/runtime/overlay-geometry-runtime';
@@ -871,7 +862,7 @@ const youtube = createYoutubeAssembly({
   generateYoutubeSubtitles: (request) =>
     subtitleGenerationRuntime.generateYoutubeSubtitles(request),
   openSubtitleGenerationModal: () =>
-    openSubtitleGenerationModal(createOverlayHostedModalOpenDeps()),
+    openSubtitleGenerationModal(overlayModals.createOverlayHostedModalOpenDeps()),
   invalidatePendingAutoplayReadyFallbacks: () =>
     autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks(),
   ensurePlaybackRuntimeReady: () => ensureYoutubePlaybackRuntimeReady(),
@@ -1297,7 +1288,7 @@ const subsyncRuntime = createMainSubsyncRuntime({
   },
   showMpvOsd: (text) => overlayNotificationsRuntime.showSubsyncStatusNotification(text),
   openManualPicker: (payload) => {
-    openOverlayHostedModalWithOsd(
+    overlayModals.openOverlayHostedModalWithOsd(
       (deps) => openSubsyncManualModalRuntime(deps, payload),
       'Subsync overlay unavailable.',
       'Failed to open subsync overlay.',
@@ -1705,16 +1696,16 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
   },
   showMpvOsd: (text: string) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   openRuntimeOptionsPalette: () => {
-    openRuntimeOptionsPalette();
+    overlayModals.openRuntimeOptionsPalette();
   },
   openCharacterDictionaryManager: () => {
-    openCharacterDictionaryManagerOverlay();
+    overlayModals.openCharacterDictionaryManagerOverlay();
   },
   openJimaku: () => {
-    openJimakuOverlay();
+    overlayModals.openJimakuOverlay();
   },
   openTsukihime: () => {
-    openTsukihimeOverlay();
+    overlayModals.openTsukihimeOverlay();
   },
   markAudioCard: () => markLastCardAsAudioCardHandler(),
   copySubtitleMultiple: (timeoutMs: number) => {
@@ -2119,30 +2110,20 @@ const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
   },
 });
 
-function createOverlayHostedModalOpenDeps(): {
-  ensureOverlayStartupPrereqs: () => void;
-  ensureOverlayWindowsReadyForVisibilityActions: () => void;
-  sendToActiveOverlayWindow: (
-    channel: string,
-    payload?: unknown,
-    runtimeOptions?: {
-      restoreOnModalClose?: OverlayHostedModal;
-      preferModalWindow?: boolean;
-    },
-  ) => boolean;
-  waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
-  logWarn: (message: string) => void;
-} {
-  return {
-    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
-    ensureOverlayWindowsReadyForVisibilityActions: () =>
-      ensureOverlayWindowsReadyForVisibilityActions(),
-    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
-      overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
-    waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
-    logWarn: (message) => logger.warn(message),
-  };
-}
+const overlayModals = createOverlayModalsAssembly({
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
+  overlayModalRuntime,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+  ensureOverlayWindowsReadyForVisibilityActions: () =>
+    ensureOverlayWindowsReadyForVisibilityActions(),
+  sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+    overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+  showMpvOsd: (text) => showMpvOsd(text),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+});
 
 const mediaTimingFrameExtractor = createMediaTimingFrameExtractor();
 const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
@@ -2194,7 +2175,7 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
       endTime: range.endTime,
     }),
   openModal: (payload, signal) =>
-    openMediaTimingReviewModal(createOverlayHostedModalOpenDeps(), payload, signal),
+    openMediaTimingReviewModal(overlayModals.createOverlayHostedModalOpenDeps(), payload, signal),
   onPreviewEnded: (reviewId) => {
     // The review may live in either overlay window; the renderer ignores foreign review ids.
     for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
@@ -2213,134 +2194,6 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   showStatus: (message) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' }),
 });
-
-function openOverlayHostedModalWithOsd(
-  openModal: (deps: ReturnType<typeof createOverlayHostedModalOpenDeps>) => Promise<boolean>,
-  unavailableMessage: string,
-  failureLogMessage: string,
-): void {
-  void openModal(createOverlayHostedModalOpenDeps())
-    .then((opened) => {
-      if (!opened) {
-        overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
-          variant: 'warning',
-        });
-      }
-    })
-    .catch((error) => {
-      logger.error(failureLogMessage, error);
-      overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
-        variant: 'error',
-      });
-    });
-}
-
-function openRuntimeOptionsPalette(): void {
-  openOverlayHostedModalWithOsd(
-    openRuntimeOptionsModalRuntime,
-    'Runtime options overlay unavailable.',
-    'Failed to open runtime options overlay.',
-  );
-}
-
-function openJimakuOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openJimakuModalRuntime,
-    'Jimaku overlay unavailable.',
-    'Failed to open Jimaku overlay.',
-  );
-}
-
-function openTsukihimeOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openTsukihimeModalRuntime,
-    'TsukiHime overlay unavailable.',
-    'Failed to open TsukiHime overlay.',
-  );
-}
-
-function openSubtitleGenerationOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openSubtitleGenerationModal,
-    'Subtitle generation overlay unavailable.',
-    'Failed to open subtitle generation overlay.',
-  );
-}
-
-// currentMediaPath follows every mpv path change and is cleared on disconnect; the
-// client's currentVideoPath outlives the connection, so a reconnect could reuse it.
-function isMediaPlaybackActive(): boolean {
-  return appState.mpvClient?.connected === true && Boolean(appState.currentMediaPath?.trim());
-}
-
-function openSessionHelpOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    (deps) => openSessionHelpModalRuntime({ ...deps, isMediaPlaybackActive }),
-    'Session help overlay unavailable.',
-    'Failed to open session help overlay.',
-  );
-}
-
-function openChangelogOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openChangelogModalRuntime,
-    'Changelog overlay unavailable.',
-    'Failed to open changelog overlay.',
-  );
-}
-
-function openCharacterDictionaryManagerOverlay(): void {
-  openCharacterDictionaryManagerWithConfigGate({
-    isCharacterDictionaryEnabled: () => configService.getConfig().subtitleStyle.nameMatchEnabled,
-    getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
-    openManager: () => {
-      openOverlayHostedModalWithOsd(
-        openCharacterDictionaryManagerModalRuntime,
-        'Character dictionary manager unavailable.',
-        'Failed to open character dictionary manager.',
-      );
-    },
-    showOsd: (message) => showMpvOsd(message),
-    showOverlayNotification: (payload) =>
-      overlayNotificationsRuntime.showOverlayNotification(payload),
-    showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-    logWarn: (message, error) => logger.warn(message, error),
-  });
-}
-
-function openControllerSelectOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openControllerSelectModalRuntime,
-    'Controller select overlay unavailable.',
-    'Failed to open controller select overlay.',
-  );
-}
-
-function openControllerDebugOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openControllerDebugModalRuntime,
-    'Controller debug overlay unavailable.',
-    'Failed to open controller debug overlay.',
-  );
-}
-
-function openPlaylistBrowser(): void {
-  if (!appState.mpvClient?.connected) {
-    overlayNotificationsRuntime.showConfiguredStatusNotification(
-      'Playlist browser requires active playback.',
-      {
-        title: 'Playlist browser',
-        variant: 'warning',
-      },
-    );
-    return;
-  }
-  openOverlayHostedModalWithOsd(
-    openPlaylistBrowserRuntime,
-    'Playlist browser overlay unavailable.',
-    'Failed to open playlist browser overlay.',
-  );
-}
 
 function getRuntimeBooleanOption(
   id:
@@ -4185,24 +4038,24 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
       }
       return marked;
     },
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    openJimaku: () => openJimakuOverlay(),
-    openTsukihime: () => openTsukihimeOverlay(),
-    openSessionHelp: () => openSessionHelpOverlay(),
+    openRuntimeOptionsPalette: () => overlayModals.openRuntimeOptionsPalette(),
+    openJimaku: () => overlayModals.openJimakuOverlay(),
+    openTsukihime: () => overlayModals.openTsukihimeOverlay(),
+    openSessionHelp: () => overlayModals.openSessionHelpOverlay(),
     openSubtitleSelection: () => {
       if (!configService.getConfig().subtitleSelection.enabled) return;
-      openOverlayHostedModalWithOsd(
+      overlayModals.openOverlayHostedModalWithOsd(
         openSubtitleSelectionModal,
         'Subtitle selection overlay unavailable.',
         'Failed to open subtitle selection overlay.',
       );
     },
-    openSubtitleGeneration: () => openSubtitleGenerationOverlay(),
-    openCharacterDictionaryManager: () => openCharacterDictionaryManagerOverlay(),
-    openControllerSelect: () => openControllerSelectOverlay(),
-    openControllerDebug: () => openControllerDebugOverlay(),
+    openSubtitleGeneration: () => overlayModals.openSubtitleGenerationOverlay(),
+    openCharacterDictionaryManager: () => overlayModals.openCharacterDictionaryManagerOverlay(),
+    openControllerSelect: () => overlayModals.openControllerSelectOverlay(),
+    openControllerDebug: () => overlayModals.openControllerDebugOverlay(),
     openYoutubeTrackPicker: () => youtube.openTrackPickerFromPlayback(),
-    openPlaylistBrowser: () => openPlaylistBrowser(),
+    openPlaylistBrowser: () => overlayModals.openPlaylistBrowser(),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
     cycleRuntimeOption: (id, direction) => {
@@ -4228,11 +4081,11 @@ const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appSta
 const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    openJimaku: () => openJimakuOverlay(),
-    openTsukihime: () => openTsukihimeOverlay(),
+    openRuntimeOptionsPalette: () => overlayModals.openRuntimeOptionsPalette(),
+    openJimaku: () => overlayModals.openJimakuOverlay(),
+    openTsukihime: () => overlayModals.openTsukihimeOverlay(),
     openYoutubeTrackPicker: () => youtube.openTrackPickerFromPlayback(),
-    openPlaylistBrowser: () => openPlaylistBrowser(),
+    openPlaylistBrowser: () => overlayModals.openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: 'Runtime options manager unavailable' };
@@ -4364,7 +4217,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID &&
           actionId === VIEW_CHANGELOG_ACTION_ID
         ) {
-          openChangelogOverlay();
+          overlayModals.openChangelogOverlay();
         }
         if (actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined) {
           void openAnkiCardFromNotification(noteId).catch((error) => {
@@ -4730,7 +4583,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     openSyncUiWindow: () => sync.openWindow(),
     openYoutubeBrowserWindow: () => youtube.browserWindow.open(),
     cycleSecondarySubMode: () => cycleSecondarySubMode(),
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    openRuntimeOptionsPalette: () => overlayModals.openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
     stopApp: () => requestAppQuit(),
     hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
@@ -4970,8 +4823,8 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       platform: process.platform,
       initializeOverlayRuntime: () => initializeOverlayRuntime(),
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-      openSessionHelpModal: () => openSessionHelpOverlay(),
-      openChangelogModal: () => openChangelogOverlay(),
+      openSessionHelpModal: () => overlayModals.openSessionHelpOverlay(),
+      openChangelogModal: () => overlayModals.openChangelogOverlay(),
       openTexthookerInBrowser: () =>
         handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
       showTexthookerPage: () => shouldShowTexthookerTrayEntry(configService.getConfig()),
@@ -5304,6 +5157,6 @@ registerSubtitleGenerationIpc({
       (window) => window && !window.isDestroyed() && window.webContents === sender,
     ),
   runtime: subtitleGenerationRuntime,
-  openModal: () => openSubtitleGenerationModal(createOverlayHostedModalOpenDeps()),
+  openModal: () => openSubtitleGenerationModal(overlayModals.createOverlayHostedModalOpenDeps()),
 });
 app.on('before-quit', () => subtitleGenerationRuntime.cancel());

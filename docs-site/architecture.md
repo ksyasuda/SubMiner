@@ -24,7 +24,7 @@ src/
   preload*.ts             # preload bridges (overlay, settings, stats, sync, Jellyfin setup)
   main/                   # main-process runtime modules and IPC/CLI wiring
     boot/                 # pre-ready boot helpers
-    assemblies/           # per-domain assemblies main.ts builds once (YouTube, Jellyfin, AniList, settings, sync, dictionaries)
+    assemblies/           # per-domain assemblies main.ts builds once (YouTube, Jellyfin, AniList, settings, sync, dictionaries, overlay modals)
     runtime/composers/    # larger runtime clusters assembled for main.ts
     runtime/domains/      # domain barrels (startup, overlay, mpv, ipc, shortcuts, anilist, jellyfin, mining)
   core/services/          # focused services: mpv client, overlay, tokenizer, mining, integrations, stats

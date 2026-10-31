@@ -21,6 +21,7 @@ Read when: you need to find the owner module for a behavior or test surface
   `src/config/resolve/anki-connect/`
   Config hot-reload and the settings window: `src/main/assemblies/settings.ts`
 - Overlay/window state: `src/core/services/overlay-*`, `src/main/overlay-*.ts`
+  Overlay-hosted modal openers: `src/main/assemblies/overlay-modals.ts`
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
   Windows executable lookup and detached process creation are shared in `src/main/runtime/mpv-process.ts`. The Windows launcher and Jellyfin handlers retain their own playback and connection workflows.
 - Subtitle/token pipeline: `src/core/services/subtitle-*.ts`, `src/core/services/tokenizer*`, `src/core/services/tokenizer/`, `src/subsync/`
