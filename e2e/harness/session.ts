@@ -266,12 +266,13 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
     await stopProcess(seeder.child);
 
     const mpvLogPath = path.join(root, 'mpv.log');
+    const mpvStdioLogPath = path.join(root, 'mpv-stdio.log');
     const mpvProcess = await startMpv({
       socketPath: mpvSocketPath,
       mediaPath,
       subtitlePath,
       logPath: mpvLogPath,
-      stdioLogPath: path.join(root, 'mpv-stdio.log'),
+      stdioLogPath: mpvStdioLogPath,
       display,
     });
     teardown.push(() => stopProcess(mpvProcess));
@@ -281,7 +282,7 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
         exitCode === null && signalCode === null
           ? 'mpv IPC connection closed'
           : `mpv exited (code ${String(exitCode)}, signal ${String(signalCode)})`;
-      return `${status}; see ${mpvLogPath}`;
+      return `${status}; see ${mpvLogPath} and ${mpvStdioLogPath}`;
     });
     teardown.push(mpv.close);
 
