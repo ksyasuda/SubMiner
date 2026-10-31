@@ -155,7 +155,6 @@ import {
   buildAnilistSetupUrl,
   consumeAnilistSetupCallbackUrl,
   createAnilistStateRuntime,
-  createBuildOpenAnilistSetupWindowMainDepsHandler,
   createMaybeFocusExistingAnilistSetupWindowHandler,
   createOpenAnilistSetupWindowHandler,
   findAnilistSetupDeepLinkArgvUrl,
@@ -3873,56 +3872,50 @@ const {
 const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetupWindowHandler({
   getSetupWindow: () => appState.anilistSetupWindow,
 });
-const buildOpenAnilistSetupWindowMainDepsHandler = createBuildOpenAnilistSetupWindowMainDepsHandler(
-  {
-    maybeFocusExistingSetupWindow: maybeFocusExistingAnilistSetupWindow,
-    createSetupWindow: createCreateAnilistSetupWindowHandler({
-      createBrowserWindow: (options) => new BrowserWindow(options),
+const openAnilistSetupWindowHandler = createOpenAnilistSetupWindowHandler({
+  maybeFocusExistingSetupWindow: maybeFocusExistingAnilistSetupWindow,
+  createSetupWindow: createCreateAnilistSetupWindowHandler({
+    createBrowserWindow: (options) => new BrowserWindow(options),
+  }),
+  buildAuthorizeUrl: () =>
+    buildAnilistSetupUrl({
+      authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
+      clientId: ANILIST_DEFAULT_CLIENT_ID,
+      responseType: ANILIST_SETUP_RESPONSE_TYPE,
     }),
-    buildAuthorizeUrl: () =>
-      buildAnilistSetupUrl({
-        authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
-        clientId: ANILIST_DEFAULT_CLIENT_ID,
-        responseType: ANILIST_SETUP_RESPONSE_TYPE,
-      }),
-    consumeCallbackUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
-    openSetupInBrowser: (authorizeUrl) =>
-      openAnilistSetupInBrowser({
-        authorizeUrl,
-        openExternal: (url) => shell.openExternal(url),
-        logError: (message, error) => logger.error(message, error),
-      }),
-    loadManualTokenEntry: (setupWindow, authorizeUrl) =>
-      loadAnilistManualTokenEntry({
-        setupWindow: setupWindow as BrowserWindow,
-        authorizeUrl,
-        developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-        logWarn: (message, data) => logger.warn(message, data),
-      }),
-    redirectUri: ANILIST_REDIRECT_URI,
-    developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-    isAllowedExternalUrl: (url) => isAllowedAnilistExternalUrl(url),
-    isAllowedNavigationUrl: (url) => isAllowedAnilistSetupNavigationUrl(url),
-    logWarn: (message, details) => logger.warn(message, details),
-    logError: (message, details) => logger.error(message, details),
-    clearSetupWindow: () => {
-      appState.anilistSetupWindow = null;
-    },
-    setSetupPageOpened: (opened) => {
-      appState.anilistSetupPageOpened = opened;
-    },
-    setSetupWindow: (setupWindow) => {
-      appState.anilistSetupWindow = setupWindow as BrowserWindow;
-    },
-    openExternal: (url) => {
-      void shell.openExternal(url);
-    },
+  consumeCallbackUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
+  openSetupInBrowser: (authorizeUrl) =>
+    openAnilistSetupInBrowser({
+      authorizeUrl,
+      openExternal: (url) => shell.openExternal(url),
+      logError: (message, error) => logger.error(message, error),
+    }),
+  loadManualTokenEntry: (setupWindow, authorizeUrl) =>
+    loadAnilistManualTokenEntry({
+      setupWindow: setupWindow as BrowserWindow,
+      authorizeUrl,
+      developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+      logWarn: (message, data) => logger.warn(message, data),
+    }),
+  redirectUri: ANILIST_REDIRECT_URI,
+  developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+  isAllowedExternalUrl: (url) => isAllowedAnilistExternalUrl(url),
+  isAllowedNavigationUrl: (url) => isAllowedAnilistSetupNavigationUrl(url),
+  logWarn: (message, details) => logger.warn(message, details),
+  logError: (message, details) => logger.error(message, details),
+  clearSetupWindow: () => {
+    appState.anilistSetupWindow = null;
   },
-);
-
-const openAnilistSetupWindowHandler = createOpenAnilistSetupWindowHandler(
-  buildOpenAnilistSetupWindowMainDepsHandler(),
-);
+  setSetupPageOpened: (opened) => {
+    appState.anilistSetupPageOpened = opened;
+  },
+  setSetupWindow: (setupWindow) => {
+    appState.anilistSetupWindow = setupWindow as BrowserWindow;
+  },
+  openExternal: (url) => {
+    void shell.openExternal(url);
+  },
+});
 
 const {
   refreshAnilistClientSecretState,
