@@ -15,6 +15,16 @@ export type MpvClient = {
 
 type MpvReply = { request_id?: number; error?: string; data?: unknown };
 
+function videoOutputArgs(display: E2eDisplay): string[] {
+  // Xvfb has no GPU; the software X11 output always works there.
+  if (display.kind === 'xvfb') return ['--vo=x11'];
+  // gpu-next's Vulkan path (libplacebo over MoltenVK) segfaults on the first frame
+  // on GitHub's paravirtual macOS GPU with libplacebo 7.387. `--vo=libmpv` is mpv's
+  // cocoa-cb OpenGL output, which avoids it and still opens the window the overlay tracks.
+  if (process.platform === 'darwin') return ['--vo=libmpv'];
+  return [];
+}
+
 export async function startMpv(options: {
   socketPath: string;
   mediaPath: string;
@@ -36,8 +46,7 @@ export async function startMpv(options: {
       '--keep-open=yes',
       '--ao=null',
       `--geometry=${E2E_SCREEN.width}x${E2E_SCREEN.height}+0+0`,
-      // Xvfb has no GPU; the software X11 output always works there.
-      ...(options.display.kind === 'xvfb' ? ['--vo=x11'] : []),
+      ...videoOutputArgs(options.display),
       `--input-ipc-server=${options.socketPath}`,
       `--sub-file=${options.subtitlePath}`,
       options.mediaPath,
