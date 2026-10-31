@@ -29,6 +29,10 @@ test.each([false, true])(
       port: 0,
       fetch(request) {
         const pathname = new URL(request.url).pathname;
+        // Ignore stray local probes of the ephemeral port; only count the script's downloads.
+        if (!pathname.startsWith('/ksyasuda/SubMiner/releases/download/')) {
+          return new Response('not found', { status: 404 });
+        }
         requests.push(pathname);
         if (unavailable || requests.length === 1) return new Response('try again', { status: 503 });
         const name = pathname.split('/').at(-1);
