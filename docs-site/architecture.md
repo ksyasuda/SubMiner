@@ -138,7 +138,7 @@ Runtime code uses dependency injection:
 2. Build its runtime dependencies in a `src/main/` module. Pass simple dependencies inline; extract an adapter only when it adds behavior or gets reused.
 3. Call the service from lifecycle or command wiring.
 
-`main.ts` gets domain handlers through `createMainRuntimeRegistry()` (`src/main/runtime/registry.ts`), which exposes the barrels in `src/main/runtime/domains/`. Larger clusters, such as app-ready startup, mpv, Jellyfin, AniList tracking, shortcuts, and IPC, are assembled by composers in `src/main/runtime/composers/`. Many handlers take a `*MainDeps` object built by a `createBuild*MainDepsHandler` builder, which keeps side effects out of the unit under test.
+`main.ts` gets domain handlers through `createMainRuntimeRegistry()` (`src/main/runtime/registry.ts`), which exposes the barrels in `src/main/runtime/domains/`. Larger clusters, such as app-ready startup, mpv, Jellyfin, AniList tracking, shortcuts, and IPC, are assembled by composers in `src/main/runtime/composers/`. Handlers take their dependencies as a plain object passed straight to the handler factory, which keeps side effects out of the unit under test.
 
 Composers declare their inputs with `ComposerInputs<T>` and results with `ComposerOutputs<T>` from `src/main/runtime/composers/contracts.ts`. A missing dependency then fails at compile time.
 
