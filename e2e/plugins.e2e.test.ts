@@ -240,7 +240,9 @@ test(
   { timeout: TEST_TIMEOUT_MS },
   async () => {
     const { session, overlay } = await useSession();
-    const text = FIXTURE_CUES[1].text;
+    // Unlike any fixture cue, so the overlay showing it proves main received this line rather
+    // than still displaying one from an earlier test.
+    const text = '今日は猫が好きです。';
     const subtitlePath = path.join(session.root, 'repeated.srt');
     fs.writeFileSync(
       subtitlePath,
