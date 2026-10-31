@@ -11,7 +11,7 @@ import { resolveYoutubePlaybackUrl } from '../../core/services/youtube/playback-
 import { probeYoutubeTracks } from '../../core/services/youtube/track-probe';
 import { createYoutubeWhisperSubtitleService } from '../../core/services/youtube/whisper-subtitles';
 import type { BrowserWindow } from 'electron';
-import type { createLogger } from '../../logger';
+import type { Logger } from '../../logger';
 import type { ResolvedConfig, WindowGeometry } from '../../types';
 import type { OverlayModalRuntime } from '../overlay-runtime';
 import type { createOverlayGeometryRuntime } from '../runtime/overlay-geometry-runtime';
@@ -73,7 +73,7 @@ export interface YoutubeAssemblyDeps {
     | 'initialArgs'
   >;
   getConfig: () => ResolvedConfig;
-  logger: Pick<ReturnType<typeof createLogger>, 'info' | 'warn' | 'debug'>;
+  logger: Pick<Logger, 'info' | 'warn' | 'debug'>;
   getWhisperModelDirectory: () => string;
   getMainOverlayWindow: () => BrowserWindow | null;
   overlayModalRuntime: Pick<OverlayModalRuntime, 'sendToActiveOverlayWindow' | 'waitForModalOpen'>;

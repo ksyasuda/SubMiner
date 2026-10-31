@@ -1,5 +1,5 @@
 import type { ResolvedConfig } from '../../types';
-import type { createLogger } from '../../logger';
+import type { Logger } from '../../logger';
 import {
   createFrequencyDictionaryRuntimeService,
   getFrequencyDictionarySearchPaths,
@@ -16,7 +16,7 @@ export interface DictionariesAssemblyDeps {
   roots: Omit<Parameters<typeof createBuildDictionaryRootsHandler>[0], 'vendorDirName'>;
   appState: Pick<AppState, 'jlptLevelLookup' | 'frequencyRankLookup'>;
   getConfig: () => ResolvedConfig;
-  logger: Pick<ReturnType<typeof createLogger>, 'info'>;
+  logger: Pick<Logger, 'info'>;
 }
 
 export type DictionariesAssembly = ReturnType<typeof createDictionariesAssembly>;

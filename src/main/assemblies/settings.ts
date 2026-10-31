@@ -9,7 +9,7 @@ import {
   createConfigHotReloadRuntime,
   promoteSettingsWindowAboveOverlay,
 } from '../../core/services';
-import type { createLogger } from '../../logger';
+import type { Logger } from '../../logger';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import {
   buildConfigWarningDialogDetails,
@@ -41,7 +41,7 @@ export interface SettingsAssemblyDeps {
     ConfigService,
     'getConfig' | 'getConfigPath' | 'getRawConfig' | 'getWarnings' | 'reloadConfigStrict'
   >;
-  logger: Pick<ReturnType<typeof createLogger>, 'error'>;
+  logger: Pick<Logger, 'error'>;
   getOverlayNotifications: () => Pick<
     ReturnType<typeof createOverlayNotificationsRuntime>,
     'getConfiguredStatusNotificationType' | 'showOverlayNotification'

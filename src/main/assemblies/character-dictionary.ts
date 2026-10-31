@@ -6,7 +6,7 @@ import {
   upsertYomitanDictionarySettings,
 } from '../../core/services';
 import { guessAnilistMediaInfo } from '../../core/services/anilist/anilist-updater';
-import type { createLogger } from '../../logger';
+import type { Logger } from '../../logger';
 import type { ResolvedConfig } from '../../types';
 import { createCharacterDictionaryRuntimeService } from '../character-dictionary-runtime';
 import { createCharacterDictionaryImageLookup } from '../character-dictionary-runtime/image-lookup';
@@ -41,7 +41,7 @@ export interface CharacterDictionaryAssemblyDeps {
     | 'currentSubText'
   >;
   getConfig: () => ResolvedConfig;
-  logger: Pick<ReturnType<typeof createLogger>, 'info' | 'warn' | 'error'>;
+  logger: Pick<Logger, 'info' | 'warn' | 'error'>;
   startupOsdSequencer: CharacterDictionaryAutoSyncNotificationDeps['startupOsdSequencer'];
   resolveMediaPathForJimaku: (mediaPath: string | null) => string | null;
   getYomitanProfilePolicy: () => Pick<

@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron';
 import type { ConfigService } from '../../config/service';
 import { promoteSettingsWindowAboveOverlay } from '../../core/services';
-import type { createLogger } from '../../logger';
+import type { Logger } from '../../logger';
 import { getSyncHostsPath } from '../../shared/sync/sync-hosts-store';
 import { createOpenConfigSettingsWindowHandler } from '../runtime/config-settings-window';
 import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notifications-runtime';
@@ -20,7 +20,7 @@ import type { AppState } from '../state';
 export interface SyncAssemblyDeps {
   appState: Pick<AppState, 'syncUiWindow' | 'initialArgs'>;
   configService: Pick<ConfigService, 'getConfig'>;
-  logger: Pick<ReturnType<typeof createLogger>, 'info' | 'error'>;
+  logger: Pick<Logger, 'info' | 'error'>;
   userDataPath: string;
   defaultImmersionDbPath: string;
   getOverlayNotifications: () => Pick<

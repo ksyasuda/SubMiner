@@ -8,7 +8,7 @@ import {
   updateAnilistPostWatchProgress,
 } from '../../core/services/anilist/anilist-updater';
 import type { createAnilistRateLimiter } from '../../core/services/anilist/rate-limiter';
-import type { createLogger } from '../../logger';
+import type { Logger } from '../../logger';
 import { DEFAULT_MIN_WATCH_RATIO } from '../../shared/watch-threshold';
 import type { ResolvedConfig } from '../../types';
 import {
@@ -69,7 +69,7 @@ export interface AnilistAssemblyDeps {
     | 'anilistSetupWindow'
   >;
   configService: Pick<ConfigService, 'getConfig'>;
-  logger: Pick<ReturnType<typeof createLogger>, 'info' | 'warn' | 'debug' | 'error'>;
+  logger: Pick<Logger, 'info' | 'warn' | 'debug' | 'error'>;
   anilistTokenStore: ReturnType<typeof createAnilistTokenStore>;
   anilistUpdateQueue: ReturnType<typeof createAnilistUpdateQueue>;
   /** Shared with the stats cover-art fetcher, so `main.ts` owns it. */

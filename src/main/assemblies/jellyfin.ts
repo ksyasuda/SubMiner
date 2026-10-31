@@ -16,7 +16,7 @@ import {
   type MpvIpcClient,
 } from '../../core/services';
 import type { JellyfinTokenStore } from '../../core/services/jellyfin-token-store';
-import type { createLogger } from '../../logger';
+import type { Logger } from '../../logger';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import { writeJellyfinCliResponse } from '../../shared/jellyfin-cli-response';
 import { isLogFileEnabled } from '../../shared/log-files';
@@ -79,7 +79,7 @@ export interface JellyfinAssemblyDeps {
   >;
   configService: Pick<ConfigService, 'getConfig' | 'patchRawConfig'>;
   jellyfinTokenStore: JellyfinTokenStore;
-  logger: Pick<ReturnType<typeof createLogger>, 'info' | 'warn' | 'debug' | 'error'>;
+  logger: Pick<Logger, 'info' | 'warn' | 'debug' | 'error'>;
   defaultMpvLogPath: string;
   getAppDataPath: () => string;
   getRuntimePluginEntrypoint: NonNullable<LaunchMpvIdleDeps['getRuntimePluginEntrypoint']>;

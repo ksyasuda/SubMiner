@@ -1,4 +1,4 @@
-import type { createLogger } from '../../logger';
+import type { Logger } from '../../logger';
 import type { OverlayHostedModal } from '../../shared/ipc/contracts';
 import type { ResolvedConfig } from '../../types';
 import type { OverlayModalRuntime } from '../overlay-runtime';
@@ -27,7 +27,7 @@ type OverlayNotifications = Pick<
 export interface OverlayModalsAssemblyDeps {
   appState: Pick<AppState, 'mpvClient' | 'currentMediaPath'>;
   getConfig: () => ResolvedConfig;
-  logger: Pick<ReturnType<typeof createLogger>, 'warn' | 'error'>;
+  logger: Pick<Logger, 'warn' | 'error'>;
   overlayModalRuntime: Pick<OverlayModalRuntime, 'waitForModalOpen'>;
   getOverlayNotifications: () => OverlayNotifications;
   ensureOverlayStartupPrereqs: () => void;
