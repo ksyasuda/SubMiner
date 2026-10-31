@@ -1,18 +1,8 @@
-import { createBuildCycleSecondarySubModeMainDepsHandler } from './secondary-sub-mode-main-deps';
-
-type CycleSecondarySubModeMainDeps = Parameters<
-  typeof createBuildCycleSecondarySubModeMainDepsHandler
->[0];
-type CycleSecondarySubModeDeps = ReturnType<
-  ReturnType<typeof createBuildCycleSecondarySubModeMainDepsHandler>
->;
+import type { CycleSecondarySubModeDeps } from '../../core/services/subtitle-position';
 
 export function createCycleSecondarySubModeRuntimeHandler(deps: {
-  cycleSecondarySubModeMainDeps: CycleSecondarySubModeMainDeps;
+  cycleSecondarySubModeMainDeps: CycleSecondarySubModeDeps;
   cycleSecondarySubMode: (deps: CycleSecondarySubModeDeps) => void;
 }) {
-  const buildCycleSecondarySubModeMainDepsHandler = createBuildCycleSecondarySubModeMainDepsHandler(
-    deps.cycleSecondarySubModeMainDeps,
-  );
-  return () => deps.cycleSecondarySubMode(buildCycleSecondarySubModeMainDepsHandler());
+  return () => deps.cycleSecondarySubMode(deps.cycleSecondarySubModeMainDeps);
 }

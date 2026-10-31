@@ -56,7 +56,12 @@ jobs:
 
       - name: Install mpv and ffmpeg (macOS)
         if: runner.os == 'macOS'
-        run: brew install mpv ffmpeg
+        run: |
+          # Runner images bake in different Homebrew metadata, so without an update the
+          # installed mpv build depends on which image the job lands on.
+          brew update
+          brew install mpv ffmpeg
+          mpv --version
 
       - name: Install mpv and ffmpeg (Windows)
         if: runner.os == 'Windows'

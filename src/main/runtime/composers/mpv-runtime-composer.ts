@@ -4,17 +4,12 @@ import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from '../mpv-cli
 import { createMpvClientRuntimeServiceFactory } from '../mpv-client-runtime-service';
 import type { MpvClientRuntimeServiceOptions } from '../mpv-client-runtime-service';
 import type { Config } from '../../../types';
-import { createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler } from '../mpv-subtitle-render-metrics-main-deps';
 import { createUpdateMpvSubtitleRenderMetricsHandler } from '../mpv-subtitle-render-metrics';
 import {
   createBuildTokenizerDepsMainHandler,
   createCreateMecabTokenizerAndCheckMainHandler,
   createPrewarmSubtitleDictionariesMainHandler,
 } from '../subtitle-tokenization-main-deps';
-import {
-  createBuildLaunchBackgroundWarmupTaskMainDepsHandler,
-  createBuildStartBackgroundWarmupsMainDepsHandler,
-} from '../startup-warmups-main-deps';
 import {
   createLaunchBackgroundWarmupTaskHandler as createLaunchBackgroundWarmupTaskFromStartup,
   createStartBackgroundWarmupsHandler as createStartBackgroundWarmupsFromStartup,
@@ -38,7 +33,7 @@ type MpvClientRuntimeServiceFactoryMainDeps<TMpvClient extends RuntimeMpvClient>
   'bindEventHandlers'
 >;
 type UpdateMpvSubtitleRenderMetricsMainDeps = Parameters<
-  typeof createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler
+  typeof createUpdateMpvSubtitleRenderMetricsHandler
 >[0];
 type BuildTokenizerDepsMainDeps = Parameters<typeof createBuildTokenizerDepsMainHandler>[0];
 type TokenizerMainDeps = BuiltMainDeps<typeof createBuildTokenizerDepsMainHandler>;
@@ -49,10 +44,10 @@ type PrewarmSubtitleDictionariesMainDeps = Parameters<
   typeof createPrewarmSubtitleDictionariesMainHandler
 >[0];
 type LaunchBackgroundWarmupTaskMainDeps = Parameters<
-  typeof createBuildLaunchBackgroundWarmupTaskMainDepsHandler
+  typeof createLaunchBackgroundWarmupTaskFromStartup
 >[0];
 type StartBackgroundWarmupsMainDeps = Omit<
-  Parameters<typeof createBuildStartBackgroundWarmupsMainDepsHandler>[0],
+  Parameters<typeof createStartBackgroundWarmupsFromStartup>[0],
   'launchTask' | 'createMecabTokenizerAndCheck' | 'prewarmSubtitleDictionaries'
 >;
 
@@ -120,9 +115,7 @@ export function composeMpvRuntimeHandlers<
     createMpvClientRuntimeServiceFactory(buildMpvClientRuntimeServiceFactoryMainDepsHandler())();
 
   const updateMpvSubtitleRenderMetrics = createUpdateMpvSubtitleRenderMetricsHandler(
-    createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler(
-      options.updateMpvSubtitleRenderMetricsMainDeps,
-    )(),
+    options.updateMpvSubtitleRenderMetricsMainDeps,
   );
 
   const buildTokenizerDepsHandler = createBuildTokenizerDepsMainHandler(
@@ -257,48 +250,44 @@ export function composeMpvRuntimeHandlers<
   };
 
   const launchBackgroundWarmupTask = createLaunchBackgroundWarmupTaskFromStartup(
-    createBuildLaunchBackgroundWarmupTaskMainDepsHandler(
-      options.warmups.launchBackgroundWarmupTaskMainDeps,
-    )(),
+    options.warmups.launchBackgroundWarmupTaskMainDeps,
   );
-  const startBackgroundWarmups = createStartBackgroundWarmupsFromStartup(
-    createBuildStartBackgroundWarmupsMainDepsHandler({
-      ...options.warmups.startBackgroundWarmupsMainDeps,
-      launchTask: (label, task) => launchBackgroundWarmupTask(label, task),
-      createMecabTokenizerAndCheck: () => createMecabTokenizerAndCheck(),
-      prewarmSubtitleDictionaries: () => prewarmSubtitleDictionaries(),
-      onYomitanExtensionWarmupScheduled: (promise) => {
-        if (tokenizationPrerequisiteWarmupCompleted) {
-          return;
-        }
-        const finalizedPromise = promise
-          .then(() => {
-            markTokenizationPrerequisiteWarmupCompleted();
-          })
-          .finally(() => {
-            if (tokenizationPrerequisiteWarmupInFlight === finalizedPromise) {
-              tokenizationPrerequisiteWarmupInFlight = null;
-            }
-          });
-        tokenizationPrerequisiteWarmupInFlight = finalizedPromise;
-      },
-      onTokenizationWarmupScheduled: (promise) => {
-        if (tokenizationWarmupCompleted || !backgroundWarmupCoversOnDemandTokenization()) {
-          return;
-        }
-        const finalizedPromise = promise
-          .then(() => {
-            markTokenizationWarmupCompleted();
-          })
-          .finally(() => {
-            if (tokenizationWarmupInFlight === finalizedPromise) {
-              tokenizationWarmupInFlight = null;
-            }
-          });
-        tokenizationWarmupInFlight = finalizedPromise;
-      },
-    })(),
-  );
+  const startBackgroundWarmups = createStartBackgroundWarmupsFromStartup({
+    ...options.warmups.startBackgroundWarmupsMainDeps,
+    launchTask: (label, task) => launchBackgroundWarmupTask(label, task),
+    createMecabTokenizerAndCheck: () => createMecabTokenizerAndCheck(),
+    prewarmSubtitleDictionaries: () => prewarmSubtitleDictionaries(),
+    onYomitanExtensionWarmupScheduled: (promise) => {
+      if (tokenizationPrerequisiteWarmupCompleted) {
+        return;
+      }
+      const finalizedPromise = promise
+        .then(() => {
+          markTokenizationPrerequisiteWarmupCompleted();
+        })
+        .finally(() => {
+          if (tokenizationPrerequisiteWarmupInFlight === finalizedPromise) {
+            tokenizationPrerequisiteWarmupInFlight = null;
+          }
+        });
+      tokenizationPrerequisiteWarmupInFlight = finalizedPromise;
+    },
+    onTokenizationWarmupScheduled: (promise) => {
+      if (tokenizationWarmupCompleted || !backgroundWarmupCoversOnDemandTokenization()) {
+        return;
+      }
+      const finalizedPromise = promise
+        .then(() => {
+          markTokenizationWarmupCompleted();
+        })
+        .finally(() => {
+          if (tokenizationWarmupInFlight === finalizedPromise) {
+            tokenizationWarmupInFlight = null;
+          }
+        });
+      tokenizationWarmupInFlight = finalizedPromise;
+    },
+  });
 
   return {
     bindMpvClientEventHandlers: (client) => bindMpvClientEventHandlers(client),

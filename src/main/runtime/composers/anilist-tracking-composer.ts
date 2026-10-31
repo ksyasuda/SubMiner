@@ -1,15 +1,4 @@
 import {
-  createBuildEnsureAnilistMediaGuessMainDepsHandler,
-  createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler,
-  createBuildGetCurrentAnilistMediaKeyMainDepsHandler,
-  createBuildMaybeProbeAnilistDurationMainDepsHandler,
-  createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler,
-  createBuildProcessNextAnilistRetryUpdateMainDepsHandler,
-  createBuildRecordAnilistMediaDurationMainDepsHandler,
-  createBuildRefreshAnilistClientSecretStateMainDepsHandler,
-  createBuildResetAnilistMediaGuessStateMainDepsHandler,
-  createBuildResetAnilistMediaTrackingMainDepsHandler,
-  createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler,
   createEnsureAnilistMediaGuessHandler,
   createGetAnilistMediaGuessRuntimeStateHandler,
   createGetCurrentAnilistMediaKeyHandler,
@@ -25,36 +14,22 @@ import {
 import type { ComposerInputs, ComposerOutputs } from './contracts';
 
 export type AnilistTrackingComposerOptions = ComposerInputs<{
-  refreshClientSecretMainDeps: Parameters<
-    typeof createBuildRefreshAnilistClientSecretStateMainDepsHandler
-  >[0];
-  getCurrentMediaKeyMainDeps: Parameters<
-    typeof createBuildGetCurrentAnilistMediaKeyMainDepsHandler
-  >[0];
-  resetMediaTrackingMainDeps: Parameters<
-    typeof createBuildResetAnilistMediaTrackingMainDepsHandler
-  >[0];
+  refreshClientSecretMainDeps: Parameters<typeof createRefreshAnilistClientSecretStateHandler>[0];
+  getCurrentMediaKeyMainDeps: Parameters<typeof createGetCurrentAnilistMediaKeyHandler>[0];
+  resetMediaTrackingMainDeps: Parameters<typeof createResetAnilistMediaTrackingHandler>[0];
   getMediaGuessRuntimeStateMainDeps: Parameters<
-    typeof createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler
+    typeof createGetAnilistMediaGuessRuntimeStateHandler
   >[0];
   setMediaGuessRuntimeStateMainDeps: Parameters<
-    typeof createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler
+    typeof createSetAnilistMediaGuessRuntimeStateHandler
   >[0];
-  recordMediaDurationMainDeps: Parameters<
-    typeof createBuildRecordAnilistMediaDurationMainDepsHandler
-  >[0];
-  resetMediaGuessStateMainDeps: Parameters<
-    typeof createBuildResetAnilistMediaGuessStateMainDepsHandler
-  >[0];
-  maybeProbeDurationMainDeps: Parameters<
-    typeof createBuildMaybeProbeAnilistDurationMainDepsHandler
-  >[0];
-  ensureMediaGuessMainDeps: Parameters<typeof createBuildEnsureAnilistMediaGuessMainDepsHandler>[0];
-  processNextRetryUpdateMainDeps: Parameters<
-    typeof createBuildProcessNextAnilistRetryUpdateMainDepsHandler
-  >[0];
+  recordMediaDurationMainDeps: Parameters<typeof createRecordAnilistMediaDurationHandler>[0];
+  resetMediaGuessStateMainDeps: Parameters<typeof createResetAnilistMediaGuessStateHandler>[0];
+  maybeProbeDurationMainDeps: Parameters<typeof createMaybeProbeAnilistDurationHandler>[0];
+  ensureMediaGuessMainDeps: Parameters<typeof createEnsureAnilistMediaGuessHandler>[0];
+  processNextRetryUpdateMainDeps: Parameters<typeof createProcessNextAnilistRetryUpdateHandler>[0];
   maybeRunPostWatchUpdateMainDeps: Parameters<
-    typeof createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler
+    typeof createMaybeRunAnilistPostWatchUpdateHandler
   >[0];
 }>;
 
@@ -80,47 +55,37 @@ export function composeAnilistTrackingHandlers(
   options: AnilistTrackingComposerOptions,
 ): AnilistTrackingComposerResult {
   const refreshAnilistClientSecretState = createRefreshAnilistClientSecretStateHandler(
-    createBuildRefreshAnilistClientSecretStateMainDepsHandler(
-      options.refreshClientSecretMainDeps,
-    )(),
+    options.refreshClientSecretMainDeps,
   );
   const getCurrentAnilistMediaKey = createGetCurrentAnilistMediaKeyHandler(
-    createBuildGetCurrentAnilistMediaKeyMainDepsHandler(options.getCurrentMediaKeyMainDeps)(),
+    options.getCurrentMediaKeyMainDeps,
   );
   const resetAnilistMediaTracking = createResetAnilistMediaTrackingHandler(
-    createBuildResetAnilistMediaTrackingMainDepsHandler(options.resetMediaTrackingMainDeps)(),
+    options.resetMediaTrackingMainDeps,
   );
   const getAnilistMediaGuessRuntimeState = createGetAnilistMediaGuessRuntimeStateHandler(
-    createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler(
-      options.getMediaGuessRuntimeStateMainDeps,
-    )(),
+    options.getMediaGuessRuntimeStateMainDeps,
   );
   const setAnilistMediaGuessRuntimeState = createSetAnilistMediaGuessRuntimeStateHandler(
-    createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler(
-      options.setMediaGuessRuntimeStateMainDeps,
-    )(),
+    options.setMediaGuessRuntimeStateMainDeps,
   );
   const recordAnilistMediaDuration = createRecordAnilistMediaDurationHandler(
-    createBuildRecordAnilistMediaDurationMainDepsHandler(options.recordMediaDurationMainDeps)(),
+    options.recordMediaDurationMainDeps,
   );
   const resetAnilistMediaGuessState = createResetAnilistMediaGuessStateHandler(
-    createBuildResetAnilistMediaGuessStateMainDepsHandler(options.resetMediaGuessStateMainDeps)(),
+    options.resetMediaGuessStateMainDeps,
   );
   const maybeProbeAnilistDuration = createMaybeProbeAnilistDurationHandler(
-    createBuildMaybeProbeAnilistDurationMainDepsHandler(options.maybeProbeDurationMainDeps)(),
+    options.maybeProbeDurationMainDeps,
   );
   const ensureAnilistMediaGuess = createEnsureAnilistMediaGuessHandler(
-    createBuildEnsureAnilistMediaGuessMainDepsHandler(options.ensureMediaGuessMainDeps)(),
+    options.ensureMediaGuessMainDeps,
   );
   const processNextAnilistRetryUpdate = createProcessNextAnilistRetryUpdateHandler(
-    createBuildProcessNextAnilistRetryUpdateMainDepsHandler(
-      options.processNextRetryUpdateMainDeps,
-    )(),
+    options.processNextRetryUpdateMainDeps,
   );
   const maybeRunAnilistPostWatchUpdate = createMaybeRunAnilistPostWatchUpdateHandler(
-    createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler(
-      options.maybeRunPostWatchUpdateMainDeps,
-    )(),
+    options.maybeRunPostWatchUpdateMainDeps,
   );
 
   return {

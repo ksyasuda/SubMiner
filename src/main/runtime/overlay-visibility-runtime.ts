@@ -7,10 +7,6 @@ import {
   createBuildToggleVisibleOverlayMainDepsHandler,
 } from './overlay-visibility-actions-main-deps';
 import { createSetOverlayVisibleHandler, createToggleOverlayHandler } from './overlay-main-actions';
-import {
-  createBuildSetOverlayVisibleMainDepsHandler,
-  createBuildToggleOverlayMainDepsHandler,
-} from './overlay-main-actions-main-deps';
 
 type SetVisibleOverlayVisibleMainDeps = Parameters<
   typeof createBuildSetVisibleOverlayVisibleMainDepsHandler
@@ -36,15 +32,13 @@ export function createOverlayVisibilityRuntime(deps: OverlayVisibilityRuntimeDep
   })();
   const toggleVisibleOverlay = createToggleVisibleOverlayHandler(toggleVisibleOverlayMainDeps);
 
-  const setOverlayVisibleMainDeps = createBuildSetOverlayVisibleMainDepsHandler({
+  const setOverlayVisible = createSetOverlayVisibleHandler({
     setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-  })();
-  const setOverlayVisible = createSetOverlayVisibleHandler(setOverlayVisibleMainDeps);
+  });
 
-  const toggleOverlayMainDeps = createBuildToggleOverlayMainDepsHandler({
+  const toggleOverlay = createToggleOverlayHandler({
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
-  })();
-  const toggleOverlay = createToggleOverlayHandler(toggleOverlayMainDeps);
+  });
 
   return {
     setVisibleOverlayVisible,

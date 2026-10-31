@@ -126,7 +126,8 @@ whenever the behavior does not depend on a specific compositor.
   `startE2eSession()`. Pass `config` to override settings for a scenario file, and `files`
   to write files such as plugins into the isolated config dir before launch.
 - On a failed startup the temp dir is kept and its path is in the error. Set
-  `SUBMINER_E2E_KEEP=1` to keep it after any run (`app-stdio.log`, `app.log`, `mpv.log`).
+  `SUBMINER_E2E_KEEP=1` to keep it after any run (`app-stdio.log`, `app.log`, `mpv.log`,
+  `mpv-stdio.log`).
 
 For exploratory checks, keep one session up and poke at it:
 

@@ -1,9 +1,7 @@
 import type { RegisterIpcRuntimeServicesParams } from '../../ipc-runtime';
+import type { MpvCommandFromIpcRuntimeDeps } from '../../ipc-mpv-command';
 import type { SubsyncManualRunRequest, SubsyncResult } from '../../../types';
-import {
-  createBuildMpvCommandFromIpcRuntimeMainDepsHandler,
-  createIpcRuntimeHandlers,
-} from '../domains/ipc';
+import { createIpcRuntimeHandlers } from '../domains/ipc';
 import type { ComposerInputs, ComposerOutputs } from './contracts';
 
 type MpvCommand = (string | number)[];
@@ -17,7 +15,7 @@ type IpcRuntimeDeps = Parameters<
 >[0];
 
 export type IpcRuntimeComposerOptions = ComposerInputs<{
-  mpvCommandMainDeps: Parameters<typeof createBuildMpvCommandFromIpcRuntimeMainDepsHandler>[0];
+  mpvCommandMainDeps: MpvCommandFromIpcRuntimeDeps;
   handleMpvCommandFromIpcRuntime: IpcRuntimeDeps['handleMpvCommandFromIpcDeps']['handleMpvCommandFromIpcRuntime'];
   runSubsyncManualFromIpc: RunSubsyncManual;
   registration: {
@@ -37,16 +35,13 @@ export type IpcRuntimeComposerResult = ComposerOutputs<{
 export function composeIpcRuntimeHandlers(
   options: IpcRuntimeComposerOptions,
 ): IpcRuntimeComposerResult {
-  const mpvCommandFromIpcRuntimeMainDeps = createBuildMpvCommandFromIpcRuntimeMainDepsHandler(
-    options.mpvCommandMainDeps,
-  )();
   const { handleMpvCommandFromIpc, runSubsyncManualFromIpc } = createIpcRuntimeHandlers<
     SubsyncManualRunRequest,
     SubsyncResult
   >({
     handleMpvCommandFromIpcDeps: {
       handleMpvCommandFromIpcRuntime: options.handleMpvCommandFromIpcRuntime,
-      buildMpvCommandDeps: () => mpvCommandFromIpcRuntimeMainDeps,
+      buildMpvCommandDeps: () => options.mpvCommandMainDeps,
     },
     runSubsyncManualFromIpcDeps: {
       runManualFromIpc: (request) => options.runSubsyncManualFromIpc(request),

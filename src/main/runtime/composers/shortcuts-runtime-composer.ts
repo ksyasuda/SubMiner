@@ -1,6 +1,5 @@
 import { createNumericShortcutRuntime } from '../../../core/services/numeric-shortcut';
 import {
-  createBuildNumericShortcutRuntimeMainDepsHandler,
   createGlobalShortcutsRuntimeHandlers,
   createNumericShortcutSessionRuntimeHandlers,
   createOverlayShortcutsRuntimeHandlers,
@@ -8,9 +7,7 @@ import {
 import type { ComposerInputs, ComposerOutputs } from './contracts';
 
 type GlobalShortcutsOptions = Parameters<typeof createGlobalShortcutsRuntimeHandlers>[0];
-type NumericShortcutRuntimeMainDeps = Parameters<
-  typeof createBuildNumericShortcutRuntimeMainDepsHandler
->[0];
+type NumericShortcutRuntimeMainDeps = Parameters<typeof createNumericShortcutRuntime>[0];
 type NumericSessionOptions = Omit<
   Parameters<typeof createNumericShortcutSessionRuntimeHandlers>[0],
   'multiCopySession' | 'mineSentenceSession'
@@ -37,15 +34,13 @@ export function composeShortcutRuntimes(
 ): ShortcutsRuntimeComposerResult {
   const globalShortcuts = createGlobalShortcutsRuntimeHandlers(options.globalShortcuts);
 
-  const numericShortcutRuntimeMainDeps = createBuildNumericShortcutRuntimeMainDepsHandler(
+  const numericShortcutRuntime = createNumericShortcutRuntime(
     options.numericShortcutRuntimeMainDeps,
-  )();
-  const numericShortcutRuntime = createNumericShortcutRuntime(numericShortcutRuntimeMainDeps);
+  );
   const numericSessions = createNumericShortcutSessionRuntimeHandlers({
+    ...options.numericSessions,
     multiCopySession: numericShortcutRuntime.createSession(),
     mineSentenceSession: numericShortcutRuntime.createSession(),
-    onMultiCopyDigit: options.numericSessions.onMultiCopyDigit,
-    onMineSentenceDigit: options.numericSessions.onMineSentenceDigit,
   });
 
   const overlayShortcuts = createOverlayShortcutsRuntimeHandlers({

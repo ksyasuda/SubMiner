@@ -1,9 +1,8 @@
 import type { CliArgs, CliCommandSource } from '../../cli/args';
 import { createHandleTexthookerOnlyModeTransitionHandler } from './cli-command-prechecks';
-import { createBuildHandleTexthookerOnlyModeTransitionMainDepsHandler } from './cli-command-prechecks-main-deps';
 
 type HandleTexthookerOnlyModeTransitionMainDeps = Parameters<
-  typeof createBuildHandleTexthookerOnlyModeTransitionMainDepsHandler
+  typeof createHandleTexthookerOnlyModeTransitionHandler
 >[0];
 
 export function createCliCommandRuntimeHandler<TCliContext>(deps: {
@@ -17,9 +16,7 @@ export function createCliCommandRuntimeHandler<TCliContext>(deps: {
   ) => void;
 }) {
   const handleTexthookerOnlyModeTransitionHandler = createHandleTexthookerOnlyModeTransitionHandler(
-    createBuildHandleTexthookerOnlyModeTransitionMainDepsHandler(
-      deps.handleTexthookerOnlyModeTransitionMainDeps,
-    )(),
+    deps.handleTexthookerOnlyModeTransitionMainDeps,
   );
 
   return (args: CliArgs, source: CliCommandSource = 'initial'): void => {

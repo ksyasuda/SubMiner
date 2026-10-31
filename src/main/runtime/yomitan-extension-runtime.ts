@@ -3,17 +3,11 @@ import {
   createLoadYomitanExtensionHandler,
 } from './yomitan-extension-loader';
 import type { Extension } from 'electron';
-import {
-  createBuildEnsureYomitanExtensionLoadedMainDepsHandler,
-  createBuildLoadYomitanExtensionMainDepsHandler,
-} from './yomitan-extension-loader-main-deps';
 
-type LoadYomitanExtensionMainDeps = Parameters<
-  typeof createBuildLoadYomitanExtensionMainDepsHandler
->[0];
+type LoadYomitanExtensionMainDeps = Parameters<typeof createLoadYomitanExtensionHandler>[0];
 
 type EnsureYomitanExtensionLoadedMainDeps = Omit<
-  Parameters<typeof createBuildEnsureYomitanExtensionLoadedMainDepsHandler>[0],
+  Parameters<typeof createEnsureYomitanExtensionLoadedHandler>[0],
   'loadYomitanExtension'
 >;
 
@@ -23,7 +17,7 @@ export type YomitanExtensionRuntimeDeps = LoadYomitanExtensionMainDeps &
   };
 
 export function createYomitanExtensionRuntime(deps: YomitanExtensionRuntimeDeps) {
-  const buildLoadYomitanExtensionMainDepsHandler = createBuildLoadYomitanExtensionMainDepsHandler({
+  const loadYomitanExtensionHandler = createLoadYomitanExtensionHandler({
     loadYomitanExtensionCore: deps.loadYomitanExtensionCore,
     userDataPath: deps.userDataPath,
     externalProfilePath: deps.externalProfilePath,
@@ -34,20 +28,13 @@ export function createYomitanExtensionRuntime(deps: YomitanExtensionRuntimeDeps)
     setYomitanExtension: deps.setYomitanExtension,
     setYomitanSession: deps.setYomitanSession,
   });
-  const loadYomitanExtensionHandler = createLoadYomitanExtensionHandler(
-    buildLoadYomitanExtensionMainDepsHandler(),
-  );
 
-  const buildEnsureYomitanExtensionLoadedMainDepsHandler =
-    createBuildEnsureYomitanExtensionLoadedMainDepsHandler({
-      getYomitanExtension: deps.getYomitanExtension,
-      getLoadInFlight: deps.getLoadInFlight,
-      setLoadInFlight: deps.setLoadInFlight,
-      loadYomitanExtension: () => loadYomitanExtensionHandler(),
-    });
-  const ensureYomitanExtensionLoadedHandler = createEnsureYomitanExtensionLoadedHandler(
-    buildEnsureYomitanExtensionLoadedMainDepsHandler(),
-  );
+  const ensureYomitanExtensionLoadedHandler = createEnsureYomitanExtensionLoadedHandler({
+    getYomitanExtension: deps.getYomitanExtension,
+    getLoadInFlight: deps.getLoadInFlight,
+    setLoadInFlight: deps.setLoadInFlight,
+    loadYomitanExtension: () => loadYomitanExtensionHandler(),
+  });
 
   let lastNotifiedExtension: Extension | null = null;
   let notifyingExtension: Extension | null = null;
