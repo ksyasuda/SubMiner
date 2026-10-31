@@ -82,3 +82,17 @@ export function createDestroyTrayHandler(deps: {
     deps.setTray(null);
   };
 }
+
+// Tray icon click: boot the overlay runtime on first use, then show the visible overlay.
+export function createEnsureOverlayVisibleFromTrayClickHandler(deps: {
+  isOverlayRuntimeInitialized: () => boolean;
+  initializeOverlayRuntime: () => void;
+  setVisibleOverlayVisible: (visible: boolean) => void;
+}) {
+  return (): void => {
+    if (!deps.isOverlayRuntimeInitialized()) {
+      deps.initializeOverlayRuntime();
+    }
+    deps.setVisibleOverlayVisible(true);
+  };
+}

@@ -196,10 +196,7 @@ import {
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/domains/overlay';
 import {
-  createBuildDictionaryRootsMainHandler,
-  createBuildFrequencyDictionaryRootsMainHandler,
-  createBuildFrequencyDictionaryRuntimeMainDepsHandler,
-  createBuildJlptDictionaryRuntimeMainDepsHandler,
+  createBuildDictionaryRootsHandler,
   createImmersionMediaRuntime,
   createConfigDerivedRuntime,
   appendClipboardVideoToQueueRuntime,
@@ -2514,7 +2511,7 @@ const syncAutoScheduler = createSyncAutoScheduler({
 });
 syncAutoScheduler.start();
 
-const buildDictionaryRootsHandler = createBuildDictionaryRootsMainHandler({
+const dictionaryRootsDeps = {
   platform: process.platform,
   dirname: __dirname,
   appPath: app.getAppPath(),
@@ -2524,46 +2521,41 @@ const buildDictionaryRootsHandler = createBuildDictionaryRootsMainHandler({
   homeDir: os.homedir(),
   appDataDir: process.env.APPDATA,
   cwd: process.cwd(),
-  joinPath: (...parts) => path.join(...parts),
+  joinPath: (...parts: string[]) => path.join(...parts),
+};
+const buildJlptDictionaryRootsHandler = createBuildDictionaryRootsHandler({
+  ...dictionaryRootsDeps,
+  vendorDirName: 'yomitan-jlpt-vocab',
 });
-const buildFrequencyDictionaryRootsHandler = createBuildFrequencyDictionaryRootsMainHandler({
-  platform: process.platform,
-  dirname: __dirname,
-  appPath: app.getAppPath(),
-  resourcesPath: process.resourcesPath,
-  userDataPath: USER_DATA_PATH,
-  appUserDataPath: app.getPath('userData'),
-  homeDir: os.homedir(),
-  appDataDir: process.env.APPDATA,
-  cwd: process.cwd(),
-  joinPath: (...parts) => path.join(...parts),
+const buildFrequencyDictionaryRootsHandler = createBuildDictionaryRootsHandler({
+  ...dictionaryRootsDeps,
+  vendorDirName: 'frequency-dictionary',
 });
 
-const jlptDictionaryRuntime = createJlptDictionaryRuntimeService(
-  createBuildJlptDictionaryRuntimeMainDepsHandler({
-    isJlptEnabled: () => configService.getConfig().subtitleStyle.enableJlpt,
-    getDictionaryRoots: () => buildDictionaryRootsHandler(),
-    getJlptDictionarySearchPaths,
-    setJlptLevelLookup: (lookup) => {
-      appState.jlptLevelLookup = lookup;
-    },
-    logInfo: (message) => logger.info(message),
-  })(),
-);
+const jlptDictionaryRuntime = createJlptDictionaryRuntimeService({
+  isJlptEnabled: () => configService.getConfig().subtitleStyle.enableJlpt,
+  getSearchPaths: () =>
+    getJlptDictionarySearchPaths({ getDictionaryRoots: () => buildJlptDictionaryRootsHandler() }),
+  setJlptLevelLookup: (lookup) => {
+    appState.jlptLevelLookup = lookup;
+  },
+  log: (message) => logger.info(`[JLPT] ${message}`),
+});
 
-const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService(
-  createBuildFrequencyDictionaryRuntimeMainDepsHandler({
-    isFrequencyDictionaryEnabled: () =>
-      configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
-    getDictionaryRoots: () => buildFrequencyDictionaryRootsHandler(),
-    getFrequencyDictionarySearchPaths,
-    getSourcePath: () => configService.getConfig().subtitleStyle.frequencyDictionary.sourcePath,
-    setFrequencyRankLookup: (lookup) => {
-      appState.frequencyRankLookup = lookup;
-    },
-    logInfo: (message) => logger.info(message),
-  })(),
-);
+const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService({
+  isFrequencyDictionaryEnabled: () =>
+    configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
+  getSearchPaths: () =>
+    getFrequencyDictionarySearchPaths({
+      getDictionaryRoots: () =>
+        buildFrequencyDictionaryRootsHandler().filter((dictionaryRoot) => dictionaryRoot),
+      getSourcePath: () => configService.getConfig().subtitleStyle.frequencyDictionary.sourcePath,
+    }),
+  setFrequencyRankLookup: (lookup) => {
+    appState.frequencyRankLookup = lookup;
+  },
+  log: (message) => logger.info(`[Frequency] ${message}`),
+});
 
 const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler({
   getResolver: () => appState.fieldGroupingResolver,

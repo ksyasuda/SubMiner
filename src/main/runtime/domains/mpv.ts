@@ -1,5 +1,4 @@
 export * from '../mpv-client-runtime-service';
-export * from '../mpv-client-runtime-service-main-deps';
 export * from '../mpv-main-event-bindings';
 export * from '../mpv-main-event-main-deps';
 export * from '../mpv-osd-runtime-handlers';

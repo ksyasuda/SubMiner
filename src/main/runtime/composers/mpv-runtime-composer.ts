@@ -1,9 +1,6 @@
 import { createBindMpvMainEventHandlersHandler } from '../mpv-main-event-bindings';
 import { createBuildBindMpvMainEventHandlersMainDepsHandler } from '../mpv-main-event-main-deps';
-import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from '../mpv-client-runtime-service-main-deps';
 import { createMpvClientRuntimeServiceFactory } from '../mpv-client-runtime-service';
-import type { MpvClientRuntimeServiceOptions } from '../mpv-client-runtime-service';
-import type { Config } from '../../../types';
 import { createUpdateMpvSubtitleRenderMetricsHandler } from '../mpv-subtitle-render-metrics';
 import {
   createBuildTokenizerDepsMainHandler,
@@ -23,13 +20,7 @@ type BindMpvMainEventHandlers = ReturnType<typeof createBindMpvMainEventHandlers
 type BoundMpvClient = Parameters<BindMpvMainEventHandlers>[0];
 type RuntimeMpvClient = BoundMpvClient & { connect: () => void };
 type MpvClientRuntimeServiceFactoryMainDeps<TMpvClient extends RuntimeMpvClient> = Omit<
-  Parameters<
-    typeof createBuildMpvClientRuntimeServiceFactoryDepsHandler<
-      TMpvClient,
-      Config,
-      MpvClientRuntimeServiceOptions
-    >
-  >[0],
+  Parameters<typeof createMpvClientRuntimeServiceFactory<TMpvClient>>[0],
   'bindEventHandlers'
 >;
 type UpdateMpvSubtitleRenderMetricsMainDeps = Parameters<
@@ -102,17 +93,10 @@ export function composeMpvRuntimeHandlers<
     bindMpvMainEventHandlersMainDeps,
   );
 
-  const buildMpvClientRuntimeServiceFactoryMainDepsHandler =
-    createBuildMpvClientRuntimeServiceFactoryDepsHandler<
-      TMpvClient,
-      Config,
-      MpvClientRuntimeServiceOptions
-    >({
-      ...options.mpvClientRuntimeServiceFactoryMainDeps,
-      bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
-    });
-  const createMpvClientRuntimeService = (): TMpvClient =>
-    createMpvClientRuntimeServiceFactory(buildMpvClientRuntimeServiceFactoryMainDepsHandler())();
+  const createMpvClientRuntimeService = createMpvClientRuntimeServiceFactory<TMpvClient>({
+    ...options.mpvClientRuntimeServiceFactoryMainDeps,
+    bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
+  });
 
   const updateMpvSubtitleRenderMetrics = createUpdateMpvSubtitleRenderMetricsHandler(
     options.updateMpvSubtitleRenderMetricsMainDeps,
