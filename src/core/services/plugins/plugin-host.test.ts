@@ -266,7 +266,9 @@ test('unload gives up on a deactivate that never settles and still disposes the 
     client.emit('pause-change', { paused: true });
 
     assert.deepEqual(h.notifications, []);
-    assert.deepEqual(h.errors, ['deactivate failed: timed out after 20 ms']);
+    // Deactivate gets what is left of the shared unload budget, so the reported ms can be below 20.
+    assert.equal(h.errors.length, 1);
+    assert.match(h.errors[0]!, /^deactivate failed: timed out after \d+ ms$/);
   } finally {
     h.cleanup();
   }
