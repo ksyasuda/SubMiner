@@ -41,6 +41,7 @@ Update checks and startup launcher migration share a serialized update-state sto
 - `src/config/` owns config definitions, defaults, loading, and resolution.
 - `src/types/` owns shared cross-runtime contracts via domain entrypoints; `src/types.ts` stays a compatibility barrel.
 - `src/main/runtime/composers/` owns larger domain compositions.
+- `src/main/assemblies/` owns per-domain assemblies that `src/main.ts` builds once (see [Layering](./layering.md)).
 - `src/main.ts` call sites invoke configured runtime handlers and runtime-object methods directly;
   do not add local pass-through wrappers around them.
 
