@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createBuildOnWillQuitCleanupDepsHandler } from './app-lifecycle-main-cleanup';
+import { createOnWillQuitCleanupDeps } from './app-lifecycle-main-cleanup';
 import { createOnWillQuitCleanupHandler } from './app-lifecycle-actions';
 
-type BuilderDeps = Parameters<typeof createBuildOnWillQuitCleanupDepsHandler>[0];
+type BuilderDeps = Parameters<typeof createOnWillQuitCleanupDeps>[0];
 
 // Defaults model an app that is ready but has no live runtime objects.
 function buildCleanupDeps(overrides: Partial<BuilderDeps> = {}) {
   const noop = () => {};
   const none = () => null;
-  return createBuildOnWillQuitCleanupDepsHandler({
+  return createOnWillQuitCleanupDeps({
     destroyTray: noop,
     stopConfigHotReload: noop,
     restorePreviousSecondarySubVisibility: noop,
@@ -54,7 +54,7 @@ function buildCleanupDeps(overrides: Partial<BuilderDeps> = {}) {
     stopDiscordPresenceService: noop,
     unloadPlugins: noop,
     ...overrides,
-  })();
+  });
 }
 
 function fakeWindow(calls: string[], destroyed: boolean) {

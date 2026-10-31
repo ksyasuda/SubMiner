@@ -1,8 +1,8 @@
-import { createDestroyTrayHandler, createEnsureTrayHandler } from './tray-lifecycle';
 import {
-  createBuildDestroyTrayMainDepsHandler,
-  createBuildEnsureTrayMainDepsHandler,
-} from './app-runtime-main-deps';
+  createDestroyTrayHandler,
+  createEnsureOverlayVisibleFromTrayClickHandler,
+  createEnsureTrayHandler,
+} from './tray-lifecycle';
 import {
   createBuildTrayMenuTemplateHandler,
   createResolveTrayIconPathHandler,
@@ -12,34 +12,41 @@ type ResolveTrayIconPathMainDeps = Parameters<typeof createResolveTrayIconPathHa
 type BuildTrayMenuTemplateMainDeps<TMenuItem> = Parameters<
   typeof createBuildTrayMenuTemplateHandler<TMenuItem>
 >[0];
-type EnsureTrayMainDeps<TTrayMenu> = Parameters<
-  typeof createBuildEnsureTrayMainDepsHandler<TrayLike, TTrayMenu, TrayIconLike>
->[0];
-type TrayLike = NonNullable<ReturnType<Parameters<typeof createEnsureTrayHandler>[0]['getTray']>>;
-type TrayIconLike = Parameters<Parameters<typeof createEnsureTrayHandler>[0]['createTray']>[0];
-type DestroyTrayMainDeps = Parameters<typeof createBuildDestroyTrayMainDepsHandler<TrayLike>>[0];
+type EnsureTrayDeps = Parameters<typeof createEnsureTrayHandler>[0];
+type DestroyTrayDeps = Parameters<typeof createDestroyTrayHandler>[0];
 
 export function createTrayRuntimeHandlers<TMenuItem, TMenu>(deps: {
   resolveTrayIconPathDeps: ResolveTrayIconPathMainDeps;
   buildTrayMenuTemplateDeps: BuildTrayMenuTemplateMainDeps<TMenuItem>;
-  ensureTrayDeps: Omit<EnsureTrayMainDeps<TMenu>, 'buildTrayMenu' | 'resolveTrayIconPath'>;
-  destroyTrayDeps: DestroyTrayMainDeps;
+  ensureTrayDeps: Omit<
+    EnsureTrayDeps,
+    'buildTrayMenu' | 'resolveTrayIconPath' | 'ensureOverlayVisibleFromTrayClick'
+  > &
+    Parameters<typeof createEnsureOverlayVisibleFromTrayClickHandler>[0];
+  destroyTrayDeps: DestroyTrayDeps;
   buildMenuFromTemplate: (template: TMenuItem[]) => TMenu;
 }) {
   const resolveTrayIconPath = createResolveTrayIconPathHandler(deps.resolveTrayIconPathDeps);
   const buildTrayMenuTemplate = createBuildTrayMenuTemplateHandler(deps.buildTrayMenuTemplateDeps);
   const buildTrayMenu = () => deps.buildMenuFromTemplate(buildTrayMenuTemplate());
 
-  const ensureTray = createEnsureTrayHandler(
-    createBuildEnsureTrayMainDepsHandler({
-      ...deps.ensureTrayDeps,
-      buildTrayMenu: () => buildTrayMenu(),
-      resolveTrayIconPath: () => resolveTrayIconPath(),
-    })(),
-  );
-  const destroyTray = createDestroyTrayHandler(
-    createBuildDestroyTrayMainDepsHandler(deps.destroyTrayDeps)(),
-  );
+  const {
+    initializeOverlayRuntime,
+    isOverlayRuntimeInitialized,
+    setVisibleOverlayVisible,
+    ...ensureTrayDeps
+  } = deps.ensureTrayDeps;
+  const ensureTray = createEnsureTrayHandler({
+    ...ensureTrayDeps,
+    buildTrayMenu: () => buildTrayMenu(),
+    resolveTrayIconPath: () => resolveTrayIconPath(),
+    ensureOverlayVisibleFromTrayClick: createEnsureOverlayVisibleFromTrayClickHandler({
+      initializeOverlayRuntime,
+      isOverlayRuntimeInitialized,
+      setVisibleOverlayVisible,
+    }),
+  });
+  const destroyTray = createDestroyTrayHandler(deps.destroyTrayDeps);
 
   return {
     resolveTrayIconPath,

@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDestroyTrayHandler, createEnsureTrayHandler } from './tray-lifecycle';
+import {
+  createDestroyTrayHandler,
+  createEnsureOverlayVisibleFromTrayClickHandler,
+  createEnsureTrayHandler,
+} from './tray-lifecycle';
 
 type EnsureTrayDeps = Parameters<typeof createEnsureTrayHandler>[0];
 type TrayIcon = ReturnType<EnsureTrayDeps['createEmptyImage']>;
@@ -154,3 +158,18 @@ test('destroy tray handler destroys active tray and clears ref', () => {
   assert.equal(activeTray.destroyed, true);
   assert.equal(tray, null);
 });
+
+for (const initialized of [false, true]) {
+  test(`tray click shows overlay${initialized ? '' : ' after booting runtime'}`, () => {
+    const calls: string[] = [];
+    createEnsureOverlayVisibleFromTrayClickHandler({
+      isOverlayRuntimeInitialized: () => initialized,
+      initializeOverlayRuntime: () => calls.push('init-overlay'),
+      setVisibleOverlayVisible: (visible) => calls.push(`set-visible:${visible}`),
+    })();
+    assert.deepEqual(
+      calls,
+      initialized ? ['set-visible:true'] : ['init-overlay', 'set-visible:true'],
+    );
+  });
+}

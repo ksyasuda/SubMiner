@@ -1,47 +1,54 @@
 import { createBindMpvMainEventHandlersHandler } from '../mpv-main-event-bindings';
-import { createBuildBindMpvMainEventHandlersMainDepsHandler } from '../mpv-main-event-main-deps';
-import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from '../mpv-client-runtime-service-main-deps';
+import { createMpvMainEventBindingDeps } from '../mpv-main-event-binding-deps';
 import { createMpvClientRuntimeServiceFactory } from '../mpv-client-runtime-service';
-import type { MpvClientRuntimeServiceOptions } from '../mpv-client-runtime-service';
-import type { Config } from '../../../types';
 import { createUpdateMpvSubtitleRenderMetricsHandler } from '../mpv-subtitle-render-metrics';
 import {
-  createBuildTokenizerDepsMainHandler,
-  createCreateMecabTokenizerAndCheckMainHandler,
-  createPrewarmSubtitleDictionariesMainHandler,
-} from '../subtitle-tokenization-main-deps';
+  createMecabTokenizerAndCheckHandler,
+  createPrewarmSubtitleDictionariesHandler,
+} from '../subtitle-tokenization-warmup';
+import type { TokenizerDepsRuntimeOptions } from '../../../core/services/tokenizer';
 import {
   createLaunchBackgroundWarmupTaskHandler as createLaunchBackgroundWarmupTaskFromStartup,
   createStartBackgroundWarmupsHandler as createStartBackgroundWarmupsFromStartup,
 } from '../startup-warmups';
-import type { BuiltMainDeps, ComposerInputs, ComposerOutputs } from './contracts';
+import type { ComposerInputs, ComposerOutputs } from './contracts';
 
-type BindMpvMainEventHandlersMainDeps = Parameters<
-  typeof createBuildBindMpvMainEventHandlersMainDepsHandler
->[0];
+type BindMpvMainEventHandlersMainDeps = Parameters<typeof createMpvMainEventBindingDeps>[0];
 type BindMpvMainEventHandlers = ReturnType<typeof createBindMpvMainEventHandlersHandler>;
 type BoundMpvClient = Parameters<BindMpvMainEventHandlers>[0];
 type RuntimeMpvClient = BoundMpvClient & { connect: () => void };
 type MpvClientRuntimeServiceFactoryMainDeps<TMpvClient extends RuntimeMpvClient> = Omit<
-  Parameters<
-    typeof createBuildMpvClientRuntimeServiceFactoryDepsHandler<
-      TMpvClient,
-      Config,
-      MpvClientRuntimeServiceOptions
-    >
-  >[0],
+  Parameters<typeof createMpvClientRuntimeServiceFactory<TMpvClient>>[0],
   'bindEventHandlers'
 >;
 type UpdateMpvSubtitleRenderMetricsMainDeps = Parameters<
   typeof createUpdateMpvSubtitleRenderMetricsHandler
 >[0];
-type BuildTokenizerDepsMainDeps = Parameters<typeof createBuildTokenizerDepsMainHandler>[0];
-type TokenizerMainDeps = BuiltMainDeps<typeof createBuildTokenizerDepsMainHandler>;
+// Tokenizer deps as main.ts supplies them: the core runtime options plus lookup recording and
+// the character-dictionary gate applied in buildTokenizerRuntimeOptions.
+type BuildTokenizerDepsMainDeps = TokenizerDepsRuntimeOptions & {
+  getJlptEnabled: NonNullable<TokenizerDepsRuntimeOptions['getJlptEnabled']>;
+  getCharacterDictionaryEnabled?: () => boolean;
+  getFrequencyDictionaryEnabled: NonNullable<
+    TokenizerDepsRuntimeOptions['getFrequencyDictionaryEnabled']
+  >;
+  getFrequencyDictionaryMatchMode: NonNullable<
+    TokenizerDepsRuntimeOptions['getFrequencyDictionaryMatchMode']
+  >;
+  getFrequencyRank: NonNullable<TokenizerDepsRuntimeOptions['getFrequencyRank']>;
+  getMinSentenceWordsForNPlusOne: NonNullable<
+    TokenizerDepsRuntimeOptions['getMinSentenceWordsForNPlusOne']
+  >;
+  getYomitanGroupDebugEnabled: NonNullable<
+    TokenizerDepsRuntimeOptions['getYomitanGroupDebugEnabled']
+  >;
+  recordLookup: (hit: boolean) => void;
+};
 type CreateMecabTokenizerAndCheckMainDeps = Parameters<
-  typeof createCreateMecabTokenizerAndCheckMainHandler
+  typeof createMecabTokenizerAndCheckHandler
 >[0];
 type PrewarmSubtitleDictionariesMainDeps = Parameters<
-  typeof createPrewarmSubtitleDictionariesMainHandler
+  typeof createPrewarmSubtitleDictionariesHandler
 >[0];
 type LaunchBackgroundWarmupTaskMainDeps = Parameters<
   typeof createLaunchBackgroundWarmupTaskFromStartup
@@ -61,7 +68,7 @@ export type MpvRuntimeComposerOptions<
   updateMpvSubtitleRenderMetricsMainDeps: UpdateMpvSubtitleRenderMetricsMainDeps;
   tokenizer: {
     buildTokenizerDepsMainDeps: BuildTokenizerDepsMainDeps;
-    createTokenizerRuntimeDeps: (deps: TokenizerMainDeps) => TTokenizerRuntimeDeps;
+    createTokenizerRuntimeDeps: (deps: TokenizerDepsRuntimeOptions) => TTokenizerRuntimeDeps;
     tokenizeSubtitle: (text: string, deps: TTokenizerRuntimeDeps) => Promise<TTokenizedSubtitle>;
     createMecabTokenizerAndCheckMainDeps: CreateMecabTokenizerAndCheckMainDeps;
     prewarmSubtitleDictionariesMainDeps: PrewarmSubtitleDictionariesMainDeps;
@@ -88,6 +95,39 @@ export type MpvRuntimeComposerResult<
   startBackgroundWarmups: ReturnType<typeof createStartBackgroundWarmupsFromStartup>;
 }>;
 
+// Adapts main's tokenizer deps to the core runtime options: every known-word lookup is
+// recorded, and name matching is off while the character dictionary is disabled. Returns a
+// fresh object, since the composer wraps onTokenizationReady on it.
+function buildTokenizerRuntimeOptions(
+  deps: BuildTokenizerDepsMainDeps,
+): TokenizerDepsRuntimeOptions {
+  const {
+    recordLookup,
+    getCharacterDictionaryEnabled,
+    getNameMatchEnabled,
+    getNameMatchImagesEnabled,
+    ...runtimeOptions
+  } = deps;
+  const characterDictionaryEnabled = (): boolean => getCharacterDictionaryEnabled?.() !== false;
+  return {
+    ...runtimeOptions,
+    isKnownWord: (text, reading, options) => {
+      const hit = deps.isKnownWord(text, reading, options);
+      recordLookup(hit);
+      return hit;
+    },
+    ...(getNameMatchEnabled
+      ? { getNameMatchEnabled: () => characterDictionaryEnabled() && getNameMatchEnabled() }
+      : {}),
+    ...(getNameMatchImagesEnabled
+      ? {
+          getNameMatchImagesEnabled: () =>
+            characterDictionaryEnabled() && getNameMatchImagesEnabled(),
+        }
+      : {}),
+  };
+}
+
 export function composeMpvRuntimeHandlers<
   TMpvClient extends RuntimeMpvClient,
   TTokenizerRuntimeDeps,
@@ -95,36 +135,23 @@ export function composeMpvRuntimeHandlers<
 >(
   options: MpvRuntimeComposerOptions<TMpvClient, TTokenizerRuntimeDeps, TTokenizedSubtitle>,
 ): MpvRuntimeComposerResult<TMpvClient, TTokenizedSubtitle> {
-  const bindMpvMainEventHandlersMainDeps = createBuildBindMpvMainEventHandlersMainDepsHandler(
-    options.bindMpvMainEventHandlersMainDeps,
-  )();
   const bindMpvClientEventHandlers = createBindMpvMainEventHandlersHandler(
-    bindMpvMainEventHandlersMainDeps,
+    createMpvMainEventBindingDeps(options.bindMpvMainEventHandlersMainDeps),
   );
 
-  const buildMpvClientRuntimeServiceFactoryMainDepsHandler =
-    createBuildMpvClientRuntimeServiceFactoryDepsHandler<
-      TMpvClient,
-      Config,
-      MpvClientRuntimeServiceOptions
-    >({
-      ...options.mpvClientRuntimeServiceFactoryMainDeps,
-      bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
-    });
-  const createMpvClientRuntimeService = (): TMpvClient =>
-    createMpvClientRuntimeServiceFactory(buildMpvClientRuntimeServiceFactoryMainDepsHandler())();
+  const createMpvClientRuntimeService = createMpvClientRuntimeServiceFactory<TMpvClient>({
+    ...options.mpvClientRuntimeServiceFactoryMainDeps,
+    bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
+  });
 
   const updateMpvSubtitleRenderMetrics = createUpdateMpvSubtitleRenderMetricsHandler(
     options.updateMpvSubtitleRenderMetricsMainDeps,
   );
 
-  const buildTokenizerDepsHandler = createBuildTokenizerDepsMainHandler(
-    options.tokenizer.buildTokenizerDepsMainDeps,
-  );
-  const createMecabTokenizerAndCheck = createCreateMecabTokenizerAndCheckMainHandler(
+  const createMecabTokenizerAndCheck = createMecabTokenizerAndCheckHandler(
     options.tokenizer.createMecabTokenizerAndCheckMainDeps,
   );
-  const prewarmSubtitleDictionaries = createPrewarmSubtitleDictionariesMainHandler(
+  const prewarmSubtitleDictionaries = createPrewarmSubtitleDictionariesHandler(
     options.tokenizer.prewarmSubtitleDictionariesMainDeps,
   );
   const shouldInitializeMecabForAnnotations = (): boolean => {
@@ -227,7 +254,9 @@ export function composeMpvRuntimeHandlers<
     if (cachedTokenizerRuntimeDeps) {
       return cachedTokenizerRuntimeDeps;
     }
-    const tokenizerMainDeps = buildTokenizerDepsHandler();
+    const tokenizerMainDeps = buildTokenizerRuntimeOptions(
+      options.tokenizer.buildTokenizerDepsMainDeps,
+    );
     const baseOnTokenizationReady = tokenizerMainDeps.onTokenizationReady;
     tokenizerMainDeps.onTokenizationReady = (tokenizedText: string): void => {
       if (!shouldWarmupAnnotationDictionaries()) {

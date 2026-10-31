@@ -423,3 +423,63 @@ test('composeMpvRuntimeHandlers reuses completed background tokenization warmups
   assert.equal(jlptWarmupCalls, 1);
   assert.equal(frequencyWarmupCalls, 1);
 });
+
+type TokenizerMainDeps = Parameters<
+  typeof composeMpvRuntimeHandlers
+>[0]['tokenizer']['buildTokenizerDepsMainDeps'];
+type TokenizerRuntimeOptions = Parameters<
+  Parameters<typeof composeMpvRuntimeHandlers>[0]['tokenizer']['createTokenizerRuntimeDeps']
+>[0];
+
+async function captureTokenizerRuntimeOptions(
+  overrides: Partial<TokenizerMainDeps>,
+): Promise<TokenizerRuntimeOptions> {
+  const fixture = createDefaultMpvFixture();
+  let captured: TokenizerRuntimeOptions | null = null;
+  const composed = composeMpvRuntimeHandlers<
+    { connect: () => void; on: () => void },
+    TokenizerRuntimeOptions,
+    { text: string }
+  >({
+    ...fixture,
+    tokenizer: {
+      ...fixture.tokenizer,
+      buildTokenizerDepsMainDeps: { ...fixture.tokenizer.buildTokenizerDepsMainDeps, ...overrides },
+      createTokenizerRuntimeDeps: (deps) => {
+        captured = deps;
+        return deps;
+      },
+      tokenizeSubtitle: async (text) => ({ text }),
+    },
+  });
+  await composed.tokenizeSubtitle('line');
+  assert.ok(captured);
+  return captured;
+}
+
+test('composeMpvRuntimeHandlers records every known-word lookup result', async () => {
+  const lookups: boolean[] = [];
+  const runtimeOptions = await captureTokenizerRuntimeOptions({
+    isKnownWord: (text) => text === 'known',
+    recordLookup: (hit) => lookups.push(hit),
+  });
+
+  assert.equal(runtimeOptions.isKnownWord('known'), true);
+  assert.equal(runtimeOptions.isKnownWord('unknown'), false);
+  assert.deepEqual(lookups, [true, false]);
+});
+
+test('composeMpvRuntimeHandlers disables name matching while the character dictionary is disabled', async () => {
+  let characterDictionaryEnabled = false;
+  const runtimeOptions = await captureTokenizerRuntimeOptions({
+    getCharacterDictionaryEnabled: () => characterDictionaryEnabled,
+    getNameMatchEnabled: () => true,
+    getNameMatchImagesEnabled: () => true,
+  });
+
+  assert.equal(runtimeOptions.getNameMatchEnabled?.(), false);
+  assert.equal(runtimeOptions.getNameMatchImagesEnabled?.(), false);
+  characterDictionaryEnabled = true;
+  assert.equal(runtimeOptions.getNameMatchEnabled?.(), true);
+  assert.equal(runtimeOptions.getNameMatchImagesEnabled?.(), true);
+});
