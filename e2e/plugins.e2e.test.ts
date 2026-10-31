@@ -223,6 +223,16 @@ test('plugins receive mpv end-file events', { timeout: TEST_TIMEOUT_MS }, async 
       fs.readFileSync(path.join(session.root, 'app.log'), 'utf8').includes('probe end-file stop'),
     { description: 'the plugin to log the end-file reason' },
   );
+  // time-pos is unavailable from end-file until the replacement opens, so this waits for
+  // the reload to finish. Otherwise a later sub-add can land on the outgoing file and vanish.
+  await waitUntil(
+    () =>
+      session.mpv.command('get_property', 'time-pos').then(
+        () => true,
+        () => false,
+      ),
+    { description: 'the replacement file to load' },
+  );
 });
 
 test(
