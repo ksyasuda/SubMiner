@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  createBuildTokenizerDepsMainHandler,
-  createCreateMecabTokenizerAndCheckMainHandler,
-  createPrewarmSubtitleDictionariesMainHandler,
-} from './subtitle-tokenization-main-deps';
+  createMecabTokenizerAndCheckHandler,
+  createPrewarmSubtitleDictionariesHandler,
+} from './subtitle-tokenization-warmup';
 
 function createDeferred(): {
   promise: Promise<void>;
@@ -17,59 +16,11 @@ function createDeferred(): {
   return { promise, resolve };
 }
 
-type TokenizerMainDeps = Parameters<typeof createBuildTokenizerDepsMainHandler>[0];
-
-function buildTokenizerDeps(overrides: Partial<TokenizerMainDeps> = {}) {
-  return createBuildTokenizerDepsMainHandler({
-    getYomitanExt: () => null,
-    getYomitanParserWindow: () => null,
-    setYomitanParserWindow: () => undefined,
-    getYomitanParserReadyPromise: () => null,
-    setYomitanParserReadyPromise: () => undefined,
-    getYomitanParserInitPromise: () => null,
-    setYomitanParserInitPromise: () => undefined,
-    isKnownWord: () => false,
-    recordLookup: () => undefined,
-    getKnownWordMatchMode: () => 'surface',
-    getNPlusOneEnabled: () => true,
-    getMinSentenceWordsForNPlusOne: () => 3,
-    getJlptLevel: () => 'N2',
-    getJlptEnabled: () => true,
-    getNameMatchEnabled: () => true,
-    getNameMatchImagesEnabled: () => true,
-    getFrequencyDictionaryEnabled: () => true,
-    getFrequencyDictionaryMatchMode: () => 'surface',
-    getFrequencyRank: () => 5,
-    getYomitanGroupDebugEnabled: () => false,
-    getMecabTokenizer: () => null,
-    ...overrides,
-  })();
-}
-
-test('tokenizer deps builder records every known-word lookup result', () => {
-  const lookups: boolean[] = [];
-  const deps = buildTokenizerDeps({
-    isKnownWord: (text) => text === 'known',
-    recordLookup: (hit) => lookups.push(hit),
-  });
-
-  assert.equal(deps.isKnownWord('known'), true);
-  assert.equal(deps.isKnownWord('unknown'), false);
-  assert.deepEqual(lookups, [true, false]);
-});
-
-test('tokenizer deps builder disables name matching when character dictionary runtime is disabled', () => {
-  const deps = buildTokenizerDeps({ getCharacterDictionaryEnabled: () => false });
-
-  assert.equal(deps.getNameMatchEnabled?.(), false);
-  assert.equal(deps.getNameMatchImagesEnabled?.(), false);
-});
-
 test('mecab tokenizer check creates tokenizer once and runs availability check', async () => {
   const calls: string[] = [];
   type Tokenizer = { id: string };
   let tokenizer: Tokenizer | null = null;
-  const run = createCreateMecabTokenizerAndCheckMainHandler<Tokenizer>({
+  const run = createMecabTokenizerAndCheckHandler<Tokenizer>({
     getMecabTokenizer: () => tokenizer,
     setMecabTokenizer: (next) => {
       tokenizer = next;
@@ -91,7 +42,7 @@ test('mecab tokenizer check creates tokenizer once and runs availability check',
 
 test('dictionary prewarm runs both dictionary loaders', async () => {
   const calls: string[] = [];
-  const prewarm = createPrewarmSubtitleDictionariesMainHandler({
+  const prewarm = createPrewarmSubtitleDictionariesHandler({
     ensureJlptDictionaryLookup: async () => {
       calls.push('jlpt');
     },
@@ -111,7 +62,7 @@ test('dictionary prewarm shows OSD spinner while loading and completion when loa
   const jlptDeferred = createDeferred();
   const freqDeferred = createDeferred();
 
-  const prewarm = createPrewarmSubtitleDictionariesMainHandler({
+  const prewarm = createPrewarmSubtitleDictionariesHandler({
     ensureJlptDictionaryLookup: async () => jlptDeferred.promise,
     ensureFrequencyDictionaryLookup: async () => freqDeferred.promise,
     shouldShowOsdNotification: () => true,
@@ -157,7 +108,7 @@ test('dictionary prewarm can show OSD while awaiting background-started load', a
   const jlptDeferred = createDeferred();
   const freqDeferred = createDeferred();
 
-  const prewarm = createPrewarmSubtitleDictionariesMainHandler({
+  const prewarm = createPrewarmSubtitleDictionariesHandler({
     ensureJlptDictionaryLookup: async () => jlptDeferred.promise,
     ensureFrequencyDictionaryLookup: async () => freqDeferred.promise,
     shouldShowOsdNotification: () => true,
@@ -183,7 +134,7 @@ test('dictionary prewarm can show OSD while awaiting background-started load', a
 test('dictionary prewarm shows OSD when loading indicator is requested even if notification predicate is disabled', async () => {
   const osdMessages: string[] = [];
 
-  const prewarm = createPrewarmSubtitleDictionariesMainHandler({
+  const prewarm = createPrewarmSubtitleDictionariesHandler({
     ensureJlptDictionaryLookup: async () => undefined,
     ensureFrequencyDictionaryLookup: async () => undefined,
     shouldShowOsdNotification: () => false,
@@ -203,7 +154,7 @@ test('dictionary prewarm clears loading OSD timer even if notifications are disa
   const freqDeferred = createDeferred();
   let shouldShowNotification = true;
 
-  const prewarm = createPrewarmSubtitleDictionariesMainHandler({
+  const prewarm = createPrewarmSubtitleDictionariesHandler({
     ensureJlptDictionaryLookup: async () => jlptDeferred.promise,
     ensureFrequencyDictionaryLookup: async () => freqDeferred.promise,
     shouldShowOsdNotification: () => shouldShowNotification,

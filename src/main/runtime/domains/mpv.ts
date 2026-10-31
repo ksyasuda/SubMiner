@@ -4,4 +4,4 @@ export * from '../mpv-main-event-main-deps';
 export * from '../mpv-osd-runtime-handlers';
 export * from '../mpv-subtitle-render-metrics';
 export * from '../secondary-sub-mode-runtime-handler';
-export * from '../subtitle-tokenization-main-deps';
+export * from '../subtitle-tokenization-warmup';
