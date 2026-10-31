@@ -296,15 +296,7 @@ import {
   upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
-import {
-  acquireYoutubeSubtitleTrack,
-  acquireYoutubeSubtitleTracks,
-} from './core/services/youtube/generate';
 import { applyOverlayClickThrough } from './core/services/overlay-click-through';
-import { createYoutubeMediaCacheService } from './core/services/youtube/media-cache';
-import { createYoutubeWhisperSubtitleService } from './core/services/youtube/whisper-subtitles';
-import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
-import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import {
   destroyStatsWindow,
   registerStatsOverlayToggle,
@@ -317,13 +309,7 @@ import {
   isStandaloneFirstRunSetupCommand,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
-import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
-import { createYoutubeMediaCachePlaybackRuntime } from './main/runtime/youtube-media-cache-playback';
-import { createYoutubePlaybackRuntime } from './main/runtime/youtube-playback-runtime';
-import {
-  clearYoutubePrimarySubtitleNotificationTimer,
-  createYoutubePrimarySubtitleNotificationRuntime,
-} from './main/runtime/youtube-primary-subtitle-notification';
+import { createYoutubeAssembly } from './main/assemblies/youtube';
 import {
   createAutoplayReadyGate,
   type AutoplayReadySignal,
@@ -368,7 +354,6 @@ import {
   resolveMpvExecutablePath,
   spawnMpvProcess,
 } from './main/runtime/mpv-process';
-import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
 import {
   DEFAULT_JELLYFIN_CLIENT_NAME,
   DEFAULT_JELLYFIN_CLIENT_VERSION,
@@ -380,7 +365,6 @@ import {
   isJellyfinConfiguredForTray as isJellyfinConfiguredForTrayRuntime,
   toggleJellyfinDiscoveryFromTray as toggleJellyfinDiscoveryFromTrayRuntime,
 } from './main/runtime/jellyfin-tray-discovery';
-import { createPrepareYoutubePlaybackInMpvHandler } from './main/runtime/youtube-playback-launch';
 import {
   shouldEnsureTrayOnStartupForInitialArgs,
   shouldQuitOnMpvShutdownForTrayState,
@@ -464,9 +448,6 @@ import {
   createMediaTimingReviewRuntime,
 } from './main/runtime/media-timing-review';
 import { openMediaTimingReviewModal } from './main/runtime/media-timing-review-open';
-import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
-import { createYoutubeBrowserPlaybackRuntime } from './main/runtime/youtube-browser-playback';
-import { createYoutubeBrowserWindowRuntime } from './main/runtime/youtube-browser-window';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
 import { openTsukihimeModal as openTsukihimeModalRuntime } from './main/runtime/tsukihime-open';
@@ -644,12 +625,6 @@ const JELLYFIN_REMOTE_STARTUP_STOP_GRACE_MS = 10_000;
 const DISCORD_PRESENCE_APP_ID = '1475264834730856619';
 const JELLYFIN_MPV_CONNECT_TIMEOUT_MS = 3000;
 const JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS = 20000;
-const YOUTUBE_MPV_CONNECT_TIMEOUT_MS = 3000;
-const YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS = 10000;
-// mpv's ytdl hook resolves the stream before tracks appear; a cold yt-dlp run takes well over 5s.
-const YOUTUBE_MPV_LOAD_TIMEOUT_MS = 20000;
-const YOUTUBE_MPV_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
-const YOUTUBE_DIRECT_PLAYBACK_FORMAT = 'b';
 const MPV_JELLYFIN_DEFAULT_ARGS = [
   '--sub-auto=no',
   '--sub-file-paths=.;subs;subtitles',
@@ -1025,40 +1000,17 @@ process.on('SIGTERM', () => {
 // Managed Whisper models live next to the config file.
 const getSubtitleGenerationModelDirectory = (): string =>
   path.join(path.dirname(configService.getConfigPath()), 'models', 'whisper');
-const youtubeWhisperSubtitles = createYoutubeWhisperSubtitleService({
-  getConfig: () => configService.getConfig().subtitleGeneration,
-  getModelDirectory: getSubtitleGenerationModelDirectory,
-});
-const youtubeFlowRuntime = createYoutubeFlowRuntime({
-  probeYoutubeTracks: (url: string) => probeYoutubeTracks(url),
-  acquireYoutubeSubtitleTrack: (input) => acquireYoutubeSubtitleTrack(input),
-  acquireYoutubeSubtitleTracks: (input) => acquireYoutubeSubtitleTracks(input),
-  openPicker: async (payload) => {
-    return await openYoutubeTrackPicker(
-      {
-        sendToActiveOverlayWindow: (channel, nextPayload, runtimeOptions) =>
-          overlayModalRuntime.sendToActiveOverlayWindow(channel, nextPayload, runtimeOptions),
-        waitForModalOpen: (modal, timeoutMs) =>
-          overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
-        logWarn: (message) => logger.warn(message),
-      },
-      payload,
-    );
-  },
-  pauseMpv: () => {
-    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'yes']);
-  },
-  resumeMpv: () => {
-    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'no']);
-  },
-  sendMpvCommand: (command) => {
-    sendMpvCommandRuntime(appState.mpvClient, command);
-  },
-  requestMpvProperty: async (name: string) => {
-    const client = appState.mpvClient;
-    if (!client) return null;
-    return await client.requestProperty(name);
-  },
+const youtube = createYoutubeAssembly({
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
+  getWhisperModelDirectory: getSubtitleGenerationModelDirectory,
+  getMainOverlayWindow: () => overlayManager.getMainWindow(),
+  overlayModalRuntime,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  getOverlayGeometry: () => overlayGeometryRuntime,
+  showMpvOsd: (text) => showMpvOsd(text),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
   refreshCurrentSubtitle: (text: string) => {
     subtitleProcessingController.refreshCurrentSubtitle(text);
   },
@@ -1068,209 +1020,55 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
   startTokenizationWarmups: async () => {
     await startTokenizationWarmups();
   },
-  waitForTokenizationReady: async () => {
-    await currentMediaTokenizationGate.waitUntilReady(
-      appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
-    );
-  },
-  waitForAnkiReady: async () => {
-    const integration = appState.ankiIntegration;
-    if (!integration) {
-      return;
-    }
-    try {
-      await Promise.race([
-        integration.waitUntilReady(),
-        new Promise<never>((_, reject) => {
-          setTimeout(
-            () => reject(new Error('Timed out waiting for AnkiConnect integration')),
-            2500,
-          );
-        }),
-      ]);
-    } catch (error) {
-      logger.warn(
-        'Continuing YouTube playback before AnkiConnect integration reported ready:',
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  },
-  wait: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
-  waitForPlaybackWindowReady: async () => {
-    const deadline = Date.now() + 4000;
-    let stableGeometry: WindowGeometry | null = null;
-    let stableSinceMs = 0;
-    while (Date.now() < deadline) {
-      const tracker = appState.windowTracker;
-      const trackerGeometry = tracker?.getGeometry() ?? null;
-      const mediaPath =
-        appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
-      const trackerFocused = tracker?.isTargetWindowFocused() ?? false;
-      if (tracker && tracker.isTracking() && trackerGeometry && trackerFocused && mediaPath) {
-        if (!overlayGeometryRuntime.geometryMatches(stableGeometry, trackerGeometry)) {
-          stableGeometry = trackerGeometry;
-          stableSinceMs = Date.now();
-        } else if (Date.now() - stableSinceMs >= 200) {
-          return;
-        }
-      } else {
-        stableGeometry = null;
-        stableSinceMs = 0;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    logger.warn(
-      'Timed out waiting for tracked playback window focus/media readiness before opening YouTube subtitle picker.',
-    );
-  },
-  waitForOverlayGeometryReady: async () => {
-    const deadline = Date.now() + 4000;
-    while (Date.now() < deadline) {
-      const tracker = appState.windowTracker;
-      const trackerGeometry = tracker?.getGeometry() ?? null;
-      if (
-        trackerGeometry &&
-        overlayGeometryRuntime.geometryMatches(
-          overlayGeometryRuntime.getLastOverlayWindowGeometry(),
-          trackerGeometry,
-        )
-      ) {
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    logger.warn('Timed out waiting for overlay geometry to match tracked playback window.');
-  },
-  focusOverlayWindow: () => {
-    const mainWindow = overlayManager.getMainWindow();
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return;
-    }
-    mainWindow.setIgnoreMouseEvents(false);
-    if (!mainWindow.isFocused()) {
-      mainWindow.focus();
-    }
-    if (!mainWindow.webContents.isFocused()) {
-      mainWindow.webContents.focus();
-    }
-  },
-  showMpvOsd: (text: string) => overlayNotificationsRuntime.showYoutubeFlowStatusNotification(text),
-  reportSubtitleFailure: (message: string) => reportYoutubeSubtitleFailure(message),
-  notifyPrimarySubtitleLoaded: () =>
-    youtubePrimarySubtitleNotificationRuntime.markCurrentMediaPrimarySubtitleLoaded(),
-  warn: (message: string) => logger.warn(message),
-  log: (message: string) => logger.info(message),
-  getYoutubeOutputDir: () => path.join(os.homedir(), '.cache', 'subminer', 'youtube-subs'),
-  createSubtitleTempDir: () =>
-    fs.promises.mkdtemp(path.join(os.tmpdir(), 'subminer-youtube-subtitles-')),
-  cleanupSubtitleTempDirs: (dirs) => {
-    for (const dir of dirs) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  },
-  getSubtitleSource: () => configService.getConfig().youtube.subtitleSource,
-  // Runs as the subtitle generation modal's active job, so the modal shows it and can cancel it.
-  generateWhisperSubtitles: ({ url, outputPath, signal, onProgress }) =>
-    subtitleGenerationRuntime.generateYoutubeSubtitles({
-      url,
-      signal,
-      generate: (jobSignal, reportProgress) =>
-        youtubeWhisperSubtitles.generate({
-          url,
-          outputPath,
-          signal: jobSignal,
-          onProgress: (progress) => {
-            reportProgress(progress);
-            onProgress(progress);
-          },
-        }),
-    }),
+  waitForMediaTokenizationReady: (mediaPath) =>
+    currentMediaTokenizationGate.waitUntilReady(mediaPath),
+  generateYoutubeSubtitles: (request) =>
+    subtitleGenerationRuntime.generateYoutubeSubtitles(request),
   openSubtitleGenerationModal: () =>
     openSubtitleGenerationModal(createOverlayHostedModalOpenDeps()),
-});
-const prepareYoutubePlaybackInMpv = createPrepareYoutubePlaybackInMpvHandler({
-  requestPath: async () => {
-    const client = appState.mpvClient;
-    if (!client) return null;
-    const value = await client.requestProperty('path').catch(() => null);
-    return typeof value === 'string' ? value : null;
-  },
-  requestProperty: async (name) => {
-    const client = appState.mpvClient;
-    if (!client) return null;
-    return await client.requestProperty(name);
-  },
-  sendMpvCommand: (command) => {
-    sendMpvCommandRuntime(appState.mpvClient, command);
-  },
-  wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-});
-const youtubeMediaCache = createYoutubeMediaCacheService({
-  onDownloadStarted: (event) => {
-    overlayNotificationsRuntime.showConfiguredStatusNotification(
-      'YouTube media cache is downloading.',
+  invalidatePendingAutoplayReadyFallbacks: () =>
+    autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks(),
+  ensurePlaybackRuntimeReady: () => ensureYoutubePlaybackRuntimeReady(),
+  launchWindowsMpv: (playbackUrl, args) => {
+    const config = configService.getConfig();
+    setLogFileToggles(config.logging.files);
+    const mpvLogPath = isLogFileEnabled('mpv') ? resolveDefaultLogFilePath('mpv') : '';
+    if (mpvLogPath) {
+      pruneLogDirectoryForPath(mpvLogPath, config.logging.rotation);
+    }
+    const mpvArgs = [...args, ...buildMpvLoggingArgs(config.logging.level, mpvLogPath, args)];
+    return launchWindowsMpv(
+      [playbackUrl],
+      createWindowsMpvLaunchDeps({
+        showError: (title, content) => dialog.showErrorBox(title, content),
+      }),
+      mpvArgs,
+      process.execPath,
+      resolveBundledMpvRuntimePluginEntrypoint(),
+      config.mpv.executablePath,
+      config.mpv.launchMode,
       {
-        id: 'youtube-media-cache-status',
-        title: 'YouTube media cache',
-        variant: 'progress',
-        persistent: true,
+        detectInstalledMpvPlugin: detectWindowsInstalledMpvPlugin,
+        notifyInstalledPluginDetected: logInstalledMpvPluginDetected,
+        resolveInstalledPluginBeforeLaunch: (detection, mpvPath) =>
+          promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(mpvPath, detection),
       },
+      getMpvPluginRuntimeConfig(),
     );
-    logger.info(`YouTube media cache download notification shown for ${event.url}`);
   },
-  onReady: (event) => {
-    overlayNotificationsRuntime.showConfiguredStatusNotification('YouTube media cache ready.', {
-      id: 'youtube-media-cache-status',
-      title: 'YouTube media cache',
-      variant: 'success',
-      persistent: false,
-    });
-    void appState.ankiIntegration
-      ?.handleYoutubeMediaCacheReady(event.url, event.path, { notifyNoQueued: false })
-      .catch((error) => {
-        logger.warn(
-          `Failed to apply queued YouTube media updates: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      });
+  ensureMpvConnectedForPlayback: () => ensureMpvConnectedForPlayback(),
+  requestAppQuit: () => requestAppQuit(),
+  browserWindow: {
+    createBrowserWindow: (options) => new BrowserWindow(options),
+    preloadPath: path.join(__dirname, 'preload-youtube-browser.js'),
+    ipcMain,
+    showContextMenu: (window, template) => {
+      Menu.buildFromTemplate(template).popup({ window });
+    },
+    openExternal: (url) => {
+      void shell.openExternal(url);
+    },
   },
-  onFailed: (event) => {
-    overlayNotificationsRuntime.showConfiguredStatusNotification('YouTube media cache failed.', {
-      id: 'youtube-media-cache-status',
-      title: 'YouTube media cache',
-      variant: 'error',
-      persistent: false,
-    });
-    void appState.ankiIntegration
-      ?.handleYoutubeMediaCacheFailed(event.url, { notifyStatus: false })
-      .catch((error) => {
-        logger.warn(
-          `Failed to drain queued YouTube media updates after cache failure: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      });
-  },
-  logInfo: (message) => logger.info(message),
-  logWarn: (message) => logger.warn(message),
-});
-const youtubeMediaCachePlaybackRuntime = createYoutubeMediaCachePlaybackRuntime({
-  getMediaCacheConfig: () => configService.getConfig().youtube.mediaCache,
-  requestMpvProperty: async (name) => {
-    const client = appState.mpvClient;
-    if (!client) return null;
-    return await client.requestProperty(name);
-  },
-  startYoutubeMediaCache: (url, options) => {
-    youtubeMediaCache.start(url, options);
-  },
-  logWarn: (message) => logger.warn(message),
-});
-const waitForYoutubeMpvConnected = createWaitForMpvConnectedHandler({
-  getMpvClient: () => appState.mpvClient,
-  now: () => Date.now(),
-  sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
 });
 const POST_WARM_AUTOPLAY_SUBTITLE_PRIME_DELAYS_MS = [0, 75, 200, 500, 1_000] as const;
 
@@ -1302,7 +1100,7 @@ function schedulePostWarmAutoplaySubtitlePrime(signal: AutoplayReadySignal): voi
 }
 
 const autoplayReadyGate = createAutoplayReadyGate({
-  isAppOwnedFlowInFlight: () => youtubePrimarySubtitleNotificationRuntime.isAppOwnedFlowInFlight(),
+  isAppOwnedFlowInFlight: () => youtube.primarySubtitleNotification.isAppOwnedFlowInFlight(),
   getCurrentMediaPath: () => appState.currentMediaPath,
   getCurrentVideoPath: () => appState.mpvClient?.currentVideoPath ?? null,
   getPlaybackPaused: () => appState.playbackPaused,
@@ -1367,67 +1165,6 @@ const {
 } = createWindowsMpvPluginDetectionRuntime({
   mainDirname: __dirname,
   logWarn: (message) => logger.warn(message),
-});
-
-const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
-  platform: process.platform,
-  directPlaybackFormat: YOUTUBE_DIRECT_PLAYBACK_FORMAT,
-  mpvYtdlFormat: YOUTUBE_MPV_YTDL_FORMAT,
-  autoLaunchTimeoutMs: YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS,
-  connectTimeoutMs: YOUTUBE_MPV_CONNECT_TIMEOUT_MS,
-  getSocketPath: () => appState.mpvSocketPath,
-  getMpvConnected: () => Boolean(appState.mpvClient?.connected),
-  invalidatePendingAutoplayReadyFallbacks: () =>
-    autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks(),
-  setAppOwnedFlowInFlight: (next) => {
-    youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(next);
-  },
-  ensureYoutubePlaybackRuntimeReady: async () => {
-    await ensureYoutubePlaybackRuntimeReady();
-  },
-  resolveYoutubePlaybackUrl: (url, format) => resolveYoutubePlaybackUrl(url, format),
-  launchWindowsMpv: (playbackUrl, args) => {
-    const config = configService.getConfig();
-    setLogFileToggles(config.logging.files);
-    const mpvLogPath = isLogFileEnabled('mpv') ? resolveDefaultLogFilePath('mpv') : '';
-    if (mpvLogPath) {
-      pruneLogDirectoryForPath(mpvLogPath, config.logging.rotation);
-    }
-    const mpvArgs = [...args, ...buildMpvLoggingArgs(config.logging.level, mpvLogPath, args)];
-    return launchWindowsMpv(
-      [playbackUrl],
-      createWindowsMpvLaunchDeps({
-        showError: (title, content) => dialog.showErrorBox(title, content),
-      }),
-      mpvArgs,
-      process.execPath,
-      resolveBundledMpvRuntimePluginEntrypoint(),
-      config.mpv.executablePath,
-      config.mpv.launchMode,
-      {
-        detectInstalledMpvPlugin: detectWindowsInstalledMpvPlugin,
-        notifyInstalledPluginDetected: logInstalledMpvPluginDetected,
-        resolveInstalledPluginBeforeLaunch: (detection, mpvPath) =>
-          promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(mpvPath, detection),
-      },
-      getMpvPluginRuntimeConfig(),
-    );
-  },
-  waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
-  prepareYoutubePlaybackInMpv: (request) =>
-    prepareYoutubePlaybackInMpv({ ...request, timeoutMs: YOUTUBE_MPV_LOAD_TIMEOUT_MS }),
-  startYoutubeMediaCache: (url) => {
-    const mediaCacheConfig = configService.getConfig().youtube.mediaCache;
-    youtubeMediaCache.start(url, {
-      mode: mediaCacheConfig.mode,
-      maxHeight: mediaCacheConfig.maxHeight,
-    });
-  },
-  runYoutubePlaybackFlow: (request) => youtubeFlowRuntime.runYoutubePlaybackFlow(request),
-  logInfo: (message) => logger.info(message),
-  logWarn: (message) => logger.warn(message),
-  schedule: (callback, delayMs) => setTimeout(callback, delayMs),
-  clearScheduled: (timer) => clearTimeout(timer),
 });
 
 function getMpvPluginRuntimeConfig() {
@@ -1750,139 +1487,6 @@ const startupOsdSequencer = createStartupOsdSequencer({
     overlayNotificationsRuntime.showOverlayNotification(payload),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
-const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNotificationRuntime({
-  getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
-  notifyFailure: (message) => reportYoutubeSubtitleFailure(message),
-  schedule: (fn, delayMs) => setTimeout(fn, delayMs),
-  clearSchedule: clearYoutubePrimarySubtitleNotificationTimer,
-  getCurrentSubtitleState: async () => {
-    const client = appState.mpvClient;
-    if (!client?.connected) {
-      return null;
-    }
-    const [sid, trackList] = await Promise.all([
-      client.requestProperty('sid').catch(() => null),
-      client.requestProperty('track-list').catch(() => null),
-    ]);
-    return {
-      sid,
-      trackList: Array.isArray(trackList) ? trackList : null,
-    };
-  },
-});
-
-function isYoutubePlaybackActiveNow(): boolean {
-  return Boolean(getCurrentYoutubeMediaCacheSourceUrlSnapshot());
-}
-
-function getCurrentYoutubeMediaCacheSourceUrlSnapshot(): string | null {
-  const currentMediaPath = appState.currentMediaPath?.trim() || null;
-  if (isYoutubeMediaPath(currentMediaPath)) {
-    return currentMediaPath;
-  }
-
-  const currentVideoPath = appState.mpvClient?.currentVideoPath?.trim() || null;
-  if (isYoutubeMediaPath(currentVideoPath)) {
-    return currentVideoPath;
-  }
-
-  return youtubeMediaCachePlaybackRuntime.getActiveYoutubeSourceUrlSnapshot();
-}
-
-async function getCurrentYoutubeMediaCacheSourceUrl(): Promise<string | null> {
-  const currentMediaPath = appState.currentMediaPath?.trim() || null;
-  if (isYoutubeMediaPath(currentMediaPath)) {
-    return currentMediaPath;
-  }
-
-  const currentVideoPath = appState.mpvClient?.currentVideoPath?.trim() || null;
-  if (isYoutubeMediaPath(currentVideoPath)) {
-    return currentVideoPath;
-  }
-
-  return await youtubeMediaCachePlaybackRuntime.getActiveYoutubeSourceUrl();
-}
-
-function shouldRequireYoutubeMediaCacheForCurrentPlayback(): boolean {
-  return (
-    configService.getConfig().youtube.mediaCache.mode === 'background' &&
-    isYoutubePlaybackActiveNow()
-  );
-}
-
-async function getCachedYoutubeMediaPathForCurrentPlayback(
-  currentVideoPath: string,
-  _kind: 'audio' | 'video',
-): Promise<string | null> {
-  if (configService.getConfig().youtube.mediaCache.mode !== 'background') {
-    return null;
-  }
-  const cacheSourceUrl = isYoutubeMediaPath(currentVideoPath)
-    ? currentVideoPath
-    : await getCurrentYoutubeMediaCacheSourceUrl();
-  if (!cacheSourceUrl) {
-    return null;
-  }
-  // mpv can expose the resolved stream URL here while the cache key uses the original page URL.
-  // Keep the active-cache fallback so current playback can still resolve the ready cached file.
-  return (
-    (await youtubeMediaCache.getCachedMediaPath(cacheSourceUrl)) ??
-    (await youtubeMediaCache.getActiveCachedMediaPath())
-  );
-}
-
-function reportYoutubeSubtitleFailure(message: string): void {
-  const type = overlayNotificationsRuntime.getConfiguredStatusNotificationType();
-  if (type === 'none') {
-    return;
-  }
-  if (type === 'overlay' || type === 'both') {
-    overlayNotificationsRuntime.showOverlayNotification({
-      title: 'SubMiner',
-      body: message,
-      variant: 'warning',
-    });
-  }
-  if (type === 'osd' || type === 'osd-system') {
-    showMpvOsd(message);
-  }
-  if (type === 'system' || type === 'both' || type === 'osd-system') {
-    try {
-      showDesktopNotification('SubMiner', { body: message });
-    } catch {
-      logger.warn(`Unable to show desktop notification: ${message}`);
-    }
-  }
-}
-
-async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
-  if (youtubeFlowRuntime.hasActiveSession()) {
-    overlayNotificationsRuntime.showConfiguredStatusNotification(
-      'YouTube subtitle flow already in progress.',
-      {
-        title: 'YouTube subtitles',
-        variant: 'warning',
-      },
-    );
-    return;
-  }
-  const currentMediaPath =
-    appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
-  if (!isYoutubePlaybackActiveNow() || !currentMediaPath) {
-    overlayNotificationsRuntime.showConfiguredStatusNotification(
-      'YouTube subtitle picker is only available during YouTube playback.',
-      {
-        title: 'YouTube subtitles',
-        variant: 'warning',
-      },
-    );
-    return;
-  }
-  await youtubeFlowRuntime.openManualPicker({
-    url: currentMediaPath,
-  });
-}
-
 let appTray: Tray | null = null;
 let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null = null;
 function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
@@ -2648,7 +2252,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
       enabled:
         configService.getConfig().subtitleStyle.nameMatchEnabled &&
         yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
-        !isYoutubePlaybackActiveNow(),
+        !youtube.isPlaybackActiveNow(),
       maxLoaded: config.maxLoaded,
       profileScope: config.profileScope,
     };
@@ -2989,14 +2593,18 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   resolveVideoSource: () =>
     resolveMediaGenerationInput(appState.mpvClient, 'video', {
       getCachedMediaPath: (currentVideoPath, kind) =>
-        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
-      remoteCacheMode: shouldRequireYoutubeMediaCacheForCurrentPlayback() ? 'required' : 'optional',
+        youtube.getCachedMediaPathForCurrentPlayback(currentVideoPath, kind),
+      remoteCacheMode: youtube.shouldRequireMediaCacheForCurrentPlayback()
+        ? 'required'
+        : 'optional',
     }),
   resolveMediaSource: async () => {
     const resolved = await resolveMediaGenerationInput(appState.mpvClient, 'audio', {
       getCachedMediaPath: (currentVideoPath, kind) =>
-        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
-      remoteCacheMode: shouldRequireYoutubeMediaCacheForCurrentPlayback() ? 'required' : 'optional',
+        youtube.getCachedMediaPathForCurrentPlayback(currentVideoPath, kind),
+      remoteCacheMode: youtube.shouldRequireMediaCacheForCurrentPlayback()
+        ? 'required'
+        : 'optional',
     });
     return resolved
       ? {
@@ -3490,52 +3098,6 @@ const {
     hasStoredSession: () => Boolean(jellyfinTokenStore.loadSession()),
   },
 });
-
-let quitWhenMpvClosesAfterYoutubeBrowser = false;
-const isMpvPlayingMedia = (): boolean =>
-  Boolean(appState.mpvClient?.connected && appState.currentMediaPath?.trim());
-const youtubeBrowserPlaybackRuntime = createYoutubeBrowserPlaybackRuntime({
-  isMpvPlaying: isMpvPlayingMedia,
-  // Windows playback bootstraps its own mpv inside the playback flow.
-  ensureMpvReady: async () =>
-    process.platform === 'win32' ? true : await ensureMpvConnectedForPlayback(),
-  runPlaybackFlow: (url) =>
-    youtubePlaybackRuntime.runYoutubePlaybackFlow({ url, source: 'youtube-browser' }),
-  appendToMpvPlaylist: (url) => {
-    sendMpvCommandRuntime(appState.mpvClient, ['loadfile', url, 'append']);
-  },
-  notifyFailure: (message) =>
-    overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'YouTube' }),
-  logWarn: (message) => logger.warn(message),
-  onStartupFailed: () => quitAfterYoutubeBrowserIfIdle(),
-});
-const youtubeBrowserWindowRuntime = createYoutubeBrowserWindowRuntime({
-  createBrowserWindow: (options) => new BrowserWindow(options),
-  preloadPath: path.join(__dirname, 'preload-youtube-browser.js'),
-  ipcMain,
-  showContextMenu: (window, template) => {
-    Menu.buildFromTemplate(template).popup({ window });
-  },
-  openExternal: (url) => {
-    void shell.openExternal(url);
-  },
-  openVideo: (request) => youtubeBrowserPlaybackRuntime.openVideo(request),
-  logWarn: (message, error) => logger.warn(message, error),
-  logDebug: (message) => logger.debug(message),
-  onClosed: () => {
-    if (!appState.initialArgs?.youtubeBrowser) return;
-    quitWhenMpvClosesAfterYoutubeBrowser = true;
-    quitAfterYoutubeBrowserIfIdle();
-  },
-});
-// A process started just for the browser (`--youtube-browser`) exits once the window is closed,
-// but keeps the overlay alive until mpv closes if a video is playing or still starting. Rechecked
-// when a start fails, so a failed start after the window closed does not leave the app running.
-const quitAfterYoutubeBrowserIfIdle = (): void => {
-  if (!quitWhenMpvClosesAfterYoutubeBrowser || youtubeBrowserWindowRuntime.isOpen()) return;
-  if (isMpvPlayingMedia() || youtubeBrowserPlaybackRuntime.isStartingPlayback()) return;
-  requestAppQuit();
-};
 
 const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
   getSetupWindow: () => appState.firstRunSetupWindow,
@@ -4190,11 +3752,11 @@ const {
     cleanupInternalSubtitleTrackCache: () => cachedInternalSubtitleTrackExtractor.clear(),
     cleanupYoutubeSubtitleTempDirs: () => {
       // Stops yt-dlp/whisper-cli and deletes the audio they were working on.
-      youtubeFlowRuntime.cancelWhisperGeneration();
-      youtubeWhisperSubtitles.removeActiveAudio();
-      youtubeFlowRuntime.cleanupSubtitleTempDirs();
+      youtube.flow.cancelWhisperGeneration();
+      youtube.whisperSubtitles.removeActiveAudio();
+      youtube.flow.cleanupSubtitleTempDirs();
     },
-    cleanupYoutubeMediaCache: () => youtubeMediaCache.cleanup(),
+    cleanupYoutubeMediaCache: () => youtube.mediaCache.cleanup(),
     cleanupRemoteMediaWindows: () => getSharedRemoteMediaWindowCache().cleanup(),
     cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => {
@@ -4694,7 +4256,7 @@ const {
   bindMpvMainEventHandlersMainDeps: {
     appState,
     getQuitOnDisconnectArmed: () =>
-      jellyfinPlayQuitOnDisconnectArmed || youtubePlaybackRuntime.getQuitOnDisconnectArmed(),
+      jellyfinPlayQuitOnDisconnectArmed || youtube.playback.getQuitOnDisconnectArmed(),
     scheduleQuitCheck: (callback) => {
       setTimeout(callback, 500);
     },
@@ -4791,10 +4353,10 @@ const {
       if (!preserveParsedSubtitleCues) {
         subtitlePrefetchRuntime.cancelPendingInit();
       }
-      youtubePrimarySubtitleNotificationRuntime.handleMediaPathChange(path);
-      void youtubeMediaCachePlaybackRuntime.handleMediaPathChange(path);
-      youtubeBrowserPlaybackRuntime.handleMediaPathChange(path);
-      youtubeFlowRuntime.handleMediaPathChange(path);
+      youtube.primarySubtitleNotification.handleMediaPathChange(path);
+      void youtube.mediaCachePlayback.handleMediaPathChange(path);
+      youtube.browserPlayback.handleMediaPathChange(path);
+      youtube.flow.handleMediaPathChange(path);
       subtitleGenerationRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
@@ -4832,7 +4394,7 @@ const {
       if (
         !configService.getConfig().subtitleStyle.nameMatchEnabled ||
         !yomitanProfilePolicy.isCharacterDictionaryEnabled() ||
-        isYoutubePlaybackActiveNow()
+        youtube.isPlaybackActiveNow()
       ) {
         return;
       }
@@ -4880,7 +4442,7 @@ const {
       lastObservedPrimarySubtitleTrackId = sid;
       logger.info('[mpv-subtitles] primary subtitle track changed', { sid });
       autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
-      youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
+      youtube.primarySubtitleNotification.handleSubtitleTrackChange(sid);
     },
     onSecondarySubtitleTrackChange: () => {
       secondarySubtitleTrackController.handleTrackChange();
@@ -4904,7 +4466,7 @@ const {
       managedLocalSubtitleSelectionRuntime.handleSubtitleTrackListChange(trackList);
       secondarySubtitleTrackController.scheduleRefresh(0);
       autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
-      youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
+      youtube.primarySubtitleNotification.handleSubtitleTrackListChange(trackList);
     },
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetricsHandler(patch as Partial<MpvSubtitleRenderMetrics>);
@@ -4992,7 +4554,7 @@ const {
       getCharacterDictionaryEnabled: () =>
         configService.getConfig().subtitleStyle.nameMatchEnabled &&
         yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
-        !isYoutubePlaybackActiveNow(),
+        !youtube.isPlaybackActiveNow(),
       getNameMatchEnabled: () => configService.getConfig().subtitleStyle.nameMatchEnabled,
       getNameMatchImagesEnabled: () =>
         configService.getConfig().subtitleStyle.nameMatchImagesEnabled,
@@ -5145,17 +4707,17 @@ function createMpvClientRuntimeService(): MpvIpcClient {
     if (connected) {
       return;
     }
-    youtubeBrowserPlaybackRuntime.handleMpvDisconnected();
-    youtubeFlowRuntime.cancelWhisperGeneration();
+    youtube.browserPlayback.handleMpvDisconnected();
+    youtube.flow.cancelWhisperGeneration();
     subtitleGenerationRuntime.handleMediaPathChange(null);
-    if (quitWhenMpvClosesAfterYoutubeBrowser && !youtubeBrowserWindowRuntime.isOpen()) {
+    if (youtube.shouldQuitWhenMpvCloses()) {
       requestAppQuit();
       return;
     }
-    if (!youtubeFlowRuntime.hasActiveSession()) {
+    if (!youtube.flow.hasActiveSession()) {
       return;
     }
-    youtubeFlowRuntime.cancelActivePicker();
+    youtube.flow.cancelActivePicker();
     overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.youtubePickerCancel, null);
     overlayModalRuntime.handleOverlayModalClosed('youtube-track-picker');
   });
@@ -5691,7 +5253,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openCharacterDictionaryManager: () => openCharacterDictionaryManagerOverlay(),
     openControllerSelect: () => openControllerSelectOverlay(),
     openControllerDebug: () => openControllerDebugOverlay(),
-    openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
+    openYoutubeTrackPicker: () => youtube.openTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
@@ -5721,7 +5283,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
     openTsukihime: () => openTsukihimeOverlay(),
-    openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
+    openYoutubeTrackPicker: () => youtube.openTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
@@ -5869,7 +5431,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           });
         }
       },
-      onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
+      onYoutubePickerResolve: (request) => youtube.flow.resolveActivePicker(request),
       // Overlay lookups carry no cue context of their own; fall back to snapshotting the
       // live mpv sub timings at lookup time so media generation clips the mined line even
       // when extraction finishes long after playback has moved on.
@@ -6210,13 +5772,13 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
         source,
       );
     },
-    runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
+    runYoutubePlaybackFlow: (request) => youtube.playback.runYoutubePlaybackFlow(request),
     ensureBackgroundStatsServer: () => ensureBackgroundStatsServer(),
     openHachidoriSettings: () => openHachidoriSettings(),
     openYomitanSettings: () => openYomitanSettings(),
     openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
     openSyncUiWindow: () => openSyncUiWindowHandler(),
-    openYoutubeBrowserWindow: () => youtubeBrowserWindowRuntime.open(),
+    openYoutubeBrowserWindow: () => youtube.browserWindow.open(),
     cycleSecondarySubMode: () => cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
@@ -6483,7 +6045,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openYomitanSettings: () => openYomitanSettings(),
       openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
       openSyncUiWindow: () => openSyncUiWindowHandler(),
-      openYoutubeBrowserWindow: () => youtubeBrowserWindowRuntime.open(),
+      openYoutubeBrowserWindow: () => youtube.browserWindow.open(),
       exportLogs: () => {
         void exportLogsFromTray();
       },
@@ -6625,9 +6187,9 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       getCachedMediaPath: (currentVideoPath, kind) =>
-        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
-      shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
-      getYoutubeMediaSourceUrl: () => getCurrentYoutubeMediaCacheSourceUrl(),
+        youtube.getCachedMediaPathForCurrentPlayback(currentVideoPath, kind),
+      shouldRequireRemoteMediaCache: () => youtube.shouldRequireMediaCacheForCurrentPlayback(),
+      getYoutubeMediaSourceUrl: () => youtube.getCurrentMediaCacheSourceUrl(),
       shouldStartAnkiIntegration: () =>
         !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     },
@@ -6770,18 +6332,14 @@ const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
   getConfig: () => configService.getConfig().subtitleGeneration,
   getModelDirectory: getSubtitleGenerationModelDirectory,
   generateYoutube: async ({ url, config, signal, onProgress }) =>
-    youtubeWhisperSubtitles.generate({
+    youtube.whisperSubtitles.generate({
       url,
       config,
       signal,
       onProgress,
-      outputPath: path.join(
-        await youtubeFlowRuntime.createSubtitleTempDir(),
-        'youtube-whisper.ja.srt',
-      ),
+      outputPath: path.join(await youtube.flow.createSubtitleTempDir(), 'youtube-whisper.ja.srt'),
     }),
-  resolveYoutubeSourceUrl: (mediaPath) =>
-    youtubePlaybackRuntime.getYoutubeSourceUrlForStream(mediaPath),
+  resolveYoutubeSourceUrl: (mediaPath) => youtube.playback.getYoutubeSourceUrlForStream(mediaPath),
   resolveJellyfinMedia: (mediaPath) => {
     const playback = activeJellyfinRemotePlayback;
     const sourceUrl = playback && toJellyfinOriginalStreamUrl(mediaPath, playback.itemId);
