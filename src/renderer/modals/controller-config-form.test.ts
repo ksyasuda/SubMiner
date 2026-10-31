@@ -460,6 +460,28 @@ test('controller config form warns when main actions share an input', () => {
   assert.equal(row('Next Audio').classList.contains('has-warning'), false);
 });
 
+test('an edit panel slides in when it opens, not each time the list is redrawn', () => {
+  withReviewForm({}, ({ container, reviewRow }) => {
+    const panel = () => findOne(container, 'controller-config-edit-panel');
+    const kept = () => panel().classList.contains('controller-config-edit-panel-kept');
+
+    reviewRow('Toggle Lookup').click();
+    assert.equal(kept(), false, 'opening animates');
+
+    // Any other click redraws the whole list; the open panel is recreated as it was.
+    findOne(container, 'controller-config-group-toggle').click();
+    assert.equal(kept(), true);
+
+    reviewRow('Toggle Lookup').click();
+    assert.deepEqual(findAll(container, 'controller-config-edit-panel'), []);
+    reviewRow('Toggle Lookup').click();
+    assert.equal(kept(), false, 'reopening animates again');
+
+    reviewRow('Close Lookup').click();
+    assert.equal(kept(), false, 'another row opening animates');
+  });
+});
+
 /** The dialog group headers, in order. */
 const groupHeaders = (container: FakeElement) =>
   findAll(container, 'controller-config-group-toggle');

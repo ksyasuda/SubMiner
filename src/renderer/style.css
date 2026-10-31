@@ -3655,6 +3655,11 @@ iframe[id^='yomitan-popup'],
   background: rgba(138, 173, 244, 0.04);
 }
 
+/* Redrawn while it stays open (after Learn, Reset, …): no slide-in again. */
+.controller-config-edit-panel-kept {
+  animation: none;
+}
+
 @keyframes configEditSlideIn {
   from {
     max-height: 0;

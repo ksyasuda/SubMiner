@@ -372,10 +372,25 @@ export function createControllerConfigForm(options: {
   onScreenResetAll?: (screenId: ControllerScreenId) => void;
 }) {
   let expandedRowKey: ExpandedRowKey | null = null;
+  /**
+   * Row whose edit panel the previous render showed. Every change rebuilds the list, so a
+   * panel that stays open is recreated; it only slides in when it was not open before.
+   */
+  let previousPanelRowKey: ExpandedRowKey | null = null;
+  let panelRowKey: ExpandedRowKey | null = null;
   /** Dialog groups start collapsed; this holds the opened ones. */
   const expandedScreens = new Set<ControllerScreenId>();
 
   function render(): void {
+    panelRowKey = null;
+    try {
+      renderRows();
+    } finally {
+      previousPanelRowKey = panelRowKey;
+    }
+  }
+
+  function renderRows(): void {
     options.container.innerHTML = '';
     options.container.classList?.toggle(
       'controller-config-locked',
@@ -533,7 +548,7 @@ export function createControllerConfigForm(options: {
         : holdLabel
           ? `Holding ${holdLabel}: press another button for a combo, or let go to use ${holdLabel} alone\u2026`
           : 'Press a button, or hold one and press another for a combo\u2026';
-      const panel = createEditPanel(hint, isLearning, {
+      const panel = createEditPanel(rowKey, hint, isLearning, {
         onLearn: learn,
         onClear: (e) => {
           e.stopPropagation();
@@ -587,7 +602,7 @@ export function createControllerConfigForm(options: {
       const hint = isLearning
         ? 'Press a button, trigger, or move a stick\u2026'
         : `Currently: ${formatControllerBindingSummary(binding)}`;
-      const panel = createEditPanel(hint, isLearning, {
+      const panel = createEditPanel(rowKey, hint, isLearning, {
         onLearn: (e) => {
           e.stopPropagation();
           options.onLearn(definition.id, definition.bindingType);
@@ -642,7 +657,7 @@ export function createControllerConfigForm(options: {
     if (isExpanded) {
       const summary = binding.kind === 'none' ? 'Disabled' : `Axis ${binding.axisIndex}`;
       const hint = isLearning ? 'Move a stick or trigger\u2026' : `Currently: ${summary}`;
-      const panel = createEditPanel(hint, isLearning, {
+      const panel = createEditPanel(rowKey, hint, isLearning, {
         onLearn: (e) => {
           e.stopPropagation();
           options.onLearn(definition.id, 'axis');
@@ -701,7 +716,7 @@ export function createControllerConfigForm(options: {
       const hint = isLearning
         ? 'Press a D-pad direction\u2026'
         : `Currently: ${DPAD_FALLBACK_LABELS[dpadFallback]}`;
-      const panel = createEditPanel(hint, isLearning, {
+      const panel = createEditPanel(rowKey, hint, isLearning, {
         onLearn: (e) => {
           e.stopPropagation();
           options.onDpadLearn(definition.id);
@@ -783,6 +798,7 @@ export function createControllerConfigForm(options: {
   }
 
   function createEditPanel(
+    rowKey: ExpandedRowKey,
     hintText: string,
     isLearning: boolean,
     callbacks: {
@@ -793,6 +809,8 @@ export function createControllerConfigForm(options: {
   ): HTMLDivElement {
     const panel = document.createElement('div');
     panel.className = 'controller-config-edit-panel';
+    if (rowKey === previousPanelRowKey) panel.classList.add('controller-config-edit-panel-kept');
+    panelRowKey = rowKey;
 
     const inner = document.createElement('div');
     inner.className = 'controller-config-edit-inner';
