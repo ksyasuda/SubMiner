@@ -4,46 +4,26 @@ import {
   createSyncOverlayShortcutsHandler,
   createUnregisterOverlayShortcutsHandler,
 } from './overlay-shortcuts-lifecycle';
-import {
-  createBuildRefreshOverlayShortcutsMainDepsHandler,
-  createBuildRegisterOverlayShortcutsMainDepsHandler,
-  createBuildSyncOverlayShortcutsMainDepsHandler,
-  createBuildUnregisterOverlayShortcutsMainDepsHandler,
-} from './overlay-shortcuts-lifecycle-main-deps';
 
-type RegisterOverlayShortcutsMainDeps = Parameters<
-  typeof createBuildRegisterOverlayShortcutsMainDepsHandler
->[0];
+type RegisterOverlayShortcutsMainDeps = Parameters<typeof createRegisterOverlayShortcutsHandler>[0];
 
 export function createOverlayShortcutsRuntimeHandlers(deps: {
   overlayShortcutsRuntimeMainDeps: RegisterOverlayShortcutsMainDeps;
 }) {
-  const registerOverlayShortcutsMainDeps = createBuildRegisterOverlayShortcutsMainDepsHandler(
-    deps.overlayShortcutsRuntimeMainDeps,
-  )();
   const registerOverlayShortcutsHandler = createRegisterOverlayShortcutsHandler(
-    registerOverlayShortcutsMainDeps,
+    deps.overlayShortcutsRuntimeMainDeps,
   );
 
-  const unregisterOverlayShortcutsMainDeps = createBuildUnregisterOverlayShortcutsMainDepsHandler(
-    deps.overlayShortcutsRuntimeMainDeps,
-  )();
   const unregisterOverlayShortcutsHandler = createUnregisterOverlayShortcutsHandler(
-    unregisterOverlayShortcutsMainDeps,
+    deps.overlayShortcutsRuntimeMainDeps,
   );
 
-  const syncOverlayShortcutsMainDeps = createBuildSyncOverlayShortcutsMainDepsHandler(
-    deps.overlayShortcutsRuntimeMainDeps,
-  )();
   const syncOverlayShortcutsHandler = createSyncOverlayShortcutsHandler(
-    syncOverlayShortcutsMainDeps,
+    deps.overlayShortcutsRuntimeMainDeps,
   );
 
-  const refreshOverlayShortcutsMainDeps = createBuildRefreshOverlayShortcutsMainDepsHandler(
-    deps.overlayShortcutsRuntimeMainDeps,
-  )();
   const refreshOverlayShortcutsHandler = createRefreshOverlayShortcutsHandler(
-    refreshOverlayShortcutsMainDeps,
+    deps.overlayShortcutsRuntimeMainDeps,
   );
 
   return {

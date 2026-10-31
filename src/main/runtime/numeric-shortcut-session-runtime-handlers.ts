@@ -2,13 +2,9 @@ import {
   createCancelNumericShortcutSessionHandler,
   createStartNumericShortcutSessionHandler,
 } from './numeric-shortcut-session-handlers';
-import {
-  createBuildCancelNumericShortcutSessionMainDepsHandler,
-  createBuildStartNumericShortcutSessionMainDepsHandler,
-} from './numeric-shortcut-session-main-deps';
 
 type CancelNumericShortcutSessionMainDeps = Parameters<
-  typeof createBuildCancelNumericShortcutSessionMainDepsHandler
+  typeof createCancelNumericShortcutSessionHandler
 >[0];
 
 export function createNumericShortcutSessionRuntimeHandlers(deps: {
@@ -19,14 +15,11 @@ export function createNumericShortcutSessionRuntimeHandlers(deps: {
   tryBeginMultiCopyOverlaySelection?: (timeoutMs: number) => boolean;
   tryBeginMineSentenceOverlaySelection?: (timeoutMs: number) => boolean;
 }) {
-  const cancelPendingMultiCopyMainDeps = createBuildCancelNumericShortcutSessionMainDepsHandler({
+  const cancelPendingMultiCopyHandler = createCancelNumericShortcutSessionHandler({
     session: deps.multiCopySession,
-  })();
-  const cancelPendingMultiCopyHandler = createCancelNumericShortcutSessionHandler(
-    cancelPendingMultiCopyMainDeps,
-  );
+  });
 
-  const startPendingMultiCopyMainDeps = createBuildStartNumericShortcutSessionMainDepsHandler({
+  const startPendingMultiCopyHandler = createStartNumericShortcutSessionHandler({
     session: deps.multiCopySession,
     onDigit: deps.onMultiCopyDigit,
     messages: {
@@ -34,32 +27,21 @@ export function createNumericShortcutSessionRuntimeHandlers(deps: {
       timeout: 'Copy timeout',
       cancelled: 'Cancelled',
     },
-  })();
-  const startPendingMultiCopyHandler = createStartNumericShortcutSessionHandler(
-    startPendingMultiCopyMainDeps,
-  );
+  });
 
-  const cancelPendingMineSentenceMultipleMainDeps =
-    createBuildCancelNumericShortcutSessionMainDepsHandler({
-      session: deps.mineSentenceSession,
-    })();
-  const cancelPendingMineSentenceMultipleHandler = createCancelNumericShortcutSessionHandler(
-    cancelPendingMineSentenceMultipleMainDeps,
-  );
+  const cancelPendingMineSentenceMultipleHandler = createCancelNumericShortcutSessionHandler({
+    session: deps.mineSentenceSession,
+  });
 
-  const startPendingMineSentenceMultipleMainDeps =
-    createBuildStartNumericShortcutSessionMainDepsHandler({
-      session: deps.mineSentenceSession,
-      onDigit: deps.onMineSentenceDigit,
-      messages: {
-        prompt: 'Mine how many lines? Press 1-9 (Esc to cancel)',
-        timeout: 'Mine sentence timeout',
-        cancelled: 'Cancelled',
-      },
-    })();
-  const startPendingMineSentenceMultipleHandler = createStartNumericShortcutSessionHandler(
-    startPendingMineSentenceMultipleMainDeps,
-  );
+  const startPendingMineSentenceMultipleHandler = createStartNumericShortcutSessionHandler({
+    session: deps.mineSentenceSession,
+    onDigit: deps.onMineSentenceDigit,
+    messages: {
+      prompt: 'Mine how many lines? Press 1-9 (Esc to cancel)',
+      timeout: 'Mine sentence timeout',
+      cancelled: 'Cancelled',
+    },
+  });
 
   return {
     cancelPendingMultiCopy: () => cancelPendingMultiCopyHandler(),

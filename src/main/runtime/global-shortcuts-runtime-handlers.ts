@@ -4,20 +4,11 @@ import {
   createRefreshGlobalAndOverlayShortcutsHandler,
   createRegisterGlobalShortcutsHandler,
 } from './global-shortcuts';
-import {
-  createBuildGetConfiguredShortcutsMainDepsHandler,
-  createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler,
-  createBuildRegisterGlobalShortcutsMainDepsHandler,
-} from './global-shortcuts-main-deps';
 
-type GetConfiguredShortcutsMainDeps = Parameters<
-  typeof createBuildGetConfiguredShortcutsMainDepsHandler
->[0];
-type RegisterGlobalShortcutsMainDeps = Parameters<
-  typeof createBuildRegisterGlobalShortcutsMainDepsHandler
->[0];
+type GetConfiguredShortcutsMainDeps = Parameters<typeof createGetConfiguredShortcutsHandler>[0];
+type RegisterGlobalShortcutsMainDeps = Parameters<typeof createRegisterGlobalShortcutsHandler>[0];
 type RefreshGlobalAndOverlayShortcutsMainDeps = Parameters<
-  typeof createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler
+  typeof createRefreshGlobalAndOverlayShortcutsHandler
 >[0];
 
 export function createGlobalShortcutsRuntimeHandlers(deps: {
@@ -29,28 +20,18 @@ export function createGlobalShortcutsRuntimeHandlers(deps: {
     registerGlobalShortcuts: () => void,
   ) => RefreshGlobalAndOverlayShortcutsMainDeps;
 }) {
-  const getConfiguredShortcutsMainDeps = createBuildGetConfiguredShortcutsMainDepsHandler(
-    deps.getConfiguredShortcutsMainDeps,
-  )();
   const getConfiguredShortcutsHandler = createGetConfiguredShortcutsHandler(
-    getConfiguredShortcutsMainDeps,
+    deps.getConfiguredShortcutsMainDeps,
   );
   const getConfiguredShortcuts = () => getConfiguredShortcutsHandler();
 
-  const registerGlobalShortcutsMainDeps = createBuildRegisterGlobalShortcutsMainDepsHandler(
-    deps.buildRegisterGlobalShortcutsMainDeps(getConfiguredShortcuts),
-  )();
   const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler(
-    registerGlobalShortcutsMainDeps,
+    deps.buildRegisterGlobalShortcutsMainDeps(getConfiguredShortcuts),
   );
   const registerGlobalShortcuts = () => registerGlobalShortcutsHandler();
 
-  const refreshGlobalAndOverlayShortcutsMainDeps =
-    createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler(
-      deps.buildRefreshGlobalAndOverlayShortcutsMainDeps(registerGlobalShortcuts),
-    )();
   const refreshGlobalAndOverlayShortcutsHandler = createRefreshGlobalAndOverlayShortcutsHandler(
-    refreshGlobalAndOverlayShortcutsMainDeps,
+    deps.buildRefreshGlobalAndOverlayShortcutsMainDeps(registerGlobalShortcuts),
   );
   const refreshGlobalAndOverlayShortcuts = () => refreshGlobalAndOverlayShortcutsHandler();
 

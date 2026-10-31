@@ -181,22 +181,7 @@ import {
   createBuildConfigHotReloadRuntimeMainDepsHandler,
   createBuildWatchConfigPathMainDepsHandler,
   createWatchConfigPathHandler,
-  createBuildOverlayContentMeasurementStoreMainDepsHandler,
-  createBuildOverlayModalRuntimeMainDepsHandler,
-  createBuildAppendClipboardVideoToQueueMainDepsHandler,
-  createBuildHandleOverlayModalClosedMainDepsHandler,
-  createBuildLoadSubtitlePositionMainDepsHandler,
-  createBuildSaveSubtitlePositionMainDepsHandler,
-  createBuildFieldGroupingOverlayMainDepsHandler,
-  createBuildGetFieldGroupingResolverMainDepsHandler,
-  createBuildSetFieldGroupingResolverMainDepsHandler,
   createBuildOverlayVisibilityRuntimeMainDepsHandler,
-  createBuildBroadcastRuntimeOptionsChangedMainDepsHandler,
-  createBuildGetRuntimeOptionsStateMainDepsHandler,
-  createBuildOpenRuntimeOptionsPaletteMainDepsHandler,
-  createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler,
-  createBuildSendToActiveOverlayWindowMainDepsHandler,
-  createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
   createGetRuntimeOptionsStateHandler,
@@ -834,45 +819,46 @@ const bootServices = createMainBootServices({
     }),
   createOverlayModalInputState,
   createOverlayContentMeasurementStore: ({ logger }) => {
-    const buildHandler = createBuildOverlayContentMeasurementStoreMainDepsHandler({
+    return createOverlayContentMeasurementStore({
       now: () => Date.now(),
       warn: (message: string) => logger.warn(message),
     });
-    return createOverlayContentMeasurementStore(buildHandler());
   },
   getSyncOverlayShortcutsForModal: () => syncOverlayShortcutsForModal,
   getSyncOverlayVisibilityForModal: () => syncOverlayVisibilityForModal,
   createOverlayModalRuntime: ({ overlayManager, overlayModalInputState }) => {
-    const buildHandler = createBuildOverlayModalRuntimeMainDepsHandler({
-      getMainWindow: () => overlayManager.getMainWindow(),
-      getModalWindow: () => overlayManager.getModalWindow(),
-      createModalWindow: () => createModalWindow(),
-      getModalGeometry: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
-      setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
-    });
-    return createOverlayModalRuntimeService(buildHandler(), {
-      onModalStateChange: (isActive: boolean) =>
-        overlayModalInputState.handleModalInputStateChange(isActive),
-      // On macOS, after the last modal closes the post-close visibility sync hides the overlay
-      // when neither it nor mpv is focused, and keyboard focus is left in limbo (mpv keys like
-      // shift-to-unpause stop working). Programmatically focusing mpv from our background helper
-      // is refused by macOS (most visibly in native fullscreen), so instead resign SubMiner's
-      // active status — exactly what a manual click does — handing focus back to the previously
-      // active app (mpv). The overlay is already hidden at this point, so app.hide() hides nothing
-      // visible; once mpv is focused the tracker re-shows the overlay above it.
-      onFinalModalClosed: () => {
-        void restoreMacOSMpvFocusAfterModalClose({
-          platform: process.platform,
-          focusMpv: async () => {
-            app.hide();
-          },
-          getWindowTracker: () => appState.windowTracker,
-          updateVisibleOverlayVisibility: () =>
-            overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
-          warn: (message, details) => logger.warn(message, details),
-        });
+    return createOverlayModalRuntimeService(
+      {
+        getMainWindow: () => overlayManager.getMainWindow(),
+        getModalWindow: () => overlayManager.getModalWindow(),
+        createModalWindow: () => createModalWindow(),
+        getModalGeometry: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
+        setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
       },
-    });
+      {
+        onModalStateChange: (isActive: boolean) =>
+          overlayModalInputState.handleModalInputStateChange(isActive),
+        // On macOS, after the last modal closes the post-close visibility sync hides the overlay
+        // when neither it nor mpv is focused, and keyboard focus is left in limbo (mpv keys like
+        // shift-to-unpause stop working). Programmatically focusing mpv from our background helper
+        // is refused by macOS (most visibly in native fullscreen), so instead resign SubMiner's
+        // active status — exactly what a manual click does — handing focus back to the previously
+        // active app (mpv). The overlay is already hidden at this point, so app.hide() hides nothing
+        // visible; once mpv is focused the tracker re-shows the overlay above it.
+        onFinalModalClosed: () => {
+          void restoreMacOSMpvFocusAfterModalClose({
+            platform: process.platform,
+            focusMpv: async () => {
+              app.hide();
+            },
+            getWindowTracker: () => appState.windowTracker,
+            updateVisibleOverlayVisibility: () =>
+              overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+            warn: (message, details) => logger.warn(message, details),
+          });
+        },
+      },
+    );
   },
   createAppState,
 }) as BootServices;
@@ -2627,50 +2613,41 @@ const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService(
   })(),
 );
 
-const buildGetFieldGroupingResolverMainDepsHandler =
-  createBuildGetFieldGroupingResolverMainDepsHandler({
-    getResolver: () => appState.fieldGroupingResolver,
-  });
-const getFieldGroupingResolverMainDeps = buildGetFieldGroupingResolverMainDepsHandler();
-const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler(
-  getFieldGroupingResolverMainDeps,
-);
+const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler({
+  getResolver: () => appState.fieldGroupingResolver,
+});
 
-const buildSetFieldGroupingResolverMainDepsHandler =
-  createBuildSetFieldGroupingResolverMainDepsHandler({
-    setResolver: (resolver) => {
-      appState.fieldGroupingResolver = resolver;
-    },
-    nextSequence: () => {
-      appState.fieldGroupingResolverSequence += 1;
-      return appState.fieldGroupingResolverSequence;
-    },
-    getSequence: () => appState.fieldGroupingResolverSequence,
-  });
-const setFieldGroupingResolverMainDeps = buildSetFieldGroupingResolverMainDepsHandler();
-const setFieldGroupingResolverHandler = createSetFieldGroupingResolverHandler(
-  setFieldGroupingResolverMainDeps,
-);
+const setFieldGroupingResolverHandler = createSetFieldGroupingResolverHandler({
+  setResolver: (resolver) => {
+    appState.fieldGroupingResolver = resolver;
+  },
+  nextSequence: () => {
+    appState.fieldGroupingResolverSequence += 1;
+    return appState.fieldGroupingResolverSequence;
+  },
+  getSequence: () => appState.fieldGroupingResolverSequence,
+});
 
-const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHostedModal>(
-  createBuildFieldGroupingOverlayMainDepsHandler<OverlayHostedModal>({
-    getMainWindow: () => overlayManager.getMainWindow(),
-    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    getResolver: () => getFieldGroupingResolverHandler(),
-    setResolver: (resolver) => setFieldGroupingResolverHandler(resolver),
-    getRestoreVisibleOverlayOnModalClose: () =>
-      overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
-    waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
-    handleOverlayModalClosed: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
-    logWarn: (message) => logger.warn(message),
-    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
-    ensureOverlayWindowsReadyForVisibilityActions: () =>
-      ensureOverlayWindowsReadyForVisibilityActions(),
-    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
-      overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
-  })(),
-);
+const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHostedModal>({
+  getMainWindow: () => overlayManager.getMainWindow(),
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+  getResolver: () => getFieldGroupingResolverHandler(),
+  setResolver: (resolver) => setFieldGroupingResolverHandler(resolver),
+  getRestoreVisibleOverlayOnModalClose: () =>
+    overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
+  // These are optional on the runtime options, so a missing forward compiles silently, but
+  // dropping them leaves the field grouping modal with no modal-open ack/retry, no teardown on
+  // failure, and no warn logging.
+  waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
+  handleOverlayModalClosed: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
+  logWarn: (message) => logger.warn(message),
+  ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+  ensureOverlayWindowsReadyForVisibilityActions: () =>
+    ensureOverlayWindowsReadyForVisibilityActions(),
+  sendToVisibleOverlay: (channel, payload, runtimeOptions) =>
+    overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+});
 const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
@@ -2975,20 +2952,10 @@ const visibleOverlayInteractionRuntime = createVisibleOverlayInteractionRuntime(
   getOverlayForegroundSeparateWindows: () => getOverlayForegroundSeparateWindows(),
 });
 
-const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler(
-  {
-    getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-  },
-);
-const getRuntimeOptionsStateMainDeps = buildGetRuntimeOptionsStateMainDepsHandler();
-const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler(
-  getRuntimeOptionsStateMainDeps,
-);
+const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler({
+  getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
+});
 
-const buildRestorePreviousSecondarySubVisibilityMainDepsHandler =
-  createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler({
-    getMpvClient: () => appState.mpvClient,
-  });
 syncOverlayVisibilityForModal = () => {
   overlayVisibilityRuntime.updateVisibleOverlayVisibility();
 };
@@ -3013,42 +2980,31 @@ const {
   maybeStartOverlayLoadingOsd,
 } = overlayNotificationsRuntime;
 
-const buildBroadcastRuntimeOptionsChangedMainDepsHandler =
-  createBuildBroadcastRuntimeOptionsChangedMainDepsHandler({
+const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
+  overlayVisibilityRuntime,
+  restorePreviousSecondarySubVisibilityMainDeps: {
+    getMpvClient: () => appState.mpvClient,
+  },
+  broadcastRuntimeOptionsChangedMainDeps: {
     broadcastRuntimeOptionsChangedRuntime,
     getRuntimeOptionsState: () => getRuntimeOptionsStateHandler(),
     broadcastToOverlayWindows: (channel, ...args) =>
       overlayManager.broadcastToOverlayWindows(channel, ...args),
-  });
-
-const buildSendToActiveOverlayWindowMainDepsHandler =
-  createBuildSendToActiveOverlayWindowMainDepsHandler({
+  },
+  sendToActiveOverlayWindowMainDeps: {
     sendToActiveOverlayWindowRuntime: (channel, payload, runtimeOptions) =>
       overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
-  });
-
-const buildSetOverlayDebugVisualizationEnabledMainDepsHandler =
-  createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler({
+  },
+  setOverlayDebugVisualizationEnabledMainDeps: {
     setOverlayDebugVisualizationEnabledRuntime,
     getCurrentEnabled: () => appState.overlayDebugVisualizationEnabled,
     setCurrentEnabled: (next) => {
       appState.overlayDebugVisualizationEnabled = next;
     },
-  });
-
-const buildOpenRuntimeOptionsPaletteMainDepsHandler =
-  createBuildOpenRuntimeOptionsPaletteMainDepsHandler({
+  },
+  openRuntimeOptionsPaletteMainDeps: {
     openRuntimeOptionsPaletteRuntime: () => overlayModalRuntime.openRuntimeOptionsPalette(),
-  });
-const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
-  overlayVisibilityRuntime,
-  restorePreviousSecondarySubVisibilityMainDeps:
-    buildRestorePreviousSecondarySubVisibilityMainDepsHandler(),
-  broadcastRuntimeOptionsChangedMainDeps: buildBroadcastRuntimeOptionsChangedMainDepsHandler(),
-  sendToActiveOverlayWindowMainDeps: buildSendToActiveOverlayWindowMainDepsHandler(),
-  setOverlayDebugVisualizationEnabledMainDeps:
-    buildSetOverlayDebugVisualizationEnabledMainDepsHandler(),
-  openRuntimeOptionsPaletteMainDeps: buildOpenRuntimeOptionsPaletteMainDepsHandler(),
+  },
 });
 
 function createOverlayHostedModalOpenDeps(): {
@@ -4167,7 +4123,7 @@ const rememberAnilistAttemptedUpdate = (key: string): void => {
   );
 };
 
-const buildLoadSubtitlePositionMainDepsHandler = createBuildLoadSubtitlePositionMainDepsHandler({
+const loadSubtitlePosition = createLoadSubtitlePositionHandler({
   loadSubtitlePositionCore: () =>
     loadSubtitlePositionCore({
       currentMediaPath: appState.currentMediaPath,
@@ -4178,10 +4134,8 @@ const buildLoadSubtitlePositionMainDepsHandler = createBuildLoadSubtitlePosition
     appState.subtitlePosition = position;
   },
 });
-const loadSubtitlePositionMainDeps = buildLoadSubtitlePositionMainDepsHandler();
-const loadSubtitlePosition = createLoadSubtitlePositionHandler(loadSubtitlePositionMainDeps);
 
-const buildSaveSubtitlePositionMainDepsHandler = createBuildSaveSubtitlePositionMainDepsHandler({
+const saveSubtitlePosition = createSaveSubtitlePositionHandler({
   saveSubtitlePositionCore: (position) => {
     saveSubtitlePositionCore({
       position,
@@ -4199,8 +4153,6 @@ const buildSaveSubtitlePositionMainDepsHandler = createBuildSaveSubtitlePosition
     appState.subtitlePosition = position;
   },
 });
-const saveSubtitlePositionMainDeps = buildSaveSubtitlePositionMainDepsHandler();
-const saveSubtitlePosition = createSaveSubtitlePositionHandler(saveSubtitlePositionMainDeps);
 
 registerSubminerProtocolClient();
 let flushPendingMpvLogWrites = (): void => {};
@@ -5514,8 +5466,8 @@ const {
     buildRegisterGlobalShortcutsMainDeps: (getConfiguredShortcutsHandler) => ({
       getConfiguredShortcuts: () => getConfiguredShortcutsHandler(),
       registerGlobalShortcutsCore,
-      toggleVisibleOverlay: () => toggleVisibleOverlay(),
-      openYomitanSettings: () => openDictionarySettings(),
+      onToggleVisibleOverlay: () => toggleVisibleOverlay(),
+      onOpenYomitanSettings: () => openDictionarySettings(),
       isDev,
       getMainWindow: () => overlayManager.getMainWindow(),
     }),
@@ -5727,29 +5679,19 @@ const {
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
 });
 
-const buildHandleOverlayModalClosedMainDepsHandler =
-  createBuildHandleOverlayModalClosedMainDepsHandler({
-    handleOverlayModalClosedRuntime: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
-  });
-const handleOverlayModalClosedMainDeps = buildHandleOverlayModalClosedMainDepsHandler();
-const handleOverlayModalClosedHandler = createHandleOverlayModalClosedHandler(
-  handleOverlayModalClosedMainDeps,
-);
+const handleOverlayModalClosedHandler = createHandleOverlayModalClosedHandler({
+  handleOverlayModalClosedRuntime: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
+});
 
-const buildAppendClipboardVideoToQueueMainDepsHandler =
-  createBuildAppendClipboardVideoToQueueMainDepsHandler({
-    appendClipboardVideoToQueueRuntime,
-    getMpvClient: () => appState.mpvClient,
-    readClipboardText: () => clipboard.readText(),
-    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-    sendMpvCommand: (command) => {
-      sendMpvCommandRuntime(appState.mpvClient, command);
-    },
-  });
-const appendClipboardVideoToQueueMainDeps = buildAppendClipboardVideoToQueueMainDepsHandler();
-const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHandler(
-  appendClipboardVideoToQueueMainDeps,
-);
+const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHandler({
+  appendClipboardVideoToQueueRuntime,
+  getMpvClient: () => appState.mpvClient,
+  readClipboardText: () => clipboard.readText(),
+  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
+  sendMpvCommand: (command) => {
+    sendMpvCommandRuntime(appState.mpvClient, command);
+  },
+});
 
 async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
   await dispatchSessionActionCore(request, {
