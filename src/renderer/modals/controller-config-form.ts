@@ -8,6 +8,10 @@ import {
   type ControllerScreenDefinition,
 } from '../../shared/controller-review';
 import type { ControllerScreenId } from '../../shared/controller-screens';
+import {
+  findControllerBindingIssues,
+  getControllerDpadRowKey,
+} from './controller-binding-issues.js';
 import type { ResolvedControllerReviewBinding } from '../../types';
 
 /** A dialog layout shown as a collapsible group in Alt+C. */
@@ -380,6 +384,8 @@ export function createControllerConfigForm(options: {
     let lastGroup = '';
     const learningActionId = options.getLearningActionId();
     const dpadLearningActionId = options.getDpadLearningActionId();
+    const bindings = options.getBindings();
+    const issues = findControllerBindingIssues(CONTROLLER_BINDING_DEFINITIONS, bindings);
 
     // Auto-expand when learning starts
     if (learningActionId) {
@@ -397,17 +403,23 @@ export function createControllerConfigForm(options: {
         lastGroup = definition.group;
       }
 
-      const binding = options.getBindings()[definition.id];
+      const binding = bindings[definition.id];
 
       if (definition.bindingType === 'axis') {
-        renderAxisStickRow(definition, binding as ResolvedControllerAxisBinding, learningActionId);
+        renderAxisStickRow(
+          definition,
+          binding as ResolvedControllerAxisBinding,
+          learningActionId,
+          issues[definition.id],
+        );
         renderAxisDpadRow(
           definition,
           binding as ResolvedControllerAxisBinding,
           dpadLearningActionId,
+          issues[getControllerDpadRowKey(definition.id)],
         );
       } else {
-        renderDiscreteRow(definition, binding, learningActionId);
+        renderDiscreteRow(definition, binding, learningActionId, issues[definition.id]);
       }
     }
 
@@ -537,6 +549,7 @@ export function createControllerConfigForm(options: {
     definition: ControllerBindingDefinition,
     binding: ResolvedControllerConfig['bindings'][ControllerBindingActionId],
     learningActionId: ControllerBindingActionId | null,
+    issue: string | undefined,
   ): void {
     const rowKey = definition.id as string;
     const isExpanded = expandedRowKey === rowKey;
@@ -562,6 +575,7 @@ export function createControllerConfigForm(options: {
         e.stopPropagation();
         options.onReset(definition.id);
       },
+      issue,
     );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
@@ -595,6 +609,7 @@ export function createControllerConfigForm(options: {
     definition: ControllerBindingDefinition,
     binding: ResolvedControllerAxisBinding,
     learningActionId: ControllerBindingActionId | null,
+    issue: string | undefined,
   ): void {
     const rowKey = definition.id as string;
     const isExpanded = expandedRowKey === rowKey;
@@ -616,6 +631,7 @@ export function createControllerConfigForm(options: {
         e.stopPropagation();
         options.onReset(definition.id);
       },
+      issue,
     );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
@@ -648,8 +664,9 @@ export function createControllerConfigForm(options: {
     definition: ControllerBindingDefinition,
     binding: ResolvedControllerAxisBinding,
     dpadLearningActionId: ControllerBindingActionId | null,
+    issue: string | undefined,
   ): void {
-    const rowKey = `${definition.id as string}:dpad`;
+    const rowKey = getControllerDpadRowKey(definition.id);
     const isExpanded = expandedRowKey === rowKey;
     const isLearning = dpadLearningActionId === definition.id;
 
@@ -672,6 +689,7 @@ export function createControllerConfigForm(options: {
         e.stopPropagation();
         options.onDpadReset(definition.id);
       },
+      issue,
     );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;

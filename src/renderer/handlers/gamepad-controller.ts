@@ -79,14 +79,16 @@ export type HoldState = {
   initialFired: boolean;
 };
 
-const DPAD_BUTTON_INDEX = {
+/** Buttons read as the D-pad on every pad, whatever its reported mapping. */
+export const DPAD_BUTTON_INDEX = {
   up: 12,
   down: 13,
   left: 14,
   right: 15,
 } as const;
 
-const DPAD_AXIS_INDEX = {
+/** Axes some raw (non-standard) pads use for the D-pad. */
+export const DPAD_AXIS_INDEX = {
   horizontal: 6,
   vertical: 7,
 } as const;

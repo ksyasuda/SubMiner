@@ -445,6 +445,21 @@ test('controller config form warns about review bindings that clash', () => {
   });
 });
 
+test('controller config form warns when main actions share an input', () => {
+  const { container, row } = renderForm(null, {
+    bindings: { ...BINDINGS, nextSubtitle: { kind: 'button', buttonIndex: 15 } },
+    mapping: 'standard',
+  });
+
+  assert.deepEqual(
+    findAll(container, 'controller-config-warning').map((el) => el.textContent),
+    ['\u26a0 Same as Token Move (D-pad)', '\u26a0 Same as Next Subtitle'],
+  );
+  assert.equal(row('Next Subtitle').classList.contains('has-warning'), true);
+  assert.equal(row('Token Move (D-pad)').classList.contains('has-warning'), true);
+  assert.equal(row('Next Audio').classList.contains('has-warning'), false);
+});
+
 /** The dialog group headers, in order. */
 const groupHeaders = (container: FakeElement) =>
   findAll(container, 'controller-config-group-toggle');
