@@ -244,14 +244,6 @@ import {
   resolvePrimarySubtitle,
 } from './main/runtime/primary-subtitle-text';
 import {
-  createBuildCopyCurrentSubtitleMainDepsHandler,
-  createBuildHandleMineSentenceDigitMainDepsHandler,
-  createBuildHandleMultiCopyDigitMainDepsHandler,
-  createBuildMarkLastCardAsAudioCardMainDepsHandler,
-  createBuildMineSentenceCardMainDepsHandler,
-  createBuildRefreshKnownWordCacheMainDepsHandler,
-  createBuildTriggerFieldGroupingMainDepsHandler,
-  createBuildUpdateLastCardFromClipboardMainDepsHandler,
   createMarkLastCardAsAudioCardHandler,
   createMineSentenceCardHandler,
   createRefreshKnownWordCacheHandler,
@@ -5680,90 +5672,62 @@ function setSecondarySubMode(mode: SecondarySubMode): void {
   appState.secondarySubMode = mode;
 }
 
-const buildUpdateLastCardFromClipboardMainDepsHandler =
-  createBuildUpdateLastCardFromClipboardMainDepsHandler({
-    getAnkiIntegration: () => appState.ankiIntegration,
-    readClipboardText: () => clipboard.readText(),
-    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-    updateLastCardFromClipboardCore,
-  });
-const updateLastCardFromClipboardMainDeps = buildUpdateLastCardFromClipboardMainDepsHandler();
-const updateLastCardFromClipboardHandler = createUpdateLastCardFromClipboardHandler(
-  updateLastCardFromClipboardMainDeps,
-);
+const updateLastCardFromClipboardHandler = createUpdateLastCardFromClipboardHandler({
+  getAnkiIntegration: () => appState.ankiIntegration,
+  readClipboardText: () => clipboard.readText(),
+  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
+  updateLastCardFromClipboardCore,
+});
 
-const buildRefreshKnownWordCacheMainDepsHandler = createBuildRefreshKnownWordCacheMainDepsHandler({
+const refreshKnownWordCacheHandler = createRefreshKnownWordCacheHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   missingIntegrationMessage: 'AnkiConnect integration not enabled',
 });
-const refreshKnownWordCacheMainDeps = buildRefreshKnownWordCacheMainDepsHandler();
-const refreshKnownWordCacheHandler = createRefreshKnownWordCacheHandler(
-  refreshKnownWordCacheMainDeps,
-);
 
-const buildTriggerFieldGroupingMainDepsHandler = createBuildTriggerFieldGroupingMainDepsHandler({
+const triggerFieldGroupingHandler = createTriggerFieldGroupingHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   triggerFieldGroupingCore,
 });
-const triggerFieldGroupingMainDeps = buildTriggerFieldGroupingMainDepsHandler();
-const triggerFieldGroupingHandler = createTriggerFieldGroupingHandler(triggerFieldGroupingMainDeps);
 
-const buildMarkLastCardAsAudioCardMainDepsHandler =
-  createBuildMarkLastCardAsAudioCardMainDepsHandler({
-    getAnkiIntegration: () => appState.ankiIntegration,
-    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-    markLastCardAsAudioCardCore,
-  });
-const markLastCardAsAudioCardMainDeps = buildMarkLastCardAsAudioCardMainDepsHandler();
-const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler(
-  markLastCardAsAudioCardMainDeps,
-);
+const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler({
+  getAnkiIntegration: () => appState.ankiIntegration,
+  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
+  markLastCardAsAudioCardCore,
+});
 
-const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDepsHandler({
+const mineSentenceCardHandler = createMineSentenceCardHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   getMpvClient: () => appState.mpvClient,
   getPrimarySubtitle: () => captureCurrentPrimarySubtitleMiningContext(),
   showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   mineSentenceCardCore,
 });
-const mineSentenceCardHandler = createMineSentenceCardHandler(
-  buildMineSentenceCardMainDepsHandler(),
-);
 
-const buildHandleMultiCopyDigitMainDepsHandler = createBuildHandleMultiCopyDigitMainDepsHandler({
+const handleMultiCopyDigitHandler = createHandleMultiCopyDigitHandler({
   getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
   writeClipboardText: (text) => clipboard.writeText(text),
   showMpvOsd: (text) => showConfiguredPlaybackFeedback(text),
   handleMultiCopyDigitCore,
 });
-const handleMultiCopyDigitMainDeps = buildHandleMultiCopyDigitMainDepsHandler();
-const handleMultiCopyDigitHandler = createHandleMultiCopyDigitHandler(handleMultiCopyDigitMainDeps);
 
-const buildCopyCurrentSubtitleMainDepsHandler = createBuildCopyCurrentSubtitleMainDepsHandler({
+const copyCurrentSubtitleHandler = createCopyCurrentSubtitleHandler({
   getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
   writeClipboardText: (text) => clipboard.writeText(text),
   showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   copyCurrentSubtitleCore,
 });
-const copyCurrentSubtitleMainDeps = buildCopyCurrentSubtitleMainDepsHandler();
-const copyCurrentSubtitleHandler = createCopyCurrentSubtitleHandler(copyCurrentSubtitleMainDeps);
 
-const buildHandleMineSentenceDigitMainDepsHandler =
-  createBuildHandleMineSentenceDigitMainDepsHandler({
-    getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-    getAnkiIntegration: () => appState.ankiIntegration,
-    getCurrentSecondarySubText: () => appState.mpvClient?.currentSecondarySubText || undefined,
-    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-    logError: (message, err) => {
-      logger.error(message, err);
-    },
-    handleMineSentenceDigitCore,
-  });
-const handleMineSentenceDigitMainDeps = buildHandleMineSentenceDigitMainDepsHandler();
-const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler(
-  handleMineSentenceDigitMainDeps,
-);
+const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler({
+  getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+  getAnkiIntegration: () => appState.ankiIntegration,
+  getCurrentSecondarySubText: () => appState.mpvClient?.currentSecondarySubText || undefined,
+  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
+  logError: (message, err) => {
+    logger.error(message, err);
+  },
+  handleMineSentenceDigitCore,
+});
 const {
   setVisibleOverlayVisible: setVisibleOverlayVisibleHandler,
   toggleVisibleOverlay: toggleVisibleOverlayHandler,
