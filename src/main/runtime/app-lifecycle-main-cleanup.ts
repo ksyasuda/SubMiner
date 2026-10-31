@@ -17,7 +17,9 @@ type SocketLike = {
 
 type TimerLike = ReturnType<typeof setTimeout>;
 
-export function createBuildOnWillQuitCleanupDepsHandler(deps: {
+// Adapts main-process state to the will-quit cleanup steps: each destroy/stop step looks up
+// its current resource and skips it when absent or already destroyed.
+export function createOnWillQuitCleanupDeps(deps: {
   destroyTray: () => void;
   stopConfigHotReload: () => void;
   restorePreviousSecondarySubVisibility: () => void;
@@ -66,7 +68,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
 }) {
-  return () => ({
+  return {
     destroyTray: () => deps.destroyTray(),
     stopConfigHotReload: () => deps.stopConfigHotReload(),
     restorePreviousSecondarySubVisibility: () => deps.restorePreviousSecondarySubVisibility(),
@@ -154,5 +156,5 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     cleanupRemoteMediaWindows: () => deps.cleanupRemoteMediaWindows(),
     cleanupJellyfinSubtitleCache: () => deps.cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => deps.stopDiscordPresenceService(),
-  });
+  };
 }

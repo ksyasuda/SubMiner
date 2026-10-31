@@ -11,7 +11,9 @@ type AnilistPostWatchRunOptions = {
   watchedSeconds?: number;
 };
 
-export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
+// Adapts main-process state to the mpv main-event bindings and owns the subtitle-recording
+// state (dedup gates, recorded cue keys, session epoch) that those bindings share.
+export function createMpvMainEventBindingDeps(deps: {
   appState: {
     initialArgs?: {
       jellyfinPlay?: unknown;
@@ -149,7 +151,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.appState.initialArgs?.youtubePlay,
     );
 
-  return () => ({
+  return {
     reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
     syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
     onMpvConnected: deps.onMpvConnected ? () => deps.onMpvConnected!() : undefined,
@@ -407,5 +409,5 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     setPreviousSecondarySubVisibility: (visible: boolean) => {
       deps.appState.previousSecondarySubVisibility = visible;
     },
-  });
+  };
 }

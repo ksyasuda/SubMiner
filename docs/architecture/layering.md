@@ -20,7 +20,9 @@ Renderer, launcher, plugin, and stats each keep their own local layering and sho
 
 - Keep `src/main.ts` thin; wire, do not implement.
 - Pass deps straight to a handler factory (`createXHandler({...})`). Do not add
-  `*-main-deps.ts` builders that only re-wrap deps; existing ones are being removed.
+  deps builders (`createBuild*MainDepsHandler`, `*-main-deps.ts`) that re-wrap deps.
+  Adaptation logic (defaults, appState getters/setters, shared state) belongs in the
+  handler or in a named adapter that returns the deps directly.
 - Prefer injecting dependencies from `src/main/` instead of reaching outward from core services.
 - Keep side effects explicit and close to composition boundaries.
 - Put reusable business logic in focused services, not in top-level lifecycle files.

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseAssCues } from '../../core/services/subtitle-cue-parser';
-import { createBuildBindMpvMainEventHandlersMainDepsHandler } from './mpv-main-event-main-deps';
+import { createMpvMainEventBindingDeps } from './mpv-main-event-binding-deps';
 
-type MainDeps = Parameters<typeof createBuildBindMpvMainEventHandlersMainDepsHandler>[0];
+type MainDeps = Parameters<typeof createMpvMainEventBindingDeps>[0];
 
 /**
  * Builds the handlers with inert deps. `appStateOverrides` is merged over a blank app
@@ -24,7 +24,7 @@ function buildMainDeps(
     previousSecondarySubVisibility: false,
     ...appStateOverrides,
   };
-  const handlers = createBuildBindMpvMainEventHandlersMainDepsHandler({
+  const handlers = createMpvMainEventBindingDeps({
     appState,
     getQuitOnDisconnectArmed: () => false,
     scheduleQuitCheck: () => {},
@@ -49,7 +49,7 @@ function buildMainDeps(
     updateSubtitleRenderMetrics: () => {},
     refreshDiscordPresence: () => {},
     ...depsOverrides,
-  })();
+  });
   return { handlers, appState };
 }
 

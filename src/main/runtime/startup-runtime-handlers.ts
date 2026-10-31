@@ -1,11 +1,15 @@
-import { createBuildStartupBootstrapRuntimeFactoryDepsHandler } from './startup-bootstrap-deps-builder';
 import type { AppLifecycleRuntimeRunnerParams } from '../startup-lifecycle';
-import { createBuildStartupBootstrapMainDepsHandler } from './startup-bootstrap-main-deps';
+import type { StartupBootstrapRuntimeFactoryDeps } from '../startup';
 
-type StartupBootstrapMainDeps = Parameters<typeof createBuildStartupBootstrapMainDepsHandler>[0];
-type StartupBootstrapRuntimeFactoryDeps = Parameters<
-  typeof createBuildStartupBootstrapRuntimeFactoryDepsHandler
->[0];
+// Bootstrap deps as main.ts supplies them; the config-generation exit callbacks are built here.
+type StartupBootstrapMainDeps = Omit<
+  StartupBootstrapRuntimeFactoryDeps,
+  'onConfigGenerated' | 'onGenerateConfigError'
+> & {
+  setExitCode: (code: number) => void;
+  quitApp: () => void;
+  logGenerateConfigError: (message: string) => void;
+};
 
 export function createStartupRuntimeHandlers<
   TCliArgs,
@@ -29,11 +33,20 @@ export function createStartupRuntimeHandlers<
     deps.appLifecycleRuntimeRunnerMainDeps,
   );
 
-  const startupBootstrapMainDeps = createBuildStartupBootstrapMainDepsHandler(
-    deps.buildStartupBootstrapMainDeps(appLifecycleRuntimeRunner),
-  )();
-  const startupBootstrapRuntimeFactoryDeps =
-    createBuildStartupBootstrapRuntimeFactoryDepsHandler(startupBootstrapMainDeps)();
+  const { setExitCode, quitApp, logGenerateConfigError, ...bootstrapDeps } =
+    deps.buildStartupBootstrapMainDeps(appLifecycleRuntimeRunner);
+  const startupBootstrapRuntimeFactoryDeps: StartupBootstrapRuntimeFactoryDeps = {
+    ...bootstrapDeps,
+    onConfigGenerated: (exitCode) => {
+      setExitCode(exitCode);
+      quitApp();
+    },
+    onGenerateConfigError: (error) => {
+      logGenerateConfigError(`Failed to generate config: ${error.message}`);
+      setExitCode(1);
+      quitApp();
+    },
+  };
 
   const runAndApplyStartupState = (): TStartupState => {
     const startupState = deps.runStartupBootstrapRuntime(

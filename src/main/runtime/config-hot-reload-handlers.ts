@@ -228,6 +228,35 @@ export function createConfigHotReloadMessageHandler(deps: ConfigHotReloadMessage
   };
 }
 
+type ConfigWatchListener = (eventType: string, filename: string | null) => void;
+
+// Watches the config file, or its directory (filtered to config.json[c]) when the file
+// does not exist yet, and calls onChange for relevant events.
+export function createWatchConfigPathHandler(deps: {
+  fileExists: (path: string) => boolean;
+  dirname: (path: string) => string;
+  watchPath: (targetPath: string, listener: ConfigWatchListener) => { close: () => void };
+}) {
+  return (configPath: string, onChange: () => void): { close: () => void } => {
+    const watchTarget = deps.fileExists(configPath) ? configPath : deps.dirname(configPath);
+    const watcher = deps.watchPath(watchTarget, (_eventType, filename) => {
+      if (watchTarget === configPath) {
+        onChange();
+        return;
+      }
+
+      const normalized =
+        typeof filename === 'string' ? filename : filename ? String(filename) : undefined;
+      if (!normalized || normalized === 'config.json' || normalized === 'config.jsonc') {
+        onChange();
+      }
+    });
+    return {
+      close: () => watcher.close(),
+    };
+  };
+}
+
 export function buildRestartRequiredConfigMessage(fields: string[]): string {
   return `Config updated; restart required for: ${fields.join(', ')}`;
 }

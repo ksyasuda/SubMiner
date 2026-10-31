@@ -3,22 +3,16 @@ import {
   createRestoreWindowsOnActivateHandler,
   createShouldRestoreWindowsOnActivateHandler,
 } from '../app-lifecycle-actions';
-import { createBuildOnWillQuitCleanupDepsHandler } from '../app-lifecycle-main-cleanup';
-import {
-  createBuildRestoreWindowsOnActivateMainDepsHandler,
-  createBuildShouldRestoreWindowsOnActivateMainDepsHandler,
-} from '../app-lifecycle-main-activate';
+import { createOnWillQuitCleanupDeps } from '../app-lifecycle-main-cleanup';
 import { registerProtocolUrlHandlers } from '../protocol-url-handlers';
 import type { ComposerInputs, ComposerOutputs } from './contracts';
 
 type RegisterProtocolUrlHandlersMainDeps = Parameters<typeof registerProtocolUrlHandlers>[0];
-type OnWillQuitCleanupDeps = Parameters<typeof createBuildOnWillQuitCleanupDepsHandler>[0];
+type OnWillQuitCleanupDeps = Parameters<typeof createOnWillQuitCleanupDeps>[0];
 type ShouldRestoreWindowsOnActivateMainDeps = Parameters<
-  typeof createBuildShouldRestoreWindowsOnActivateMainDepsHandler
+  typeof createShouldRestoreWindowsOnActivateHandler
 >[0];
-type RestoreWindowsOnActivateMainDeps = Parameters<
-  typeof createBuildRestoreWindowsOnActivateMainDepsHandler
->[0];
+type RestoreWindowsOnActivateMainDeps = Parameters<typeof createRestoreWindowsOnActivateHandler>[0];
 
 export type StartupLifecycleComposerOptions = ComposerInputs<{
   registerProtocolUrlHandlersMainDeps: RegisterProtocolUrlHandlersMainDeps;
@@ -38,15 +32,13 @@ export function composeStartupLifecycleHandlers(
   options: StartupLifecycleComposerOptions,
 ): StartupLifecycleComposerResult {
   const onWillQuitCleanupHandler = createOnWillQuitCleanupHandler(
-    createBuildOnWillQuitCleanupDepsHandler(options.onWillQuitCleanupMainDeps)(),
+    createOnWillQuitCleanupDeps(options.onWillQuitCleanupMainDeps),
   );
   const shouldRestoreWindowsOnActivateHandler = createShouldRestoreWindowsOnActivateHandler(
-    createBuildShouldRestoreWindowsOnActivateMainDepsHandler(
-      options.shouldRestoreWindowsOnActivateMainDeps,
-    )(),
+    options.shouldRestoreWindowsOnActivateMainDeps,
   );
   const restoreWindowsOnActivateHandler = createRestoreWindowsOnActivateHandler(
-    createBuildRestoreWindowsOnActivateMainDepsHandler(options.restoreWindowsOnActivateMainDeps)(),
+    options.restoreWindowsOnActivateMainDeps,
   );
 
   return {

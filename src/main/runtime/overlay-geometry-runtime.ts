@@ -20,11 +20,6 @@ import {
   createUpdateVisibleOverlayBoundsHandler,
   hasLiveOverlayWindowBoundsMismatch,
 } from './overlay-window-layout';
-import {
-  createBuildEnforceOverlayLayerOrderMainDepsHandler,
-  createBuildEnsureOverlayWindowLevelMainDepsHandler,
-  createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
-} from './overlay-window-layout-main-deps';
 import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './settings-window-z-order';
 
 const LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS = 1_200;
@@ -147,68 +142,57 @@ export function createOverlayGeometryRuntime(deps: OverlayGeometryRuntimeDeps) {
     });
   }
 
-  const buildUpdateVisibleOverlayBoundsMainDepsHandler =
-    createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
-      getCurrentOverlayWindowBounds: () => lastOverlayWindowGeometry,
-      shouldRefreshUnchangedGeometry: (geometry) =>
-        shouldExitLinuxFullscreenOverrideForGeometry(geometry) ||
-        (process.platform === 'linux' &&
-          (hasLiveOverlayWindowBoundsMismatch(
-            [overlayManager.getMainWindow(), overlayManager.getModalWindow()],
-            geometry,
-          ) ||
-            hasHyprlandOverlayWindowPlacementMismatch(geometry))),
-      setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
-      afterSetOverlayWindowBounds: () => {
-        if (!overlayManager.getVisibleOverlayVisible()) {
-          return;
-        }
-        if (process.platform === 'win32') {
-          deps.scheduleWindowsVisibleOverlayZOrderSyncBurst();
-          return;
-        }
-        const mainWindow = overlayManager.getMainWindow();
-        if (!mainWindow || mainWindow.isDestroyed()) {
-          return;
-        }
-        if (process.platform === 'linux') {
-          restoreLinuxOverlayWindowShape(mainWindow);
-        }
-        ensureOverlayWindowLevel(mainWindow);
-      },
-    });
-  const updateVisibleOverlayBoundsMainDeps = buildUpdateVisibleOverlayBoundsMainDepsHandler();
-  const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
-    updateVisibleOverlayBoundsMainDeps,
-  );
+  const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler({
+    getCurrentOverlayWindowBounds: () => lastOverlayWindowGeometry,
+    shouldRefreshUnchangedGeometry: (geometry) =>
+      shouldExitLinuxFullscreenOverrideForGeometry(geometry) ||
+      (process.platform === 'linux' &&
+        (hasLiveOverlayWindowBoundsMismatch(
+          [overlayManager.getMainWindow(), overlayManager.getModalWindow()],
+          geometry,
+        ) ||
+          hasHyprlandOverlayWindowPlacementMismatch(geometry))),
+    setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
+    afterSetOverlayWindowBounds: () => {
+      if (!overlayManager.getVisibleOverlayVisible()) {
+        return;
+      }
+      if (process.platform === 'win32') {
+        deps.scheduleWindowsVisibleOverlayZOrderSyncBurst();
+        return;
+      }
+      const mainWindow = overlayManager.getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+      }
+      if (process.platform === 'linux') {
+        restoreLinuxOverlayWindowShape(mainWindow);
+      }
+      ensureOverlayWindowLevel(mainWindow);
+    },
+  });
 
-  const buildEnsureOverlayWindowLevelMainDepsHandler =
-    createBuildEnsureOverlayWindowLevelMainDepsHandler({
-      shouldSuppressOverlayWindowLevel: (window) => {
-        const mainWindow = overlayManager.getMainWindow();
-        return (
-          (deps.getStatsOverlayVisible() && window === mainWindow) ||
-          shouldSuppressVisibleOverlayRaiseForSeparateWindow({
-            window,
-            mainWindow,
-            separateWindows: deps.getOverlayForegroundSeparateWindows(),
-          })
-        );
-      },
-      ensureOverlayWindowLevelCore: (window) =>
-        ensureOverlayWindowLevelCore(window as BrowserWindow),
-      afterEnsureOverlayWindowLevel: () => {
-        const mainWindow = overlayManager.getMainWindow();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          moveVisibleOverlayAboveTrackedPlaybackWindow(mainWindow);
-        }
-        promoteStatsOverlayAbovePlayback();
-      },
-    });
-  const ensureOverlayWindowLevelMainDeps = buildEnsureOverlayWindowLevelMainDepsHandler();
-  const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler(
-    ensureOverlayWindowLevelMainDeps,
-  );
+  const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler({
+    shouldSuppressOverlayWindowLevel: (window) => {
+      const mainWindow = overlayManager.getMainWindow();
+      return (
+        (deps.getStatsOverlayVisible() && window === mainWindow) ||
+        shouldSuppressVisibleOverlayRaiseForSeparateWindow({
+          window,
+          mainWindow,
+          separateWindows: deps.getOverlayForegroundSeparateWindows(),
+        })
+      );
+    },
+    ensureOverlayWindowLevelCore: (window) => ensureOverlayWindowLevelCore(window as BrowserWindow),
+    afterEnsureOverlayWindowLevel: () => {
+      const mainWindow = overlayManager.getMainWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        moveVisibleOverlayAboveTrackedPlaybackWindow(mainWindow);
+      }
+      promoteStatsOverlayAbovePlayback();
+    },
+  });
 
   function syncPrimaryOverlayWindowLayer(layer: 'visible'): void {
     const mainWindow = overlayManager.getMainWindow();
@@ -276,23 +260,18 @@ export function createOverlayGeometryRuntime(deps: OverlayGeometryRuntimeDeps) {
     );
   }
 
-  const buildEnforceOverlayLayerOrderMainDepsHandler =
-    createBuildEnforceOverlayLayerOrderMainDepsHandler({
-      enforceOverlayLayerOrderCore: (params) =>
-        enforceOverlayLayerOrderCore({
-          visibleOverlayVisible: params.visibleOverlayVisible,
-          mainWindow: params.mainWindow as BrowserWindow | null,
-          ensureOverlayWindowLevel: (window) =>
-            params.ensureOverlayWindowLevel(window as BrowserWindow),
-        }),
-      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      getMainWindow: () => overlayManager.getMainWindow(),
-      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window as BrowserWindow),
-    });
-  const enforceOverlayLayerOrderMainDeps = buildEnforceOverlayLayerOrderMainDepsHandler();
-  const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler(
-    enforceOverlayLayerOrderMainDeps,
-  );
+  const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler({
+    enforceOverlayLayerOrderCore: (params) =>
+      enforceOverlayLayerOrderCore({
+        visibleOverlayVisible: params.visibleOverlayVisible,
+        mainWindow: params.mainWindow as BrowserWindow | null,
+        ensureOverlayWindowLevel: (window) =>
+          params.ensureOverlayWindowLevel(window as BrowserWindow),
+      }),
+    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getMainWindow: () => overlayManager.getMainWindow(),
+    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window as BrowserWindow),
+  });
 
   return {
     getLastOverlayWindowGeometry: () => lastOverlayWindowGeometry,

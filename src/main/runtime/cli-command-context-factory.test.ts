@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createBuildCliCommandContextMainDepsHandler } from './cli-command-context-main-deps';
+import {
+  createCliCommandContextFactory,
+  type CliCommandContextMainDeps,
+} from './cli-command-context-factory';
 
-type MainDeps = Parameters<typeof createBuildCliCommandContextMainDepsHandler>[0];
-
-function buildContextDeps(overrides: Partial<MainDeps> = {}) {
+function buildContext(overrides: Partial<CliCommandContextMainDeps> = {}) {
   const noop = () => {};
   const noopAsync = async () => {};
-  return createBuildCliCommandContextMainDepsHandler({
+  return createCliCommandContextFactory({
     appState: {
       mpvSocketPath: '/tmp/mpv.sock',
       mpvClient: null,
@@ -100,16 +101,16 @@ test('cli command context setSocketPath notifies only when the socket path chang
     texthookerPort: 5174,
     overlayRuntimeInitialized: false,
   };
-  const deps = buildContextDeps({
+  const context = buildContext({
     appState,
     onMpvSocketPathChanged: (next, previous) => changes.push(`${previous}->${next}`),
   });
 
-  deps.setSocketPath('/tmp/next.sock');
-  deps.setSocketPath('/tmp/next.sock');
+  context.setSocketPath('/tmp/next.sock');
+  context.setSocketPath('/tmp/next.sock');
 
   assert.equal(appState.mpvSocketPath, '/tmp/next.sock');
-  assert.equal(deps.getSocketPath(), '/tmp/next.sock');
+  assert.equal(context.getSocketPath(), '/tmp/next.sock');
   assert.deepEqual(changes, ['/tmp/mpv.sock->/tmp/next.sock']);
 });
 
@@ -119,10 +120,10 @@ for (const c of [
   { openBrowser: false, expected: false },
 ]) {
   test(`cli command context shouldOpenBrowser is ${c.expected} when texthooker.openBrowser is ${c.openBrowser}`, () => {
-    const deps = buildContextDeps({
+    const context = buildContext({
       getResolvedConfig: () => ({ texthooker: { openBrowser: c.openBrowser } }),
     });
-    assert.equal(deps.shouldOpenBrowser(), c.expected);
+    assert.equal(context.shouldOpenBrowser(), c.expected);
   });
 }
 
@@ -147,10 +148,10 @@ for (const c of [
   },
 ]) {
   test(`cli command context texthooker websocket url ${c.name}`, () => {
-    const deps = buildContextDeps({
+    const context = buildContext({
       getResolvedConfig: () => c.config,
       hasMpvWebsocketPlugin: () => c.hasPlugin,
     });
-    assert.equal(deps.getTexthookerWebsocketUrl(), c.expected);
+    assert.equal(context.getTexthookerWebsocketUrl(), c.expected);
   });
 }
