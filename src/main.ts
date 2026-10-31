@@ -5596,8 +5596,8 @@ const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
     setLastSecondarySubToggleAtMs: (timestampMs: number) => {
       appState.lastSecondarySubToggleAtMs = timestampMs;
     },
-    broadcastToOverlayWindows: (channel, mode) => {
-      overlayManager.broadcastToOverlayWindows(channel, mode);
+    broadcastSecondarySubMode: (mode) => {
+      overlayManager.broadcastToOverlayWindows('secondary-subtitle:mode', mode);
     },
     showMpvOsd: (text: string) => showConfiguredPlaybackFeedback(text),
   },
