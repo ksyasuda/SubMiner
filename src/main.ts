@@ -176,12 +176,7 @@ import {
   type ActiveJellyfinRemotePlaybackState,
 } from './main/runtime/domains/jellyfin';
 import {
-  createBuildConfigHotReloadMessageMainDepsHandler,
-  createBuildConfigHotReloadAppliedMainDepsHandler,
-  createBuildConfigHotReloadRuntimeMainDepsHandler,
-  createBuildWatchConfigPathMainDepsHandler,
   createWatchConfigPathHandler,
-  createBuildOverlayVisibilityRuntimeMainDepsHandler,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
   createGetRuntimeOptionsStateHandler,
@@ -420,7 +415,6 @@ import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
 import { dispatchSessionAction as dispatchSessionActionCore } from './core/services/session-actions';
-import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
 import { createMainRuntimeRegistry } from './main/runtime/registry';
 import {
   createEnsureOverlayMpvSubtitlesHiddenHandler,
@@ -2260,67 +2254,64 @@ const subtitlePrefetchRuntime = {
     autoplaySubtitlePrimingRuntime.clearScheduledSubtitlePrefetchRefresh(),
 } as const;
 
-const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
-  createBuildOverlayShortcutsRuntimeMainDepsHandler({
-    getConfiguredShortcuts: () => getConfiguredShortcuts(),
-    getShortcutsRegistered: () => appState.shortcutsRegistered,
-    setShortcutsRegistered: (registered: boolean) => {
-      appState.shortcutsRegistered = registered;
-    },
-    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-    isOverlayShortcutContextActive: () => {
-      if (process.platform !== 'win32') {
-        return true;
-      }
+const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
+  getConfiguredShortcuts: () => getConfiguredShortcuts(),
+  getShortcutsRegistered: () => appState.shortcutsRegistered,
+  setShortcutsRegistered: (registered: boolean) => {
+    appState.shortcutsRegistered = registered;
+  },
+  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+  isOverlayShortcutContextActive: () => {
+    if (process.platform !== 'win32') {
+      return true;
+    }
 
-      if (!overlayManager.getVisibleOverlayVisible()) {
-        return false;
-      }
+    if (!overlayManager.getVisibleOverlayVisible()) {
+      return false;
+    }
 
-      const windowTracker = appState.windowTracker;
-      if (!windowTracker || !windowTracker.isTracking()) {
-        return false;
-      }
+    const windowTracker = appState.windowTracker;
+    if (!windowTracker || !windowTracker.isTracking()) {
+      return false;
+    }
 
-      return windowTracker.isTargetWindowFocused();
-    },
-    showMpvOsd: (text: string) =>
-      overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-    openRuntimeOptionsPalette: () => {
-      openRuntimeOptionsPalette();
-    },
-    openCharacterDictionaryManager: () => {
-      openCharacterDictionaryManagerOverlay();
-    },
-    openJimaku: () => {
-      openJimakuOverlay();
-    },
-    openTsukihime: () => {
-      openTsukihimeOverlay();
-    },
-    markAudioCard: () => markLastCardAsAudioCardHandler(),
-    copySubtitleMultiple: (timeoutMs: number) => {
-      startPendingMultiCopy(timeoutMs);
-    },
-    copySubtitle: () => {
-      copyCurrentSubtitleHandler();
-    },
-    toggleSecondarySubMode: () => cycleSecondarySubMode(),
-    updateLastCardFromClipboard: () => updateLastCardFromClipboardHandler(),
-    triggerFieldGrouping: () => triggerFieldGroupingHandler(),
-    triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
-    mineSentenceCard: () => mineSentenceCardHandler(),
-    mineSentenceMultiple: (timeoutMs: number) => {
-      startPendingMineSentenceMultiple(timeoutMs);
-    },
-    cancelPendingMultiCopy: () => {
-      cancelPendingMultiCopy();
-    },
-    cancelPendingMineSentenceMultiple: () => {
-      cancelPendingMineSentenceMultiple();
-    },
-  })(),
-);
+    return windowTracker.isTargetWindowFocused();
+  },
+  showMpvOsd: (text: string) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
+  openRuntimeOptionsPalette: () => {
+    openRuntimeOptionsPalette();
+  },
+  openCharacterDictionaryManager: () => {
+    openCharacterDictionaryManagerOverlay();
+  },
+  openJimaku: () => {
+    openJimakuOverlay();
+  },
+  openTsukihime: () => {
+    openTsukihimeOverlay();
+  },
+  markAudioCard: () => markLastCardAsAudioCardHandler(),
+  copySubtitleMultiple: (timeoutMs: number) => {
+    startPendingMultiCopy(timeoutMs);
+  },
+  copySubtitle: () => {
+    copyCurrentSubtitleHandler();
+  },
+  toggleSecondarySubMode: () => cycleSecondarySubMode(),
+  updateLastCardFromClipboard: () => updateLastCardFromClipboardHandler(),
+  triggerFieldGrouping: () => triggerFieldGroupingHandler(),
+  triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
+  mineSentenceCard: () => mineSentenceCardHandler(),
+  mineSentenceMultiple: (timeoutMs: number) => {
+    startPendingMineSentenceMultiple(timeoutMs);
+  },
+  cancelPendingMultiCopy: () => {
+    cancelPendingMultiCopy();
+  },
+  cancelPendingMineSentenceMultiple: () => {
+    cancelPendingMineSentenceMultiple();
+  },
+});
 syncOverlayShortcutsForModal = (isActive: boolean): void => {
   if (isActive) {
     overlayShortcutsRuntime.unregisterOverlayShortcuts();
@@ -2329,106 +2320,89 @@ syncOverlayShortcutsForModal = (isActive: boolean): void => {
   }
 };
 
-const buildConfigHotReloadMessageMainDepsHandler = createBuildConfigHotReloadMessageMainDepsHandler(
-  {
-    getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
-    showMpvOsd: (message) => showMpvOsd(message),
-    showOverlayNotification: (payload) =>
-      overlayNotificationsRuntime.showOverlayNotification(payload),
-    showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-  },
-);
-const configHotReloadMessageMainDeps = buildConfigHotReloadMessageMainDepsHandler();
-const notifyConfigHotReloadMessage = createConfigHotReloadMessageHandler(
-  configHotReloadMessageMainDeps,
-);
-const buildWatchConfigPathMainDepsHandler = createBuildWatchConfigPathMainDepsHandler({
+const notifyConfigHotReloadMessage = createConfigHotReloadMessageHandler({
+  getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
+  showMpvOsd: (message) => showMpvOsd(message),
+  showOverlayNotification: (payload) =>
+    overlayNotificationsRuntime.showOverlayNotification(payload),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+});
+const watchConfigPathHandler = createWatchConfigPathHandler({
   fileExists: (targetPath) => fs.existsSync(targetPath),
   dirname: (targetPath) => path.dirname(targetPath),
   watchPath: (targetPath, listener) => fs.watch(targetPath, listener),
 });
-const watchConfigPathHandler = createWatchConfigPathHandler(buildWatchConfigPathMainDepsHandler());
-const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadAppliedMainDepsHandler(
-  {
-    setKeybindings: (keybindings) => {
-      appState.keybindings = keybindings;
-    },
-    setSessionBindings: (sessionBindings, sessionBindingWarnings) => {
-      persistSessionBindings(sessionBindings, sessionBindingWarnings);
-    },
-    refreshGlobalAndOverlayShortcuts: () => {
-      refreshGlobalAndOverlayShortcuts();
-    },
-    setSecondarySubMode: (mode) => {
-      setSecondarySubMode(mode);
-    },
-    broadcastToOverlayWindows: (channel, payload) => {
-      overlayManager.broadcastToOverlayWindows(channel, payload);
-    },
-    applyAnkiRuntimeConfigPatch: (patch) => {
-      if (appState.ankiIntegration) {
-        appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-      }
-      if (activeDictionaryBackend === 'hachidori' && appState.yomitanExt) {
-        void syncYomitanDefaultProfileAnkiServer().catch((error: unknown) =>
-          logger.error('Failed to auto-populate Hachidori Anki settings', error),
-        );
-      }
-    },
-    invalidateTokenizationCache: () => {
-      subtitleProcessingController.invalidateTokenizationCache();
-    },
-    refreshSubtitlePrefetch: () => {
-      subtitlePrefetchService?.onSeek(lastObservedTimePos);
-    },
-    refreshCurrentSubtitle: () => {
-      subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-    },
-    setLogLevel: (level) => {
-      setLogLevel(level, 'config');
-    },
-    setLogRotation: (rotation) => {
-      setLogRotation(rotation);
-    },
-    setLogFileToggles: (files) => {
-      setLogFileToggles(files);
-    },
-    applyAniSkipConfig: () => {
-      aniSkipRuntime.applyConfigChange();
-    },
+const applyConfigHotReloadDiff = createConfigHotReloadAppliedHandler({
+  setKeybindings: (keybindings) => {
+    appState.keybindings = keybindings;
   },
-);
-const applyConfigHotReloadDiff = createConfigHotReloadAppliedHandler(
-  buildConfigHotReloadAppliedMainDepsHandler(),
-);
-const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRuntimeMainDepsHandler(
-  {
-    getCurrentConfig: () => configService.getConfig(),
-    reloadConfigStrict: () => configService.reloadConfigStrict(),
-    watchConfigPath: (configPath, onChange) => watchConfigPathHandler(configPath, onChange),
-    setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
-    clearTimeout: (timeout) => clearTimeout(timeout),
-    debounceMs: 250,
-    onHotReloadApplied: applyConfigHotReloadDiff,
-    onRestartRequired: (fields) =>
-      notifyConfigHotReloadMessage(buildRestartRequiredConfigMessage(fields)),
-    onInvalidConfig: notifyConfigHotReloadMessage,
-    onValidationWarnings: (configPath, warnings) => {
-      showDesktopNotification('SubMiner', {
-        body: buildConfigWarningNotificationBody(configPath, warnings),
-      });
-      if (process.platform === 'darwin') {
-        dialog.showErrorBox(
-          'SubMiner config validation warning',
-          buildConfigWarningDialogDetails(configPath, warnings),
-        );
-      }
-    },
+  setSessionBindings: (sessionBindings, sessionBindingWarnings) => {
+    persistSessionBindings(sessionBindings, sessionBindingWarnings);
   },
-);
-const configHotReloadRuntime = createConfigHotReloadRuntime(
-  buildConfigHotReloadRuntimeMainDepsHandler(),
-);
+  refreshGlobalAndOverlayShortcuts: () => {
+    refreshGlobalAndOverlayShortcuts();
+  },
+  setSecondarySubMode: (mode) => {
+    setSecondarySubMode(mode);
+  },
+  broadcastToOverlayWindows: (channel, payload) => {
+    overlayManager.broadcastToOverlayWindows(channel, payload);
+  },
+  applyAnkiRuntimeConfigPatch: (patch) => {
+    if (appState.ankiIntegration) {
+      appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+    }
+    if (activeDictionaryBackend === 'hachidori' && appState.yomitanExt) {
+      void syncYomitanDefaultProfileAnkiServer().catch((error: unknown) =>
+        logger.error('Failed to auto-populate Hachidori Anki settings', error),
+      );
+    }
+  },
+  invalidateTokenizationCache: () => {
+    subtitleProcessingController.invalidateTokenizationCache();
+  },
+  refreshSubtitlePrefetch: () => {
+    subtitlePrefetchService?.onSeek(lastObservedTimePos);
+  },
+  refreshCurrentSubtitle: () => {
+    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+  },
+  setLogLevel: (level) => {
+    setLogLevel(level, 'config');
+  },
+  setLogRotation: (rotation) => {
+    setLogRotation(rotation);
+  },
+  setLogFileToggles: (files) => {
+    setLogFileToggles(files);
+  },
+  applyAniSkipConfig: () => {
+    aniSkipRuntime.applyConfigChange();
+  },
+});
+const configHotReloadRuntime = createConfigHotReloadRuntime({
+  getCurrentConfig: () => configService.getConfig(),
+  reloadConfigStrict: () => configService.reloadConfigStrict(),
+  watchConfigPath: (configPath, onChange) => watchConfigPathHandler(configPath, onChange),
+  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearTimeout: (timeout) => clearTimeout(timeout),
+  debounceMs: 250,
+  onHotReloadApplied: applyConfigHotReloadDiff,
+  onRestartRequired: (fields) =>
+    notifyConfigHotReloadMessage(buildRestartRequiredConfigMessage(fields)),
+  onInvalidConfig: notifyConfigHotReloadMessage,
+  onValidationWarnings: (configPath, warnings) => {
+    showDesktopNotification('SubMiner', {
+      body: buildConfigWarningNotificationBody(configPath, warnings),
+    });
+    if (process.platform === 'darwin') {
+      dialog.showErrorBox(
+        'SubMiner config validation warning',
+        buildConfigWarningDialogDetails(configPath, warnings),
+      );
+    }
+  },
+});
 
 async function getCurrentYomitanAnkiDeckNameForRuntime(): Promise<string> {
   await yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
@@ -2816,66 +2790,64 @@ const characterNameCandidateLookup = createCharacterNameCandidateLookup({
   getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
 });
 
-const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
-  createBuildOverlayVisibilityRuntimeMainDepsHandler({
-    getMainWindow: () => overlayManager.getMainWindow(),
-    getModalActive: () => overlayModalInputState.getModalInputExclusive(),
-    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    getForceMousePassthrough: () => appState.statsOverlayVisible,
-    getNonNativeInputRegionActive: () =>
-      process.platform === 'linux' &&
-      visibleOverlayInteractionRuntime.getLinuxOverlayInputShapeActive(),
-    getSuspendVisibleOverlay: () => appState.statsOverlayVisible,
-    getOverlayInteractionActive: () =>
-      visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive(),
-    getWindowTracker: () => appState.windowTracker,
-    getMacOSForegroundProbeActive: () =>
-      visibleOverlayInteractionRuntime.getMacOSVisibleOverlayForegroundProbeActive(),
-    getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
-    setTrackerNotReadyWarningShown: (shown: boolean) => {
-      appState.trackerNotReadyWarningShown = shown;
-    },
-    updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
-      overlayGeometryRuntime.updateVisibleOverlayBounds(geometry),
-    ensureOverlayWindowLevel: (window) => {
-      overlayGeometryRuntime.ensureOverlayWindowLevel(window);
-    },
-    syncWindowsOverlayToMpvZOrder: (_window) => {
-      visibleOverlayInteractionRuntime.requestWindowsVisibleOverlayZOrderSync();
-    },
-    syncPrimaryOverlayWindowLayer: (layer) => {
-      overlayGeometryRuntime.syncPrimaryOverlayWindowLayer(layer);
-    },
-    enforceOverlayLayerOrder: () => {
-      overlayGeometryRuntime.enforceOverlayLayerOrder();
-    },
-    syncOverlayShortcuts: () => {
-      overlayShortcutsRuntime.syncOverlayShortcuts();
-    },
-    isMacOSPlatform: () => process.platform === 'darwin',
-    isWindowsPlatform: () => process.platform === 'win32',
-    showOverlayLoadingOsd: (_message: string) => {
-      overlayNotificationsRuntime.showOverlayLoadingStatusNotification();
-    },
-    dismissOverlayLoadingOsd: () => {
-      overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
-    },
-    hideNonNativeOverlayWhenTargetUnfocused: () =>
-      shouldRunLinuxOverlayZOrderKeepAlive() &&
-      linuxOverlayModeRuntime.mode === 'fullscreen-override',
-    resolveFallbackBounds: () => {
-      const cursorPoint = screen.getCursorScreenPoint();
-      const display = screen.getDisplayNearestPoint(cursorPoint);
-      const fallbackBounds = display.workArea;
-      return {
-        x: fallbackBounds.x,
-        y: fallbackBounds.y,
-        width: fallbackBounds.width,
-        height: fallbackBounds.height,
-      };
-    },
-  })(),
-);
+const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService({
+  getMainWindow: () => overlayManager.getMainWindow(),
+  getModalActive: () => overlayModalInputState.getModalInputExclusive(),
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  getForceMousePassthrough: () => appState.statsOverlayVisible,
+  getNonNativeInputRegionActive: () =>
+    process.platform === 'linux' &&
+    visibleOverlayInteractionRuntime.getLinuxOverlayInputShapeActive(),
+  getSuspendVisibleOverlay: () => appState.statsOverlayVisible,
+  getOverlayInteractionActive: () =>
+    visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive(),
+  getWindowTracker: () => appState.windowTracker,
+  getMacOSForegroundProbeActive: () =>
+    visibleOverlayInteractionRuntime.getMacOSVisibleOverlayForegroundProbeActive(),
+  getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
+  setTrackerNotReadyWarningShown: (shown: boolean) => {
+    appState.trackerNotReadyWarningShown = shown;
+  },
+  updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
+    overlayGeometryRuntime.updateVisibleOverlayBounds(geometry),
+  ensureOverlayWindowLevel: (window) => {
+    overlayGeometryRuntime.ensureOverlayWindowLevel(window);
+  },
+  syncWindowsOverlayToMpvZOrder: (_window) => {
+    visibleOverlayInteractionRuntime.requestWindowsVisibleOverlayZOrderSync();
+  },
+  syncPrimaryOverlayWindowLayer: (layer) => {
+    overlayGeometryRuntime.syncPrimaryOverlayWindowLayer(layer);
+  },
+  enforceOverlayLayerOrder: () => {
+    overlayGeometryRuntime.enforceOverlayLayerOrder();
+  },
+  syncOverlayShortcuts: () => {
+    overlayShortcutsRuntime.syncOverlayShortcuts();
+  },
+  isMacOSPlatform: () => process.platform === 'darwin',
+  isWindowsPlatform: () => process.platform === 'win32',
+  showOverlayLoadingOsd: (_message: string) => {
+    overlayNotificationsRuntime.showOverlayLoadingStatusNotification();
+  },
+  dismissOverlayLoadingOsd: () => {
+    overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
+  },
+  hideNonNativeOverlayWhenTargetUnfocused: () =>
+    shouldRunLinuxOverlayZOrderKeepAlive() &&
+    linuxOverlayModeRuntime.mode === 'fullscreen-override',
+  resolveFallbackBounds: () => {
+    const cursorPoint = screen.getCursorScreenPoint();
+    const display = screen.getDisplayNearestPoint(cursorPoint);
+    const fallbackBounds = display.workArea;
+    return {
+      x: fallbackBounds.x,
+      y: fallbackBounds.y,
+      width: fallbackBounds.width,
+      height: fallbackBounds.height,
+    };
+  },
+});
 
 const visibleOverlayInteractionRuntime = createVisibleOverlayInteractionRuntime({
   overlayManager: {

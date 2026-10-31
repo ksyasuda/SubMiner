@@ -1,11 +1,8 @@
-import { createBuildStartupBootstrapRuntimeFactoryDepsHandler } from './startup-bootstrap-deps-builder';
 import type { AppLifecycleRuntimeRunnerParams } from '../startup-lifecycle';
+import type { StartupBootstrapRuntimeFactoryDeps } from '../startup';
 import { createBuildStartupBootstrapMainDepsHandler } from './startup-bootstrap-main-deps';
 
 type StartupBootstrapMainDeps = Parameters<typeof createBuildStartupBootstrapMainDepsHandler>[0];
-type StartupBootstrapRuntimeFactoryDeps = Parameters<
-  typeof createBuildStartupBootstrapRuntimeFactoryDepsHandler
->[0];
 
 export function createStartupRuntimeHandlers<
   TCliArgs,
@@ -29,11 +26,9 @@ export function createStartupRuntimeHandlers<
     deps.appLifecycleRuntimeRunnerMainDeps,
   );
 
-  const startupBootstrapMainDeps = createBuildStartupBootstrapMainDepsHandler(
+  const startupBootstrapRuntimeFactoryDeps = createBuildStartupBootstrapMainDepsHandler(
     deps.buildStartupBootstrapMainDeps(appLifecycleRuntimeRunner),
   )();
-  const startupBootstrapRuntimeFactoryDeps =
-    createBuildStartupBootstrapRuntimeFactoryDepsHandler(startupBootstrapMainDeps)();
 
   const runAndApplyStartupState = (): TStartupState => {
     const startupState = deps.runStartupBootstrapRuntime(

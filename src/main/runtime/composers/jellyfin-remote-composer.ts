@@ -1,15 +1,14 @@
 import {
-  createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler,
-  createBuildHandleJellyfinRemotePlayMainDepsHandler,
-  createBuildHandleJellyfinRemotePlaystateMainDepsHandler,
-  createBuildReportJellyfinRemoteProgressMainDepsHandler,
-  createBuildReportJellyfinRemoteStoppedMainDepsHandler,
   createHandleJellyfinRemoteGeneralCommand,
   createHandleJellyfinRemotePlay,
   createHandleJellyfinRemotePlaystate,
   createJellyfinRemoteReportTracker,
   createReportJellyfinRemoteProgressHandler,
   createReportJellyfinRemoteStoppedHandler,
+  type JellyfinRemoteGeneralCommandHandlerDeps,
+  type JellyfinRemotePlayHandlerDeps,
+  type JellyfinRemotePlaystateHandlerDeps,
+  type JellyfinRemoteProgressReporterDeps,
 } from '../domains/jellyfin';
 import type { ComposerInputs, ComposerOutputs } from './contracts';
 
@@ -18,44 +17,24 @@ type RemotePlaystatePayload = Parameters<ReturnType<typeof createHandleJellyfinR
 type RemoteGeneralPayload = Parameters<
   ReturnType<typeof createHandleJellyfinRemoteGeneralCommand>
 >[0];
-type JellyfinRemotePlayMainDeps = Parameters<
-  typeof createBuildHandleJellyfinRemotePlayMainDepsHandler
->[0];
-type JellyfinRemotePlaystateMainDeps = Parameters<
-  typeof createBuildHandleJellyfinRemotePlaystateMainDepsHandler
->[0];
-type JellyfinRemoteGeneralMainDeps = Parameters<
-  typeof createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler
->[0];
-type JellyfinRemoteProgressMainDeps = Parameters<
-  typeof createBuildReportJellyfinRemoteProgressMainDepsHandler
->[0];
 
 export type JellyfinRemoteComposerOptions = ComposerInputs<{
-  getConfiguredSession: JellyfinRemotePlayMainDeps['getConfiguredSession'];
-  getClientInfo: JellyfinRemotePlayMainDeps['getClientInfo'];
-  getJellyfinConfig: JellyfinRemotePlayMainDeps['getJellyfinConfig'];
-  playJellyfinItem: JellyfinRemotePlayMainDeps['playJellyfinItem'];
-  logWarn: JellyfinRemotePlayMainDeps['logWarn'];
-  getMpvClient: JellyfinRemoteProgressMainDeps['getMpvClient'];
-  sendMpvCommand: JellyfinRemotePlaystateMainDeps['sendMpvCommand'];
-  jellyfinTicksToSeconds: Parameters<
-    typeof createBuildHandleJellyfinRemotePlaystateMainDepsHandler
-  >[0]['jellyfinTicksToSeconds'];
-  getActivePlayback: JellyfinRemoteGeneralMainDeps['getActivePlayback'];
-  clearActivePlayback: JellyfinRemoteProgressMainDeps['clearActivePlayback'];
-  getNow: JellyfinRemoteProgressMainDeps['getNow'];
-  getLastProgressAtMs: Parameters<
-    typeof createBuildReportJellyfinRemoteProgressMainDepsHandler
-  >[0]['getLastProgressAtMs'];
-  setLastProgressAtMs: Parameters<
-    typeof createBuildReportJellyfinRemoteProgressMainDepsHandler
-  >[0]['setLastProgressAtMs'];
+  getConfiguredSession: JellyfinRemotePlayHandlerDeps['getConfiguredSession'];
+  getClientInfo: JellyfinRemotePlayHandlerDeps['getClientInfo'];
+  getJellyfinConfig: JellyfinRemotePlayHandlerDeps['getJellyfinConfig'];
+  playJellyfinItem: JellyfinRemotePlayHandlerDeps['playJellyfinItem'];
+  logWarn: JellyfinRemotePlayHandlerDeps['logWarn'];
+  getMpvClient: JellyfinRemoteProgressReporterDeps['getMpvClient'];
+  sendMpvCommand: JellyfinRemotePlaystateHandlerDeps['sendMpvCommand'];
+  jellyfinTicksToSeconds: JellyfinRemotePlaystateHandlerDeps['jellyfinTicksToSeconds'];
+  getActivePlayback: JellyfinRemoteGeneralCommandHandlerDeps['getActivePlayback'];
+  clearActivePlayback: JellyfinRemoteProgressReporterDeps['clearActivePlayback'];
+  getNow: JellyfinRemoteProgressReporterDeps['getNow'];
+  getLastProgressAtMs: JellyfinRemoteProgressReporterDeps['getLastProgressAtMs'];
+  setLastProgressAtMs: JellyfinRemoteProgressReporterDeps['setLastProgressAtMs'];
   progressIntervalMs: number;
   ticksPerSecond: number;
-  logDebug: Parameters<
-    typeof createBuildReportJellyfinRemoteProgressMainDepsHandler
-  >[0]['logDebug'];
+  logDebug: JellyfinRemoteProgressReporterDeps['logDebug'];
 }>;
 
 export type JellyfinRemoteComposerResult = ComposerOutputs<{
@@ -69,75 +48,54 @@ export type JellyfinRemoteComposerResult = ComposerOutputs<{
 export function composeJellyfinRemoteHandlers(
   options: JellyfinRemoteComposerOptions,
 ): JellyfinRemoteComposerResult {
-  const buildReportJellyfinRemoteProgressMainDepsHandler =
-    createBuildReportJellyfinRemoteProgressMainDepsHandler({
-      getActivePlayback: options.getActivePlayback,
-      clearActivePlayback: options.clearActivePlayback,
-      getMpvClient: options.getMpvClient,
-      getNow: options.getNow,
-      getLastProgressAtMs: options.getLastProgressAtMs,
-      setLastProgressAtMs: options.setLastProgressAtMs,
-      progressIntervalMs: options.progressIntervalMs,
-      ticksPerSecond: options.ticksPerSecond,
-      logDebug: options.logDebug,
-    });
-  const buildReportJellyfinRemoteStoppedMainDepsHandler =
-    createBuildReportJellyfinRemoteStoppedMainDepsHandler({
-      getActivePlayback: options.getActivePlayback,
-      clearActivePlayback: options.clearActivePlayback,
-      getMpvClient: options.getMpvClient,
-      getNow: options.getNow,
-      ticksPerSecond: options.ticksPerSecond,
-      logDebug: options.logDebug,
-      logWarn: options.logWarn,
-    });
   const reportTracker = createJellyfinRemoteReportTracker();
   const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler({
-    ...buildReportJellyfinRemoteProgressMainDepsHandler(),
+    getActivePlayback: options.getActivePlayback,
+    clearActivePlayback: options.clearActivePlayback,
+    getMpvClient: options.getMpvClient,
+    getNow: options.getNow,
+    getLastProgressAtMs: options.getLastProgressAtMs,
+    setLastProgressAtMs: options.setLastProgressAtMs,
+    progressIntervalMs: options.progressIntervalMs,
+    ticksPerSecond: options.ticksPerSecond,
+    logDebug: options.logDebug,
     reportTracker,
   });
   const reportJellyfinRemoteStopped = createReportJellyfinRemoteStoppedHandler({
-    ...buildReportJellyfinRemoteStoppedMainDepsHandler(),
+    getActivePlayback: options.getActivePlayback,
+    clearActivePlayback: options.clearActivePlayback,
+    getMpvClient: options.getMpvClient,
+    getNow: options.getNow,
+    ticksPerSecond: options.ticksPerSecond,
+    logDebug: options.logDebug,
+    logWarn: options.logWarn,
     reportTracker,
   });
 
-  const buildHandleJellyfinRemotePlayMainDepsHandler =
-    createBuildHandleJellyfinRemotePlayMainDepsHandler({
+  return {
+    reportJellyfinRemoteProgress,
+    reportJellyfinRemoteStopped,
+    handleJellyfinRemotePlay: createHandleJellyfinRemotePlay({
       getConfiguredSession: options.getConfiguredSession,
       getClientInfo: options.getClientInfo,
       getJellyfinConfig: options.getJellyfinConfig,
       getActivePlayback: options.getActivePlayback,
       playJellyfinItem: options.playJellyfinItem,
       logWarn: options.logWarn,
-    });
-  const buildHandleJellyfinRemotePlaystateMainDepsHandler =
-    createBuildHandleJellyfinRemotePlaystateMainDepsHandler({
+    }),
+    handleJellyfinRemotePlaystate: createHandleJellyfinRemotePlaystate({
       getMpvClient: options.getMpvClient,
       sendMpvCommand: options.sendMpvCommand,
       reportJellyfinRemoteProgress: (force) => reportJellyfinRemoteProgress(force),
       reportJellyfinRemoteStopped: () => reportJellyfinRemoteStopped(),
       jellyfinTicksToSeconds: options.jellyfinTicksToSeconds,
-    });
-  const buildHandleJellyfinRemoteGeneralCommandMainDepsHandler =
-    createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler({
+    }),
+    handleJellyfinRemoteGeneralCommand: createHandleJellyfinRemoteGeneralCommand({
       getMpvClient: options.getMpvClient,
       sendMpvCommand: options.sendMpvCommand,
       getActivePlayback: options.getActivePlayback,
       reportJellyfinRemoteProgress: (force) => reportJellyfinRemoteProgress(force),
       logDebug: (message) => options.logDebug(message, undefined),
-    });
-
-  return {
-    reportJellyfinRemoteProgress,
-    reportJellyfinRemoteStopped,
-    handleJellyfinRemotePlay: createHandleJellyfinRemotePlay(
-      buildHandleJellyfinRemotePlayMainDepsHandler(),
-    ),
-    handleJellyfinRemotePlaystate: createHandleJellyfinRemotePlaystate(
-      buildHandleJellyfinRemotePlaystateMainDepsHandler(),
-    ),
-    handleJellyfinRemoteGeneralCommand: createHandleJellyfinRemoteGeneralCommand(
-      buildHandleJellyfinRemoteGeneralCommandMainDepsHandler(),
-    ),
+    }),
   };
 }
