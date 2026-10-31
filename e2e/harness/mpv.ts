@@ -19,15 +19,19 @@ export async function startMpv(options: {
   socketPath: string;
   mediaPath: string;
   subtitlePath: string;
+  /** mpv's own verbose log (`--log-file`); `--no-terminal` silences its console output. */
   logPath: string;
+  /** Process stdout/stderr, which still catches crash output from mpv's libraries. */
+  stdioLogPath: string;
   display: E2eDisplay;
 }): Promise<ChildProcess> {
-  const log = fs.openSync(options.logPath, 'w');
+  const log = fs.openSync(options.stdioLogPath, 'w');
   const child = spawn(
     'mpv',
     [
       '--no-config',
       '--no-terminal',
+      `--log-file=${options.logPath}`,
       '--pause',
       '--keep-open=yes',
       '--ao=null',
@@ -58,13 +62,31 @@ function tryConnect(socketPath: string): Promise<net.Socket | null> {
   });
 }
 
-export async function connectMpv(socketPath: string): Promise<MpvClient> {
+/**
+ * Connects to mpv's JSON IPC socket. Once the socket closes (mpv exited or
+ * crashed), pending and later commands reject instead of hanging until the test
+ * timeout; `describeClose` adds context such as mpv's exit status.
+ */
+export async function connectMpv(
+  socketPath: string,
+  describeClose: () => string = () => 'mpv IPC connection closed',
+): Promise<MpvClient> {
   const socket = await waitUntil(() => tryConnect(socketPath), {
     description: `mpv IPC socket ${socketPath}`,
   });
   const pending = new Map<number, (reply: MpvReply) => void>();
   let nextRequestId = 1;
   let buffer = '';
+  let closedError: Error | null = null;
+
+  const failPending = () => {
+    closedError ??= new Error(describeClose());
+    for (const settle of pending.values()) settle({ error: closedError.message });
+    pending.clear();
+  };
+  socket.on('close', failPending);
+  // 'close' always follows 'error'; listening here keeps the error from being thrown.
+  socket.on('error', () => {});
 
   socket.setEncoding('utf8');
   socket.on('data', (chunk: string) => {
@@ -83,6 +105,10 @@ export async function connectMpv(socketPath: string): Promise<MpvClient> {
   return {
     command: (...args) =>
       new Promise((resolve, reject) => {
+        if (closedError) {
+          reject(new Error(`mpv ${JSON.stringify(args)} failed: ${closedError.message}`));
+          return;
+        }
         const requestId = nextRequestId++;
         pending.set(requestId, (reply) => {
           if (reply.error === 'success') resolve(reply.data);
