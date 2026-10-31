@@ -956,7 +956,8 @@ test('keyboard mode: C switches between moving by word and by character', async 
     assert.equal(ctx.state.keyboardCharacterNavigation, true);
     assert.equal(ctx.dom.subtitleRoot.classList.contains('keyboard-character-navigation'), true);
     assert.equal(wordNodes()[0]!.classList.contains('keyboard-selected'), false);
-    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['show-text', 'Move by character', '1500']);
+    // The box colour is the only sign: no message on screen.
+    assert.deepEqual(testGlobals.mpvCommands, []);
     assert.equal(characterCursorLog.at(-1), 'paint:0:0');
     // Marking the character edits the subtitle, which the subtitle observer answers with
     // another sync: its own edits must be dropped, or the two loop forever.
@@ -976,7 +977,7 @@ test('keyboard mode: C switches between moving by word and by character', async 
     assert.equal(ctx.state.keyboardCharacterNavigation, false);
     assert.equal(wordNodes()[0]!.classList.contains('keyboard-selected'), true);
     assert.equal(ctx.dom.subtitleRoot.classList.contains('keyboard-character-navigation'), false);
-    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['show-text', 'Move by word', '1500']);
+    assert.deepEqual(testGlobals.mpvCommands, []);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();

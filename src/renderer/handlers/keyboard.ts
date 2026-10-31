@@ -765,16 +765,10 @@ export function createKeyboardHandlers(
    */
   function toggleCharacterNavigation(): boolean {
     if (!ctx.state.keyboardDrivenModeEnabled) return false;
-    const enabled = !ctx.state.keyboardCharacterNavigation;
-    ctx.state.keyboardCharacterNavigation = enabled;
+    ctx.state.keyboardCharacterNavigation = !ctx.state.keyboardCharacterNavigation;
     ctx.state.keyboardSelectedCharIndex = 0;
     ctx.state.keyboardSelectionVisible = true;
     syncKeyboardTokenSelection();
-    window.electronAPI.sendMpvCommand([
-      'show-text',
-      enabled ? 'Move by character' : 'Move by word',
-      '1500',
-    ]);
     if (isLookupPopupOpen(ctx.state, document)) triggerLookupForSelectedWord();
     return true;
   }
