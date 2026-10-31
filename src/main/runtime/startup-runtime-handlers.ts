@@ -1,10 +1,7 @@
 import { createBuildStartupBootstrapRuntimeFactoryDepsHandler } from './startup-bootstrap-deps-builder';
-import { createBuildAppLifecycleRuntimeRunnerMainDepsHandler } from './startup-lifecycle-main-deps';
+import type { AppLifecycleRuntimeRunnerParams } from '../startup-lifecycle';
 import { createBuildStartupBootstrapMainDepsHandler } from './startup-bootstrap-main-deps';
 
-type AppLifecycleRuntimeRunnerMainDeps = Parameters<
-  typeof createBuildAppLifecycleRuntimeRunnerMainDepsHandler
->[0];
 type StartupBootstrapMainDeps = Parameters<typeof createBuildStartupBootstrapMainDepsHandler>[0];
 type StartupBootstrapRuntimeFactoryDeps = Parameters<
   typeof createBuildStartupBootstrapRuntimeFactoryDepsHandler
@@ -15,9 +12,9 @@ export function createStartupRuntimeHandlers<
   TStartupState,
   TStartupBootstrapRuntimeDeps = unknown,
 >(deps: {
-  appLifecycleRuntimeRunnerMainDeps: AppLifecycleRuntimeRunnerMainDeps;
+  appLifecycleRuntimeRunnerMainDeps: AppLifecycleRuntimeRunnerParams;
   createAppLifecycleRuntimeRunner: (
-    params: AppLifecycleRuntimeRunnerMainDeps,
+    params: AppLifecycleRuntimeRunnerParams,
   ) => (args: TCliArgs) => void;
   buildStartupBootstrapMainDeps: (
     startAppLifecycle: (args: TCliArgs) => void,
@@ -28,11 +25,8 @@ export function createStartupRuntimeHandlers<
   runStartupBootstrapRuntime: (deps: TStartupBootstrapRuntimeDeps) => TStartupState;
   applyStartupState: (startupState: TStartupState) => void;
 }) {
-  const appLifecycleRuntimeRunnerMainDeps = createBuildAppLifecycleRuntimeRunnerMainDepsHandler(
-    deps.appLifecycleRuntimeRunnerMainDeps,
-  )();
   const appLifecycleRuntimeRunner = deps.createAppLifecycleRuntimeRunner(
-    appLifecycleRuntimeRunnerMainDeps,
+    deps.appLifecycleRuntimeRunnerMainDeps,
   );
 
   const startupBootstrapMainDeps = createBuildStartupBootstrapMainDepsHandler(

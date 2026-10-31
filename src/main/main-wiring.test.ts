@@ -425,25 +425,6 @@ test('subtitle annotation updates invalidate prefetched tokenizations before ref
   );
 });
 
-test('subtitle processing controller resumes prefetch on settle, not on its emits', () => {
-  const source = readMainSource();
-  const depsBlock = source.match(
-    /createBuildSubtitleProcessingControllerMainDepsHandler\(\{(?<body>[\s\S]*?)\n  \}\);/,
-  )?.groups?.body;
-
-  assert.ok(depsBlock);
-  // A controller emit can be the provisional plain payload sent before the
-  // scan runs, so it must not release the prefetch pause.
-  assert.match(
-    depsBlock,
-    /emitSubtitle: \(payload\) => emitSubtitlePayload\(payload, \{ resumePrefetch: false \}\),/,
-  );
-  assert.match(
-    depsBlock,
-    /onProcessingSettled: \(\) => \{\s+subtitlePrefetchService\?\.resume\(\);/,
-  );
-});
-
 test('annotation upgrades skip the duplicate basic websocket event', () => {
   const source = readMainSource();
   const emitBlock = source.match(

@@ -201,12 +201,6 @@ import {
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/domains/overlay';
 import {
-  createBuildAnilistStateRuntimeMainDepsHandler,
-  createBuildConfigDerivedRuntimeMainDepsHandler,
-  createBuildImmersionMediaRuntimeMainDepsHandler,
-  createBuildMainSubsyncRuntimeMainDepsHandler,
-  createBuildSubtitleProcessingControllerMainDepsHandler,
-  createBuildMediaRuntimeMainDepsHandler,
   createBuildDictionaryRootsMainHandler,
   createBuildFrequencyDictionaryRootsMainHandler,
   createBuildFrequencyDictionaryRuntimeMainDepsHandler,
@@ -265,7 +259,6 @@ import {
   createOverlayContentMeasurementStore,
   createOverlayManager,
   createOverlayWindow as createOverlayWindowCore,
-  createSubtitleProcessingController,
   createTokenizerDepsRuntime,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
   deleteYomitanDictionaryByTitle,
@@ -503,6 +496,7 @@ import {
   getJlptDictionarySearchPaths,
 } from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
+import { createPrefetchAwareSubtitleProcessingController } from './main/runtime/subtitle-processing-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
@@ -1685,7 +1679,7 @@ function syncOverlayMpvSubtitleSuppression(): void {
   restoreOverlayMpvSubtitles();
 }
 
-const buildImmersionMediaRuntimeMainDepsHandler = createBuildImmersionMediaRuntimeMainDepsHandler({
+const immersionMediaRuntime = createImmersionMediaRuntime({
   getResolvedConfig: () => configService.getConfig(),
   defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
   getTracker: () => appState.immersionTracker,
@@ -1695,7 +1689,23 @@ const buildImmersionMediaRuntimeMainDepsHandler = createBuildImmersionMediaRunti
   logDebug: (message) => logger.debug(message),
   logInfo: (message) => logger.info(message),
 });
-const buildAnilistStateRuntimeMainDepsHandler = createBuildAnilistStateRuntimeMainDepsHandler({
+const anilistRateLimiter = createAnilistRateLimiter();
+const statsCoverArtFetcher = createCoverArtFetcher(
+  anilistRateLimiter,
+  createLogger('main:stats-cover-art'),
+  {
+    liveAction: createLiveActionMetadataResolver(
+      createTmdbClient({
+        resolveApiKey: createTmdbApiKeyResolver(
+          () => configService.getConfig().tmdb,
+          () => bundledTmdbApiKey,
+        ),
+      }),
+      createLogger('main:tmdb'),
+    ),
+  },
+);
+const anilistStateRuntime = createAnilistStateRuntime({
   getClientSecretState: () => appState.anilistClientSecretState,
   setClientSecretState: (next) => {
     appState.anilistClientSecretState = transitionAnilistClientSecretState(
@@ -1716,14 +1726,14 @@ const buildAnilistStateRuntimeMainDepsHandler = createBuildAnilistStateRuntimeMa
     anilistCachedAccessToken = null;
   },
 });
-const buildConfigDerivedRuntimeMainDepsHandler = createBuildConfigDerivedRuntimeMainDepsHandler({
+const configDerivedRuntime = createConfigDerivedRuntime({
   getResolvedConfig: () => configService.getConfig(),
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
   defaultJimakuLanguagePreference: DEFAULT_CONFIG.jimaku.languagePreference,
   defaultJimakuMaxEntryResults: DEFAULT_CONFIG.jimaku.maxEntryResults,
   defaultJimakuApiBaseUrl: DEFAULT_CONFIG.jimaku.apiBaseUrl,
 });
-const buildMainSubsyncRuntimeMainDepsHandler = createBuildMainSubsyncRuntimeMainDepsHandler({
+const subsyncRuntime = createMainSubsyncRuntime({
   getMpvClient: () => appState.mpvClient,
   getResolvedConfig: () => configService.getConfig(),
   getSubsyncInProgress: () => appState.subsyncInProgress,
@@ -1739,28 +1749,6 @@ const buildMainSubsyncRuntimeMainDepsHandler = createBuildMainSubsyncRuntimeMain
     );
   },
 });
-const immersionMediaRuntime = createImmersionMediaRuntime(
-  buildImmersionMediaRuntimeMainDepsHandler(),
-);
-const anilistRateLimiter = createAnilistRateLimiter();
-const statsCoverArtFetcher = createCoverArtFetcher(
-  anilistRateLimiter,
-  createLogger('main:stats-cover-art'),
-  {
-    liveAction: createLiveActionMetadataResolver(
-      createTmdbClient({
-        resolveApiKey: createTmdbApiKeyResolver(
-          () => configService.getConfig().tmdb,
-          () => bundledTmdbApiKey,
-        ),
-      }),
-      createLogger('main:tmdb'),
-    ),
-  },
-);
-const anilistStateRuntime = createAnilistStateRuntime(buildAnilistStateRuntimeMainDepsHandler());
-const configDerivedRuntime = createConfigDerivedRuntime(buildConfigDerivedRuntimeMainDepsHandler());
-const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsHandler());
 const currentMediaTokenizationGate = createCurrentMediaTokenizationGate();
 const startupOsdSequencer = createStartupOsdSequencer({
   getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
@@ -2029,30 +2017,18 @@ function signalCurrentSubtitleAutoplayReady(): void {
     );
   }
 }
-const buildSubtitleProcessingControllerMainDepsHandler =
-  createBuildSubtitleProcessingControllerMainDepsHandler({
-    tokenizeSubtitle: async (text: string) =>
-      tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : { text, tokens: null },
-    // Controller emits never release the prefetch pause: the first emit for an
-    // uncached line is the provisional plain payload, sent before tokenization
-    // starts, so resuming on it would put prefetch back in contention with the
-    // on-screen line for the single parser window.
-    emitSubtitle: (payload) => emitSubtitlePayload(payload, { resumePrefetch: false }),
-    // The pause is released once the controller has no work left, which covers
-    // the runs that end without an emit (suppressed duplicate, failed
-    // tokenization) as well as the ones that deliver a payload.
-    onProcessingSettled: () => {
-      subtitlePrefetchService?.resume();
-    },
-    logDebug: (message) => {
-      logger.debug(`[subtitle-processing] ${message}`);
-    },
-    now: () => Date.now(),
-  });
-const subtitleProcessingControllerMainDeps = buildSubtitleProcessingControllerMainDepsHandler();
-const subtitleProcessingController = createSubtitleProcessingController(
-  subtitleProcessingControllerMainDeps,
-);
+const subtitleProcessingController = createPrefetchAwareSubtitleProcessingController({
+  tokenizeSubtitle: async (text: string) =>
+    tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : { text, tokens: null },
+  emitSubtitlePayload: (payload, options) => emitSubtitlePayload(payload, options),
+  resumePrefetch: () => {
+    subtitlePrefetchService?.resume();
+  },
+  logDebug: (message) => {
+    logger.debug(`[subtitle-processing] ${message}`);
+  },
+  now: () => Date.now(),
+});
 
 let subtitlePrefetchService: SubtitlePrefetchService | null = null;
 let lastObservedTimePos = 0;
@@ -2652,31 +2628,29 @@ const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroup
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
 
-const mediaRuntime = createMediaRuntimeService(
-  createBuildMediaRuntimeMainDepsHandler({
-    isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
-    loadSubtitlePosition: () => loadSubtitlePosition(),
-    getCurrentMediaPath: () => appState.currentMediaPath,
-    getPendingSubtitlePosition: () => appState.pendingSubtitlePosition,
-    getSubtitlePositionsDir: () => SUBTITLE_POSITIONS_DIR,
-    setCurrentMediaPath: (nextPath: string | null) => {
-      appState.currentMediaPath = nextPath;
-    },
-    clearPendingSubtitlePosition: () => {
-      appState.pendingSubtitlePosition = null;
-    },
-    setSubtitlePosition: (position: SubtitlePosition | null) => {
-      appState.subtitlePosition = position;
-    },
-    broadcastToOverlayWindows: (channel, payload) => {
-      overlayManager.broadcastToOverlayWindows(channel, payload);
-    },
-    getCurrentMediaTitle: () => appState.currentMediaTitle,
-    setCurrentMediaTitle: (title) => {
-      appState.currentMediaTitle = title;
-    },
-  })(),
-);
+const mediaRuntime = createMediaRuntimeService({
+  isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
+  loadSubtitlePosition: () => loadSubtitlePosition(),
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getPendingSubtitlePosition: () => appState.pendingSubtitlePosition,
+  getSubtitlePositionsDir: () => SUBTITLE_POSITIONS_DIR,
+  setCurrentMediaPath: (nextPath: string | null) => {
+    appState.currentMediaPath = nextPath;
+  },
+  clearPendingSubtitlePosition: () => {
+    appState.pendingSubtitlePosition = null;
+  },
+  setSubtitlePosition: (position: SubtitlePosition | null) => {
+    appState.subtitlePosition = position;
+  },
+  broadcastSubtitlePosition: (position) => {
+    overlayManager.broadcastToOverlayWindows('subtitle-position:set', position);
+  },
+  getCurrentMediaTitle: () => appState.currentMediaTitle,
+  setCurrentMediaTitle: (title) => {
+    appState.currentMediaTitle = title;
+  },
+});
 
 const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
   userDataPath: USER_DATA_PATH,
