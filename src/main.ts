@@ -395,8 +395,10 @@ import {
   shouldQuitOnWindowAllClosedForTrayState,
 } from './main/runtime/startup-tray-policy';
 import { createLogExportTrayRuntime } from './main/runtime/log-export-tray';
-import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
-import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
+import {
+  createImmersionTrackerStartupHandler,
+  type ImmersionTrackerStartupDeps,
+} from './main/runtime/immersion-startup';
 import {
   createRunStatsCliCommandHandler,
   writeStatsCliCommandResponse,
@@ -4279,9 +4281,7 @@ const resolveLegacyVocabularyPos = async (row: {
   return null;
 };
 
-const immersionTrackerStartupMainDeps: Parameters<
-  typeof createBuildImmersionTrackerStartupMainDepsHandler
->[0] = {
+const immersionTrackerStartupMainDeps: ImmersionTrackerStartupDeps = {
   getResolvedConfig: () => configService.getConfig(),
   getConfiguredDbPath: () => immersionMediaRuntime.getConfiguredDbPath(),
   createTrackerService: (params) =>
@@ -4339,7 +4339,7 @@ const immersionTrackerStartupMainDeps: Parameters<
   logWarn: (message, details) => logger.warn(message, details),
 };
 const createImmersionTrackerStartup = createImmersionTrackerStartupHandler(
-  createBuildImmersionTrackerStartupMainDepsHandler(immersionTrackerStartupMainDeps)(),
+  immersionTrackerStartupMainDeps,
 );
 const recordSubtitleMiningContext = (context: SubtitleMiningContext | null): void => {
   pendingSubtitleMiningContext = context;

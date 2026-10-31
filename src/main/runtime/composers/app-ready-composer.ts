@@ -3,7 +3,6 @@ import {
   type AppReadyRuntimeDepsFactoryInput,
 } from '../../app-lifecycle';
 import { createCriticalConfigErrorHandler, createReloadConfigHandler } from '../startup-config';
-import { createBuildImmersionTrackerStartupMainDepsHandler } from '../immersion-startup-main-deps';
 import { createImmersionTrackerStartupHandler } from '../immersion-startup';
 import type { ComposerInputs, ComposerOutputs } from './contracts';
 
@@ -17,9 +16,7 @@ export type AppReadyComposerOptions = ComposerInputs<{
     AppReadyRuntimeDepsFactoryInput,
     'reloadConfig' | 'onCriticalConfigErrors'
   >;
-  immersionTrackerStartupMainDeps: Parameters<
-    typeof createBuildImmersionTrackerStartupMainDepsHandler
-  >[0];
+  immersionTrackerStartupMainDeps: Parameters<typeof createImmersionTrackerStartupHandler>[0];
 }>;
 
 export type AppReadyComposerResult = ComposerOutputs<{
@@ -37,11 +34,7 @@ export function composeAppReadyRuntime(options: AppReadyComposerOptions): AppRea
     reloadConfig,
     createImmersionTracker:
       options.appReadyRuntimeMainDeps.createImmersionTracker ??
-      createImmersionTrackerStartupHandler(
-        createBuildImmersionTrackerStartupMainDepsHandler(
-          options.immersionTrackerStartupMainDeps,
-        )(),
-      ),
+      createImmersionTrackerStartupHandler(options.immersionTrackerStartupMainDeps),
     onCriticalConfigErrors: criticalConfigError,
   });
 

@@ -6,7 +6,6 @@ export * from '../config-derived';
 export * from '../dictionary-runtime-main-deps';
 export * from '../immersion-media';
 export * from '../immersion-startup';
-export * from '../immersion-startup-main-deps';
 export * from '../startup-config';
 export * from '../startup-runtime-handlers';
 export * from '../startup-warmups';
