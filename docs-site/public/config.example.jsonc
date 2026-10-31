@@ -169,6 +169,9 @@
       "nextEntry": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
       }, // Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "toggleCharacterNavigation": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that switches keyboard-only mode between moving by word and moving by character, like C. A lookup on a character searches from that character, which reaches words the subtitle split cuts in two. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "previousSubtitle": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
       }, // Controller binding descriptor that jumps to the previous subtitle line, like Shift+H. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.

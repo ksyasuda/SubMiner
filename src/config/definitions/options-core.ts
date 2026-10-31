@@ -83,6 +83,12 @@ export function buildCoreConfigOptionRegistry(
         'Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry.',
     },
     {
+      id: 'toggleCharacterNavigation',
+      defaultValue: defaultConfig.controller.bindings.toggleCharacterNavigation,
+      description:
+        'Controller binding descriptor that switches keyboard-only mode between moving by word and moving by character, like C. A lookup on a character searches from that character, which reaches words the subtitle split cuts in two.',
+    },
+    {
       id: 'previousSubtitle',
       defaultValue: defaultConfig.controller.bindings.previousSubtitle,
       description:

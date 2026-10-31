@@ -24,6 +24,7 @@ const BINDINGS: ResolvedControllerConfig['bindings'] = {
   holdSecondarySub: { kind: 'none' },
   previousEntry: { kind: 'none' },
   nextEntry: { kind: 'none' },
+  toggleCharacterNavigation: { kind: 'none' },
   previousSubtitle: { kind: 'none' },
   nextSubtitle: { kind: 'none' },
   replaySubtitle: { kind: 'none' },
@@ -182,6 +183,7 @@ test('controller config form renders grouped rows with friendly binding labels',
       ['Previous Audio', 'None'],
       ['Next Audio', 'RB / R1'],
       ['Play Current Audio', 'LB / L1'],
+      ['Toggle Character Navigation', 'None'],
       ['Token Move (Stick)', 'Left Stick X'],
       ['Token Move (D-pad)', 'D-pad ↔'],
       ['Popup Scroll (Stick)', 'Left Stick Y'],
@@ -194,7 +196,7 @@ test('controller config form renders grouped rows with friendly binding labels',
   );
   assert.deepEqual(
     findAll(container, 'disabled').map((badge) => badge.textContent),
-    ['None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None'],
+    ['None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None'],
   );
   assert.deepEqual(findAll(container, 'expanded'), []);
   assert.deepEqual(findAll(container, 'controller-config-edit-panel'), []);

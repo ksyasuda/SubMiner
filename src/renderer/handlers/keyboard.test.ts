@@ -152,6 +152,7 @@ function installKeyboardTestGlobals() {
   const openedModalNotifications: string[] = [];
   let selectionClearCount = 0;
   let selectionAddCount = 0;
+  let mutationRecordsTaken = 0;
 
   let popupVisible = false;
   let hachidoriPaneOpen = false;
@@ -311,6 +312,10 @@ function installKeyboardTestGlobals() {
     configurable: true,
     value: class {
       observe() {}
+      takeRecords() {
+        mutationRecordsTaken += 1;
+        return [];
+      }
     },
   });
 
@@ -522,6 +527,7 @@ function installKeyboardTestGlobals() {
     },
     selectionClearCount: () => selectionClearCount,
     selectionAddCount: () => selectionAddCount,
+    mutationRecordsTaken: () => mutationRecordsTaken,
     restore,
   };
 }
@@ -540,8 +546,9 @@ function createKeyboardHandlerHarness() {
 
   // Synthetic pointer/mouse events dispatched on words: the lookup's fallback scan.
   let wordEventCount = 0;
-  const createWordNode = (left: number) => ({
+  const createWordNode = (left: number, textContent = 'ab') => ({
     classList: createClassList(),
+    textContent,
     getBoundingClientRect: () => ({ left, top: 10, width: 30, height: 20 }),
     dispatchEvent: () => {
       wordEventCount += 1;
@@ -549,6 +556,23 @@ function createKeyboardHandlerHarness() {
     },
   });
   let wordNodes = [createWordNode(10), createWordNode(80), createWordNode(150)];
+  // Records the character cursor instead of wrapping text in a real DOM.
+  const characterCursorLog: string[] = [];
+  const characterCursor = {
+    getLength: (word: { textContent: string }) => Array.from(word.textContent).length,
+    paint: (word: unknown, charIndex: number) => {
+      characterCursorLog.push(`paint:${wordNodes.indexOf(word as never)}:${charIndex}`);
+      return {
+        getBoundingClientRect: () => ({ left: 0, top: 10, width: 10, height: 20 }),
+        dispatchEvent: () => true,
+      };
+    },
+    clear: () => false,
+    rangeToEnd: (_marker: unknown, lastWord: unknown) => {
+      characterCursorLog.push(`rangeToEnd:${wordNodes.indexOf(lastWord as never)}`);
+      return {};
+    },
+  };
 
   const ctx = {
     dom: {
@@ -610,12 +634,18 @@ function createKeyboardHandlerHarness() {
       openControllerDebugCount += 1;
     },
     getPlaybackPaused: () => testGlobals.getPlaybackPaused(),
+    characterCursor: characterCursor as never,
   });
 
   return {
     ctx,
     handlers,
     testGlobals,
+    characterCursorLog,
+    setWordTexts: (texts: string[]) => {
+      wordNodes = texts.map((text, index) => createWordNode(10 + index * 70, text));
+    },
+    wordNodes: () => wordNodes,
     mediaTimingReviewKeydownCount: () => mediaTimingReviewKeydownCount,
     controllerSelectKeydownCount: () => controllerSelectKeydownCount,
     openControllerSelectCount: () => openControllerSelectCount,
@@ -907,6 +937,113 @@ test('keyboard mode: left and right move token selection while popup remains ope
       (event) => event.type === 'setVisible' && event.visible === false,
     );
     assert.equal(closeEvents.length, 0);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: C switches between moving by word and by character', async () => {
+  const { ctx, handlers, testGlobals, characterCursorLog, setWordTexts, wordNodes } =
+    createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    setWordTexts(['もっとハ', 'キ', 'ハキ']);
+    handlers.handleKeyboardModeToggleRequested();
+
+    assert.equal(testGlobals.dispatchKeydown({ key: 'c', code: 'KeyC' }), true);
+    assert.equal(ctx.state.keyboardCharacterNavigation, true);
+    assert.equal(ctx.dom.subtitleRoot.classList.contains('keyboard-character-navigation'), true);
+    assert.equal(wordNodes()[0]!.classList.contains('keyboard-selected'), false);
+    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['show-text', 'Move by character', '1500']);
+    assert.equal(characterCursorLog.at(-1), 'paint:0:0');
+    // Marking the character edits the subtitle, which the subtitle observer answers with
+    // another sync: its own edits must be dropped, or the two loop forever.
+    assert.ok(testGlobals.mutationRecordsTaken() > 0);
+
+    // The cursor walks the characters, crossing into the next word at its end.
+    for (let i = 0; i < 4; i += 1) testGlobals.dispatchKeydown({ key: 'l', code: 'KeyL' });
+    assert.deepEqual(
+      [ctx.state.keyboardSelectedWordIndex, ctx.state.keyboardSelectedCharIndex],
+      [1, 0],
+    );
+    testGlobals.dispatchKeydown({ key: 'ArrowLeft', code: 'ArrowLeft' });
+    assert.equal(characterCursorLog.at(-1), 'paint:0:3');
+
+    // Back to words: the box covers the word that holds the character.
+    testGlobals.dispatchKeydown({ key: 'c', code: 'KeyC' });
+    assert.equal(ctx.state.keyboardCharacterNavigation, false);
+    assert.equal(wordNodes()[0]!.classList.contains('keyboard-selected'), true);
+    assert.equal(ctx.dom.subtitleRoot.classList.contains('keyboard-character-navigation'), false);
+    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['show-text', 'Move by word', '1500']);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: character navigation lasts until toggled, even across keyboard mode', async () => {
+  const { ctx, handlers, testGlobals, characterCursorLog } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    testGlobals.dispatchKeydown({ key: 'c', code: 'KeyC' });
+    handlers.handleKeyboardModeToggleRequested();
+    assert.equal(ctx.dom.subtitleRoot.classList.contains('keyboard-character-navigation'), false);
+
+    characterCursorLog.length = 0;
+    handlers.handleKeyboardModeToggleRequested();
+    assert.equal(ctx.state.keyboardCharacterNavigation, true);
+    assert.equal(characterCursorLog.at(-1), 'paint:0:0');
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('C only switches navigation in keyboard mode, without modifiers or a pending chord', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    testGlobals.dispatchKeydown({ key: 'c', code: 'KeyC' });
+    assert.equal(ctx.state.keyboardCharacterNavigation, false, 'outside keyboard mode');
+
+    handlers.handleKeyboardModeToggleRequested();
+    testGlobals.dispatchKeydown({ key: 'C', code: 'KeyC', shiftKey: true });
+    testGlobals.dispatchKeydown({ key: 'c', code: 'KeyC', ctrlKey: true });
+    assert.equal(ctx.state.keyboardCharacterNavigation, false, 'with a modifier');
+
+    // `C` is also the second key of a chord.
+    ctx.state.chordPending = true;
+    testGlobals.dispatchKeydown({ key: 'c', code: 'KeyC' });
+    assert.equal(ctx.state.keyboardCharacterNavigation, false, 'during a chord');
+    assert.equal(ctx.state.chordPending, false);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: a lookup on a character searches from it to the end of the line', async () => {
+  const { ctx, handlers, testGlobals, characterCursorLog, setWordTexts } =
+    createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    setWordTexts(['もっとハ', 'キ', 'ハキ']);
+    handlers.handleKeyboardModeToggleRequested();
+    testGlobals.dispatchKeydown({ key: 'c', code: 'KeyC' });
+    for (let i = 0; i < 3; i += 1) testGlobals.dispatchKeydown({ key: 'l', code: 'KeyL' });
+    const added = testGlobals.selectionAddCount();
+
+    testGlobals.dispatchKeydown({ key: 'y', code: 'KeyY', ctrlKey: true });
+
+    assert.deepEqual(characterCursorLog.slice(-2), ['paint:0:3', 'rangeToEnd:2']);
+    assert.equal(testGlobals.selectionAddCount(), added + 1);
+    assert.equal(testGlobals.commandEvents.at(-1)?.type, 'scanSelectedText');
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();

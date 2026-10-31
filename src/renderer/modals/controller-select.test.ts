@@ -163,6 +163,7 @@ function buildContext() {
       holdSecondarySub: { kind: 'none' },
       previousEntry: { kind: 'none' },
       nextEntry: { kind: 'none' },
+      toggleCharacterNavigation: { kind: 'none' },
       previousSubtitle: { kind: 'none' },
       nextSubtitle: { kind: 'none' },
       replaySubtitle: { kind: 'none' },

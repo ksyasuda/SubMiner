@@ -57,6 +57,8 @@ type GamepadControllerOptions = {
   playCurrentAudio: () => void;
   previousEntry: () => void;
   nextEntry: () => void;
+  /** Switches keyboard-only mode between moving by word and by character. */
+  toggleCharacterNavigation: () => void;
   toggleMpvPause: () => void;
   previousSubtitle: () => void;
   nextSubtitle: () => void;
@@ -419,6 +421,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
       ['playCurrentAudio', config.bindings.playCurrentAudio],
       ['previousEntry', config.bindings.previousEntry],
       ['nextEntry', config.bindings.nextEntry],
+      ['toggleCharacterNavigation', config.bindings.toggleCharacterNavigation],
       ...WATCHING_ACTIONS.map((actionKey) => [actionKey, config.bindings[actionKey]] as const),
     ] as const;
 
@@ -579,6 +582,13 @@ export function createGamepadController(options: GamepadControllerOptions) {
       activeGamepad,
       activeConfig,
       options.quitMpv,
+    );
+    handleActionEdge(
+      'toggleCharacterNavigation',
+      activeConfig.bindings.toggleCharacterNavigation,
+      activeGamepad,
+      activeConfig,
+      options.toggleCharacterNavigation,
     );
 
     const activationThreshold = Math.max(activeConfig.stickDeadzone, 0.55);

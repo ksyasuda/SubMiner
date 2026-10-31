@@ -157,6 +157,13 @@ export const CONTROLLER_BINDING_DEFINITIONS: ControllerBindingDefinition[] = [
     defaultBinding: { kind: 'button', buttonIndex: 4 },
   },
   {
+    id: 'toggleCharacterNavigation',
+    label: 'Toggle Character Navigation',
+    group: 'Navigation',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
+  },
+  {
     id: 'leftStickHorizontal',
     label: 'Token Move',
     group: 'Navigation',

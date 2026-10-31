@@ -166,6 +166,10 @@ export type RendererState = {
   keyboardDrivenModeEnabled: boolean;
   keyboardSelectionVisible: boolean;
   keyboardSelectedWordIndex: number | null;
+  /** Keyboard-only mode moves by character instead of by word; kept until toggled back. */
+  keyboardCharacterNavigation: boolean;
+  /** Character of the selected word that the cursor is on, in character navigation. */
+  keyboardSelectedCharIndex: number;
   yomitanPopupVisible: boolean;
   // Set once Hachidori's attention events identify it as the reader. Its attention
   // also covers presses that may start a selection, so yomitanPopupVisible alone
@@ -309,6 +313,8 @@ export function createRendererState(): RendererState {
     keyboardDrivenModeEnabled: false,
     keyboardSelectionVisible: false,
     keyboardSelectedWordIndex: null,
+    keyboardCharacterNavigation: false,
+    keyboardSelectedCharIndex: 0,
     yomitanPopupVisible: false,
     hachidoriReaderSeen: false,
     isOverYomitanPopup: false,
