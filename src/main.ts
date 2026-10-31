@@ -47,10 +47,7 @@ import { readMpvInputBindings } from './main/runtime/mpv-input-bindings';
 import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
 import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
-import {
-  assertYomitanDictionaryMutationSafe,
-  observeYomitanDictionaryCount,
-} from './main/runtime/yomitan-dictionary-integrity';
+import { observeYomitanDictionaryCount } from './main/runtime/yomitan-dictionary-integrity';
 import { startAppControlServer } from './main/runtime/app-control-server';
 import { createEnsureBackgroundStatsServerHandler } from './main/runtime/background-stats-startup';
 import {
@@ -167,7 +164,6 @@ import {
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/domains/overlay';
 import {
-  createBuildDictionaryRootsHandler,
   createImmersionMediaRuntime,
   createConfigDerivedRuntime,
   appendClipboardVideoToQueueRuntime,
@@ -221,13 +217,11 @@ import {
   createOverlayWindow as createOverlayWindowCore,
   createTokenizerDepsRuntime,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
-  deleteYomitanDictionaryByTitle,
   destroyYomitanSettingsWindow,
   getYomitanDictionaryInfo,
   handleMineSentenceDigit as handleMineSentenceDigitCore,
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
-  importYomitanDictionaryFromZip,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
   isSubtitleAnnotationUpgrade,
   isOverlayWindowContentReady,
@@ -254,7 +248,6 @@ import {
   tokenizeSubtitle as tokenizeSubtitleCore,
   toSubtitleClock,
   triggerFieldGrouping as triggerFieldGroupingCore,
-  upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
 import { applyOverlayClickThrough } from './core/services/overlay-click-through';
@@ -270,6 +263,8 @@ import {
   isStandaloneFirstRunSetupCommand,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
+import { createCharacterDictionaryAssembly } from './main/assemblies/character-dictionary';
+import { createDictionariesAssembly } from './main/assemblies/dictionaries';
 import { createJellyfinAssembly } from './main/assemblies/jellyfin';
 import { createAnilistAssembly } from './main/assemblies/anilist';
 import { createSettingsAssembly } from './main/assemblies/settings';
@@ -336,7 +331,6 @@ import { createStatsServerRuntime } from './main/runtime/stats-server-runtime';
 import { createForceQuitHandler } from './main/runtime/app-lifecycle-actions';
 import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
-import { guessAnilistMediaInfo } from './core/services/anilist/anilist-updater';
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
@@ -408,30 +402,16 @@ import { openControllerDebugModal as openControllerDebugModalRuntime } from './m
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { createSessionBindingsRuntime } from './main/runtime/session-bindings-runtime';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
-import {
-  createFrequencyDictionaryRuntimeService,
-  getFrequencyDictionarySearchPaths,
-} from './main/frequency-dictionary-runtime';
-import {
-  createJlptDictionaryRuntimeService,
-  getJlptDictionarySearchPaths,
-} from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createPrefetchAwareSubtitleProcessingController } from './main/runtime/subtitle-processing-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
-import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
-import { createCharacterDictionaryImageLookup } from './main/character-dictionary-runtime/image-lookup';
-import { createCharacterNameCandidateLookup } from './main/character-dictionary-runtime/name-candidates';
 import {
-  createCharacterDictionaryAutoSyncRuntimeService,
   getCharacterDictionaryManagerSnapshot,
   moveCharacterDictionaryManagedEntry,
   removeCharacterDictionaryManagedEntry,
   replaceCharacterDictionaryManagedEntry,
 } from './main/runtime/character-dictionary-auto-sync';
-import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/character-dictionary-auto-sync-completion';
-import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { openCharacterDictionaryManagerWithConfigGate } from './main/runtime/character-dictionary-manager-gate';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
@@ -468,7 +448,6 @@ import {
 } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { reloadOverlayWindowsForYomitanContentScripts } from './main/runtime/yomitan-extension-overlay-reload';
-import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
 import { createYomitanAnkiServerSyncRuntime } from './main/runtime/yomitan-anki-server-sync';
 import { type StartupState, applyStartupState, createAppState } from './main/state';
 import {
@@ -1870,50 +1849,22 @@ const sync = createSyncAssembly({
 sync.runtime.registerHandlers();
 sync.autoScheduler.start();
 
-const dictionaryRootsDeps = {
-  platform: process.platform,
-  dirname: __dirname,
-  appPath: app.getAppPath(),
-  resourcesPath: process.resourcesPath,
-  userDataPath: USER_DATA_PATH,
-  appUserDataPath: app.getPath('userData'),
-  homeDir: os.homedir(),
-  appDataDir: process.env.APPDATA,
-  cwd: process.cwd(),
-  joinPath: (...parts: string[]) => path.join(...parts),
-};
-const buildJlptDictionaryRootsHandler = createBuildDictionaryRootsHandler({
-  ...dictionaryRootsDeps,
-  vendorDirName: 'yomitan-jlpt-vocab',
-});
-const buildFrequencyDictionaryRootsHandler = createBuildDictionaryRootsHandler({
-  ...dictionaryRootsDeps,
-  vendorDirName: 'frequency-dictionary',
-});
-
-const jlptDictionaryRuntime = createJlptDictionaryRuntimeService({
-  isJlptEnabled: () => configService.getConfig().subtitleStyle.enableJlpt,
-  getSearchPaths: () =>
-    getJlptDictionarySearchPaths({ getDictionaryRoots: () => buildJlptDictionaryRootsHandler() }),
-  setJlptLevelLookup: (lookup) => {
-    appState.jlptLevelLookup = lookup;
+const dictionaries = createDictionariesAssembly({
+  roots: {
+    platform: process.platform,
+    dirname: __dirname,
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath,
+    userDataPath: USER_DATA_PATH,
+    appUserDataPath: app.getPath('userData'),
+    homeDir: os.homedir(),
+    appDataDir: process.env.APPDATA,
+    cwd: process.cwd(),
+    joinPath: (...parts: string[]) => path.join(...parts),
   },
-  log: (message) => logger.info(`[JLPT] ${message}`),
-});
-
-const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService({
-  isFrequencyDictionaryEnabled: () =>
-    configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
-  getSearchPaths: () =>
-    getFrequencyDictionarySearchPaths({
-      getDictionaryRoots: () =>
-        buildFrequencyDictionaryRootsHandler().filter((dictionaryRoot) => dictionaryRoot),
-      getSourcePath: () => configService.getConfig().subtitleStyle.frequencyDictionary.sourcePath,
-    }),
-  setFrequencyRankLookup: (lookup) => {
-    appState.frequencyRankLookup = lookup;
-  },
-  log: (message) => logger.info(`[Frequency] ${message}`),
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
 });
 
 const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler({
@@ -1979,166 +1930,28 @@ const mediaRuntime = createMediaRuntimeService({
   },
 });
 
-const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
+const characterDictionary = createCharacterDictionaryAssembly({
   userDataPath: USER_DATA_PATH,
-  getCurrentMediaPath: () => appState.currentMediaPath,
-  getCurrentVideoPath: () => appState.mpvClient?.currentVideoPath,
-  getCurrentMediaTitle: () => appState.currentMediaTitle,
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
+  startupOsdSequencer,
   resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
-  guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
-  getNameMatchImagesEnabled: () => configService.getConfig().subtitleStyle.nameMatchImagesEnabled,
-  getCollapsibleSectionOpenState: (section) =>
-    configService.getConfig().anilist.characterDictionary.collapsibleSections[section],
-  tokenizeJapaneseName: async (text) => (await appState.mecabTokenizer?.tokenize(text)) ?? null,
-  getJapaneseNameTokenizerAvailable: () => {
-    const status = appState.mecabTokenizer?.getStatus();
-    return status?.available === true && status.enabled === true;
+  getYomitanProfilePolicy: () => yomitanProfilePolicy,
+  isYoutubePlaybackActive: () => youtube.isPlaybackActiveNow(),
+  waitForMediaTokenizationReady: (mediaPath) =>
+    currentMediaTokenizationGate.waitUntilReady(mediaPath),
+  ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
+  getYomitanParserRuntimeDeps: () => getYomitanParserRuntimeDeps(),
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  showMpvOsd: (message) => showMpvOsd(message),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+  invalidateTokenizationCache: () => subtitleProcessingController.invalidateTokenizationCache(),
+  refreshCurrentSubtitle: (text) => subtitleProcessingController.refreshCurrentSubtitle(text),
+  refreshSubtitlePrefetch: () => {
+    subtitlePrefetchService?.onSeek(lastObservedTimePos);
   },
-  now: () => Date.now(),
-  logInfo: (message) => logger.info(message),
-  logWarn: (message) => logger.warn(message),
-});
-
-const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRuntimeService({
-  userDataPath: USER_DATA_PATH,
-  getConfig: () => {
-    const config = configService.getConfig().anilist.characterDictionary;
-    return {
-      enabled:
-        configService.getConfig().subtitleStyle.nameMatchEnabled &&
-        yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
-        !youtube.isPlaybackActiveNow(),
-      maxLoaded: config.maxLoaded,
-      profileScope: config.profileScope,
-    };
-  },
-  getOrCreateCurrentSnapshot: (targetPath, progress) =>
-    characterDictionaryRuntime.getOrCreateCurrentSnapshot(targetPath, progress),
-  buildMergedDictionary: (mediaIds) => characterDictionaryRuntime.buildMergedDictionary(mediaIds),
-  waitForYomitanMutationReady: () =>
-    currentMediaTokenizationGate.waitUntilReady(
-      appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
-    ),
-  getYomitanDictionaryInfo: async () => {
-    await ensureYomitanExtensionLoaded();
-    const dictionaries = await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
-      error: (message, ...args) => logger.error(message, ...args),
-      info: (message, ...args) => logger.info(message, ...args),
-    });
-    assertYomitanDictionaryMutationSafe(USER_DATA_PATH, dictionaries.length);
-    return dictionaries;
-  },
-  importYomitanDictionary: async (zipPath) => {
-    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
-      yomitanProfilePolicy.logSkippedWrite(
-        formatSkippedYomitanWriteAction('importYomitanDictionary', zipPath),
-      );
-      return false;
-    }
-    await ensureYomitanExtensionLoaded();
-    return await importYomitanDictionaryFromZip(zipPath, getYomitanParserRuntimeDeps(), {
-      error: (message, ...args) => logger.error(message, ...args),
-      info: (message, ...args) => logger.info(message, ...args),
-      warn: (message, ...args) => logger.warn(message, ...args),
-    });
-  },
-  dictionaryImportReplacesExisting: () =>
-    getYomitanParserRuntimeDeps().getYomitanExt()?.name === 'Hachidori',
-  deleteYomitanDictionary: async (dictionaryTitle) => {
-    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
-      yomitanProfilePolicy.logSkippedWrite(
-        formatSkippedYomitanWriteAction('deleteYomitanDictionary', dictionaryTitle),
-      );
-      return false;
-    }
-    await ensureYomitanExtensionLoaded();
-    return await deleteYomitanDictionaryByTitle(dictionaryTitle, getYomitanParserRuntimeDeps(), {
-      error: (message, ...args) => logger.error(message, ...args),
-      info: (message, ...args) => logger.info(message, ...args),
-    });
-  },
-  upsertYomitanDictionarySettings: async (dictionaryTitle, profileScope) => {
-    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
-      yomitanProfilePolicy.logSkippedWrite(
-        formatSkippedYomitanWriteAction('upsertYomitanDictionarySettings', dictionaryTitle),
-      );
-      return false;
-    }
-    await ensureYomitanExtensionLoaded();
-    return await upsertYomitanDictionarySettings(
-      dictionaryTitle,
-      profileScope,
-      getYomitanParserRuntimeDeps(),
-      {
-        error: (message, ...args) => logger.error(message, ...args),
-        info: (message, ...args) => logger.info(message, ...args),
-      },
-    );
-  },
-  now: () => Date.now(),
-  schedule: (fn, delayMs) => setTimeout(fn, delayMs),
-  clearSchedule: (timer) => clearTimeout(timer),
-  logInfo: (message) => logger.info(message),
-  logWarn: (message) => logger.warn(message),
-  onSyncStatus: (event) => {
-    notifyCharacterDictionaryAutoSyncStatus(event, {
-      getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
-      showOsd: (message) => showMpvOsd(message),
-      showOverlayNotification: (payload) =>
-        overlayNotificationsRuntime.showOverlayNotification(payload),
-      showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-      startupOsdSequencer,
-    });
-  },
-  onSyncComplete: ({ mediaId, mediaTitle, changed }) => {
-    handleCharacterDictionaryAutoSyncComplete(
-      {
-        mediaId,
-        mediaTitle,
-        changed,
-      },
-      {
-        hasParserWindow: () => Boolean(appState.yomitanParserWindow),
-        invalidateCharacterDictionaryLookups: () => {
-          characterDictionaryImageLookup.invalidate();
-          characterNameCandidateLookup.invalidate();
-        },
-        clearParserCaches: () => {
-          if (appState.yomitanParserWindow) {
-            clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
-          }
-        },
-        invalidateTokenizationCache: () => {
-          subtitleProcessingController.invalidateTokenizationCache();
-        },
-        refreshSubtitlePrefetch: () => {
-          subtitlePrefetchService?.onSeek(lastObservedTimePos);
-        },
-        refreshCurrentSubtitle: () => {
-          subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-        },
-        logInfo: (message) => logger.info(message),
-      },
-    );
-  },
-});
-
-const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
-  userDataPath: USER_DATA_PATH,
-  getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
-  onIndexReady: () => refreshCurrentSubtitleAnnotations(),
-  onIndexReadyError: (error) =>
-    logger.warn(
-      'Failed to refresh subtitle annotations after character portrait index became ready.',
-      error,
-    ),
-});
-
-// Lets the Yomitan scan runtime skip name lookups at positions where no
-// character name can start; absent candidates just mean the exhaustive scan.
-const characterNameCandidateLookup = createCharacterNameCandidateLookup({
-  userDataPath: USER_DATA_PATH,
-  getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+  refreshCurrentSubtitleAnnotations: () => refreshCurrentSubtitleAnnotations(),
 });
 
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService({
@@ -2754,7 +2567,7 @@ const anilist = createAnilistAssembly({
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
   resolveMediaPathForJimaku: (currentMediaPath) =>
     mediaRuntime.resolveMediaPathForJimaku(currentMediaPath),
-  resolvePinnedMediaId: (request) => characterDictionaryRuntime.resolvePinnedMediaId(request),
+  resolvePinnedMediaId: (request) => characterDictionary.runtime.resolvePinnedMediaId(request),
   createBrowserWindow: (options) => new BrowserWindow(options),
   shell,
   app,
@@ -3534,7 +3347,7 @@ const {
       ) {
         return;
       }
-      characterDictionaryAutoSyncRuntime.scheduleSync();
+      characterDictionary.autoSync.scheduleSync();
     },
     updateCurrentMediaTitle: (title) => {
       mediaRuntime.updateCurrentMediaTitle(title);
@@ -3694,10 +3507,9 @@ const {
       getNameMatchEnabled: () => configService.getConfig().subtitleStyle.nameMatchEnabled,
       getNameMatchImagesEnabled: () =>
         configService.getConfig().subtitleStyle.nameMatchImagesEnabled,
-      getCharacterNameImage: (term) => characterDictionaryImageLookup.get(term),
-      getCurrentCharacterDictionaryMediaId: () =>
-        characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
-      getCharacterNameCandidates: () => characterNameCandidateLookup.get(),
+      getCharacterNameImage: (term) => characterDictionary.imageLookup.get(term),
+      getCurrentCharacterDictionaryMediaId: () => characterDictionary.autoSync.getCurrentMediaId(),
+      getCharacterNameCandidates: () => characterDictionary.nameCandidates.get(),
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',
@@ -3726,9 +3538,9 @@ const {
       checkAvailability: async (tokenizer) => (tokenizer as MecabTokenizer).checkAvailability(),
     },
     prewarmSubtitleDictionariesMainDeps: {
-      ensureJlptDictionaryLookup: () => jlptDictionaryRuntime.ensureJlptDictionaryLookup(),
+      ensureJlptDictionaryLookup: () => dictionaries.jlpt.ensureJlptDictionaryLookup(),
       ensureFrequencyDictionaryLookup: () =>
-        frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
+        dictionaries.frequency.ensureFrequencyDictionaryLookup(),
       showMpvOsd: (message: string) =>
         overlayNotificationsRuntime.showConfiguredStatusNotification(message),
       showLoadingOsd: (message: string) => startupOsdSequencer.showAnnotationLoading(message),
@@ -4722,7 +4534,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       runAnilistPostWatchUpdateOnManualMark: () =>
         anilist.maybeRunAnilistPostWatchUpdate({ force: true }),
       getCharacterDictionarySelection: (searchTitle?: string) =>
-        characterDictionaryRuntime.getManualSelectionSnapshot(undefined, searchTitle),
+        characterDictionary.runtime.getManualSelectionSnapshot(undefined, searchTitle),
       setCharacterDictionarySelection: async (
         mediaId: number,
         replaceManagedMediaId?: number,
@@ -4739,7 +4551,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           );
           if (result.ok && result.rebuildRequired) {
             try {
-              await characterDictionaryAutoSyncRuntime.runSyncNow();
+              await characterDictionary.autoSync.runSyncNow();
             } catch (error) {
               logger.warn('Failed to rebuild character dictionary after manager override:', error);
             }
@@ -4749,9 +4561,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         return await applyCharacterDictionarySelection(
           { mediaId },
           {
-            setManualSelection: (request) => characterDictionaryRuntime.setManualSelection(request),
+            setManualSelection: (request) =>
+              characterDictionary.runtime.setManualSelection(request),
             resetAnilistMediaGuessState: anilist.resetAnilistMediaGuessState,
-            runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
+            runSyncNow: () => characterDictionary.autoSync.runSyncNow(),
             warn: (message, error) => logger.warn(message, error),
           },
         );
@@ -4759,17 +4572,17 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getCharacterDictionaryManagerSnapshot: async () =>
         getCharacterDictionaryManagerSnapshot(
           USER_DATA_PATH,
-          characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+          characterDictionary.autoSync.getCurrentMediaId(),
         ),
       removeCharacterDictionaryManagedEntry: async (mediaId: number) => {
         const result = removeCharacterDictionaryManagedEntry(
           USER_DATA_PATH,
           mediaId,
-          characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+          characterDictionary.autoSync.getCurrentMediaId(),
         );
         if (result.ok && result.rebuildRequired) {
           try {
-            await characterDictionaryAutoSyncRuntime.runSyncNow();
+            await characterDictionary.autoSync.runSyncNow();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager removal:', error);
           }
@@ -4781,11 +4594,11 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           USER_DATA_PATH,
           mediaId,
           direction,
-          characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+          characterDictionary.autoSync.getCurrentMediaId(),
         );
         if (result.ok && result.rebuildRequired) {
           try {
-            await characterDictionaryAutoSyncRuntime.runSyncNow();
+            await characterDictionary.autoSync.runSyncNow();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager reorder:', error);
           }
@@ -4871,16 +4684,16 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
       if (disabledReason) {
         throw new Error(disabledReason);
       }
-      return await characterDictionaryRuntime.generateForCurrentMedia(targetPath);
+      return await characterDictionary.runtime.generateForCurrentMedia(targetPath);
     },
     getCharacterDictionarySelection: async (targetPath?: string) =>
-      characterDictionaryRuntime.getManualSelectionSnapshot(targetPath),
+      characterDictionary.runtime.getManualSelectionSnapshot(targetPath),
     setCharacterDictionarySelection: async (request) =>
       applyCharacterDictionarySelection(request, {
         setManualSelection: (selectionRequest) =>
-          characterDictionaryRuntime.setManualSelection(selectionRequest),
+          characterDictionary.runtime.setManualSelection(selectionRequest),
         resetAnilistMediaGuessState: anilist.resetAnilistMediaGuessState,
-        runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
+        runSyncNow: () => characterDictionary.autoSync.runSyncNow(),
         warn: (message, error) => logger.warn(message, error),
       }),
     runJellyfinCommand: (argsFromCommand: CliArgs) => jellyfin.runJellyfinCommand(argsFromCommand),
