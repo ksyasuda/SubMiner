@@ -1,5 +1,4 @@
 export * from '../app-lifecycle-actions';
-export * from '../app-lifecycle-main-activate';
 export * from '../app-lifecycle-main-cleanup';
 export * from '../clipboard-queue';
 export * from '../config-derived';

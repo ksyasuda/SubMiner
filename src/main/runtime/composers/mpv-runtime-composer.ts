@@ -1,5 +1,5 @@
 import { createBindMpvMainEventHandlersHandler } from '../mpv-main-event-bindings';
-import { createBuildBindMpvMainEventHandlersMainDepsHandler } from '../mpv-main-event-main-deps';
+import { createMpvMainEventBindingDeps } from '../mpv-main-event-binding-deps';
 import { createMpvClientRuntimeServiceFactory } from '../mpv-client-runtime-service';
 import { createUpdateMpvSubtitleRenderMetricsHandler } from '../mpv-subtitle-render-metrics';
 import {
@@ -13,9 +13,7 @@ import {
 } from '../startup-warmups';
 import type { ComposerInputs, ComposerOutputs } from './contracts';
 
-type BindMpvMainEventHandlersMainDeps = Parameters<
-  typeof createBuildBindMpvMainEventHandlersMainDepsHandler
->[0];
+type BindMpvMainEventHandlersMainDeps = Parameters<typeof createMpvMainEventBindingDeps>[0];
 type BindMpvMainEventHandlers = ReturnType<typeof createBindMpvMainEventHandlersHandler>;
 type BoundMpvClient = Parameters<BindMpvMainEventHandlers>[0];
 type RuntimeMpvClient = BoundMpvClient & { connect: () => void };
@@ -137,11 +135,8 @@ export function composeMpvRuntimeHandlers<
 >(
   options: MpvRuntimeComposerOptions<TMpvClient, TTokenizerRuntimeDeps, TTokenizedSubtitle>,
 ): MpvRuntimeComposerResult<TMpvClient, TTokenizedSubtitle> {
-  const bindMpvMainEventHandlersMainDeps = createBuildBindMpvMainEventHandlersMainDepsHandler(
-    options.bindMpvMainEventHandlersMainDeps,
-  )();
   const bindMpvClientEventHandlers = createBindMpvMainEventHandlersHandler(
-    bindMpvMainEventHandlersMainDeps,
+    createMpvMainEventBindingDeps(options.bindMpvMainEventHandlersMainDeps),
   );
 
   const createMpvClientRuntimeService = createMpvClientRuntimeServiceFactory<TMpvClient>({
