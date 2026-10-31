@@ -59,6 +59,8 @@ export type E2eSession = {
   mainProcess: () => Promise<CdpPage>;
   /** Runs a CLI command (e.g. `--mine-sentence`) against the running instance. */
   runAppCommand: (...args: string[]) => Promise<void>;
+  /** After loading a file: waits for the app's autoplay resume, then leaves mpv paused. */
+  settleAfterResume: () => Promise<void>;
   dispose: () => Promise<void>;
 };
 
@@ -155,6 +157,30 @@ async function openPage(cdpPort: number, urlPart: string): Promise<CdpPage> {
     description: `"${urlPart}" document to load`,
   });
   return page;
+}
+
+// mpv starts paused and the app resumes each newly loaded file once the overlay
+// and tokenizer are ready, so that resume marks the file as ready. Scenarios
+// expect a paused player, and the app retries its resume for a moment, so keep
+// pausing until the pause has held for longer than that retry window.
+async function settleAfterResume(mpv: MpvClient): Promise<void> {
+  await waitUntil(async () => (await mpv.command('get_property', 'pause')) === false, {
+    description: 'SubMiner to resume playback once the file is ready',
+    timeoutMs: 30_000,
+  });
+  let pausedSince: number | null = null;
+  await waitUntil(
+    async () => {
+      if ((await mpv.command('get_property', 'pause')) !== true) {
+        pausedSince = null;
+        await mpv.command('set_property', 'pause', true);
+        return false;
+      }
+      pausedSince ??= Date.now();
+      return Date.now() - pausedSince >= 1_500;
+    },
+    { description: 'playback to stay paused after the resume', timeoutMs: 40_000 },
+  );
 }
 
 export async function startE2eSession(options: E2eSessionOptions = {}): Promise<E2eSession> {
@@ -298,27 +324,7 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
     teardown.push(mpv.close);
 
     const app = await launchApp(['--start']);
-    // mpv starts paused and the app resumes it once the overlay and tokenizer
-    // are ready, so that resume marks the end of startup.
-    await waitUntil(async () => (await mpv.command('get_property', 'pause')) === false, {
-      description: 'SubMiner to resume playback after overlay startup',
-      timeoutMs: 30_000,
-    });
-    // Hand scenarios a paused player. The app retries its resume for a moment,
-    // so keep pausing until the pause has held for longer than that retry window.
-    let pausedSince: number | null = null;
-    await waitUntil(
-      async () => {
-        if ((await mpv.command('get_property', 'pause')) !== true) {
-          pausedSince = null;
-          await mpv.command('set_property', 'pause', true);
-          return false;
-        }
-        pausedSince ??= Date.now();
-        return Date.now() - pausedSince >= 1_500;
-      },
-      { description: 'playback to stay paused after startup', timeoutMs: 40_000 },
-    );
+    await settleAfterResume(mpv);
     const pages: CdpPage[] = [];
     teardown.push(() => pages.forEach((page) => page.close()));
 
@@ -342,6 +348,7 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
         return page;
       },
       runAppCommand: (...args) => runAppCommand(target, args),
+      settleAfterResume: () => settleAfterResume(mpv),
       dispose,
     };
   } catch (error) {
