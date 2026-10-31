@@ -38,10 +38,9 @@ export function composeShortcutRuntimes(
     options.numericShortcutRuntimeMainDeps,
   );
   const numericSessions = createNumericShortcutSessionRuntimeHandlers({
+    ...options.numericSessions,
     multiCopySession: numericShortcutRuntime.createSession(),
     mineSentenceSession: numericShortcutRuntime.createSession(),
-    onMultiCopyDigit: options.numericSessions.onMultiCopyDigit,
-    onMineSentenceDigit: options.numericSessions.onMineSentenceDigit,
   });
 
   const overlayShortcuts = createOverlayShortcutsRuntimeHandlers({
