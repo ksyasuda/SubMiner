@@ -19,6 +19,7 @@ Read when: you need to find the owner module for a behavior or test surface
 - Config system: `src/config/`; Anki resolution is composed by
   `src/config/resolve/anki-connect.ts` from focused resolvers in
   `src/config/resolve/anki-connect/`
+  Config hot-reload and the settings window: `src/main/assemblies/settings.ts`
 - Overlay/window state: `src/core/services/overlay-*`, `src/main/overlay-*.ts`
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
   Windows executable lookup and detached process creation are shared in `src/main/runtime/mpv-process.ts`. The Windows launcher and Jellyfin handlers retain their own playback and connection workflows.
@@ -29,7 +30,7 @@ Read when: you need to find the owner module for a behavior or test surface
   Includes stats storage/query schema such as `imm_videos`, `imm_media_art`, and `imm_youtube_videos` for per-video and YouTube-specific library metadata.
   Library-entry identity aliases and merge recommendations are persisted alongside this schema; the stats HTTP and SPA layers only expose and present those domain decisions.
   `delete-maintenance-scheduler.ts` coalesces and serializes stats deletes; the expensive work runs in `delete-maintenance-worker-thread.ts` while the tracker queues playback writes. Each batch uses one transaction, lexical update, rollup refresh, and incremental lifetime subtraction (`planLifetimeRemovals`/`applyLifetimeRemovals` in `lifetime.ts`). Merges, moves, AniList reassignments, and `stats cleanup -l` use `repairLifetimeSummariesFromMedia` (recompute from the per-video media ledger). The full lifetime rebuild survives only as the empty-table bootstrap; anywhere else it would collapse lifetime totals to the session retention window.
-- Immersion sync: `src/core/services/stats-sync/`, bound by `src/main/sync-cli.ts`.
+- Immersion sync: `src/core/services/stats-sync/`, bound by `src/main/sync-cli.ts`. The sync window and auto-sync scheduler live in `src/main/assemblies/sync.ts`.
   `snapshot-transfer.ts` selects compressed rsync or scp. `transfer-cache.ts` atomically retains the last successfully received snapshot per hashed peer/database identity under the config directory's `sync-transfer-cache/`. Cache copies seed isolated transfer directories; rsync verifies reconstructed files before the existing merge engine runs. The `--make-temp` / `--remove-temp` helpers accept an internal `--transfer-cache` key, with a fallback for older peers that do not recognize it.
 - AniList tracking + character dictionary: `src/core/services/anilist/`, `src/main/runtime/composers/anilist-*` (called by `src/main/assemblies/anilist.ts`), `src/main/character-dictionary-runtime.ts`, `src/main/character-dictionary-runtime/`
 - TMDB live-action metadata: `src/core/services/tmdb/` (client + exact-title resolver), `src/core/services/immersion-tracker/live-action-link.ts` (links an entry to a TMDB title and merges other holders of the same title). The AniList cover-art fetcher calls the resolver as its fallback; `imm_anime.media_kind` marks the result and keeps the entry out of AniList season repair.

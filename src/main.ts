@@ -137,19 +137,13 @@ import {
 import { printHelp } from './cli/help';
 import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
 import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
-import { AnkiConnectClient } from './anki-connect';
 import {
   getStartupModeFlags,
   shouldHandleInitialArgsBeforeDeferredOverlayWarmup,
   shouldRefreshAnilistOnConfigReload,
   shouldStartAutomaticUpdateChecks,
 } from './main/runtime/startup-mode-flags';
-import {
-  buildConfigParseErrorDetails,
-  buildConfigWarningDialogDetails,
-  buildConfigWarningNotificationBody,
-  failStartupFromConfig,
-} from './main/config-validation';
+import { buildConfigParseErrorDetails, failStartupFromConfig } from './main/config-validation';
 import {
   findAnilistSetupDeepLinkArgvUrl,
   isAnilistTrackingEnabled,
@@ -157,7 +151,6 @@ import {
 import { shouldShowTexthookerTrayEntry } from './main/runtime/tray-main-actions';
 import { createGetDefaultSocketPathHandler } from './main/runtime/domains/jellyfin';
 import {
-  createWatchConfigPathHandler,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
   createGetRuntimeOptionsStateHandler,
@@ -167,13 +160,10 @@ import {
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
   createHandleOverlayModalClosedHandler,
-  createConfigHotReloadMessageHandler,
-  createConfigHotReloadAppliedHandler,
   buildTrayMenuTemplateRuntime,
   resolveTrayIconPathRuntime,
   createYomitanExtensionRuntime,
   createYomitanSettingsRuntime,
-  buildRestartRequiredConfigMessage,
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/domains/overlay';
 import {
@@ -224,7 +214,6 @@ import {
   broadcastRuntimeOptionsChangedRuntime,
   captureLiveSubtitleMiningContext,
   copyCurrentSubtitle as copyCurrentSubtitleCore,
-  createConfigHotReloadRuntime,
   createDiscordPresenceService,
   createFieldGroupingOverlayRuntime,
   createOverlayContentMeasurementStore,
@@ -248,7 +237,6 @@ import {
   mineSentenceCard as mineSentenceCardCore,
   openYomitanSettingsWindow,
   playNextSubtitleRuntime,
-  promoteSettingsWindowAboveOverlay,
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
   resolveSanitizedSubtitleSeekCommand,
@@ -284,6 +272,8 @@ import {
 } from './main/runtime/first-run-setup-service';
 import { createJellyfinAssembly } from './main/assemblies/jellyfin';
 import { createAnilistAssembly } from './main/assemblies/anilist';
+import { createSettingsAssembly } from './main/assemblies/settings';
+import { createSyncAssembly } from './main/assemblies/sync';
 import { createYoutubeAssembly } from './main/assemblies/youtube';
 import {
   createAutoplayReadyGate,
@@ -469,17 +459,7 @@ import {
   createResolveActiveSubtitleSidebarSourceHandler,
 } from './main/runtime/subtitle-prefetch-runtime';
 import { createSecondarySubtitleTrackController } from './main/runtime/secondary-subtitle-track';
-import {
-  createCreateConfigSettingsWindowHandler,
-  createCreateFirstRunSetupWindowHandler,
-  createCreateSyncUiWindowHandler,
-} from './main/runtime/setup-window-factory';
-import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
-import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
-import { createSyncUiRuntime } from './main/runtime/sync-ui-runtime';
-import { createSyncAutoScheduler } from './main/runtime/sync-auto-scheduler';
-import { resolveSyncLauncherCommand, runSyncLauncher } from './main/runtime/sync-launcher-client';
-import { getSyncHostsPath } from './shared/sync/sync-hosts-store';
+import { createCreateFirstRunSetupWindowHandler } from './main/runtime/setup-window-factory';
 import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
 import {
   isSameYoutubeMediaPath,
@@ -498,7 +478,6 @@ import {
   generateConfigTemplate,
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
-import { buildConfigSettingsRegistry } from './config/settings/registry';
 import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
 import {
   createSubtitlePrefetchService,
@@ -741,7 +720,6 @@ let inactiveYomitanExtension: Extension | null = null;
 let inactiveYomitanSettingsWindow: BrowserWindow | null = null;
 let inactiveYomitanLoad: Promise<Extension | null> | null = null;
 let pendingSubtitleMiningContext: SubtitleMiningContext | null = null;
-const configSettingsFields = buildConfigSettingsRegistry(DEFAULT_CONFIG);
 
 ipcMain.handle(DICTIONARY_EXTERNAL_LINK_CHANNEL, async (event, value: unknown) => {
   if (
@@ -1789,90 +1767,6 @@ syncOverlayShortcutsForModal = (isActive: boolean): void => {
   }
 };
 
-const notifyConfigHotReloadMessage = createConfigHotReloadMessageHandler({
-  getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
-  showMpvOsd: (message) => showMpvOsd(message),
-  showOverlayNotification: (payload) =>
-    overlayNotificationsRuntime.showOverlayNotification(payload),
-  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-});
-const watchConfigPathHandler = createWatchConfigPathHandler({
-  fileExists: (targetPath) => fs.existsSync(targetPath),
-  dirname: (targetPath) => path.dirname(targetPath),
-  watchPath: (targetPath, listener) => fs.watch(targetPath, listener),
-});
-const applyConfigHotReloadDiff = createConfigHotReloadAppliedHandler({
-  setKeybindings: (keybindings) => {
-    appState.keybindings = keybindings;
-  },
-  setSessionBindings: (sessionBindings, sessionBindingWarnings) => {
-    persistSessionBindings(sessionBindings, sessionBindingWarnings);
-  },
-  refreshGlobalAndOverlayShortcuts: () => {
-    refreshGlobalAndOverlayShortcuts();
-  },
-  setSecondarySubMode: (mode) => {
-    setSecondarySubMode(mode);
-  },
-  broadcastToOverlayWindows: (channel, payload) => {
-    overlayManager.broadcastToOverlayWindows(channel, payload);
-  },
-  applyAnkiRuntimeConfigPatch: (patch) => {
-    if (appState.ankiIntegration) {
-      appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-    }
-    if (activeDictionaryBackend === 'hachidori' && appState.yomitanExt) {
-      void syncYomitanDefaultProfileAnkiServer().catch((error: unknown) =>
-        logger.error('Failed to auto-populate Hachidori Anki settings', error),
-      );
-    }
-  },
-  invalidateTokenizationCache: () => {
-    subtitleProcessingController.invalidateTokenizationCache();
-  },
-  refreshSubtitlePrefetch: () => {
-    subtitlePrefetchService?.onSeek(lastObservedTimePos);
-  },
-  refreshCurrentSubtitle: () => {
-    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-  },
-  setLogLevel: (level) => {
-    setLogLevel(level, 'config');
-  },
-  setLogRotation: (rotation) => {
-    setLogRotation(rotation);
-  },
-  setLogFileToggles: (files) => {
-    setLogFileToggles(files);
-  },
-  applyAniSkipConfig: () => {
-    aniSkipRuntime.applyConfigChange();
-  },
-});
-const configHotReloadRuntime = createConfigHotReloadRuntime({
-  getCurrentConfig: () => configService.getConfig(),
-  reloadConfigStrict: () => configService.reloadConfigStrict(),
-  watchConfigPath: (configPath, onChange) => watchConfigPathHandler(configPath, onChange),
-  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
-  clearTimeout: (timeout) => clearTimeout(timeout),
-  debounceMs: 250,
-  onHotReloadApplied: applyConfigHotReloadDiff,
-  onRestartRequired: (fields) =>
-    notifyConfigHotReloadMessage(buildRestartRequiredConfigMessage(fields)),
-  onInvalidConfig: notifyConfigHotReloadMessage,
-  onValidationWarnings: (configPath, warnings) => {
-    showDesktopNotification('SubMiner', {
-      body: buildConfigWarningNotificationBody(configPath, warnings),
-    });
-    if (process.platform === 'darwin') {
-      dialog.showErrorBox(
-        'SubMiner config validation warning',
-        buildConfigWarningDialogDetails(configPath, warnings),
-      );
-    }
-  },
-});
-
 async function getCurrentYomitanAnkiDeckNameForRuntime(): Promise<string> {
   await yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
   return getYomitanCurrentAnkiDeckNameCore(getYomitanParserRuntimeDeps(), {
@@ -1885,71 +1779,84 @@ async function getCurrentYomitanAnkiDeckNameForRuntime(): Promise<string> {
   });
 }
 
-const configSettingsRuntime = createConfigSettingsRuntime({
-  fields: configSettingsFields,
-  getConfigPath: () => configService.getConfigPath(),
-  getRawConfig: () => configService.getRawConfig(),
-  getConfig: () => configService.getConfig(),
-  getWarnings: () => configService.getWarnings(),
-  reloadConfigStrict: () => configService.reloadConfigStrict(),
-  onHotReloadApplied: applyConfigHotReloadDiff,
-  defaultAnkiConnectUrl: DEFAULT_CONFIG.ankiConnect.url,
-  createAnkiClient: (url) => new AnkiConnectClient(url),
-  getYomitanAnkiDeckName: getCurrentYomitanAnkiDeckNameForRuntime,
-  getSettingsWindow: () => appState.configSettingsWindow,
-  setSettingsWindow: (window) => {
-    appState.configSettingsWindow = window as BrowserWindow | null;
+const settings = createSettingsAssembly({
+  appState,
+  configService,
+  logger,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  showMpvOsd: (message) => showMpvOsd(message),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+  hotReloadApplied: {
+    setKeybindings: (keybindings) => {
+      appState.keybindings = keybindings;
+    },
+    setSessionBindings: (sessionBindings, sessionBindingWarnings) => {
+      persistSessionBindings(sessionBindings, sessionBindingWarnings);
+    },
+    refreshGlobalAndOverlayShortcuts: () => {
+      refreshGlobalAndOverlayShortcuts();
+    },
+    setSecondarySubMode: (mode) => {
+      setSecondarySubMode(mode);
+    },
+    broadcastToOverlayWindows: (channel, payload) => {
+      overlayManager.broadcastToOverlayWindows(channel, payload);
+    },
+    applyAnkiRuntimeConfigPatch: (patch) => {
+      if (appState.ankiIntegration) {
+        appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+      }
+      if (activeDictionaryBackend === 'hachidori' && appState.yomitanExt) {
+        void syncYomitanDefaultProfileAnkiServer().catch((error: unknown) =>
+          logger.error('Failed to auto-populate Hachidori Anki settings', error),
+        );
+      }
+    },
+    invalidateTokenizationCache: () => {
+      subtitleProcessingController.invalidateTokenizationCache();
+    },
+    refreshSubtitlePrefetch: () => {
+      subtitlePrefetchService?.onSeek(lastObservedTimePos);
+    },
+    refreshCurrentSubtitle: () => {
+      subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+    },
+    setLogLevel: (level) => {
+      setLogLevel(level, 'config');
+    },
+    setLogRotation: (rotation) => {
+      setLogRotation(rotation);
+    },
+    setLogFileToggles: (files) => {
+      setLogFileToggles(files);
+    },
+    applyAniSkipConfig: () => {
+      aniSkipRuntime.applyConfigChange();
+    },
   },
-  createSettingsWindow: createCreateConfigSettingsWindowHandler({
-    createBrowserWindow: (options) => new BrowserWindow(options),
-    preloadPath: path.join(__dirname, 'preload-settings.js'),
-  }),
-  settingsHtmlPath: path.join(__dirname, 'settings', 'index.html'),
-  promoteSettingsWindowAboveOverlay: (window) =>
-    promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  getYomitanAnkiDeckName: getCurrentYomitanAnkiDeckNameForRuntime,
+  showErrorBox: (title, content) => dialog.showErrorBox(title, content),
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  mainDirname: __dirname,
   openPath: (targetPath) => shell.openPath(targetPath),
   ipcMain,
-  ipcChannels: IPC_CHANNELS.request,
-  log: (message) => logger.error(message),
 });
 
-configSettingsRuntime.registerHandlers();
+settings.window.registerHandlers();
 
-const openSyncUiWindowHandler = createOpenConfigSettingsWindowHandler({
-  getSettingsWindow: () => appState.syncUiWindow,
-  setSettingsWindow: (window) => {
-    appState.syncUiWindow = window as BrowserWindow | null;
-  },
-  createSettingsWindow: createCreateSyncUiWindowHandler({
-    createBrowserWindow: (options) => new BrowserWindow(options),
-    preloadPath: path.join(__dirname, 'preload-syncui.js'),
-  }),
-  settingsHtmlPath: path.join(__dirname, 'syncui', 'index.html'),
-  promoteSettingsWindowAboveOverlay: (window) =>
-    promoteSettingsWindowAboveOverlay(window as BrowserWindow),
-  onClosed: () => {
-    // requestAppQuit (not app.quit) so the forced-exit fallback covers a
-    // stalled quit; a standalone sync window is the app's only reason to live.
-    if (appState.initialArgs?.syncWindow) requestAppQuit();
-  },
-  log: (message) => logger.error(message),
-});
-
-const syncUiRuntime = createSyncUiRuntime({
+const sync = createSyncAssembly({
+  appState,
+  configService,
+  logger,
+  userDataPath: USER_DATA_PATH,
+  defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  requestAppQuit: () => requestAppQuit(),
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  mainDirname: __dirname,
   ipcMain,
-  hostsFilePath: getSyncHostsPath(USER_DATA_PATH),
-  snapshotsDir: path.join(os.tmpdir(), 'subminer-db-snapshots'),
-  getDbPath: () => {
-    const configured = configService.getConfig().immersionTracking?.dbPath?.trim();
-    return configured || DEFAULT_IMMERSION_DB_PATH;
-  },
-  resolveLauncherCommand: () =>
-    resolveSyncLauncherCommand({
-      execPath: process.execPath,
-      appPath: app.isPackaged ? null : app.getAppPath(),
-    }),
-  runLauncher: runSyncLauncher,
-  getWindow: () => appState.syncUiWindow,
+  isPackaged: () => app.isPackaged,
+  getAppPath: () => app.getAppPath(),
   pickSnapshotFile: async () => {
     const result = await dialog.showOpenDialog({
       title: 'Choose a SubMiner stats snapshot',
@@ -1959,29 +1866,9 @@ const syncUiRuntime = createSyncUiRuntime({
     return result.canceled ? null : (result.filePaths[0] ?? null);
   },
   revealPath: (targetPath) => shell.showItemInFolder(targetPath),
-  nowMs: () => Date.now(),
-  log: (message) => logger.info(message),
-  notify: (payload) =>
-    overlayNotificationsRuntime.showOverlayNotification({
-      title: payload.title,
-      body: payload.body,
-      variant: payload.variant,
-    }),
 });
-syncUiRuntime.registerHandlers();
-
-// Live sync uses a consistent WAL snapshot plus a transactional merge, and it
-// skips unfinished sessions, so resident stats writers do not block scheduling.
-const syncAutoScheduler = createSyncAutoScheduler({
-  readState: () => syncUiRuntime.readState(),
-  isRunning: () => syncUiRuntime.isRunning(),
-  triggerHostSync: (host, direction) => {
-    void syncUiRuntime.runHostSync({ host, direction }, { notify: true });
-  },
-  nowMs: () => Date.now(),
-  log: (message) => logger.info(message),
-});
-syncAutoScheduler.start();
+sync.runtime.registerHandlers();
+sync.autoScheduler.start();
 
 const dictionaryRootsDeps = {
   platform: process.platform,
@@ -2801,7 +2688,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       return;
     }
     if (submission.action === 'open-config-settings') {
-      const opened = configSettingsRuntime.openWindow();
+      const opened = settings.window.openWindow();
       firstRunSetupMessage = opened
         ? 'Opened SubMiner settings.'
         : 'SubMiner settings are unavailable.';
@@ -2930,7 +2817,7 @@ const {
   },
   onWillQuitCleanupMainDeps: {
     destroyTray: () => destroyTrayHandler(),
-    stopConfigHotReload: () => configHotReloadRuntime.stop(),
+    stopConfigHotReload: () => settings.hotReload.stop(),
     restorePreviousSecondarySubVisibility: () =>
       overlayVisibilityComposer.restorePreviousSecondarySubVisibility(),
     restoreMpvSubVisibility: () => {
@@ -2944,8 +2831,8 @@ const {
     },
     stopTexthookerService: () => texthookerService.stop(),
     stopSyncAutoScheduler: async () => {
-      syncAutoScheduler.stop();
-      await syncUiRuntime.shutdown();
+      sync.autoScheduler.stop();
+      await sync.runtime.shutdown();
     },
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       visibleOverlayInteractionRuntime.clearWindowsVisibleOverlayForegroundPollLoop(),
@@ -3244,7 +3131,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     logDebug: (message) => appLogger.logDebug(message),
     logWarning: (message) => appLogger.logWarning(message),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-    startConfigHotReload: () => configHotReloadRuntime.start(),
+    startConfigHotReload: () => settings.hotReload.start(),
     shouldRefreshAnilistClientSecretState: () =>
       shouldRefreshAnilistOnConfigReload(appState.initialArgs),
     refreshAnilistClientSecretState: (options) =>
@@ -5026,8 +4913,8 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     ensureBackgroundStatsServer: () => ensureBackgroundStatsServer(),
     openHachidoriSettings: () => openHachidoriSettings(),
     openYomitanSettings: () => openYomitanSettings(),
-    openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
-    openSyncUiWindow: () => openSyncUiWindowHandler(),
+    openConfigSettingsWindow: () => settings.window.openWindow(),
+    openSyncUiWindow: () => sync.openWindow(),
     openYoutubeBrowserWindow: () => youtube.browserWindow.open(),
     cycleSecondarySubMode: () => cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
@@ -5281,8 +5168,8 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       getDictionaryBackend: () => activeDictionaryBackend,
       openHachidoriSettings: () => openHachidoriSettings(),
       openYomitanSettings: () => openYomitanSettings(),
-      openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
-      openSyncUiWindow: () => openSyncUiWindowHandler(),
+      openConfigSettingsWindow: () => settings.window.openWindow(),
+      openSyncUiWindow: () => sync.openWindow(),
       openYoutubeBrowserWindow: () => youtube.browserWindow.open(),
       exportLogs: () => {
         void exportLogsFromTray();
