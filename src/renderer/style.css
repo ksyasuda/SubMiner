@@ -3646,6 +3646,9 @@ iframe[id^='yomitan-popup'],
 }
 
 .controller-config-edit-panel {
+  /* The list is a height-capped flex column: without this the panel (overflow hidden, so no
+     minimum height) is squeezed to its border once the rows overflow. */
+  flex-shrink: 0;
   overflow: hidden;
   animation: configEditSlideIn 180ms ease-out;
   border-bottom: 1px solid rgba(138, 173, 244, 0.15);
