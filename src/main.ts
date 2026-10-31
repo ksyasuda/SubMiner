@@ -167,8 +167,6 @@ import { DEFAULT_MIN_WATCH_RATIO } from './shared/watch-threshold';
 import { shouldShowTexthookerTrayEntry } from './main/runtime/tray-main-actions';
 import {
   createApplyJellyfinMpvDefaultsHandler,
-  createBuildApplyJellyfinMpvDefaultsMainDepsHandler,
-  createBuildGetDefaultSocketPathMainDepsHandler,
   createGetDefaultSocketPathHandler,
   buildJellyfinSetupFormHtml,
   parseJellyfinSetupSubmissionUrl,
@@ -698,15 +696,10 @@ let backgroundWarmupsStarted = false;
 let yomitanLoadInFlight: Promise<Extension | null> | null = null;
 let notifyAnilistTokenStoreWarning: (message: string) => void = () => {};
 
-const buildApplyJellyfinMpvDefaultsMainDepsHandler =
-  createBuildApplyJellyfinMpvDefaultsMainDepsHandler({
-    sendMpvCommandRuntime: (client, command) => sendMpvCommandRuntime(client, command),
-    jellyfinLangPref: JELLYFIN_LANG_PREF,
-  });
-const applyJellyfinMpvDefaultsMainDeps = buildApplyJellyfinMpvDefaultsMainDepsHandler();
-const applyJellyfinMpvDefaultsHandler = createApplyJellyfinMpvDefaultsHandler(
-  applyJellyfinMpvDefaultsMainDeps,
-);
+const applyJellyfinMpvDefaultsHandler = createApplyJellyfinMpvDefaultsHandler({
+  sendMpvCommandRuntime: (client, command) => sendMpvCommandRuntime(client, command),
+  jellyfinLangPref: JELLYFIN_LANG_PREF,
+});
 
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
 const texthookerService = new Texthooker(() => {
@@ -749,11 +742,9 @@ const texthookerService = new Texthooker(() => {
 });
 let syncOverlayShortcutsForModal: (isActive: boolean) => void = () => {};
 let syncOverlayVisibilityForModal: () => void = () => {};
-const buildGetDefaultSocketPathMainDepsHandler = createBuildGetDefaultSocketPathMainDepsHandler({
+const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler({
   platform: process.platform,
 });
-const getDefaultSocketPathMainDeps = buildGetDefaultSocketPathMainDepsHandler();
-const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler(getDefaultSocketPathMainDeps);
 
 type BootServices = MainBootServicesResult<
   ConfigService,
