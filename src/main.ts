@@ -5017,8 +5017,7 @@ const {
         startupOsdSequencer.markTokenizationReady();
       },
     },
-    createTokenizerRuntimeDeps: (deps) =>
-      createTokenizerDepsRuntime(deps as Parameters<typeof createTokenizerDepsRuntime>[0]),
+    createTokenizerRuntimeDeps: (deps) => createTokenizerDepsRuntime(deps),
     tokenizeSubtitle: (text, deps) => tokenizeSubtitleCore(text, deps),
     createMecabTokenizerAndCheckMainDeps: {
       getMecabTokenizer: () => appState.mecabTokenizer,

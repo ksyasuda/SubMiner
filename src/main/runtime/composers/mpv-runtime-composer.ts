@@ -31,15 +31,6 @@ type UpdateMpvSubtitleRenderMetricsMainDeps = Parameters<
 type BuildTokenizerDepsMainDeps = TokenizerDepsRuntimeOptions & {
   getJlptEnabled: NonNullable<TokenizerDepsRuntimeOptions['getJlptEnabled']>;
   getCharacterDictionaryEnabled?: () => boolean;
-  getNameMatchEnabled?: NonNullable<TokenizerDepsRuntimeOptions['getNameMatchEnabled']>;
-  getNameMatchImagesEnabled?: NonNullable<TokenizerDepsRuntimeOptions['getNameMatchImagesEnabled']>;
-  getCharacterNameImage?: NonNullable<TokenizerDepsRuntimeOptions['getCharacterNameImage']>;
-  getCurrentCharacterDictionaryMediaId?: NonNullable<
-    TokenizerDepsRuntimeOptions['getCurrentCharacterDictionaryMediaId']
-  >;
-  getCharacterNameCandidates?: NonNullable<
-    TokenizerDepsRuntimeOptions['getCharacterNameCandidates']
-  >;
   getFrequencyDictionaryEnabled: NonNullable<
     TokenizerDepsRuntimeOptions['getFrequencyDictionaryEnabled']
   >;
