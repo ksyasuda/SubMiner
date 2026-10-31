@@ -1,8 +1,4 @@
 import {
-  createBuildConsumeAnilistSetupTokenFromUrlMainDepsHandler,
-  createBuildHandleAnilistSetupProtocolUrlMainDepsHandler,
-  createBuildNotifyAnilistSetupMainDepsHandler,
-  createBuildRegisterSubminerProtocolClientMainDepsHandler,
   createConsumeAnilistSetupTokenFromUrlHandler,
   createHandleAnilistSetupProtocolUrlHandler,
   createNotifyAnilistSetupHandler,
@@ -16,12 +12,10 @@ type HandleProtocolHandler = ReturnType<typeof createHandleAnilistSetupProtocolU
 type RegisterClientHandler = ReturnType<typeof createRegisterSubminerProtocolClientHandler>;
 
 export type AnilistSetupComposerOptions = ComposerInputs<{
-  notifyDeps: Parameters<typeof createBuildNotifyAnilistSetupMainDepsHandler>[0];
-  consumeTokenDeps: Parameters<typeof createBuildConsumeAnilistSetupTokenFromUrlMainDepsHandler>[0];
-  handleProtocolDeps: Parameters<typeof createBuildHandleAnilistSetupProtocolUrlMainDepsHandler>[0];
-  registerProtocolClientDeps: Parameters<
-    typeof createBuildRegisterSubminerProtocolClientMainDepsHandler
-  >[0];
+  notifyDeps: Parameters<typeof createNotifyAnilistSetupHandler>[0];
+  consumeTokenDeps: Parameters<typeof createConsumeAnilistSetupTokenFromUrlHandler>[0];
+  handleProtocolDeps: Parameters<typeof createHandleAnilistSetupProtocolUrlHandler>[0];
+  registerProtocolClientDeps: Parameters<typeof createRegisterSubminerProtocolClientHandler>[0];
 }>;
 
 export type AnilistSetupComposerResult = ComposerOutputs<{
@@ -34,17 +28,15 @@ export type AnilistSetupComposerResult = ComposerOutputs<{
 export function composeAnilistSetupHandlers(
   options: AnilistSetupComposerOptions,
 ): AnilistSetupComposerResult {
-  const notifyAnilistSetup = createNotifyAnilistSetupHandler(
-    createBuildNotifyAnilistSetupMainDepsHandler(options.notifyDeps)(),
-  );
+  const notifyAnilistSetup = createNotifyAnilistSetupHandler(options.notifyDeps);
   const consumeAnilistSetupTokenFromUrl = createConsumeAnilistSetupTokenFromUrlHandler(
-    createBuildConsumeAnilistSetupTokenFromUrlMainDepsHandler(options.consumeTokenDeps)(),
+    options.consumeTokenDeps,
   );
   const handleAnilistSetupProtocolUrl = createHandleAnilistSetupProtocolUrlHandler(
-    createBuildHandleAnilistSetupProtocolUrlMainDepsHandler(options.handleProtocolDeps)(),
+    options.handleProtocolDeps,
   );
   const registerSubminerProtocolClient = createRegisterSubminerProtocolClientHandler(
-    createBuildRegisterSubminerProtocolClientMainDepsHandler(options.registerProtocolClientDeps)(),
+    options.registerProtocolClientDeps,
   );
 
   return {

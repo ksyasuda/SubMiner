@@ -5,29 +5,22 @@ import {
   createSendToActiveOverlayWindowHandler,
   createSetOverlayDebugVisualizationEnabledHandler,
 } from '../overlay-runtime-main-actions';
-import {
-  createBuildBroadcastRuntimeOptionsChangedMainDepsHandler,
-  createBuildOpenRuntimeOptionsPaletteMainDepsHandler,
-  createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler,
-  createBuildSendToActiveOverlayWindowMainDepsHandler,
-  createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
-} from '../overlay-runtime-main-actions-main-deps';
 import type { ComposerInputs, ComposerOutputs } from './contracts';
 
 type RestorePreviousSecondarySubVisibilityMainDeps = Parameters<
-  typeof createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler
+  typeof createRestorePreviousSecondarySubVisibilityHandler
 >[0];
 type BroadcastRuntimeOptionsChangedMainDeps = Parameters<
-  typeof createBuildBroadcastRuntimeOptionsChangedMainDepsHandler
+  typeof createBroadcastRuntimeOptionsChangedHandler
 >[0];
 type SendToActiveOverlayWindowMainDeps = Parameters<
-  typeof createBuildSendToActiveOverlayWindowMainDepsHandler
+  typeof createSendToActiveOverlayWindowHandler
 >[0];
 type SetOverlayDebugVisualizationEnabledMainDeps = Parameters<
-  typeof createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler
+  typeof createSetOverlayDebugVisualizationEnabledHandler
 >[0];
 type OpenRuntimeOptionsPaletteMainDeps = Parameters<
-  typeof createBuildOpenRuntimeOptionsPaletteMainDepsHandler
+  typeof createOpenRuntimeOptionsPaletteHandler
 >[0];
 
 export type OverlayVisibilityRuntimeComposerOptions = ComposerInputs<{
@@ -61,29 +54,19 @@ export function composeOverlayVisibilityRuntime(
     updateVisibleOverlayVisibility: () =>
       options.overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
     restorePreviousSecondarySubVisibility: createRestorePreviousSecondarySubVisibilityHandler(
-      createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler(
-        options.restorePreviousSecondarySubVisibilityMainDeps,
-      )(),
+      options.restorePreviousSecondarySubVisibilityMainDeps,
     ),
     broadcastRuntimeOptionsChanged: createBroadcastRuntimeOptionsChangedHandler(
-      createBuildBroadcastRuntimeOptionsChangedMainDepsHandler(
-        options.broadcastRuntimeOptionsChangedMainDeps,
-      )(),
+      options.broadcastRuntimeOptionsChangedMainDeps,
     ),
     sendToActiveOverlayWindow: createSendToActiveOverlayWindowHandler(
-      createBuildSendToActiveOverlayWindowMainDepsHandler(
-        options.sendToActiveOverlayWindowMainDeps,
-      )(),
+      options.sendToActiveOverlayWindowMainDeps,
     ),
     setOverlayDebugVisualizationEnabled: createSetOverlayDebugVisualizationEnabledHandler(
-      createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler(
-        options.setOverlayDebugVisualizationEnabledMainDeps,
-      )(),
+      options.setOverlayDebugVisualizationEnabledMainDeps,
     ),
     openRuntimeOptionsPalette: createOpenRuntimeOptionsPaletteHandler(
-      createBuildOpenRuntimeOptionsPaletteMainDepsHandler(
-        options.openRuntimeOptionsPaletteMainDeps,
-      )(),
+      options.openRuntimeOptionsPaletteMainDeps,
     ),
   };
 }

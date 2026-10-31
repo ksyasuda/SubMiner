@@ -7,16 +7,10 @@ import {
   createBuildTrayMenuTemplateHandler,
   createResolveTrayIconPathHandler,
 } from './tray-main-actions';
-import {
-  createBuildResolveTrayIconPathMainDepsHandler,
-  createBuildTrayMenuTemplateMainDepsHandler,
-} from './tray-main-deps';
 
-type ResolveTrayIconPathMainDeps = Parameters<
-  typeof createBuildResolveTrayIconPathMainDepsHandler
->[0];
+type ResolveTrayIconPathMainDeps = Parameters<typeof createResolveTrayIconPathHandler>[0];
 type BuildTrayMenuTemplateMainDeps<TMenuItem> = Parameters<
-  typeof createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>
+  typeof createBuildTrayMenuTemplateHandler<TMenuItem>
 >[0];
 type EnsureTrayMainDeps<TTrayMenu> = Parameters<
   typeof createBuildEnsureTrayMainDepsHandler<TrayLike, TTrayMenu, TrayIconLike>
@@ -32,12 +26,8 @@ export function createTrayRuntimeHandlers<TMenuItem, TMenu>(deps: {
   destroyTrayDeps: DestroyTrayMainDeps;
   buildMenuFromTemplate: (template: TMenuItem[]) => TMenu;
 }) {
-  const resolveTrayIconPath = createResolveTrayIconPathHandler(
-    createBuildResolveTrayIconPathMainDepsHandler(deps.resolveTrayIconPathDeps)(),
-  );
-  const buildTrayMenuTemplate = createBuildTrayMenuTemplateHandler(
-    createBuildTrayMenuTemplateMainDepsHandler(deps.buildTrayMenuTemplateDeps)(),
-  );
+  const resolveTrayIconPath = createResolveTrayIconPathHandler(deps.resolveTrayIconPathDeps);
+  const buildTrayMenuTemplate = createBuildTrayMenuTemplateHandler(deps.buildTrayMenuTemplateDeps);
   const buildTrayMenu = () => deps.buildMenuFromTemplate(buildTrayMenuTemplate());
 
   const ensureTray = createEnsureTrayHandler(
