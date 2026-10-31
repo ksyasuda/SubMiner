@@ -237,6 +237,20 @@ test(
       `1\n00:00:01,000 --> 00:00:03,000\n${text}\n\n2\n00:00:06,000 --> 00:00:08,000\n${text}\n`,
     );
     const originalSid = await session.mpv.command('get_property', 'sid');
+    // Runs the probe action and returns the cue it logged on its nth run.
+    const reportSubtitle = async (run: number): Promise<unknown> => {
+      await session.runAppCommand('--plugin-action', 'e2e-probe/subtitle');
+      const line = await waitUntil(
+        () =>
+          fs
+            .readFileSync(path.join(session.root, 'app.log'), 'utf8')
+            .split('\n')
+            .filter((entry) => entry.includes('probe subtitle '))[run - 1],
+        { description: `the plugin to report its current subtitle (run ${run})` },
+      );
+      assert.ok(line);
+      return JSON.parse(line.slice(line.indexOf('probe subtitle ') + 'probe subtitle '.length));
+    };
     try {
       await session.mpv.command('seek', 0, 'absolute+exact');
       await session.mpv.command('sub-add', subtitlePath, 'select');
@@ -251,24 +265,15 @@ test(
         `document.getElementById('subtitleRoot').textContent === ${JSON.stringify(text)}`,
         { description: 'the first delayed line to be visible' },
       );
-      await session.runAppCommand('--plugin-action', 'e2e-probe/subtitle');
-      const line = await waitUntil(
-        () =>
-          fs
-            .readFileSync(path.join(session.root, 'app.log'), 'utf8')
-            .split('\n')
-            .find((entry) => entry.includes('probe subtitle ')),
-        { description: 'the plugin to report its current subtitle' },
+      assert.deepEqual(await reportSubtitle(1), { text, startTime: 1, endTime: 3 });
+
+      // Same text again at 6-8 on the subtitle clock, so only the timings tell the cues apart.
+      await session.mpv.command('seek', 12, 'absolute+exact');
+      await overlay.waitFor(
+        `document.querySelectorAll('#subtitleSidebarList .subtitle-sidebar-item')[1]?.classList.contains('active') === true`,
+        { description: 'the second delayed line to become active' },
       );
-      assert.ok(line);
-      assert.deepEqual(
-        JSON.parse(line.slice(line.indexOf('probe subtitle ') + 'probe subtitle '.length)),
-        {
-          text,
-          startTime: 1,
-          endTime: 3,
-        },
-      );
+      assert.deepEqual(await reportSubtitle(2), { text, startTime: 6, endTime: 8 });
     } finally {
       await session.mpv.command('set_property', 'sub-delay', 0);
       await session.mpv.command('set_property', 'sid', originalSid);
