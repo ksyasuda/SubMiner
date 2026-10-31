@@ -58,7 +58,6 @@ import {
   shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
 } from './main/runtime/jellyfin-remote-playback';
 import { getAppControlSocketPath } from './shared/app-control';
-import { writeJellyfinCliResponse } from './shared/jellyfin-cli-response';
 import {
   type CancelLinuxMpvFullscreenOverlayRefreshBurst,
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
@@ -165,16 +164,7 @@ import {
 } from './main/runtime/domains/anilist';
 import { DEFAULT_MIN_WATCH_RATIO } from './shared/watch-threshold';
 import { shouldShowTexthookerTrayEntry } from './main/runtime/tray-main-actions';
-import {
-  createApplyJellyfinMpvDefaultsHandler,
-  createGetDefaultSocketPathHandler,
-  buildJellyfinSetupFormHtml,
-  parseJellyfinSetupSubmissionUrl,
-  getConfiguredJellyfinSession,
-  mergeJellyfinRecentServers,
-  persistJellyfinAuthSession,
-  type ActiveJellyfinRemotePlaybackState,
-} from './main/runtime/domains/jellyfin';
+import { createGetDefaultSocketPathHandler } from './main/runtime/domains/jellyfin';
 import {
   createWatchConfigPathHandler,
   createTrayRuntimeHandlers,
@@ -236,12 +226,10 @@ import {
 } from './shared/setup-state';
 import {
   ImmersionTrackerService,
-  JellyfinRemoteSessionService,
   MpvIpcClient,
   SubtitleWebSocket,
   Texthooker,
   applyMpvSubtitleRenderMetricsPatch,
-  authenticateWithPasswordRuntime,
   broadcastRuntimeOptionsChangedRuntime,
   captureLiveSubtitleMiningContext,
   copyCurrentSubtitle as copyCurrentSubtitleCore,
@@ -263,10 +251,6 @@ import {
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
   isSubtitleAnnotationUpgrade,
   isOverlayWindowContentReady,
-  jellyfinTicksToSecondsRuntime,
-  listJellyfinItemsRuntime,
-  listJellyfinLibrariesRuntime,
-  listJellyfinSubtitleTracksRuntime,
   loadSubtitlePosition as loadSubtitlePositionCore,
   loadYomitanExtension as loadYomitanExtensionCore,
   markLastCardAsAudioCard as markLastCardAsAudioCardCore,
@@ -277,7 +261,6 @@ import {
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
   resolveSanitizedSubtitleSeekCommand,
-  resolveJellyfinPlaybackPlanRuntime,
   toJellyfinOriginalStreamUrl,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
@@ -289,7 +272,6 @@ import {
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
   shiftSubtitleRangeToVideoClock,
   showMpvOsdRuntime,
-  JellyfinPlaybackReporter,
   tokenizeSubtitle as tokenizeSubtitleCore,
   toSubtitleClock,
   triggerFieldGrouping as triggerFieldGroupingCore,
@@ -309,6 +291,7 @@ import {
   isStandaloneFirstRunSetupCommand,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
+import { createJellyfinAssembly } from './main/assemblies/jellyfin';
 import { createYoutubeAssembly } from './main/assemblies/youtube';
 import {
   createAutoplayReadyGate,
@@ -328,7 +311,6 @@ import {
 import {
   detectInstalledFirstRunPlugin,
   detectInstalledFirstRunPluginCandidates,
-  detectInstalledMpvPlugin,
   removeLegacyMpvPluginCandidates,
 } from './main/runtime/first-run-setup-plugin';
 import { createWindowsMpvPluginDetectionRuntime } from './main/runtime/windows-mpv-plugin-detection';
@@ -349,19 +331,8 @@ import {
   getConfiguredWindowsMpvPathStatus,
   launchWindowsMpv,
 } from './main/runtime/windows-mpv-launch';
+import { findMpvExecutablePath } from './main/runtime/mpv-process';
 import {
-  findMpvExecutablePath,
-  resolveMpvExecutablePath,
-  spawnMpvProcess,
-} from './main/runtime/mpv-process';
-import {
-  DEFAULT_JELLYFIN_CLIENT_NAME,
-  DEFAULT_JELLYFIN_CLIENT_VERSION,
-  createHostDerivedJellyfinDeviceId,
-  resolveJellyfinRemoteDeviceName,
-} from './main/runtime/jellyfin-device-identity';
-import {
-  clearJellyfinAuthSessionAndRefreshTray as clearJellyfinAuthSessionAndRefreshTrayRuntime,
   isJellyfinConfiguredForTray as isJellyfinConfiguredForTrayRuntime,
   toggleJellyfinDiscoveryFromTray as toggleJellyfinDiscoveryFromTrayRuntime,
 } from './main/runtime/jellyfin-tray-discovery';
@@ -408,7 +379,6 @@ import {
   composeCliStartupHandlers,
   composeHeadlessStartupHandlers,
   composeIpcRuntimeHandlers,
-  composeJellyfinRuntimeHandlers,
   composeMpvRuntimeHandlers,
   composeOverlayVisibilityRuntime,
   composeShortcutRuntimes,
@@ -490,7 +460,6 @@ import { createCurrentMediaTokenizationGate } from './main/runtime/current-media
 import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
 import { createOverlayGeometryRuntime } from './main/runtime/overlay-geometry-runtime';
 import { createVisibleOverlayInteractionRuntime } from './main/runtime/visible-overlay-interaction-runtime';
-import { createJellyfinSubtitleCacheIo } from './main/runtime/jellyfin-subtitle-cache-io';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
   INSTALL_UPDATE_ACTION_ID,
@@ -517,7 +486,6 @@ import {
   createCreateAnilistSetupWindowHandler,
   createCreateConfigSettingsWindowHandler,
   createCreateFirstRunSetupWindowHandler,
-  createCreateJellyfinSetupWindowHandler,
   createCreateSyncUiWindowHandler,
 } from './main/runtime/setup-window-factory';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
@@ -593,15 +561,6 @@ const DEFAULT_MPV_LOG_FILE = resolveDefaultLogFilePath('mpv', {
   appDataDir: process.env.APPDATA,
 });
 const ANILIST_SETUP_CLIENT_ID_URL = 'https://anilist.co/api/v2/oauth/authorize';
-const jellyfinSubtitleCacheIo = createJellyfinSubtitleCacheIo({
-  tmpDir: () => os.tmpdir(),
-  makeTempDir: (prefix) => fs.promises.mkdtemp(prefix),
-  writeFile: (filePath, bytes) => fs.promises.writeFile(filePath, bytes),
-  removeDir: (dir, options) => {
-    fs.rmSync(dir, options);
-  },
-  fetch: (url) => fetch(url),
-});
 const ANILIST_SETUP_RESPONSE_TYPE = 'token';
 const ANILIST_DEFAULT_CLIENT_ID = '36084';
 const ANILIST_REDIRECT_URI = 'https://anilist.subminer.moe/';
@@ -610,43 +569,17 @@ const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 const TRAY_TOOLTIP = 'SubMiner';
-const JELLYFIN_SETUP_PRELOAD_PATH = path.join(__dirname, 'preload-jellyfin-setup.js');
 
 let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
   createInitialAnilistMediaGuessRuntimeState();
 let anilistUpdateInFlightState = createInitialAnilistUpdateInFlightState();
 const anilistAttemptedUpdateKeys = new Set<string>();
 let anilistCachedAccessToken: string | null = null;
-let jellyfinPlayQuitOnDisconnectArmed = false;
-const JELLYFIN_LANG_PREF = 'ja,jp,jpn,japanese,en,eng,english,enUS,en-US';
-const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
-const JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS = 3000;
-const JELLYFIN_REMOTE_STARTUP_STOP_GRACE_MS = 10_000;
 const DISCORD_PRESENCE_APP_ID = '1475264834730856619';
-const JELLYFIN_MPV_CONNECT_TIMEOUT_MS = 3000;
-const JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS = 20000;
-const MPV_JELLYFIN_DEFAULT_ARGS = [
-  '--sub-auto=no',
-  '--sub-file-paths=.;subs;subtitles',
-  '--sid=no',
-  '--secondary-sid=no',
-  '--sub-visibility=no',
-  '--secondary-sub-visibility=no',
-  '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-  '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-] as const;
 
-let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
-let jellyfinRemoteLastProgressAtMs = 0;
-let jellyfinMpvAutoLaunchInFlight: Promise<boolean> | null = null;
 let backgroundWarmupsStarted = false;
 let yomitanLoadInFlight: Promise<Extension | null> | null = null;
 let notifyAnilistTokenStoreWarning: (message: string) => void = () => {};
-
-const applyJellyfinMpvDefaultsHandler = createApplyJellyfinMpvDefaultsHandler({
-  sendMpvCommandRuntime: (client, command) => sendMpvCommandRuntime(client, command),
-  jellyfinLangPref: JELLYFIN_LANG_PREF,
-});
 
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
 const texthookerService = new Texthooker(() => {
@@ -1056,7 +989,7 @@ const youtube = createYoutubeAssembly({
       getMpvPluginRuntimeConfig(),
     );
   },
-  ensureMpvConnectedForPlayback: () => ensureMpvConnectedForPlayback(),
+  ensureMpvConnectedForPlayback: () => jellyfin.ensureMpvConnectedForPlayback(),
   requestAppQuit: () => requestAppQuit(),
   browserWindow: {
     createBrowserWindow: (options) => new BrowserWindow(options),
@@ -2807,296 +2740,26 @@ function shouldInitializeMecabForAnnotations(): boolean {
   return knownWordsEnabled || nPlusOneEnabled || jlptEnabled || frequencyEnabled;
 }
 
-const {
-  getResolvedJellyfinConfig,
-  reportJellyfinRemoteProgress,
-  reportJellyfinRemoteStopped,
-  startJellyfinRemoteSession,
-  stopJellyfinRemoteSession,
-  cleanupJellyfinSubtitleCache,
-  runJellyfinCommand,
-  openJellyfinSetupWindow,
-  ensureMpvConnectedForPlayback,
-} = composeJellyfinRuntimeHandlers({
-  getResolvedJellyfinConfigMainDeps: {
-    getResolvedConfig: () => configService.getConfig(),
-    loadStoredSession: () => jellyfinTokenStore.loadSession(),
-    getEnv: (name) => process.env[name],
-  },
-  getJellyfinClientInfoMainDeps: {
-    getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
-    getHostName: () => os.hostname(),
-    defaultClientName: DEFAULT_JELLYFIN_CLIENT_NAME,
-    defaultClientVersion: DEFAULT_JELLYFIN_CLIENT_VERSION,
-  },
-  waitForMpvConnectedMainDeps: {
-    getMpvClient: () => appState.mpvClient,
-    now: () => Date.now(),
-    sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
-  },
-  launchMpvIdleForJellyfinPlaybackMainDeps: {
-    getMpvExecutablePath: () =>
-      resolveMpvExecutablePath(configService.getConfig().mpv.executablePath),
-    getSocketPath: () => appState.mpvSocketPath,
-    getLaunchMode: () => configService.getConfig().mpv.launchMode,
-    platform: process.platform,
-    execPath: process.execPath,
-    getRuntimePluginEntrypoint: () => resolveBundledMpvRuntimePluginEntrypoint(),
-    getInstalledPluginDetection: (mpvExecutablePath) =>
-      detectInstalledMpvPlugin({
-        platform: process.platform,
-        homeDir: os.homedir(),
-        xdgConfigHome: process.env.XDG_CONFIG_HOME,
-        appDataDir: app.getPath('appData'),
-        mpvExecutablePath,
-      }),
-    getPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
-    getDefaultMpvLogPath: () => (isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : ''),
-    defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
-    removeSocketPath: (socketPath) => {
-      fs.rmSync(socketPath, { force: true });
-    },
-    spawnMpv: spawnMpvProcess,
-    logWarn: (message, error) => logger.warn(message, error),
-    logInfo: (message) => logger.info(message),
-  },
-  ensureMpvConnectedForJellyfinPlaybackMainDeps: {
-    getMpvClient: () => appState.mpvClient,
-    setMpvClient: (client) => {
-      appState.mpvClient = client as MpvIpcClient | null;
-    },
-    createMpvClient: () => createMpvClientRuntimeService(),
-    getAutoLaunchInFlight: () => jellyfinMpvAutoLaunchInFlight,
-    setAutoLaunchInFlight: (promise) => {
-      jellyfinMpvAutoLaunchInFlight = promise;
-    },
-    connectTimeoutMs: JELLYFIN_MPV_CONNECT_TIMEOUT_MS,
-    autoLaunchTimeoutMs: JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS,
-  },
-  preloadJellyfinExternalSubtitlesMainDeps: {
-    listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
-      listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
-    getMpvClient: () => appState.mpvClient,
-    sendMpvCommand: (command) => {
-      sendMpvCommandRuntime(appState.mpvClient, command);
-    },
-    wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-    cacheSubtitleTrack: (track) => jellyfinSubtitleCacheIo.cacheSubtitleTrack(track),
-    cleanupCachedSubtitles: (dirs) => jellyfinSubtitleCacheIo.cleanupCachedSubtitles(dirs),
-    initSubtitlePrefetch: (sourcePath) =>
-      subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath),
-    logDebug: (message, error) => {
-      logger.debug(message, error);
-    },
-  },
-  playJellyfinItemInMpvMainDeps: {
-    getMpvClient: () => appState.mpvClient,
-    resolvePlaybackPlan: (params) =>
-      resolveJellyfinPlaybackPlanRuntime(
-        params.session,
-        params.clientInfo,
-        params.jellyfinConfig as ReturnType<typeof getResolvedJellyfinConfig>,
-        {
-          itemId: params.itemId,
-          audioStreamIndex: params.audioStreamIndex ?? undefined,
-          subtitleStreamIndex: params.subtitleStreamIndex ?? undefined,
-        },
-      ),
-    applyJellyfinMpvDefaults: (mpvClient) => applyJellyfinMpvDefaultsHandler(mpvClient),
-    showVisibleOverlay: () => setVisibleOverlayVisible(true),
-    sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
-    armQuitOnDisconnect: () => {
-      jellyfinPlayQuitOnDisconnectArmed = false;
-      setTimeout(() => {
-        jellyfinPlayQuitOnDisconnectArmed = true;
-      }, 3000);
-    },
-    schedule: (callback, delayMs) => {
-      setTimeout(callback, delayMs);
-    },
-    convertTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
-    setActivePlayback: (state) => {
-      activeJellyfinRemotePlayback = {
-        ...(state as ActiveJellyfinRemotePlaybackState),
-        stopReportsAfterMs:
-          state.stopReportsAfterMs ?? Date.now() + JELLYFIN_REMOTE_STARTUP_STOP_GRACE_MS,
-      };
-    },
-    setLastProgressAtMs: (value) => {
-      jellyfinRemoteLastProgressAtMs = value;
-    },
-    // Same device identity as the cast session, so Jellyfin attributes reports to one session.
-    createPlaybackReporter: ({ session, clientInfo }) =>
-      new JellyfinPlaybackReporter({
-        serverUrl: session.serverUrl,
-        accessToken: session.accessToken,
-        deviceId: clientInfo.deviceId,
-        clientName: clientInfo.clientName,
-        clientVersion: clientInfo.clientVersion,
-        deviceName: resolveJellyfinRemoteDeviceName({ hostName: os.hostname() }),
-        logWarn: (message, details) => logger.warn(message, details),
-      }),
-    showMpvOsd: (text) => {
-      overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Jellyfin' });
-    },
-    updateCurrentMediaTitle: (title) => {
-      mediaRuntime.updateCurrentMediaTitle(title);
-    },
-    recordJellyfinPlaybackMetadata: (metadata) => {
-      ensureImmersionTrackerStarted();
-      appState.immersionTracker?.recordJellyfinPlaybackMetadata(metadata);
-    },
-  },
-  remoteComposerOptions: {
-    getConfiguredSession: () => getConfiguredJellyfinSession(getResolvedJellyfinConfig()),
-    logWarn: (message) => logger.warn(message),
-    getMpvClient: () => appState.mpvClient,
-    sendMpvCommand: (client, command) => sendMpvCommandRuntime(client as MpvIpcClient, command),
-    jellyfinTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
-    getActivePlayback: () => activeJellyfinRemotePlayback,
-    clearActivePlayback: () => {
-      activeJellyfinRemotePlayback = null;
-    },
-    getNow: () => Date.now(),
-    getLastProgressAtMs: () => jellyfinRemoteLastProgressAtMs,
-    setLastProgressAtMs: (value) => {
-      jellyfinRemoteLastProgressAtMs = value;
-    },
-    progressIntervalMs: JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS,
-    ticksPerSecond: JELLYFIN_TICKS_PER_SECOND,
-    logDebug: (message, error) => logger.debug(message, error),
-  },
-  handleJellyfinAuthCommandsMainDeps: {
-    patchRawConfig: (patch) => {
-      configService.patchRawConfig(patch);
-      refreshTrayMenuIfPresent();
-    },
-    authenticateWithPassword: (serverUrl, username, password, clientInfo) =>
-      authenticateWithPasswordRuntime(serverUrl, username, password, clientInfo),
-    saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    clearStoredSession: () =>
-      clearJellyfinAuthSessionAndRefreshTrayRuntime(getJellyfinTrayDiscoveryDeps()),
-    logInfo: (message) => logger.info(message),
-  },
-  handleJellyfinListCommandsMainDeps: {
-    listJellyfinLibraries: (session, clientInfo) =>
-      listJellyfinLibrariesRuntime(session, clientInfo),
-    listJellyfinItems: (session, clientInfo, params) =>
-      listJellyfinItemsRuntime(session, clientInfo, params),
-    listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
-      listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
-    writeJellyfinResponse: writeJellyfinCliResponse,
-    logInfo: (message) => logger.info(message),
-  },
-  handleJellyfinPlayCommandMainDeps: {
-    logWarn: (message) => logger.warn(message),
-  },
-  handleJellyfinRemoteAnnounceCommandMainDeps: {
-    getRemoteSession: () => appState.jellyfinRemoteSession,
-    logInfo: (message) => logger.info(message),
-    logWarn: (message) => logger.warn(message),
-  },
-  startJellyfinRemoteSessionMainDeps: {
-    getCurrentSession: () => appState.jellyfinRemoteSession,
-    setCurrentSession: (session) => {
-      appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
-    },
-    createRemoteSessionService: (options) => new JellyfinRemoteSessionService(options),
-    getHostName: () => os.hostname(),
-    defaultDeviceId: createHostDerivedJellyfinDeviceId(os.hostname()),
-    defaultClientName: DEFAULT_JELLYFIN_CLIENT_NAME,
-    defaultClientVersion: DEFAULT_JELLYFIN_CLIENT_VERSION,
-    logInfo: (message) => logger.info(message),
-    logWarn: (message, details) => logger.warn(message, details),
-    onSessionStateChanged: () => refreshTrayMenuIfPresent(),
-  },
-  stopJellyfinRemoteSessionMainDeps: {
-    getCurrentSession: () => appState.jellyfinRemoteSession,
-    setCurrentSession: (session) => {
-      appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
-    },
-    clearActivePlayback: () => {
-      activeJellyfinRemotePlayback = null;
-    },
-    onSessionStateChanged: () => refreshTrayMenuIfPresent(),
-  },
-  runJellyfinCommandMainDeps: {
-    defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl,
-    writeJellyfinResponse: writeJellyfinCliResponse,
-  },
-  maybeFocusExistingJellyfinSetupWindowMainDeps: {
-    getSetupWindow: () => appState.jellyfinSetupWindow,
-  },
-  openJellyfinSetupWindowMainDeps: {
-    createSetupWindow: createCreateJellyfinSetupWindowHandler({
-      createBrowserWindow: (options) => new BrowserWindow(options),
-      preloadPath: JELLYFIN_SETUP_PRELOAD_PATH,
-    }),
-    buildSetupFormHtml: (state) => buildJellyfinSetupFormHtml(state),
-    parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
-    authenticateWithPassword: (server, username, password, clientInfo) =>
-      authenticateWithPasswordRuntime(server, username, password, clientInfo),
-    saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    clearStoredSession: () =>
-      clearJellyfinAuthSessionAndRefreshTrayRuntime(getJellyfinTrayDiscoveryDeps()),
-    patchJellyfinConfig: (session) => {
-      const recentServers = mergeJellyfinRecentServers(
-        session.serverUrl,
-        configService.getConfig().jellyfin.recentServers || [],
-      );
-      configService.patchRawConfig({
-        jellyfin: {
-          enabled: true,
-          serverUrl: session.serverUrl,
-          username: session.username,
-          recentServers,
-        },
-      });
-      refreshTrayMenuIfPresent();
-    },
-    persistAuthenticatedSession: (session, clientInfo) =>
-      persistJellyfinAuthSession({
-        session,
-        clientInfo,
-        existingRecentServers: configService.getConfig().jellyfin.recentServers || [],
-        saveStoredSession: (storedSession) => jellyfinTokenStore.saveSession(storedSession),
-        patchRawConfig: (patch) => {
-          configService.patchRawConfig(patch);
-          refreshTrayMenuIfPresent();
-        },
-      }),
-    logInfo: (message) => logger.info(message),
-    logError: (message, error) => logger.error(message, error),
-    showMpvOsd: (message) =>
-      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
-    clearSetupWindow: () => {
-      appState.jellyfinSetupWindow = null;
-    },
-    setSetupWindow: (window) => {
-      appState.jellyfinSetupWindow = window as BrowserWindow;
-    },
-    registerSetupIpcHandler: (handler) => {
-      const channel = IPC_CHANNELS.request.jellyfinSetupSubmit;
-      ipcMain.removeHandler(channel);
-      ipcMain.handle(channel, async (event, payload) => {
-        const setupWindow = appState.jellyfinSetupWindow;
-        if (!setupWindow || event.sender !== setupWindow.webContents) {
-          return {
-            handled: false,
-            statusMessage: 'This Jellyfin setup window is no longer active.',
-            statusKind: 'error',
-          };
-        }
-        return handler(payload);
-      });
-      return () => {
-        ipcMain.removeHandler(channel);
-      };
-    },
-    encodeURIComponent: (value) => encodeURIComponent(value),
-    defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl || 'http://127.0.0.1:8096',
-    hasStoredSession: () => Boolean(jellyfinTokenStore.loadSession()),
-  },
+const jellyfin = createJellyfinAssembly({
+  appState,
+  configService,
+  jellyfinTokenStore,
+  logger,
+  defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
+  getAppDataPath: () => app.getPath('appData'),
+  getRuntimePluginEntrypoint: () => resolveBundledMpvRuntimePluginEntrypoint(),
+  getMpvPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
+  createMpvClient: () => createMpvClientRuntimeService(),
+  initSubtitlePrefetch: (sourcePath) =>
+    subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath),
+  showVisibleOverlay: () => setVisibleOverlayVisible(true),
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  updateCurrentMediaTitle: (title) => mediaRuntime.updateCurrentMediaTitle(title),
+  ensureImmersionTrackerStarted: () => ensureImmersionTrackerStarted(),
+  refreshTrayMenu: () => refreshTrayMenuIfPresent(),
+  setupPreloadPath: path.join(__dirname, 'preload-jellyfin-setup.js'),
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  ipcMain,
 });
 
 const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
@@ -3748,7 +3411,7 @@ const {
     clearYomitanSettingsWindow: () => {
       appState.yomitanSettingsWindow = null;
     },
-    stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
+    stopJellyfinRemoteSession: () => jellyfin.stopJellyfinRemoteSession(),
     cleanupInternalSubtitleTrackCache: () => cachedInternalSubtitleTrackExtractor.clear(),
     cleanupYoutubeSubtitleTempDirs: () => {
       // Stops yt-dlp/whisper-cli and deletes the audio they were working on.
@@ -3758,7 +3421,7 @@ const {
     },
     cleanupYoutubeMediaCache: () => youtube.mediaCache.cleanup(),
     cleanupRemoteMediaWindows: () => getSharedRemoteMediaWindowCache().cleanup(),
-    cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
+    cleanupJellyfinSubtitleCache: () => jellyfin.cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => {
       void appState.discordPresenceService?.stop();
       appState.discordPresenceService = null;
@@ -4140,7 +3803,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       }
     },
     startJellyfinRemoteSession: async () => {
-      await startJellyfinRemoteSession();
+      await jellyfin.startJellyfinRemoteSession();
     },
     prewarmSubtitleDictionaries: async () => {
       await prewarmSubtitleDictionaries();
@@ -4256,13 +3919,13 @@ const {
   bindMpvMainEventHandlersMainDeps: {
     appState,
     getQuitOnDisconnectArmed: () =>
-      jellyfinPlayQuitOnDisconnectArmed || youtube.playback.getQuitOnDisconnectArmed(),
+      jellyfin.getQuitOnDisconnectArmed() || youtube.playback.getQuitOnDisconnectArmed(),
     scheduleQuitCheck: (callback) => {
       setTimeout(callback, 500);
     },
     quitApp: () => requestAppQuit(),
     reportJellyfinRemoteStopped: () => {
-      void reportJellyfinRemoteStopped();
+      void jellyfin.reportJellyfinRemoteStopped();
     },
     onMpvConnected: () => {
       maybeStartOverlayLoadingOsd();
@@ -4388,7 +4051,7 @@ const {
     },
     signalAutoplayReadyIfWarm: (path) => signalAutoplayReadyFromWarmTokenization?.(path),
     markJellyfinRemotePlaybackLoaded: (path) => {
-      markJellyfinRemotePlaybackLoadedState(activeJellyfinRemotePlayback, path);
+      markJellyfinRemotePlaybackLoadedState(jellyfin.getActivePlayback(), path);
     },
     scheduleCharacterDictionarySync: () => {
       if (
@@ -4407,7 +4070,7 @@ const {
       resetAnilistMediaGuessState();
     },
     reportJellyfinRemoteProgress: (forceImmediate) => {
-      void reportJellyfinRemoteProgress(forceImmediate);
+      void jellyfin.reportJellyfinRemoteProgress(forceImmediate);
     },
     consumeExplicitSeek: () => consumeExplicitSeekIntent(),
     onTimePosUpdate: (time) => {
@@ -4487,7 +4150,7 @@ const {
       appState.reconnectTimer = timer;
     },
     shouldAutoLoadSecondarySubTrack: (path: string) =>
-      shouldAutoLoadSecondarySubTrackForJellyfinPlayback(activeJellyfinRemotePlayback, path),
+      shouldAutoLoadSecondarySubTrackForJellyfinPlayback(jellyfin.getActivePlayback(), path),
     shouldQuitOnMpvShutdown: () =>
       shouldQuitOnMpvShutdownForTrayState({
         managedPlayback: appState.initialArgs?.managedPlayback === true,
@@ -4648,7 +4311,7 @@ const {
           jellyfin.enabled && jellyfin.remoteControlEnabled && jellyfin.remoteControlAutoConnect
         );
       },
-      startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
+      startJellyfinRemoteSession: () => jellyfin.startJellyfinRemoteSession(),
       logDebug: (message) => logger.debug(message),
     },
   },
@@ -5726,7 +5389,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
     clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
     openAnilistSetupWindow: () => openAnilistSetupWindowHandler(),
-    openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+    openJellyfinSetupWindow: () => jellyfin.openJellyfinSetupWindow(),
     getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
     processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
     generateCharacterDictionary: async (targetPath?: string) => {
@@ -5746,7 +5409,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
         runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
         warn: (message, error) => logger.warn(message, error),
       }),
-    runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
+    runJellyfinCommand: (argsFromCommand: CliArgs) => jellyfin.runJellyfinCommand(argsFromCommand),
     runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
       runStatsCliCommand(argsFromCommand, source),
     runUpdateCommand: async (argsFromCommand: CliArgs, source: CliCommandSource) => {
@@ -6002,20 +5665,6 @@ function refreshTrayMenuIfPresent(): void {
   }
 }
 
-function getJellyfinTrayDiscoveryDeps() {
-  return {
-    getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
-    getRemoteSession: () => appState.jellyfinRemoteSession,
-    clearStoredSession: () => jellyfinTokenStore.clearSession(),
-    stopRemoteSession: () => stopJellyfinRemoteSession(),
-    startRemoteSession: (options: { explicit: true }) => startJellyfinRemoteSession(options),
-    refreshTrayMenu: () => refreshTrayMenuIfPresent(),
-    logger,
-    showMpvOsd: (message: string) =>
-      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
-  };
-}
-
 const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
   createTrayRuntimeHandlers({
     resolveTrayIconPathDeps: {
@@ -6049,12 +5698,12 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       exportLogs: () => {
         void exportLogsFromTray();
       },
-      openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+      openJellyfinSetupWindow: () => jellyfin.openJellyfinSetupWindow(),
       isJellyfinConfigured: () =>
-        isJellyfinConfiguredForTrayRuntime(getJellyfinTrayDiscoveryDeps()),
+        isJellyfinConfiguredForTrayRuntime(jellyfin.getTrayDiscoveryDeps()),
       isJellyfinDiscoveryActive: () => Boolean(appState.jellyfinRemoteSession),
       toggleJellyfinDiscovery: (checked: boolean) =>
-        toggleJellyfinDiscoveryFromTrayRuntime(getJellyfinTrayDiscoveryDeps(), {
+        toggleJellyfinDiscoveryFromTrayRuntime(jellyfin.getTrayDiscoveryDeps(), {
           desiredActive: checked,
         }),
       openAnilistSetupWindow: () => openAnilistSetupWindowHandler(),
@@ -6341,7 +5990,7 @@ const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
     }),
   resolveYoutubeSourceUrl: (mediaPath) => youtube.playback.getYoutubeSourceUrlForStream(mediaPath),
   resolveJellyfinMedia: (mediaPath) => {
-    const playback = activeJellyfinRemotePlayback;
+    const playback = jellyfin.getActivePlayback();
     const sourceUrl = playback && toJellyfinOriginalStreamUrl(mediaPath, playback.itemId);
     return sourceUrl
       ? {

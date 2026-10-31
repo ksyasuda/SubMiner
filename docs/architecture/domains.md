@@ -33,7 +33,8 @@ Read when: you need to find the owner module for a behavior or test surface
   `snapshot-transfer.ts` selects compressed rsync or scp. `transfer-cache.ts` atomically retains the last successfully received snapshot per hashed peer/database identity under the config directory's `sync-transfer-cache/`. Cache copies seed isolated transfer directories; rsync verifies reconstructed files before the existing merge engine runs. The `--make-temp` / `--remove-temp` helpers accept an internal `--transfer-cache` key, with a fallback for older peers that do not recognize it.
 - AniList tracking + character dictionary: `src/core/services/anilist/`, `src/main/runtime/composers/anilist-*`, `src/main/character-dictionary-runtime.ts`, `src/main/character-dictionary-runtime/`
 - TMDB live-action metadata: `src/core/services/tmdb/` (client + exact-title resolver), `src/core/services/immersion-tracker/live-action-link.ts` (links an entry to a TMDB title and merges other holders of the same title). The AniList cover-art fetcher calls the resolver as its fallback; `imm_anime.media_kind` marks the result and keeps the entry out of AniList season repair.
-- Jellyfin integration: `src/core/services/jellyfin*.ts`, `src/main/runtime/composers/jellyfin-*`
+- Jellyfin integration: `src/core/services/jellyfin*.ts`, `src/main/runtime/composers/jellyfin-*`,
+  assembled by `src/main/assemblies/jellyfin.ts`
 - YouTube playback, subtitles, media cache, and in-app browser: `src/core/services/youtube/`,
   `src/main/runtime/youtube-*`, assembled by `src/main/assemblies/youtube.ts`
 - Window trackers: `src/window-trackers/`
