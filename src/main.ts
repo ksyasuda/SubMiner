@@ -151,18 +151,9 @@ import {
   failStartupFromConfig,
 } from './main/config-validation';
 import {
-  buildAnilistSetupUrl,
-  consumeAnilistSetupCallbackUrl,
-  createAnilistStateRuntime,
-  createMaybeFocusExistingAnilistSetupWindowHandler,
-  createOpenAnilistSetupWindowHandler,
   findAnilistSetupDeepLinkArgvUrl,
   isAnilistTrackingEnabled,
-  loadAnilistManualTokenEntry,
-  openAnilistSetupInBrowser,
-  rememberAnilistAttemptedUpdateKey,
 } from './main/runtime/domains/anilist';
-import { DEFAULT_MIN_WATCH_RATIO } from './shared/watch-threshold';
 import { shouldShowTexthookerTrayEntry } from './main/runtime/tray-main-actions';
 import { createGetDefaultSocketPathHandler } from './main/runtime/domains/jellyfin';
 import {
@@ -292,6 +283,7 @@ import {
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
 import { createJellyfinAssembly } from './main/assemblies/jellyfin';
+import { createAnilistAssembly } from './main/assemblies/anilist';
 import { createYoutubeAssembly } from './main/assemblies/youtube';
 import {
   createAutoplayReadyGate,
@@ -354,10 +346,7 @@ import { createStatsServerRuntime } from './main/runtime/stats-server-runtime';
 import { createForceQuitHandler } from './main/runtime/app-lifecycle-actions';
 import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
-import {
-  guessAnilistMediaInfo,
-  updateAnilistPostWatchProgress,
-} from './core/services/anilist/anilist-updater';
+import { guessAnilistMediaInfo } from './core/services/anilist/anilist-updater';
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
@@ -373,8 +362,6 @@ import {
   createRestoreOverlayMpvSubtitlesHandler,
 } from './main/runtime/overlay-mpv-sub-visibility';
 import {
-  composeAnilistSetupHandlers,
-  composeAnilistTrackingHandlers,
   composeAppReadyRuntime,
   composeCliStartupHandlers,
   composeHeadlessStartupHandlers,
@@ -483,7 +470,6 @@ import {
 } from './main/runtime/subtitle-prefetch-runtime';
 import { createSecondarySubtitleTrackController } from './main/runtime/secondary-subtitle-track';
 import {
-  createCreateAnilistSetupWindowHandler,
   createCreateConfigSettingsWindowHandler,
   createCreateFirstRunSetupWindowHandler,
   createCreateSyncUiWindowHandler,
@@ -504,24 +490,7 @@ import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-polic
 import { reloadOverlayWindowsForYomitanContentScripts } from './main/runtime/yomitan-extension-overlay-reload';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
 import { createYomitanAnkiServerSyncRuntime } from './main/runtime/yomitan-anki-server-sync';
-import {
-  type AnilistMediaGuessRuntimeState,
-  type StartupState,
-  applyStartupState,
-  createAppState,
-  createInitialAnilistMediaGuessRuntimeState,
-  createInitialAnilistUpdateInFlightState,
-  transitionAnilistClientSecretState,
-  transitionAnilistMediaGuessRuntimeState,
-  transitionAnilistRetryQueueLastAttemptAt,
-  transitionAnilistRetryQueueLastError,
-  transitionAnilistRetryQueueState,
-  transitionAnilistUpdateInFlightState,
-} from './main/state';
-import {
-  isAllowedAnilistExternalUrl,
-  isAllowedAnilistSetupNavigationUrl,
-} from './main/anilist-url-guard';
+import { type StartupState, applyStartupState, createAppState } from './main/state';
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -560,21 +529,8 @@ const DEFAULT_MPV_LOG_FILE = resolveDefaultLogFilePath('mpv', {
   homeDir: os.homedir(),
   appDataDir: process.env.APPDATA,
 });
-const ANILIST_SETUP_CLIENT_ID_URL = 'https://anilist.co/api/v2/oauth/authorize';
-const ANILIST_SETUP_RESPONSE_TYPE = 'token';
-const ANILIST_DEFAULT_CLIENT_ID = '36084';
-const ANILIST_REDIRECT_URI = 'https://anilist.subminer.moe/';
-const ANILIST_DEVELOPER_SETTINGS_URL = 'https://anilist.co/settings/developer';
-const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
-const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
-const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 const TRAY_TOOLTIP = 'SubMiner';
 
-let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
-  createInitialAnilistMediaGuessRuntimeState();
-let anilistUpdateInFlightState = createInitialAnilistUpdateInFlightState();
-const anilistAttemptedUpdateKeys = new Set<string>();
-let anilistCachedAccessToken: string | null = null;
 const DISCORD_PRESENCE_APP_ID = '1475264834730856619';
 
 let backgroundWarmupsStarted = false;
@@ -1278,7 +1234,7 @@ const discordPresenceRuntime = createDiscordPresenceRuntime({
   getCurrentMediaPath: () => appState.currentMediaPath,
   getCurrentSubtitleText: () => appState.currentSubText,
   getPlaybackPaused: () => appState.playbackPaused,
-  getFallbackMediaDurationSec: () => anilistMediaGuessRuntimeState.mediaDurationSec,
+  getFallbackMediaDurationSec: () => anilist.getMediaDurationSec(),
   getSessionStartedAtMs: () => discordPresenceSessionStartedAtMs,
   getMediaDurationSec: () => discordPresenceMediaDurationSec,
   setMediaDurationSec: (next) => {
@@ -1368,27 +1324,6 @@ const statsCoverArtFetcher = createCoverArtFetcher(
     ),
   },
 );
-const anilistStateRuntime = createAnilistStateRuntime({
-  getClientSecretState: () => appState.anilistClientSecretState,
-  setClientSecretState: (next) => {
-    appState.anilistClientSecretState = transitionAnilistClientSecretState(
-      appState.anilistClientSecretState,
-      next,
-    );
-  },
-  getRetryQueueState: () => appState.anilistRetryQueueState,
-  setRetryQueueState: (next) => {
-    appState.anilistRetryQueueState = transitionAnilistRetryQueueState(
-      appState.anilistRetryQueueState,
-      next,
-    );
-  },
-  getUpdateQueueSnapshot: () => anilistUpdateQueue.getSnapshot(),
-  clearStoredToken: () => anilistTokenStore.clearToken(),
-  clearCachedAccessToken: () => {
-    anilistCachedAccessToken = null;
-  },
-});
 const configDerivedRuntime = createConfigDerivedRuntime({
   getResolvedConfig: () => configService.getConfig(),
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
@@ -2921,372 +2856,22 @@ function openFirstRunSetupWindow(force = false): void {
   openFirstRunSetupWindowHandler();
 }
 
-const {
-  notifyAnilistSetup,
-  consumeAnilistSetupTokenFromUrl,
-  handleAnilistSetupProtocolUrl,
-  registerSubminerProtocolClient,
-} = composeAnilistSetupHandlers({
-  notifyDeps: {
-    getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
-    hasMpvClient: () => Boolean(appState.mpvClient),
-    showMpvOsd: (message) =>
-      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'AniList' }),
-    showOverlayNotification: (payload) =>
-      overlayNotificationsRuntime.showOverlayNotification(payload),
-    showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-    logInfo: (message) => logger.info(message),
-  },
-  consumeTokenDeps: {
-    consumeAnilistSetupCallbackUrl,
-    saveToken: (token) => anilistTokenStore.saveToken(token),
-    setCachedToken: (token) => {
-      anilistCachedAccessToken = token;
-    },
-    setResolvedState: (resolvedAt) => {
-      anilistStateRuntime.setClientSecretState({
-        status: 'resolved',
-        source: 'stored',
-        message: 'saved token from AniList login',
-        resolvedAt,
-        errorAt: null,
-      });
-    },
-    setSetupPageOpened: (opened) => {
-      appState.anilistSetupPageOpened = opened;
-    },
-    onSuccess: () => {
-      notifyAnilistSetup('AniList login success');
-    },
-    closeWindow: () => {
-      if (appState.anilistSetupWindow && !appState.anilistSetupWindow.isDestroyed()) {
-        appState.anilistSetupWindow.close();
-      }
-    },
-  },
-  handleProtocolDeps: {
-    consumeAnilistSetupTokenFromUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
-    logWarn: (message, details) => logger.warn(message, details),
-  },
-  registerProtocolClientDeps: {
-    isDefaultApp: () => Boolean(process.defaultApp),
-    getArgv: () => process.argv,
-    execPath: process.execPath,
-    resolvePath: (value) => path.resolve(value),
-    setAsDefaultProtocolClient: (scheme, appPath, args) =>
-      appPath
-        ? app.setAsDefaultProtocolClient(scheme, appPath, args)
-        : app.setAsDefaultProtocolClient(scheme),
-    logDebug: (message, details) => logger.debug(message, details),
-  },
+const anilist = createAnilistAssembly({
+  appState,
+  configService,
+  logger,
+  anilistTokenStore,
+  anilistUpdateQueue,
+  anilistRateLimiter,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+  resolveMediaPathForJimaku: (currentMediaPath) =>
+    mediaRuntime.resolveMediaPathForJimaku(currentMediaPath),
+  resolvePinnedMediaId: (request) => characterDictionaryRuntime.resolvePinnedMediaId(request),
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  shell,
+  app,
 });
-
-const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetupWindowHandler({
-  getSetupWindow: () => appState.anilistSetupWindow,
-});
-const openAnilistSetupWindowHandler = createOpenAnilistSetupWindowHandler({
-  maybeFocusExistingSetupWindow: maybeFocusExistingAnilistSetupWindow,
-  createSetupWindow: createCreateAnilistSetupWindowHandler({
-    createBrowserWindow: (options) => new BrowserWindow(options),
-  }),
-  buildAuthorizeUrl: () =>
-    buildAnilistSetupUrl({
-      authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
-      clientId: ANILIST_DEFAULT_CLIENT_ID,
-      responseType: ANILIST_SETUP_RESPONSE_TYPE,
-    }),
-  consumeCallbackUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
-  openSetupInBrowser: (authorizeUrl) =>
-    openAnilistSetupInBrowser({
-      authorizeUrl,
-      openExternal: (url) => shell.openExternal(url),
-      logError: (message, error) => logger.error(message, error),
-    }),
-  loadManualTokenEntry: (setupWindow, authorizeUrl) =>
-    loadAnilistManualTokenEntry({
-      setupWindow: setupWindow as BrowserWindow,
-      authorizeUrl,
-      developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-      logWarn: (message, data) => logger.warn(message, data),
-    }),
-  redirectUri: ANILIST_REDIRECT_URI,
-  developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-  isAllowedExternalUrl: (url) => isAllowedAnilistExternalUrl(url),
-  isAllowedNavigationUrl: (url) => isAllowedAnilistSetupNavigationUrl(url),
-  logWarn: (message, details) => logger.warn(message, details),
-  logError: (message, details) => logger.error(message, details),
-  clearSetupWindow: () => {
-    appState.anilistSetupWindow = null;
-  },
-  setSetupPageOpened: (opened) => {
-    appState.anilistSetupPageOpened = opened;
-  },
-  setSetupWindow: (setupWindow) => {
-    appState.anilistSetupWindow = setupWindow as BrowserWindow;
-  },
-  openExternal: (url) => {
-    void shell.openExternal(url);
-  },
-});
-
-const {
-  refreshAnilistClientSecretState,
-  getCurrentAnilistMediaKey,
-  resetAnilistMediaTracking,
-  getAnilistMediaGuessRuntimeState,
-  setAnilistMediaGuessRuntimeState,
-  recordAnilistMediaDuration,
-  resetAnilistMediaGuessState,
-  maybeProbeAnilistDuration,
-  ensureAnilistMediaGuess,
-  processNextAnilistRetryUpdate,
-  maybeRunAnilistPostWatchUpdate,
-} = composeAnilistTrackingHandlers({
-  refreshClientSecretMainDeps: {
-    getResolvedConfig: () => configService.getConfig(),
-    isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
-    getCachedAccessToken: () => anilistCachedAccessToken,
-    setCachedAccessToken: (token) => {
-      anilistCachedAccessToken = token;
-    },
-    saveStoredToken: (token) => {
-      anilistTokenStore.saveToken(token);
-    },
-    loadStoredToken: () => anilistTokenStore.loadToken(),
-    setClientSecretState: (state) => {
-      anilistStateRuntime.setClientSecretState(state);
-    },
-    getAnilistSetupPageOpened: () => appState.anilistSetupPageOpened,
-    setAnilistSetupPageOpened: (opened) => {
-      appState.anilistSetupPageOpened = opened;
-    },
-    openAnilistSetupWindow: () => {
-      openAnilistSetupWindowHandler();
-    },
-    now: () => Date.now(),
-  },
-  getCurrentMediaKeyMainDeps: {
-    getCurrentMediaPath: () => appState.currentMediaPath,
-  },
-  resetMediaTrackingMainDeps: {
-    setMediaKey: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaKey: value },
-      );
-    },
-    setMediaDurationSec: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaDurationSec: value },
-      );
-    },
-    setMediaGuess: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuess: value },
-      );
-    },
-    setMediaGuessPromise: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuessPromise: value },
-      );
-    },
-    setLastDurationProbeAtMs: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { lastDurationProbeAtMs: value },
-      );
-    },
-  },
-  getMediaGuessRuntimeStateMainDeps: {
-    getMediaKey: () => anilistMediaGuessRuntimeState.mediaKey,
-    getMediaDurationSec: () => anilistMediaGuessRuntimeState.mediaDurationSec,
-    getMediaGuess: () => anilistMediaGuessRuntimeState.mediaGuess,
-    getMediaGuessPromise: () => anilistMediaGuessRuntimeState.mediaGuessPromise,
-    getLastDurationProbeAtMs: () => anilistMediaGuessRuntimeState.lastDurationProbeAtMs,
-  },
-  setMediaGuessRuntimeStateMainDeps: {
-    setMediaKey: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaKey: value },
-      );
-    },
-    setMediaDurationSec: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaDurationSec: value },
-      );
-    },
-    setMediaGuess: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuess: value },
-      );
-    },
-    setMediaGuessPromise: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuessPromise: value },
-      );
-    },
-    setLastDurationProbeAtMs: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { lastDurationProbeAtMs: value },
-      );
-    },
-  },
-  recordMediaDurationMainDeps: {
-    getCurrentMediaKey: () => getCurrentAnilistMediaKey(),
-    getState: () => getAnilistMediaGuessRuntimeState(),
-    setState: (state) => {
-      setAnilistMediaGuessRuntimeState(state);
-    },
-  },
-  resetMediaGuessStateMainDeps: {
-    setMediaGuess: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuess: value },
-      );
-    },
-    setMediaGuessPromise: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuessPromise: value },
-      );
-    },
-  },
-  maybeProbeDurationMainDeps: {
-    getState: () => getAnilistMediaGuessRuntimeState(),
-    setState: (state) => {
-      setAnilistMediaGuessRuntimeState(state);
-    },
-    durationRetryIntervalMs: ANILIST_DURATION_RETRY_INTERVAL_MS,
-    now: () => Date.now(),
-    requestMpvDuration: async () => appState.mpvClient?.requestProperty('duration'),
-    logWarn: (message, error) => logger.warn(message, error),
-  },
-  ensureMediaGuessMainDeps: {
-    getState: () => getAnilistMediaGuessRuntimeState(),
-    setState: (state) => {
-      setAnilistMediaGuessRuntimeState(state);
-    },
-    resolveMediaPathForJimaku: (currentMediaPath) =>
-      mediaRuntime.resolveMediaPathForJimaku(currentMediaPath),
-    getCurrentMediaPath: () => appState.currentMediaPath,
-    getCurrentMediaTitle: () => appState.currentMediaTitle,
-    guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
-  },
-  processNextRetryUpdateMainDeps: {
-    nextReady: () => anilistUpdateQueue.nextReady(),
-    refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
-    setLastAttemptAt: (value) => {
-      appState.anilistRetryQueueState = transitionAnilistRetryQueueLastAttemptAt(
-        appState.anilistRetryQueueState,
-        value,
-      );
-    },
-    setLastError: (value) => {
-      appState.anilistRetryQueueState = transitionAnilistRetryQueueLastError(
-        appState.anilistRetryQueueState,
-        value,
-      );
-    },
-    refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode, season, mediaId) =>
-      updateAnilistPostWatchProgress(accessToken, title, episode, {
-        rateLimiter: anilistRateLimiter,
-        season,
-        mediaId,
-        logInfo: (message) => logger.info(message),
-      }),
-    markSuccess: (key) => {
-      anilistUpdateQueue.markSuccess(key);
-    },
-    rememberAttemptedUpdateKey: (key) => {
-      rememberAnilistAttemptedUpdate(key);
-    },
-    markFailure: (key, message) => {
-      anilistUpdateQueue.markFailure(key, message);
-    },
-    logInfo: (message) => logger.info(message),
-    now: () => Date.now(),
-  },
-  maybeRunPostWatchUpdateMainDeps: {
-    getInFlight: () => anilistUpdateInFlightState.inFlight,
-    setInFlight: (value) => {
-      anilistUpdateInFlightState = transitionAnilistUpdateInFlightState(
-        anilistUpdateInFlightState,
-        value,
-      );
-    },
-    getResolvedConfig: () => configService.getConfig(),
-    isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
-    getCurrentMediaKey: () => getCurrentAnilistMediaKey(),
-    hasMpvClient: () => Boolean(appState.mpvClient),
-    getTrackedMediaKey: () => anilistMediaGuessRuntimeState.mediaKey,
-    resetTrackedMedia: (mediaKey) => {
-      resetAnilistMediaTracking(mediaKey);
-    },
-    getWatchedSeconds: () => appState.mpvClient?.currentTimePos ?? Number.NaN,
-    maybeProbeAnilistDuration: (mediaKey, options) => maybeProbeAnilistDuration(mediaKey, options),
-    ensureAnilistMediaGuess: (mediaKey) => ensureAnilistMediaGuess(mediaKey),
-    hasAttemptedUpdateKey: (key) => anilistAttemptedUpdateKeys.has(key),
-    processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
-    refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    enqueueRetry: (key, title, episode, season, mediaId) => {
-      anilistUpdateQueue.enqueue(key, title, episode, season, mediaId);
-    },
-    getCurrentMediaTitle: () => appState.currentMediaTitle,
-    resolvePinnedAnilistMediaId: ({ mediaPath, mediaTitle, guess }) =>
-      characterDictionaryRuntime.resolvePinnedMediaId({ mediaPath, mediaTitle, guess }),
-    markRetryFailure: (key, message) => {
-      anilistUpdateQueue.markFailure(key, message);
-    },
-    markRetrySuccess: (key) => {
-      anilistUpdateQueue.markSuccess(key);
-    },
-    refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode, season, mediaId) =>
-      updateAnilistPostWatchProgress(accessToken, title, episode, {
-        rateLimiter: anilistRateLimiter,
-        season,
-        mediaId,
-        logInfo: (message) => logger.info(message),
-      }),
-    rememberAttemptedUpdateKey: (key) => {
-      rememberAnilistAttemptedUpdate(key);
-    },
-    showMpvOsd: (message) =>
-      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'AniList' }),
-    logInfo: (message) => logger.info(message),
-    logWarn: (message) => logger.warn(message),
-    minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
-    minWatchRatio: DEFAULT_MIN_WATCH_RATIO,
-  },
-});
-
-function refreshAnilistClientSecretStateIfEnabled(options?: {
-  force?: boolean;
-  allowSetupPrompt?: boolean;
-}): Promise<string | null> {
-  if (!isAnilistTrackingEnabled(configService.getConfig())) {
-    return Promise.resolve(null);
-  }
-  return refreshAnilistClientSecretState(options);
-}
-
-const rememberAnilistAttemptedUpdate = (key: string): void => {
-  rememberAnilistAttemptedUpdateKey(
-    anilistAttemptedUpdateKeys,
-    key,
-    ANILIST_MAX_ATTEMPTED_UPDATE_KEYS,
-  );
-};
 
 const loadSubtitlePosition = createLoadSubtitlePositionHandler({
   loadSubtitlePositionCore: () =>
@@ -3319,7 +2904,7 @@ const saveSubtitlePosition = createSaveSubtitlePositionHandler({
   },
 });
 
-registerSubminerProtocolClient();
+anilist.registerSubminerProtocolClient();
 let flushPendingMpvLogWrites = (): void => {};
 const {
   registerProtocolUrlHandlers: registerProtocolUrlHandlersHandler,
@@ -3334,7 +2919,7 @@ const {
     registerSecondInstance: (listener) => {
       registerSecondInstanceHandlerEarly(app, listener);
     },
-    handleAnilistSetupProtocolUrl: (rawUrl) => handleAnilistSetupProtocolUrl(rawUrl),
+    handleAnilistSetupProtocolUrl: (rawUrl) => anilist.handleAnilistSetupProtocolUrl(rawUrl),
     findAnilistSetupDeepLinkArgvUrl: (argv) => findAnilistSetupDeepLinkArgvUrl(argv),
     logUnhandledOpenUrl: (rawUrl) => {
       logger.warn('Unhandled app protocol URL', { rawUrl });
@@ -3662,7 +3247,8 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     startConfigHotReload: () => configHotReloadRuntime.start(),
     shouldRefreshAnilistClientSecretState: () =>
       shouldRefreshAnilistOnConfigReload(appState.initialArgs),
-    refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretStateIfEnabled(options),
+    refreshAnilistClientSecretState: (options) =>
+      anilist.refreshClientSecretStateIfEnabled(options),
     failHandlers: {
       logError: (details) => logger.error(details),
       showErrorBox: (title, details) => dialog.showErrorBox(title, details),
@@ -3942,9 +3528,9 @@ const {
         subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
       }
     },
-    maybeRunAnilistPostWatchUpdate: (options) => maybeRunAnilistPostWatchUpdate(options),
+    maybeRunAnilistPostWatchUpdate: (options) => anilist.maybeRunAnilistPostWatchUpdate(options),
     recordAnilistMediaDuration: (durationSec) => {
-      recordAnilistMediaDuration(durationSec);
+      anilist.recordAnilistMediaDuration(durationSec);
     },
     logSubtitleTimingError: (message, error) => logger.error(message, error),
     broadcastToOverlayWindows: (channel, payload) => {
@@ -4036,15 +3622,15 @@ const {
     resetSubtitleSidebarEmbeddedLayout: () => {
       resetSubtitleSidebarEmbeddedLayoutRuntime();
     },
-    getCurrentAnilistMediaKey: () => getCurrentAnilistMediaKey(),
+    getCurrentAnilistMediaKey: () => anilist.getCurrentAnilistMediaKey(),
     resetAnilistMediaTracking: (mediaKey) => {
-      resetAnilistMediaTracking(mediaKey);
+      anilist.resetAnilistMediaTracking(mediaKey);
     },
     maybeProbeAnilistDuration: (mediaKey) => {
-      void maybeProbeAnilistDuration(mediaKey);
+      void anilist.maybeProbeAnilistDuration(mediaKey);
     },
     ensureAnilistMediaGuess: (mediaKey) => {
-      void ensureAnilistMediaGuess(mediaKey);
+      void anilist.ensureAnilistMediaGuess(mediaKey);
     },
     syncImmersionMediaState: () => {
       immersionMediaRuntime.syncFromCurrentMediaState();
@@ -4067,7 +3653,7 @@ const {
       mediaRuntime.updateCurrentMediaTitle(title);
     },
     resetAnilistMediaGuessState: () => {
-      resetAnilistMediaGuessState();
+      anilist.resetAnilistMediaGuessState();
     },
     reportJellyfinRemoteProgress: (forceImmediate) => {
       void jellyfin.reportJellyfinRemoteProgress(forceImmediate);
@@ -4893,7 +4479,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
       const marked = (await appState.immersionTracker?.markActiveVideoWatched()) ?? false;
       if (marked) {
         try {
-          await maybeRunAnilistPostWatchUpdate({ force: true });
+          await anilist.maybeRunAnilistPostWatchUpdate({ force: true });
         } catch (error) {
           logger.warn('Failed to run AniList post-watch update after manual watched mark:', error);
         }
@@ -5241,12 +4827,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           autoplaySubtitlePrimingRuntime.scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
         }
       },
-      getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
-      clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
-      openAnilistSetup: () => openAnilistSetupWindowHandler(),
-      getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
-      retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
-      runAnilistPostWatchUpdateOnManualMark: () => maybeRunAnilistPostWatchUpdate({ force: true }),
+      getAnilistStatus: () => anilist.stateRuntime.getStatusSnapshot(),
+      clearAnilistToken: () => anilist.stateRuntime.clearTokenState(),
+      openAnilistSetup: () => anilist.openSetupWindow(),
+      getAnilistQueueStatus: () => anilist.stateRuntime.getQueueStatusSnapshot(),
+      retryAnilistQueueNow: () => anilist.processNextAnilistRetryUpdate(),
+      runAnilistPostWatchUpdateOnManualMark: () =>
+        anilist.maybeRunAnilistPostWatchUpdate({ force: true }),
       getCharacterDictionarySelection: (searchTitle?: string) =>
         characterDictionaryRuntime.getManualSelectionSnapshot(undefined, searchTitle),
       setCharacterDictionarySelection: async (
@@ -5276,7 +4863,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           { mediaId },
           {
             setManualSelection: (request) => characterDictionaryRuntime.setManualSelection(request),
-            resetAnilistMediaGuessState,
+            resetAnilistMediaGuessState: anilist.resetAnilistMediaGuessState,
             runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
             warn: (message, error) => logger.warn(message, error),
           },
@@ -5386,12 +4973,12 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     triggerFieldGrouping: () => triggerFieldGroupingHandler(),
     triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCardHandler(),
-    getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
-    clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
-    openAnilistSetupWindow: () => openAnilistSetupWindowHandler(),
+    getAnilistStatus: () => anilist.stateRuntime.getStatusSnapshot(),
+    clearAnilistToken: () => anilist.stateRuntime.clearTokenState(),
+    openAnilistSetupWindow: () => anilist.openSetupWindow(),
     openJellyfinSetupWindow: () => jellyfin.openJellyfinSetupWindow(),
-    getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
-    processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
+    getAnilistQueueStatus: () => anilist.stateRuntime.getQueueStatusSnapshot(),
+    processNextAnilistRetryUpdate: () => anilist.processNextAnilistRetryUpdate(),
     generateCharacterDictionary: async (targetPath?: string) => {
       const disabledReason = yomitanProfilePolicy.getCharacterDictionaryDisabledReason();
       if (disabledReason) {
@@ -5405,7 +4992,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
       applyCharacterDictionarySelection(request, {
         setManualSelection: (selectionRequest) =>
           characterDictionaryRuntime.setManualSelection(selectionRequest),
-        resetAnilistMediaGuessState,
+        resetAnilistMediaGuessState: anilist.resetAnilistMediaGuessState,
         runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
         warn: (message, error) => logger.warn(message, error),
       }),
@@ -5591,13 +5178,15 @@ const shouldUseMinimalStartup = startupModeFlags.shouldUseMinimalStartup;
 const shouldSkipHeavyStartup = startupModeFlags.shouldSkipHeavyStartup;
 if (!appState.initialArgs || (!shouldUseMinimalStartup && !shouldSkipHeavyStartup)) {
   if (isAnilistTrackingEnabled(configService.getConfig())) {
-    void refreshAnilistClientSecretStateIfEnabled({
-      force: true,
-      allowSetupPrompt: false,
-    }).catch((error) => {
-      logger.error('Failed to refresh AniList client secret state during startup', error);
-    });
-    anilistStateRuntime.refreshRetryQueueState();
+    void anilist
+      .refreshClientSecretStateIfEnabled({
+        force: true,
+        allowSetupPrompt: false,
+      })
+      .catch((error) => {
+        logger.error('Failed to refresh AniList client secret state during startup', error);
+      });
+    anilist.stateRuntime.refreshRetryQueueState();
   }
   void initializeDiscordPresenceService().catch((error) => {
     logger.error('Failed to initialize Discord presence service during startup', error);
@@ -5706,7 +5295,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
         toggleJellyfinDiscoveryFromTrayRuntime(jellyfin.getTrayDiscoveryDeps(), {
           desiredActive: checked,
         }),
-      openAnilistSetupWindow: () => openAnilistSetupWindowHandler(),
+      openAnilistSetupWindow: () => anilist.openSetupWindow(),
       checkForUpdates: () => {
         void getUpdateService().checkForUpdates({ source: 'manual' });
       },
