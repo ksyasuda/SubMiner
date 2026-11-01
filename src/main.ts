@@ -69,7 +69,6 @@ import type {
   ResolvedConfig,
   SessionActionDispatchRequest,
   SecondarySubMode,
-  SubtitleMiningContext,
   SubtitlePosition,
   WindowGeometry,
 } from './types';
@@ -102,7 +101,7 @@ import {
   type CliCommandSource,
 } from './cli/args';
 import { printHelp } from './cli/help';
-import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
+import { IPC_CHANNELS } from './shared/ipc/contracts';
 import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
 import {
   getStartupModeFlags,
@@ -120,8 +119,6 @@ import { createGetDefaultSocketPathHandler } from './main/runtime/domains/jellyf
 import {
   createTrayRuntimeHandlers,
   createGetRuntimeOptionsStateHandler,
-  createGetFieldGroupingResolverHandler,
-  createSetFieldGroupingResolverHandler,
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
@@ -141,16 +138,6 @@ import {
 } from './main/runtime/domains/mpv';
 import { resolvePrimarySubtitle } from './main/runtime/primary-subtitle-text';
 import {
-  createMarkLastCardAsAudioCardHandler,
-  createMineSentenceCardHandler,
-  createRefreshKnownWordCacheHandler,
-  createTriggerFieldGroupingHandler,
-  createUpdateLastCardFromClipboardHandler,
-  createCopyCurrentSubtitleHandler,
-  createHandleMineSentenceDigitHandler,
-  createHandleMultiCopyDigitHandler,
-} from './main/runtime/domains/mining';
-import {
   enforceUnsupportedWaylandMode,
   forceX11Backend,
   generateDefaultConfigFile,
@@ -164,22 +151,15 @@ import {
   SubtitleWebSocket,
   Texthooker,
   broadcastRuntimeOptionsChangedRuntime,
-  captureLiveSubtitleMiningContext,
-  copyCurrentSubtitle as copyCurrentSubtitleCore,
   createDiscordPresenceService,
-  createFieldGroupingOverlayRuntime,
   createOverlayContentMeasurementStore,
   createOverlayManager,
   createOverlayWindow as createOverlayWindowCore,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
-  handleMineSentenceDigit as handleMineSentenceDigitCore,
-  handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
   isOverlayWindowContentReady,
   loadSubtitlePosition as loadSubtitlePositionCore,
-  markLastCardAsAudioCard as markLastCardAsAudioCardCore,
-  mineSentenceCard as mineSentenceCardCore,
   playNextSubtitleRuntime,
   promoteSettingsWindowAboveOverlay,
   registerGlobalShortcuts as registerGlobalShortcutsCore,
@@ -193,8 +173,6 @@ import {
   shiftSubtitleRangeToVideoClock,
   showMpvOsdRuntime,
   toSubtitleClock,
-  triggerFieldGrouping as triggerFieldGroupingCore,
-  updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
 import { applyOverlayClickThrough } from './core/services/overlay-click-through';
 import {
@@ -216,6 +194,7 @@ import { createFirstRunSetupAssembly } from './main/assemblies/first-run-setup';
 import { createOverlayAssembly } from './main/assemblies/overlay';
 import { createYomitanAssembly } from './main/assemblies/yomitan';
 import { createStatsAssembly } from './main/assemblies/stats';
+import { createMiningAssembly } from './main/assemblies/mining';
 import { createPlaybackAssembly } from './main/assemblies/playback';
 import {
   createAutoplayReadyGate,
@@ -227,7 +206,6 @@ import { createWindowsMpvPluginDetectionRuntime } from './main/runtime/windows-m
 import { refreshManagedCommandLineLauncher } from './main/runtime/command-line-launcher';
 import { applyLoginShellPath } from './main/runtime/login-shell-path';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
-import { findMpvExecutablePath } from './main/runtime/mpv-process';
 import {
   isJellyfinConfiguredForTray as isJellyfinConfiguredForTrayRuntime,
   toggleJellyfinDiscoveryFromTray as toggleJellyfinDiscoveryFromTrayRuntime,
@@ -281,16 +259,7 @@ import { createMainBootServices, type MainBootServicesResult } from './main/boot
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
-import { MediaTimingPreviewSession } from './core/services/media-timing-preview';
 import { getSharedRemoteMediaWindowCache } from './core/services/remote-media-window-cache';
-import { resolveMediaGenerationInput } from './anki-integration/media-source';
-import { generateSpeechWaveform } from './core/services/media-timing-waveform';
-import { createMediaTimingFrameExtractor } from './core/services/media-timing-frame';
-import {
-  collectMediaTimingContextLines,
-  createMediaTimingReviewRuntime,
-} from './main/runtime/media-timing-review';
-import { openMediaTimingReviewModal } from './main/runtime/media-timing-review-open';
 import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
 import { createChangelogRuntime } from './main/runtime/changelog/changelog-runtime';
 import {
@@ -585,7 +554,6 @@ const yomitan = createYomitanAssembly({
   openExternal: (url) => shell.openExternal(url),
 });
 yomitan.registerDictionaryExternalLinkHandler();
-let pendingSubtitleMiningContext: SubtitleMiningContext | null = null;
 
 function getOverlayForegroundSeparateWindows(): BrowserWindow[] {
   return [
@@ -1039,40 +1007,6 @@ const startupOsdSequencer = createStartupOsdSequencer({
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
 let appTray: Tray | null = null;
-function captureCurrentPrimarySubtitleMiningContext(): SubtitleMiningContext | null {
-  // Mine what the overlay shows, not raw mpv `sub-text`: the raw text lists every active
-  // event, so a finished caption row lingering beside a fresh line would end up on the
-  // card. The parsed view also carries the cue's own timings for the clip range.
-  // Cues sit on the subtitle clock, so the lookup undoes `sub-delay` first.
-  const subDelay = appState.mpvClient?.currentSubDelay ?? 0;
-  const resolved = resolvePrimarySubtitle({
-    liveText: appState.mpvClient?.currentSubText ?? '',
-    currentTimeSec: toSubtitleClock(Number(appState.mpvClient?.currentTimePos), subDelay),
-    cues: appState.activeParsedSubtitleCues,
-  });
-  // Same validity bar as the live capture path: an unusable resolved span must fall
-  // back rather than hand mining an empty line or an inverted range.
-  const resolvedText = resolved?.text.replace(/\n{2,}/g, '\n').trim();
-  if (
-    !resolved ||
-    !resolvedText ||
-    !Number.isFinite(resolved.startTime) ||
-    !Number.isFinite(resolved.endTime) ||
-    resolved.endTime <= resolved.startTime
-  ) {
-    return captureLiveSubtitleMiningContext(appState.mpvClient);
-  }
-  return shiftSubtitleRangeToVideoClock<SubtitleMiningContext>(
-    {
-      source: 'overlay',
-      text: resolvedText,
-      startTime: resolved.startTime,
-      endTime: resolved.endTime,
-      capturedAtMs: Date.now(),
-    },
-    subDelay,
-  );
-}
 const {
   linuxOverlayModeRuntime,
   overlayVisibilityRuntime,
@@ -1103,7 +1037,7 @@ const {
   getOverlayShortcuts: () => overlayShortcutsRuntime,
   getOverlayNotifications: () => overlayNotificationsRuntime,
   getOverlayVisibilityComposer: () => overlayVisibilityComposer,
-  getMediaTimingReviewRuntime: () => mediaTimingReviewRuntime,
+  getMediaTimingReviewRuntime: () => mining.mediaTimingReviewRuntime,
   getSubtitleProcessingController: () => subtitleProcessingController,
   getAutoplaySubtitlePriming: () => autoplaySubtitlePrimingRuntime,
   ensureOverlayMpvSubtitlesHidden: () => ensureOverlayMpvSubtitlesHidden(),
@@ -1148,18 +1082,18 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
   openTsukihime: () => {
     overlayModals.openTsukihimeOverlay();
   },
-  markAudioCard: () => markLastCardAsAudioCardHandler(),
+  markAudioCard: () => mining.markLastCardAsAudioCard(),
   copySubtitleMultiple: (timeoutMs: number) => {
     startPendingMultiCopy(timeoutMs);
   },
   copySubtitle: () => {
-    copyCurrentSubtitleHandler();
+    mining.copyCurrentSubtitle();
   },
   toggleSecondarySubMode: () => cycleSecondarySubMode(),
-  updateLastCardFromClipboard: () => updateLastCardFromClipboardHandler(),
-  triggerFieldGrouping: () => triggerFieldGroupingHandler(),
+  updateLastCardFromClipboard: () => mining.updateLastCardFromClipboard(),
+  triggerFieldGrouping: () => mining.triggerFieldGrouping(),
   triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
-  mineSentenceCard: () => mineSentenceCardHandler(),
+  mineSentenceCard: () => mining.mineSentenceCard(),
   mineSentenceMultiple: (timeoutMs: number) => {
     startPendingMineSentenceMultiple(timeoutMs);
   },
@@ -1289,42 +1223,33 @@ const dictionaries = createDictionariesAssembly({
   logger,
 });
 
-const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler({
-  getResolver: () => appState.fieldGroupingResolver,
-});
-
-const setFieldGroupingResolverHandler = createSetFieldGroupingResolverHandler({
-  setResolver: (resolver) => {
-    appState.fieldGroupingResolver = resolver;
-  },
-  nextSequence: () => {
-    appState.fieldGroupingResolverSequence += 1;
-    return appState.fieldGroupingResolverSequence;
-  },
-  getSequence: () => appState.fieldGroupingResolverSequence,
-});
-
-const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHostedModal>({
-  getMainWindow: () => overlayManager.getMainWindow(),
-  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+const mining = createMiningAssembly({
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
+  overlayManager,
+  overlayModalRuntime,
+  youtube,
+  clipboard,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  getOverlayModals: () => overlayModals,
   setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-  getResolver: () => getFieldGroupingResolverHandler(),
-  setResolver: (resolver) => setFieldGroupingResolverHandler(resolver),
-  getRestoreVisibleOverlayOnModalClose: () =>
-    overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
-  // These are optional on the runtime options, so a missing forward compiles silently, but
-  // dropping them leaves the field grouping modal with no modal-open ack/retry, no teardown on
-  // failure, and no warn logging.
-  waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
-  handleOverlayModalClosed: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
-  logWarn: (message) => logger.warn(message),
   ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
   ensureOverlayWindowsReadyForVisibilityActions: () =>
     ensureOverlayWindowsReadyForVisibilityActions(),
-  sendToVisibleOverlay: (channel, payload, runtimeOptions) =>
-    overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+  ankiIntegrationCallbacks: {
+    recordCardsMined: (count, noteIds) => stats.recordCardsMined(count, noteIds),
+    getMiningProvenance: () => ({
+      minedAt: Date.now(),
+      media: pluginHost.getMediaSnapshot(),
+      subtitle: getPluginCurrentSubtitle(),
+    }),
+    onCardsReady: (noteIds, notes) => pluginHost.emitAnkiEvent('card-mined', { noteIds, notes }),
+    onKnownWordCacheUpdated: () => refreshCurrentSubtitleAnnotations(),
+    generateSentenceFurigana: (text, highlightedText) =>
+      yomitan.generateSentenceFurigana(text, highlightedText),
+  },
 });
-const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
 
@@ -1598,76 +1523,6 @@ const pluginHost = createPluginHost({
   unstable: { appState, configService, overlayManager },
 });
 
-const mediaTimingFrameExtractor = createMediaTimingFrameExtractor();
-const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
-  getMpvClient: () => appState.mpvClient,
-  getCurrentMediaPath: () =>
-    appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
-  // An invalid configured path is passed through so the preview fails instead of using PATH mpv.
-  getMpvExecutablePath: () => {
-    const configuredPath = configService.getConfig().mpv.executablePath;
-    return findMpvExecutablePath(configuredPath) || configuredPath;
-  },
-  createPreviewSession: () => new MediaTimingPreviewSession(),
-  generateWaveform: (options) => generateSpeechWaveform(options),
-  generateFrame: (options) => mediaTimingFrameExtractor.generate(options),
-  clearFrameCache: () => mediaTimingFrameExtractor.clear(),
-  resolveVideoSource: () =>
-    resolveMediaGenerationInput(appState.mpvClient, 'video', {
-      getCachedMediaPath: (currentVideoPath, kind) =>
-        youtube.getCachedMediaPathForCurrentPlayback(currentVideoPath, kind),
-      remoteCacheMode: youtube.shouldRequireMediaCacheForCurrentPlayback()
-        ? 'required'
-        : 'optional',
-    }),
-  resolveMediaSource: async () => {
-    const resolved = await resolveMediaGenerationInput(appState.mpvClient, 'audio', {
-      getCachedMediaPath: (currentVideoPath, kind) =>
-        youtube.getCachedMediaPathForCurrentPlayback(currentVideoPath, kind),
-      remoteCacheMode: youtube.shouldRequireMediaCacheForCurrentPlayback()
-        ? 'required'
-        : 'optional',
-    });
-    return resolved
-      ? {
-          path: resolved.path,
-          ...(resolved.inputOptions ? { inputOptions: resolved.inputOptions } : {}),
-          singleResolvedStream: resolved.singleResolvedStream,
-        }
-      : null;
-  },
-  acquireMediaWindow: (source, range) => getSharedRemoteMediaWindowCache().acquire(source, range),
-  getSubtitleContextLines: (range) =>
-    collectMediaTimingContextLines({
-      // Review ranges and tracker entries are on the video clock; parsed cues are not.
-      cues: appState.activeParsedSubtitleCues.map((cue) =>
-        shiftSubtitleRangeToVideoClock(cue, appState.mpvClient?.currentSubDelay ?? 0),
-      ),
-      fallbackPrevious: appState.subtitleTimingTracker?.getRecentEntries(40) ?? [],
-      startTime: range.startTime,
-      endTime: range.endTime,
-    }),
-  openModal: (payload, signal) =>
-    openMediaTimingReviewModal(overlayModals.createOverlayHostedModalOpenDeps(), payload, signal),
-  onPreviewEnded: (reviewId) => {
-    // The review may live in either overlay window; the renderer ignores foreign review ids.
-    for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
-      if (window && !window.isDestroyed()) {
-        window.webContents.send(IPC_CHANNELS.event.mediaTimingReviewPreviewEnded, reviewId);
-      }
-    }
-  },
-  onPreviewPosition: (position) => {
-    for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
-      if (window && !window.isDestroyed()) {
-        window.webContents.send(IPC_CHANNELS.event.mediaTimingReviewPreviewPosition, position);
-      }
-    }
-  },
-  showStatus: (message) =>
-    overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' }),
-});
-
 function getRuntimeBooleanOption(
   id:
     | 'subtitle.annotation.knownWords.highlightEnabled'
@@ -1894,14 +1749,6 @@ const {
 });
 registerProtocolUrlHandlersHandler();
 
-const recordSubtitleMiningContext = (context: SubtitleMiningContext | null): void => {
-  pendingSubtitleMiningContext = context;
-};
-const consumePendingSubtitleMiningContext = (): SubtitleMiningContext | null => {
-  const context = pendingSubtitleMiningContext;
-  pendingSubtitleMiningContext = null;
-  return context;
-};
 async function runHeadlessInitialCommand(): Promise<void> {
   if (!appState.initialArgs?.refreshKnownWords) {
     handleInitialArgs();
@@ -2227,7 +2074,7 @@ const {
   currentMediaTokenizationGate,
   startupOsdSequencer,
   managedLocalSubtitleSelectionRuntime,
-  mediaTimingReviewRuntime,
+  mediaTimingReviewRuntime: mining.mediaTimingReviewRuntime,
   discordPresenceRuntime,
   immersionMediaRuntime: stats.immersionMediaRuntime,
   mediaRuntime,
@@ -2358,19 +2205,9 @@ function initializeOverlayRuntime(): void {
   if (!(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs))) {
     overlayModalRuntime.primeModalWindow();
   }
-  appState.ankiIntegration?.setRecordCardsMinedCallback(stats.recordCardsMined);
-  appState.ankiIntegration?.setMiningProvenanceProvider(() => ({
-    minedAt: Date.now(),
-    media: pluginHost.getMediaSnapshot(),
-    subtitle: getPluginCurrentSubtitle(),
-  }));
-  appState.ankiIntegration?.setCardsReadyCallback((noteIds, notes) =>
-    pluginHost.emitAnkiEvent('card-mined', { noteIds, notes }),
-  );
-  appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(refreshCurrentSubtitleAnnotations);
-  appState.ankiIntegration?.setSubtitleMiningContextConsumer(consumePendingSubtitleMiningContext);
-  appState.ankiIntegration?.setMediaTimingReviewCallback(mediaTimingReviewRuntime.requestReview);
-  appState.ankiIntegration?.setSentenceFuriganaGenerator(yomitan.generateSentenceFurigana);
+  if (appState.ankiIntegration) {
+    mining.attachToAnkiIntegration(appState.ankiIntegration);
+  }
   syncOverlayMpvSubtitleSuppression();
 }
 
@@ -2418,8 +2255,8 @@ const {
     clearTimer: (timer) => clearTimeout(timer),
   },
   numericSessions: {
-    onMultiCopyDigit: (count) => handleMultiCopyDigitHandler(count),
-    onMineSentenceDigit: (count) => handleMineSentenceDigitHandler(count),
+    onMultiCopyDigit: (count) => mining.copySubtitleCount(count),
+    onMineSentenceDigit: (count) => mining.mineSentenceCount(count),
     tryBeginMultiCopyOverlaySelection: (timeoutMs) =>
       tryBeginVisibleOverlayNumericSelection({
         actionId: 'copySubtitleMultiple',
@@ -2542,62 +2379,6 @@ function setSecondarySubMode(mode: SecondarySubMode): void {
   appState.secondarySubMode = mode;
 }
 
-const updateLastCardFromClipboardHandler = createUpdateLastCardFromClipboardHandler({
-  getAnkiIntegration: () => appState.ankiIntegration,
-  readClipboardText: () => clipboard.readText(),
-  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-  updateLastCardFromClipboardCore,
-});
-
-const refreshKnownWordCacheHandler = createRefreshKnownWordCacheHandler({
-  getAnkiIntegration: () => appState.ankiIntegration,
-  missingIntegrationMessage: 'AnkiConnect integration not enabled',
-});
-
-const triggerFieldGroupingHandler = createTriggerFieldGroupingHandler({
-  getAnkiIntegration: () => appState.ankiIntegration,
-  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-  triggerFieldGroupingCore,
-});
-
-const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler({
-  getAnkiIntegration: () => appState.ankiIntegration,
-  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-  markLastCardAsAudioCardCore,
-});
-
-const mineSentenceCardHandler = createMineSentenceCardHandler({
-  getAnkiIntegration: () => appState.ankiIntegration,
-  getMpvClient: () => appState.mpvClient,
-  getPrimarySubtitle: () => captureCurrentPrimarySubtitleMiningContext(),
-  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-  mineSentenceCardCore,
-});
-
-const handleMultiCopyDigitHandler = createHandleMultiCopyDigitHandler({
-  getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-  writeClipboardText: (text) => clipboard.writeText(text),
-  showMpvOsd: (text) => showConfiguredPlaybackFeedback(text),
-  handleMultiCopyDigitCore,
-});
-
-const copyCurrentSubtitleHandler = createCopyCurrentSubtitleHandler({
-  getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-  writeClipboardText: (text) => clipboard.writeText(text),
-  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-  copyCurrentSubtitleCore,
-});
-
-const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler({
-  getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-  getAnkiIntegration: () => appState.ankiIntegration,
-  getCurrentSecondarySubText: () => appState.mpvClient?.currentSecondarySubText || undefined,
-  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-  logError: (message, err) => {
-    logger.error(message, err);
-  },
-  handleMineSentenceDigitCore,
-});
 const handleOverlayModalClosedHandler = createHandleOverlayModalClosedHandler({
   handleOverlayModalClosedRuntime: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
 });
@@ -2616,13 +2397,13 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
   await dispatchSessionActionCore(request, {
     toggleStatsOverlay: async () => await stats.toggleStatsOverlay(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
-    copyCurrentSubtitle: () => copyCurrentSubtitleHandler(),
-    copySubtitleCount: (count) => handleMultiCopyDigitHandler(count),
-    updateLastCardFromClipboard: () => updateLastCardFromClipboardHandler(),
-    triggerFieldGrouping: () => triggerFieldGroupingHandler(),
+    copyCurrentSubtitle: () => mining.copyCurrentSubtitle(),
+    copySubtitleCount: (count) => mining.copySubtitleCount(count),
+    updateLastCardFromClipboard: () => mining.updateLastCardFromClipboard(),
+    triggerFieldGrouping: () => mining.triggerFieldGrouping(),
     triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
-    mineSentenceCard: () => mineSentenceCardHandler(),
-    mineSentenceCount: (count) => handleMineSentenceDigitHandler(count),
+    mineSentenceCard: () => mining.mineSentenceCard(),
+    mineSentenceCount: (count) => mining.mineSentenceCount(count),
     toggleSecondarySub: () => cycleSecondarySubMode(),
     toggleSubtitleSidebar: () =>
       overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.subtitleSidebarToggle),
@@ -2630,7 +2411,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     appendClipboardVideoToQueue: () => {
       appendClipboardVideoToQueueHandler();
     },
-    markLastCardAsAudioCard: () => markLastCardAsAudioCardHandler(),
+    markLastCardAsAudioCard: () => mining.markLastCardAsAudioCard(),
     markActiveVideoWatched: () => stats.markActiveVideoWatched(),
     openRuntimeOptionsPalette: () => overlayModals.openRuntimeOptionsPalette(),
     openJimaku: () => overlayModals.openJimakuOverlay(),
@@ -2713,11 +2494,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       showMpvOsd: (text: string) => showConfiguredPlaybackFeedback(text),
     },
     mainDeps: {
-      previewMediaTimingReview: (request) => mediaTimingReviewRuntime.previewRange(request),
-      getMediaTimingReviewFrame: (request) => mediaTimingReviewRuntime.getFrame(request),
-      getMediaTimingReviewWaveform: (request) => mediaTimingReviewRuntime.getWaveform(request),
-      stopMediaTimingReviewPreview: (reviewId) => mediaTimingReviewRuntime.stopPreview(reviewId),
-      resolveMediaTimingReview: (request) => mediaTimingReviewRuntime.resolveReview(request),
+      previewMediaTimingReview: (request) => mining.mediaTimingReviewRuntime.previewRange(request),
+      getMediaTimingReviewFrame: (request) => mining.mediaTimingReviewRuntime.getFrame(request),
+      getMediaTimingReviewWaveform: (request) =>
+        mining.mediaTimingReviewRuntime.getWaveform(request),
+      stopMediaTimingReviewPreview: (reviewId) =>
+        mining.mediaTimingReviewRuntime.stopPreview(reviewId),
+      resolveMediaTimingReview: (request) => mining.mediaTimingReviewRuntime.resolveReview(request),
       getMainWindow: () => overlayManager.getMainWindow(),
       focusMainWindow: () => {
         const mainWindow = overlayManager.getMainWindow();
@@ -2759,7 +2542,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           return;
         }
         if (modal === 'media-timing-review') {
-          void mediaTimingReviewRuntime.dispose();
+          void mining.mediaTimingReviewRuntime.dispose();
         }
         if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
           subtitleSidebarRequestedOpen = false;
@@ -2844,10 +2627,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       // live mpv sub timings at lookup time so media generation clips the mined line even
       // when extraction finishes long after playback has moved on.
       recordSubtitleMiningContext: (context) =>
-        recordSubtitleMiningContext(
+        mining.recordSubtitleMiningContext(
           context
             ? shiftSubtitleRangeToVideoClock(context, appState.mpvClient?.currentSubDelay ?? 0)
-            : captureCurrentPrimarySubtitleMiningContext(),
+            : mining.captureCurrentPrimarySubtitleMiningContext(),
         ),
       tokenizeCurrentSubtitle: async () => {
         const tokenizeSubtitleForCurrent = getTokenizeSubtitleDeferred();
@@ -3073,9 +2856,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getResolvedConfig: () => configService.getConfig(),
       getMpvClient: () => appState.mpvClient,
       getAnkiIntegration: () => appState.ankiIntegration,
-      getFieldGroupingResolver: () => getFieldGroupingResolverHandler(),
+      getFieldGroupingResolver: () => mining.getFieldGroupingResolver(),
       setFieldGroupingResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) =>
-        setFieldGroupingResolverHandler(resolver),
+        mining.setFieldGroupingResolver(resolver),
       parseMediaInfo: (mediaPath: string | null) =>
         parseMediaInfo(mediaRuntime.resolveMediaPathForJimaku(mediaPath)),
       getCurrentMediaPath: () => appState.currentMediaPath,
@@ -3123,16 +2906,16 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
       overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.primarySubtitleBarToggle),
     openFirstRunSetupWindow: (force?: boolean) => firstRunSetup.openWindow(force),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
-    copyCurrentSubtitle: () => copyCurrentSubtitleHandler(),
+    copyCurrentSubtitle: () => mining.copyCurrentSubtitle(),
     startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
-    mineSentenceCard: () => mineSentenceCardHandler(),
+    mineSentenceCard: () => mining.mineSentenceCard(),
     startPendingMineSentenceMultiple: (timeoutMs: number) =>
       startPendingMineSentenceMultiple(timeoutMs),
-    updateLastCardFromClipboard: () => updateLastCardFromClipboardHandler(),
-    refreshKnownWordCache: () => refreshKnownWordCacheHandler(),
-    triggerFieldGrouping: () => triggerFieldGroupingHandler(),
+    updateLastCardFromClipboard: () => mining.updateLastCardFromClipboard(),
+    refreshKnownWordCache: () => mining.refreshKnownWordCache(),
+    triggerFieldGrouping: () => mining.triggerFieldGrouping(),
     triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
-    markLastCardAsAudioCard: () => markLastCardAsAudioCardHandler(),
+    markLastCardAsAudioCard: () => mining.markLastCardAsAudioCard(),
     getAnilistStatus: () => anilist.stateRuntime.getStatusSnapshot(),
     clearAnilistToken: () => anilist.stateRuntime.clearTokenState(),
     openAnilistSetupWindow: () => anilist.openSetupWindow(),
@@ -3470,7 +3253,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         overlayNotificationsRuntime.showOverlayNotification(payload),
       dismissOverlayNotification: (id) =>
         overlayNotificationsRuntime.dismissOverlayNotification(id),
-      createFieldGroupingCallback: () => createFieldGroupingCallback(),
+      createFieldGroupingCallback: () => mining.createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       getCachedMediaPath: (currentVideoPath, kind) =>
         youtube.getCachedMediaPathForCurrentPlayback(currentVideoPath, kind),
