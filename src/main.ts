@@ -117,14 +117,11 @@ import {
 import { shouldShowTexthookerTrayEntry } from './main/runtime/tray-main-actions';
 import { createGetDefaultSocketPathHandler } from './main/runtime/domains/jellyfin';
 import {
-  createTrayRuntimeHandlers,
   createGetRuntimeOptionsStateHandler,
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
   createHandleOverlayModalClosedHandler,
-  buildTrayMenuTemplateRuntime,
-  resolveTrayIconPathRuntime,
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/domains/overlay';
 import {
@@ -194,6 +191,7 @@ import { createYomitanAssembly } from './main/assemblies/yomitan';
 import { createStatsAssembly } from './main/assemblies/stats';
 import { createMiningAssembly } from './main/assemblies/mining';
 import { createShortcutsAssembly } from './main/assemblies/shortcuts';
+import { createTrayAssembly } from './main/assemblies/tray';
 import { createPlaybackAssembly } from './main/assemblies/playback';
 import {
   createAutoplayReadyGate,
@@ -332,7 +330,6 @@ const DEFAULT_MPV_LOG_FILE = resolveDefaultLogFilePath('mpv', {
   homeDir: os.homedir(),
   appDataDir: process.env.APPDATA,
 });
-const TRAY_TOOLTIP = 'SubMiner';
 
 const DISCORD_PRESENCE_APP_ID = '1475264834730856619';
 
@@ -890,11 +887,7 @@ const firstRunSetup = createFirstRunSetupAssembly({
   createBrowserWindow: (options) => new BrowserWindow(options),
   openDictionarySettings: () => yomitan.openDictionarySettings(),
   openConfigSettingsWindow: () => settings.window.openWindow(),
-  onSetupStateChanged: () => {
-    if (appTray) {
-      ensureTrayHandler();
-    }
-  },
+  onSetupStateChanged: () => tray.refreshMenu(),
   requestAppQuit: () => requestAppQuit(),
 });
 const discordPresenceSessionStartedAtMs = Date.now();
@@ -1002,7 +995,52 @@ const startupOsdSequencer = createStartupOsdSequencer({
     overlayNotificationsRuntime.showOverlayNotification(payload),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
-let appTray: Tray | null = null;
+const tray = createTrayAssembly({
+  appState,
+  logger,
+  iconRoots: {
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+    mainDirname: __dirname,
+  },
+  electron: {
+    createTray: (icon) => new Tray(icon),
+    createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
+    createEmptyImage: () => nativeImage.createEmpty(),
+    buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
+  },
+  menu: {
+    openSessionHelpModal: () => overlayModals.openSessionHelpOverlay(),
+    openChangelogModal: () => overlayModals.openChangelogOverlay(),
+    openTexthookerInBrowser: () => handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
+    showTexthookerPage: () => shouldShowTexthookerTrayEntry(configService.getConfig()),
+    showFirstRunSetup: () => !firstRunSetup.service.isSetupCompleted(),
+    openFirstRunSetupWindow: (force?: boolean) => firstRunSetup.openWindow(force),
+    getDictionaryBackend: () => activeDictionaryBackend,
+    openHachidoriSettings: () => yomitan.openHachidoriSettings(),
+    openYomitanSettings: () => yomitan.openYomitanSettings(),
+    openConfigSettingsWindow: () => settings.window.openWindow(),
+    openSyncUiWindow: () => sync.openWindow(),
+    openYoutubeBrowserWindow: () => youtube.browserWindow.open(),
+    exportLogs: () => {
+      void exportLogsFromTray();
+    },
+    openJellyfinSetupWindow: () => jellyfin.openJellyfinSetupWindow(),
+    isJellyfinConfigured: () => isJellyfinConfiguredForTrayRuntime(jellyfin.getTrayDiscoveryDeps()),
+    isJellyfinDiscoveryActive: () => Boolean(appState.jellyfinRemoteSession),
+    toggleJellyfinDiscovery: (checked: boolean) =>
+      toggleJellyfinDiscoveryFromTrayRuntime(jellyfin.getTrayDiscoveryDeps(), {
+        desiredActive: checked,
+      }),
+    openAnilistSetupWindow: () => anilist.openSetupWindow(),
+    checkForUpdates: () => {
+      void getUpdateService().checkForUpdates({ source: 'manual' });
+    },
+    quitApp: () => requestAppQuit(),
+  },
+  initializeOverlayRuntime: () => initializeOverlayRuntime(),
+  setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+});
 const {
   linuxOverlayModeRuntime,
   overlayVisibilityRuntime,
@@ -1515,7 +1553,7 @@ const jellyfin = createJellyfinAssembly({
   getOverlayNotifications: () => overlayNotificationsRuntime,
   updateCurrentMediaTitle: (title) => mediaRuntime.updateCurrentMediaTitle(title),
   ensureImmersionTrackerStarted: () => stats.ensureImmersionTrackerStarted(),
-  refreshTrayMenu: () => refreshTrayMenuIfPresent(),
+  refreshTrayMenu: () => tray.refreshMenu(),
   setupPreloadPath: path.join(__dirname, 'preload-jellyfin-setup.js'),
   createBrowserWindow: (options) => new BrowserWindow(options),
   ipcMain,
@@ -1594,7 +1632,7 @@ const {
     },
   },
   onWillQuitCleanupMainDeps: {
-    destroyTray: () => destroyTrayHandler(),
+    destroyTray: () => tray.destroyTray(),
     stopConfigHotReload: () => settings.hotReload.stop(),
     restorePreviousSecondarySubVisibility: () =>
       overlayVisibilityComposer.restorePreviousSecondarySubVisibility(),
@@ -2029,7 +2067,7 @@ const {
   dictionaries,
   getSubtitleGenerationRuntime: () => subtitleGenerationRuntime,
   isCharacterDictionaryEnabled: () => yomitan.profilePolicy.isCharacterDictionaryEnabled(),
-  hasTray: () => Boolean(appTray),
+  hasTray: () => tray.hasTray(),
   loadSubtitleSourceText,
   createSubtitlePrefetchService,
   requestAppQuit: () => requestAppQuit(),
@@ -2854,7 +2892,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     },
     ensureTrayForCommand: (args) => {
       if (args.background || args.managedPlayback) {
-        ensureTrayHandler();
+        tray.ensureTray();
       }
     },
     handleCliCommandRuntimeServiceWithContext: (args, source, cliContext) =>
@@ -2866,7 +2904,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     shouldEnsureTrayOnStartup: () =>
       shouldEnsureTrayOnStartupForInitialArgs(process.platform, appState.initialArgs),
     shouldRunHeadlessInitialCommand: (args) => isHeadlessInitialCommand(args),
-    ensureTray: () => ensureTrayHandler(),
+    ensureTray: () => tray.ensureTray(),
     isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
     hasImmersionTracker: () => Boolean(appState.immersionTracker),
     getMpvClient: () => appState.mpvClient,
@@ -2910,7 +2948,7 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
       shouldQuitOnWindowAllClosed: () =>
         shouldQuitOnWindowAllClosedForTrayState({
           backgroundMode: appState.backgroundMode,
-          hasTray: Boolean(appTray),
+          hasTray: tray.hasTray(),
         }),
     },
     createAppLifecycleRuntimeRunner: (params) => createAppLifecycleRuntimeRunner(params),
@@ -2989,82 +3027,6 @@ if (!appState.initialArgs || (!shouldUseMinimalStartup && !shouldSkipHeavyStartu
     logger.error('Failed to initialize Discord presence service during startup', error);
   });
 }
-function refreshTrayMenuIfPresent(): void {
-  if (appTray) {
-    ensureTrayHandler();
-  }
-}
-
-const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
-  createTrayRuntimeHandlers({
-    resolveTrayIconPathDeps: {
-      resolveTrayIconPathRuntime,
-      platform: process.platform,
-      resourcesPath: process.resourcesPath,
-      appPath: app.getAppPath(),
-      dirname: __dirname,
-      joinPath: (...parts) => path.join(...parts),
-      fileExists: (candidate) => fs.existsSync(candidate),
-    },
-    buildTrayMenuTemplateDeps: {
-      buildTrayMenuTemplateRuntime,
-      platform: process.platform,
-      initializeOverlayRuntime: () => initializeOverlayRuntime(),
-      isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-      openSessionHelpModal: () => overlayModals.openSessionHelpOverlay(),
-      openChangelogModal: () => overlayModals.openChangelogOverlay(),
-      openTexthookerInBrowser: () =>
-        handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
-      showTexthookerPage: () => shouldShowTexthookerTrayEntry(configService.getConfig()),
-      showFirstRunSetup: () => !firstRunSetup.service.isSetupCompleted(),
-      openFirstRunSetupWindow: (force?: boolean) => firstRunSetup.openWindow(force),
-      showWindowsMpvLauncherSetup: () => process.platform === 'win32',
-      getDictionaryBackend: () => activeDictionaryBackend,
-      openHachidoriSettings: () => yomitan.openHachidoriSettings(),
-      openYomitanSettings: () => yomitan.openYomitanSettings(),
-      openConfigSettingsWindow: () => settings.window.openWindow(),
-      openSyncUiWindow: () => sync.openWindow(),
-      openYoutubeBrowserWindow: () => youtube.browserWindow.open(),
-      exportLogs: () => {
-        void exportLogsFromTray();
-      },
-      openJellyfinSetupWindow: () => jellyfin.openJellyfinSetupWindow(),
-      isJellyfinConfigured: () =>
-        isJellyfinConfiguredForTrayRuntime(jellyfin.getTrayDiscoveryDeps()),
-      isJellyfinDiscoveryActive: () => Boolean(appState.jellyfinRemoteSession),
-      toggleJellyfinDiscovery: (checked: boolean) =>
-        toggleJellyfinDiscoveryFromTrayRuntime(jellyfin.getTrayDiscoveryDeps(), {
-          desiredActive: checked,
-        }),
-      openAnilistSetupWindow: () => anilist.openSetupWindow(),
-      checkForUpdates: () => {
-        void getUpdateService().checkForUpdates({ source: 'manual' });
-      },
-      quitApp: () => requestAppQuit(),
-    },
-    ensureTrayDeps: {
-      getTray: () => appTray,
-      setTray: (tray) => {
-        appTray = tray as Tray | null;
-      },
-      createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
-      createEmptyImage: () => nativeImage.createEmpty(),
-      createTray: (icon) => new Tray(icon as ConstructorParameters<typeof Tray>[0]),
-      trayTooltip: TRAY_TOOLTIP,
-      platform: process.platform,
-      logWarn: (message) => logger.warn(message),
-      initializeOverlayRuntime: () => initializeOverlayRuntime(),
-      isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-      setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    },
-    destroyTrayDeps: {
-      getTray: () => appTray,
-      setTray: (tray) => {
-        appTray = tray as Tray | null;
-      },
-    },
-    buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
-  });
 const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
   runtimeRegistry.overlay.createOverlayRuntimeBootstrapHandlers({
     initializeOverlayRuntimeMainDeps: {
