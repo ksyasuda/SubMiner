@@ -3,7 +3,7 @@
 # Domain Ownership
 
 Status: active
-Last verified: 2026-07-15
+Last verified: 2026-10-31
 Owner: Kyle Yasuda
 Read when: you need to find the owner module for a behavior or test surface
 
@@ -20,18 +20,29 @@ Read when: you need to find the owner module for a behavior or test surface
   `src/config/resolve/anki-connect.ts` from focused resolvers in
   `src/config/resolve/anki-connect/`
   Config hot-reload and the settings window: `src/main/assemblies/settings.ts`
+- App startup: app-ready sequence, headless known-word refresh, overlay startup prerequisites and
+  overlay runtime bootstrap: `src/main/assemblies/startup.ts`
 - Overlay/window state: `src/core/services/overlay-*`, `src/main/overlay-*.ts`
-  Overlay windows, visibility, and Linux fullscreen handling: `src/main/assemblies/overlay.ts`
+  Overlay windows, visibility, Linux fullscreen handling, and the overlay-window IPC handlers
+  (modal open/close, pointer interaction, content measurement): `src/main/assemblies/overlay.ts`
   Overlay-hosted modal openers: `src/main/assemblies/overlay-modals.ts`
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
-  mpv event wiring, subtitle prefetch, and subtitle sidebar state: `src/main/assemblies/playback.ts`
+  mpv client creation, mpv event wiring, AniSkip, subtitle prefetch, and subtitle sidebar state: `src/main/assemblies/playback.ts`
+- Keyboard input outside the renderer (overlay, global and numeric shortcuts, session bindings):
+  `src/main/assemblies/shortcuts.ts`
+- System tray: `src/main/assemblies/tray.ts`
+- Yomitan/Hachidori extension loading, parser runtime deps, and dictionary settings windows:
+  `src/main/assemblies/yomitan.ts`
   Windows executable lookup and detached process creation are shared in `src/main/runtime/mpv-process.ts`. The Windows launcher and Jellyfin handlers retain their own playback and connection workflows.
 - Subtitle/token pipeline: `src/core/services/subtitle-*.ts`, `src/core/services/tokenizer*`, `src/core/services/tokenizer/`, `src/subsync/`
   JLPT and frequency annotation lookups: `src/main/jlpt-runtime.ts`, `src/main/frequency-dictionary-runtime.ts`, assembled by `src/main/assemblies/dictionaries.ts`
 - First-run setup: `src/main/runtime/first-run-setup-*.ts`, assembled by `src/main/assemblies/first-run-setup.ts`
 - Anki workflow: `src/anki-integration/`, `src/core/services/anki-jimaku*.ts`
+  Card mining handlers, the pending lookup context, field grouping, and media timing review wiring:
+  `src/main/assemblies/mining.ts`
 - Media timing review: `src/main/runtime/media-timing-review.ts` owns the review and hidden `MediaTimingPreviewSession`. The session waits for mpv readiness and acknowledges playback commands; its `time-pos` observations reach the modal through `media-timing-review:preview-position`. The renderer places the cursor from those timestamps and uses an inactivity timeout instead of timing the clip itself.
-- Immersion tracking: `src/core/services/immersion-tracker/`
+- Immersion tracking: `src/core/services/immersion-tracker/`; tracker startup, the stats server,
+  the stats overlay window options, and the `--stats` command are assembled by `src/main/assemblies/stats.ts`
   Includes stats storage/query schema such as `imm_videos`, `imm_media_art`, and `imm_youtube_videos` for per-video and YouTube-specific library metadata.
   Library-entry identity aliases and merge recommendations are persisted alongside this schema; the stats HTTP and SPA layers only expose and present those domain decisions.
   `delete-maintenance-scheduler.ts` coalesces and serializes stats deletes; the expensive work runs in `delete-maintenance-worker-thread.ts` while the tracker queues playback writes. Each batch uses one transaction, lexical update, rollup refresh, and incremental lifetime subtraction (`planLifetimeRemovals`/`applyLifetimeRemovals` in `lifetime.ts`). Merges, moves, AniList reassignments, and `stats cleanup -l` use `repairLifetimeSummariesFromMedia` (recompute from the per-video media ledger). The full lifetime rebuild survives only as the empty-table bootstrap; anywhere else it would collapse lifetime totals to the session retention window.
