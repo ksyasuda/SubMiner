@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import type { BrowserWindow } from 'electron';
 import type { HyprlandPlacementStatus } from '../../core/services/hyprland-window-placement';
-import type { WindowGeometry } from '../../types';
+import type { OverlayContentMeasurement, WindowGeometry } from '../../types';
 import { createAppState } from '../state';
 import { createOverlayAssembly, type OverlayAssemblyDeps } from './overlay';
 
@@ -31,8 +31,15 @@ type FixtureState = {
   trackedGeometry: WindowGeometry | null;
   /** Window returned by window creation; null makes creation throw after recording options. */
   window: BrowserWindow | null;
+  /** The overlay manager's current main window. */
+  mainWindow: BrowserWindow | null;
+  /** Whether the measurement store accepts a reported content measurement. */
+  measurementAccepted: boolean;
+  /** Whether the plugin panel recognizes a closed panel id as the one showing. */
+  pluginPanelCurrent: boolean;
 };
 
+const ACCEPTED_MEASUREMENT = {} as OverlayContentMeasurement;
 const WINDOW_CREATION_STOPPED = 'window creation stopped by test';
 const NO_PLACEMENT: HyprlandPlacementStatus = {
   applicable: false,
@@ -56,7 +63,7 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
       warn: spy('logger.warn', noop),
     },
     overlayManager: {
-      getMainWindow: spy('overlay.getMainWindow', () => null),
+      getMainWindow: spy('overlay.getMainWindow', () => state.mainWindow),
       setMainWindow: spy('overlay.setMainWindow', noop),
       getModalWindow: spy('overlay.getModalWindow', () => null),
       setModalWindow: spy('overlay.setModalWindow', noop),
@@ -68,6 +75,15 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
       setModalWindowBounds: spy('overlay.setModalWindowBounds', () => NO_PLACEMENT),
     },
     overlayModalInputState: { getModalInputExclusive: spy('modal.getInputExclusive', () => false) },
+    overlayModalRuntime: {
+      notifyOverlayModalOpened: spy('modal.notifyOpened', noop),
+      handleOverlayModalClosed: spy('modal.handleClosed', noop),
+    },
+    overlayContentMeasurementStore: {
+      report: spy('measurement.report', () =>
+        state.measurementAccepted ? ACCEPTED_MEASUREMENT : null,
+      ),
+    },
     autoplayReadyGate: {
       markCurrentMediaAutoplayReady: spy('autoplay.markCurrentMediaReady', noop),
       flushPendingAutoplayReadySignal: spy('autoplay.flushPending', noop),
@@ -89,6 +105,14 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
       getLinuxOverlayInputShapeActive: spy('interaction.getLinuxInputShapeActive', () => false),
       getMacOSVisibleOverlayForegroundProbeActive: spy('interaction.getMacProbe', () => false),
       getVisibleOverlayInteractionActive: spy('interaction.getActive', () => false),
+      setVisibleOverlayInteractionActive: spy('interaction.setActive', noop),
+      setLinuxOverlayInteractiveHint: spy('interaction.setLinuxInteractiveHint', noop),
+      applyLinuxOverlayInputShapeFromLatestMeasurement: spy(
+        'interaction.applyLinuxShape',
+        () => false,
+      ),
+      tickLinuxOverlayPointerInteractionNow: spy('interaction.tickLinuxNow', noop),
+      tickWindowsOverlayPointerInteractionNow: spy('interaction.tickWindowsNow', noop),
       getWindowsNativeWindowHandleNumber: spy('interaction.getWindowsHandle', () => 0),
       primeLinuxOverlayPointerInteractionAfterFirstMeasurement: spy(
         'interaction.primePointerAfterFirstMeasurement',
@@ -141,7 +165,13 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
     getAutoplaySubtitlePriming: spy('getAutoplaySubtitlePriming', () => ({
       cancelVisibleOverlaySubtitleRefreshAfterFirstPaint: spy('priming.cancelFirstPaint', noop),
       primeCurrentSubtitleForVisibleOverlay: spy('priming.prime', resolved),
+      scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint: spy('priming.scheduleFirstPaint', noop),
     })),
+    getPluginPanel: spy('getPluginPanel', () => ({
+      handleModalClosed: spy('pluginPanel.handleModalClosed', () => state.pluginPanelCurrent),
+    })),
+    setSubtitleSidebarRequestedOpen: spy('setSubtitleSidebarRequestedOpen', noop),
+    stealAppFocus: spy('stealAppFocus', noop),
     ensureOverlayMpvSubtitlesHidden: spy('ensureOverlayMpvSubtitlesHidden', resolved),
     syncOverlayMpvSubtitleSuppression: spy('syncOverlayMpvSubtitleSuppression', noop),
     initializeOverlayRuntime: spy('initializeOverlayRuntime', noop),
@@ -161,6 +191,9 @@ function setup(t: TestContext, options: { platform?: NodeJS.Platform; visible?: 
     visible: options.visible ?? false,
     trackedGeometry: null,
     window: null,
+    mainWindow: null,
+    measurementAccepted: true,
+    pluginPanelCurrent: true,
   };
   const { deps, windowOptions } = makeDeps(recorder, state);
   const overlay = createOverlayAssembly(deps);
@@ -329,3 +362,54 @@ for (const trackedGeometry of [null, { x: 10, y: 20, width: 1280, height: 720 }]
     assert.ok(!names.includes('geometry.getCurrentOverlayGeometry'));
   });
 }
+
+test('an accepted content measurement refreshes pointer input, then releases autoplay, then schedules the first-paint refresh', (t) => {
+  const { recorder, overlay } = setup(t);
+
+  overlay.ipc.reportOverlayContentBounds({ layer: 'visible' });
+
+  assertCalledInOrder(recorder.names(), [
+    'measurement.report',
+    'interaction.tickLinuxNow',
+    'interaction.tickWindowsNow',
+    'interaction.primePointerAfterFirstMeasurement',
+    'autoplay.flushPending',
+    'priming.scheduleFirstPaint',
+  ]);
+});
+
+test('a rejected content measurement changes nothing', (t) => {
+  const { recorder, state, overlay } = setup(t);
+  state.measurementAccepted = false;
+
+  overlay.ipc.reportOverlayContentBounds({ layer: 'visible' });
+
+  assert.deepEqual(recorder.names(), ['measurement.report']);
+});
+
+test('only the main overlay window opens and closes the subtitle sidebar state', (t) => {
+  const { recorder, state, overlay } = setup(t);
+  const mainWindow = { isDestroyed: () => false } as BrowserWindow;
+  const otherWindow = { isDestroyed: () => false } as BrowserWindow;
+  state.mainWindow = mainWindow;
+  const sidebarStates = () =>
+    recorder.calls
+      .filter((call) => call.name === 'setSubtitleSidebarRequestedOpen')
+      .map((call) => call.args[0]);
+
+  overlay.ipc.onOverlayModalOpened('subtitle-sidebar', otherWindow);
+  overlay.ipc.onOverlayModalOpened('subtitle-sidebar', mainWindow);
+  overlay.ipc.onOverlayModalClosed('subtitle-sidebar', otherWindow);
+  overlay.ipc.onOverlayModalClosed('subtitle-sidebar', mainWindow);
+
+  assert.deepEqual(sidebarStates(), [true, false]);
+});
+
+test('a late close for a replaced plugin panel leaves the showing panel open', (t) => {
+  const { recorder, state, overlay } = setup(t);
+  state.pluginPanelCurrent = false;
+
+  overlay.ipc.onOverlayModalClosed('plugin-panel', null, 7);
+
+  assert.equal(recorder.names().includes('modal.handleClosed'), false);
+});

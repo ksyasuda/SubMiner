@@ -1,14 +1,17 @@
 import type { BrowserWindow, Screen, Session } from 'electron';
 import {
+  type createOverlayContentMeasurementStore,
   type createOverlayWindow as createOverlayWindowCoreFn,
   sendMpvCommandRuntime,
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
   type createOverlayManager,
 } from '../../core/services';
+import { applyOverlayClickThrough } from '../../core/services/overlay-click-through';
 import type { Logger } from '../../logger';
 import type { WindowGeometry } from '../../types';
 import { ensureWindowsOverlayTransparency } from '../../window-trackers/windows-helper';
 import type { createOverlayShortcutsRuntimeService } from '../overlay-shortcuts-runtime';
+import type { OverlayModalRuntime } from '../overlay-runtime';
 import { createOverlayVisibilityRuntimeService } from '../overlay-visibility-runtime';
 import type { createAutoplayReadyGate } from '../runtime/autoplay-ready-gate';
 import type { composeOverlayVisibilityRuntime } from '../runtime/composers';
@@ -20,6 +23,7 @@ import {
 } from '../runtime/linux-mpv-fullscreen-overlay-refresh';
 import { createLinuxOverlayModeRuntime } from '../runtime/linux-overlay-mode-runtime';
 import { shouldRunLinuxOverlayZOrderKeepAlive } from '../runtime/linux-overlay-zorder-keepalive';
+import { focusMacOSOverlayWindow } from '../runtime/macos-overlay-window-focus';
 import type { createMediaTimingReviewRuntime } from '../runtime/media-timing-review';
 import type { createOverlayModalInputState } from '../runtime/overlay-modal-input-state';
 import type { createOverlayGeometryRuntime } from '../runtime/overlay-geometry-runtime';
@@ -28,6 +32,7 @@ import { createOverlayWindowRuntimeHandlers } from '../runtime/overlay-window-ru
 import type { VisibleOverlayInteractionRuntime } from '../runtime/visible-overlay-interaction-runtime';
 import type { AppState } from '../state';
 import type { PlaybackAssembly } from './playback';
+import type { IpcSlice } from './slices';
 
 type OverlayManager = ReturnType<typeof createOverlayManager>;
 
@@ -54,6 +59,14 @@ export interface OverlayAssemblyDeps {
     ReturnType<typeof createOverlayModalInputState>,
     'getModalInputExclusive'
   >;
+  overlayModalRuntime: Pick<
+    OverlayModalRuntime,
+    'notifyOverlayModalOpened' | 'handleOverlayModalClosed'
+  >;
+  overlayContentMeasurementStore: Pick<
+    ReturnType<typeof createOverlayContentMeasurementStore>,
+    'report'
+  >;
   autoplayReadyGate: Pick<
     ReturnType<typeof createAutoplayReadyGate>,
     'markCurrentMediaAutoplayReady' | 'flushPendingAutoplayReadySignal'
@@ -69,6 +82,11 @@ export interface OverlayAssemblyDeps {
     | 'getLinuxOverlayInputShapeActive'
     | 'getMacOSVisibleOverlayForegroundProbeActive'
     | 'getVisibleOverlayInteractionActive'
+    | 'setVisibleOverlayInteractionActive'
+    | 'setLinuxOverlayInteractiveHint'
+    | 'applyLinuxOverlayInputShapeFromLatestMeasurement'
+    | 'tickLinuxOverlayPointerInteractionNow'
+    | 'tickWindowsOverlayPointerInteractionNow'
     | 'getWindowsNativeWindowHandleNumber'
     | 'primeLinuxOverlayPointerInteractionAfterFirstMeasurement'
     | 'requestLinuxOverlayZOrderFollow'
@@ -113,8 +131,16 @@ export interface OverlayAssemblyDeps {
   >;
   getAutoplaySubtitlePriming: () => Pick<
     PlaybackAssembly['autoplaySubtitlePrimingRuntime'],
-    'cancelVisibleOverlaySubtitleRefreshAfterFirstPaint' | 'primeCurrentSubtitleForVisibleOverlay'
+    | 'cancelVisibleOverlaySubtitleRefreshAfterFirstPaint'
+    | 'primeCurrentSubtitleForVisibleOverlay'
+    | 'scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint'
   >;
+  /** A late close for a replaced plugin panel reports false and must be ignored. */
+  getPluginPanel: () => { handleModalClosed: (panelId: number) => boolean };
+  /** The renderer reports the subtitle sidebar as a modal; playback remembers its state. */
+  setSubtitleSidebarRequestedOpen: (open: boolean) => void;
+  /** Brings SubMiner to the foreground (`app.focus({ steal: true })`). */
+  stealAppFocus: () => void;
   ensureOverlayMpvSubtitlesHidden: () => Promise<void>;
   syncOverlayMpvSubtitleSuppression: () => void;
   initializeOverlayRuntime: () => void;
@@ -426,7 +452,122 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     clearLinuxMpvFullscreenOverlayRefreshTimeouts();
   }
 
+  /** Renderer reports about overlay windows: focus, modal lifecycle, pointer and measurement. */
+  const ipc: IpcSlice<
+    | 'getMainWindow'
+    | 'focusMainWindow'
+    | 'activatePlaybackWindowForOverlayInteraction'
+    | 'onOverlayModalClosed'
+    | 'onOverlayModalOpened'
+    | 'onOverlayMouseInteractionChanged'
+    | 'onOverlayInteractiveHint'
+    | 'reportOverlayContentBounds'
+  > = {
+    getMainWindow: () => overlayManager.getMainWindow(),
+    focusMainWindow: () => {
+      const mainWindow = overlayManager.getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (process.platform === 'darwin') {
+        focusMacOSOverlayWindow({
+          platform: process.platform,
+          getOverlayWindow: () => mainWindow,
+          stealAppFocus: () => deps.stealAppFocus(),
+          warn: (message, details) => logger.warn(message, details),
+        });
+        return;
+      }
+      if (!mainWindow.isFocused()) {
+        mainWindow.focus();
+      }
+    },
+    activatePlaybackWindowForOverlayInteraction: async () => {
+      try {
+        const raised = (await appState.windowTracker?.raiseTargetWindow?.()) ?? false;
+        deps.getOverlayGeometry().enforceOverlayLayerOrder();
+        return raised;
+      } catch (error) {
+        logger.debug(
+          'Failed to raise tracked mpv window for overlay interaction:',
+          error instanceof Error ? error.message : String(error),
+        );
+        deps.getOverlayGeometry().enforceOverlayLayerOrder();
+        return false;
+      }
+    },
+    onOverlayModalClosed: (modal, senderWindow, instanceId) => {
+      // A late close for a replaced plugin panel must not hide the panel now showing.
+      if (
+        modal === 'plugin-panel' &&
+        instanceId !== undefined &&
+        !deps.getPluginPanel().handleModalClosed(instanceId)
+      ) {
+        return;
+      }
+      if (modal === 'media-timing-review') {
+        void deps.getMediaTimingReviewRuntime().dispose();
+      }
+      if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
+        deps.setSubtitleSidebarRequestedOpen(false);
+      }
+      const modalWindow = overlayManager.getModalWindow();
+      if (
+        senderWindow &&
+        modalWindow &&
+        senderWindow === modalWindow &&
+        !senderWindow.isDestroyed()
+      ) {
+        applyOverlayClickThrough(senderWindow);
+        senderWindow.hide();
+      }
+      deps.overlayModalRuntime.handleOverlayModalClosed(modal);
+    },
+    onOverlayModalOpened: (modal, senderWindow) => {
+      if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
+        deps.setSubtitleSidebarRequestedOpen(true);
+      }
+      deps.overlayModalRuntime.notifyOverlayModalOpened(modal);
+    },
+    onOverlayMouseInteractionChanged: (active, senderWindow) => {
+      const mainWindow = overlayManager.getMainWindow();
+      if (!mainWindow || senderWindow !== mainWindow) {
+        return;
+      }
+      const interaction = deps.getVisibleOverlayInteraction();
+      const previousActive = interaction.getVisibleOverlayInteractionActive();
+      interaction.setVisibleOverlayInteractionActive(active);
+      if (previousActive === active) {
+        if (active && process.platform === 'darwin' && !mainWindow.isFocused()) {
+          overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+        }
+        return;
+      }
+      overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+    },
+    onOverlayInteractiveHint: (interactive, senderWindow) => {
+      const mainWindow = overlayManager.getMainWindow();
+      if (!mainWindow || senderWindow !== mainWindow) {
+        return;
+      }
+      const interaction = deps.getVisibleOverlayInteraction();
+      interaction.setLinuxOverlayInteractiveHint(interactive);
+      interaction.applyLinuxOverlayInputShapeFromLatestMeasurement();
+    },
+    // An accepted measurement refreshes pointer passthrough at once, then releases autoplay,
+    // then schedules the first-paint subtitle refresh.
+    reportOverlayContentBounds: (payload: unknown) => {
+      if (deps.overlayContentMeasurementStore.report(payload)) {
+        const interaction = deps.getVisibleOverlayInteraction();
+        interaction.tickLinuxOverlayPointerInteractionNow();
+        interaction.tickWindowsOverlayPointerInteractionNow();
+        interaction.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
+        deps.autoplayReadyGate.flushPendingAutoplayReadySignal();
+        deps.getAutoplaySubtitlePriming().scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
+      }
+    },
+  };
+
   return {
+    ipc,
     linuxOverlayModeRuntime,
     overlayVisibilityRuntime,
     createMainWindow,

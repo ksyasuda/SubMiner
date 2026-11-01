@@ -57,10 +57,6 @@ test('startup autoplay release is tied to visible overlay measurement readiness'
   const gateBlock = source.match(
     /const autoplayReadyGate = createAutoplayReadyGate\(\{(?<body>[\s\S]*?)\n\}\);/,
   )?.groups?.body;
-  const measurementBlock = source.match(
-    /reportOverlayContentBounds:\s*\(payload: unknown\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
-  )?.groups?.body;
-
   assert.ok(gateBlock);
   assert.match(gateBlock, /isSignalTargetReady:\s*\(signal\) =>/);
   // Untokenized signals are filtered by the gate's isTokenizationReady dep, not
@@ -74,71 +70,6 @@ test('startup autoplay release is tied to visible overlay measurement readiness'
   assert.doesNotMatch(signalTargetReadyBlock, /isTokenizationWarmupReady\(\)/);
   assert.match(gateBlock, /isVisibleOverlayAutoplayTargetReady\(/);
   assert.match(gateBlock, /getLatestVisibleMeasurement:/);
-
-  assert.ok(measurementBlock);
-  assert.match(measurementBlock, /overlayContentMeasurementStore\.report\(payload\)/);
-  assert.match(measurementBlock, /autoplayReadyGate\.flushPendingAutoplayReadySignal\(\)/);
-});
-
-test('visible overlay first measurement flushes autoplay before scheduling the first-paint refresh', () => {
-  const source = readMainSource();
-  const measurementBlock = source.match(
-    /reportOverlayContentBounds:\s*\(payload: unknown\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
-  )?.groups?.body;
-
-  assert.ok(measurementBlock);
-  assert.match(measurementBlock, /autoplayReadyGate\.flushPendingAutoplayReadySignal\(\)/);
-  assert.match(measurementBlock, /scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint\(\)/);
-  assert.ok(
-    measurementBlock.indexOf('autoplayReadyGate.flushPendingAutoplayReadySignal();') <
-      measurementBlock.indexOf('scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();'),
-  );
-});
-
-test('accepted visible overlay measurement immediately refreshes pointer interaction', () => {
-  const source = readMainSource();
-  const measurementBlock = source.match(
-    /reportOverlayContentBounds:\s*\(payload: unknown\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
-  )?.groups?.body;
-
-  assert.ok(measurementBlock);
-  assert.match(measurementBlock, /overlayContentMeasurementStore\.report\(payload\)/);
-  assert.match(measurementBlock, /tickLinuxOverlayPointerInteractionNow\(\)/);
-  assert.match(measurementBlock, /tickWindowsOverlayPointerInteractionNow\(\)/);
-  assert.match(measurementBlock, /primeLinuxOverlayPointerInteractionAfterFirstMeasurement\(\)/);
-  assert.ok(
-    measurementBlock.indexOf('overlayContentMeasurementStore.report(payload)') <
-      measurementBlock.indexOf('tickLinuxOverlayPointerInteractionNow();'),
-  );
-  assert.ok(
-    measurementBlock.indexOf('tickLinuxOverlayPointerInteractionNow();') <
-      measurementBlock.indexOf('tickWindowsOverlayPointerInteractionNow();'),
-  );
-  assert.ok(
-    measurementBlock.indexOf('tickWindowsOverlayPointerInteractionNow();') <
-      measurementBlock.indexOf('primeLinuxOverlayPointerInteractionAfterFirstMeasurement();'),
-  );
-});
-
-test('subtitle sidebar open state is restored for replacement visible overlay windows', () => {
-  const source = readMainSource();
-  const openedBlock = source.match(
-    /onOverlayModalOpened:\s*\(modal,\s*senderWindow\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
-  )?.groups?.body;
-  const closedBlock = source.match(
-    /onOverlayModalClosed:\s*\(modal,\s*senderWindow(?:,\s*instanceId)?\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
-  )?.groups?.body;
-  const depsBlock = source.match(/getSubtitleSidebarOpen:\s*\(\)\s*=>\s*(?<body>[^\n,]+)/)?.groups
-    ?.body;
-
-  assert.ok(openedBlock);
-  assert.ok(closedBlock);
-  assert.ok(depsBlock);
-  assert.match(openedBlock, /if \(modal === 'subtitle-sidebar'/);
-  assert.match(openedBlock, /subtitleSidebarRequestedOpen = true;/);
-  assert.match(closedBlock, /if \(modal === 'subtitle-sidebar'/);
-  assert.match(closedBlock, /subtitleSidebarRequestedOpen = false;/);
-  assert.match(depsBlock, /subtitleSidebarRequestedOpen/);
 });
 
 test('stats server Yomitan note creation honors configured Anki server override policy', () => {
@@ -213,21 +144,5 @@ test('Linux visible overlay bounds refresh restores X11 shape after applying mpv
   assert.ok(
     afterBoundsBlock.indexOf('restoreLinuxOverlayWindowShape(mainWindow);') <
       afterBoundsBlock.indexOf('ensureOverlayWindowLevel(mainWindow);'),
-  );
-});
-
-test('subtitle sidebar snapshot prefers cached YouTube parsed cues before active-source parsing', () => {
-  const source = readMainSource();
-  const snapshotBlock = source.match(
-    /getSubtitleSidebarSnapshot:\s*async\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?const resolvedSource = await resolveActiveSubtitleSidebarSourceHandler)/,
-  )?.groups?.body;
-
-  assert.ok(snapshotBlock);
-  assert.match(snapshotBlock, /shouldUseCachedYoutubeParsedCues\(/);
-  assert.match(snapshotBlock, /cachedMediaPath:\s*appState\.activeParsedSubtitleMediaPath/);
-  assert.match(snapshotBlock, /cachedCueCount:\s*appState\.activeParsedSubtitleCues\.length/);
-  assert.ok(
-    snapshotBlock.indexOf('shouldUseCachedYoutubeParsedCues(') <
-      snapshotBlock.indexOf('resolveActiveSubtitleSidebarSourceHandler'),
   );
 });

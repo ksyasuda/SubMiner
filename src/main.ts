@@ -32,14 +32,11 @@ import {
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
 import { createHachidoriExtensionRuntime } from './core/services/hachidori-extension';
 import { readMpvInputBindings } from './main/runtime/mpv-input-bindings';
-import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
-import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
 import { getAppControlSocketPath } from './shared/app-control';
 import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-focus';
 import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
-import { resolveFreshPlaybackPaused } from './main/runtime/playback-paused-state';
 import { mergeAiConfig } from './ai/config';
 import {
   getDefaultPasswordStore,
@@ -143,7 +140,6 @@ import {
 } from './core/utils';
 import { ensureDefaultConfigBootstrap, getDefaultConfigFilePaths } from './shared/setup-state';
 import {
-  MpvIpcClient,
   SubtitleWebSocket,
   Texthooker,
   broadcastRuntimeOptionsChangedRuntime,
@@ -169,7 +165,6 @@ import {
   showMpvOsdRuntime,
   toSubtitleClock,
 } from './core/services';
-import { applyOverlayClickThrough } from './core/services/overlay-click-through';
 import {
   destroyStatsWindow,
   registerStatsOverlayToggle,
@@ -278,7 +273,6 @@ import {
   replaceCharacterDictionaryManagedEntry,
 } from './main/runtime/character-dictionary-auto-sync';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
-import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
 import { createOverlayGeometryRuntime } from './main/runtime/overlay-geometry-runtime';
 import { createVisibleOverlayInteractionRuntime } from './main/runtime/visible-overlay-interaction-runtime';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
@@ -299,7 +293,6 @@ import {
 import { ensureLinuxRuntimePluginAssets } from './main/runtime/linux-runtime-plugin-assets';
 import { createUpdateServiceRuntime } from './main/runtime/update/update-service-runtime';
 import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
-import { shouldUseCachedYoutubeParsedCues } from './main/runtime/youtube-playback';
 import { type StartupState, applyStartupState, createAppState } from './main/state';
 import {
   ConfigService,
@@ -308,7 +301,6 @@ import {
   generateConfigTemplate,
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
-import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
 import { createSubtitlePrefetchService } from './core/services/subtitle-prefetch';
 import { loadSubtitleSourceText } from './main/runtime/internal-subtitle-extraction';
 import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
@@ -1041,22 +1033,13 @@ const tray = createTrayAssembly({
   initializeOverlayRuntime: () => initializeOverlayRuntime(),
   setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
 });
-const {
-  linuxOverlayModeRuntime,
-  overlayVisibilityRuntime,
-  createMainWindow,
-  createModalWindow,
-  ensureOverlayWindowsReadyForVisibilityActions,
-  setVisibleOverlayVisible,
-  toggleVisibleOverlay,
-  setOverlayVisible,
-  handleMpvFullscreenChange,
-  clearLinuxFullscreenOverlayRefresh,
-} = createOverlayAssembly({
+const overlay = createOverlayAssembly({
   appState,
   logger,
   overlayManager,
   overlayModalInputState,
+  overlayModalRuntime,
+  overlayContentMeasurementStore,
   autoplayReadyGate,
   // Forward lazily: Electron's screen module must not be touched before app 'ready'.
   screen: {
@@ -1077,8 +1060,22 @@ const {
   ensureOverlayMpvSubtitlesHidden: () => ensureOverlayMpvSubtitlesHidden(),
   syncOverlayMpvSubtitleSuppression: () => syncOverlayMpvSubtitleSuppression(),
   initializeOverlayRuntime: () => initializeOverlayRuntime(),
+  getPluginPanel: () => pluginPanelRuntime,
+  setSubtitleSidebarRequestedOpen: (open) => playback.setSubtitleSidebarRequestedOpen(open),
+  stealAppFocus: () => app.focus({ steal: true }),
 });
-let subtitleSidebarRequestedOpen = false;
+const {
+  linuxOverlayModeRuntime,
+  overlayVisibilityRuntime,
+  createMainWindow,
+  createModalWindow,
+  ensureOverlayWindowsReadyForVisibilityActions,
+  setVisibleOverlayVisible,
+  toggleVisibleOverlay,
+  setOverlayVisible,
+  handleMpvFullscreenChange,
+  clearLinuxFullscreenOverlayRefresh,
+} = overlay;
 
 const shortcuts = createShortcutsAssembly({
   appState,
@@ -1151,7 +1148,7 @@ const settings = createSettingsAssembly({
       setLogFileToggles(files);
     },
     applyAniSkipConfig: () => {
-      aniSkipRuntime.applyConfigChange();
+      playback.aniSkipRuntime.applyConfigChange();
     },
   },
   getYomitanAnkiDeckName: () => yomitan.getCurrentAnkiDeckName(),
@@ -1546,7 +1543,7 @@ const jellyfin = createJellyfinAssembly({
   getAppDataPath: () => app.getPath('appData'),
   getRuntimePluginEntrypoint: () => resolveBundledMpvRuntimePluginEntrypoint(),
   getMpvPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
-  createMpvClient: () => createMpvClientRuntimeService(),
+  createMpvClient: () => playback.createMpvClient(),
   initSubtitlePrefetch: (sourcePath) =>
     subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath),
   showVisibleOverlay: () => setVisibleOverlayVisible(true),
@@ -1814,7 +1811,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       shortcuts.refreshCurrentSessionBindings();
     },
     createMpvClient: () => {
-      appState.mpvClient = createMpvClientRuntimeService();
+      appState.mpvClient = playback.createMpvClient();
     },
     startPlugins: () => {
       void pluginHost.loadAll();
@@ -1989,7 +1986,7 @@ function ensureOverlayStartupPrereqs(): void {
     shortcuts.refreshCurrentSessionBindings();
   }
   if (!appState.mpvClient) {
-    appState.mpvClient = createMpvClientRuntimeService();
+    appState.mpvClient = playback.createMpvClient();
   }
   if (!appState.runtimeOptionsManager) {
     appState.runtimeOptionsManager = new RuntimeOptionsManager(
@@ -2025,26 +2022,7 @@ async function ensureYoutubePlaybackRuntimeReady(): Promise<void> {
   ensureOverlayWindowsReadyForVisibilityActions();
 }
 
-const {
-  subtitleProcessingController,
-  autoplaySubtitlePrimingRuntime,
-  subtitlePrefetchRuntime,
-  cachedInternalSubtitleTrackExtractor,
-  resolveActiveSubtitleSidebarSourceHandler,
-  withCurrentSubtitleTiming,
-  getSubtitleSidebarPlaybackState,
-  sendRendererMpvCommand,
-  refreshCurrentSubtitleAnnotations,
-  createMpvClientRuntimeServiceHandler,
-  createMecabTokenizerAndCheck,
-  prewarmSubtitleDictionaries,
-  startBackgroundWarmups,
-  startTokenizationWarmups,
-  isTokenizationWarmupReady,
-  getSubtitlePrefetchService,
-  getLastObservedTimePos,
-  getTokenizeSubtitleDeferred,
-} = createPlaybackAssembly({
+const playback = createPlaybackAssembly({
   appState,
   configService,
   logger,
@@ -2060,11 +2038,13 @@ const {
   immersionMediaRuntime: stats.immersionMediaRuntime,
   mediaRuntime,
   overlayNotificationsRuntime,
+  overlayModalRuntime,
   youtube,
   jellyfin,
   anilist,
   characterDictionary,
   dictionaries,
+  getPluginHost: () => pluginHost,
   getSubtitleGenerationRuntime: () => subtitleGenerationRuntime,
   isCharacterDictionaryEnabled: () => yomitan.profilePolicy.isCharacterDictionaryEnabled(),
   hasTray: () => tray.hasTray(),
@@ -2076,7 +2056,6 @@ const {
   refreshMpvSessionBindings: () => shortcuts.refreshMpvSessionBindings(),
   ensureImmersionTrackerStarted: () => stats.ensureImmersionTrackerStarted(),
   restoreOverlayMpvSubtitles: () => restoreOverlayMpvSubtitles(),
-  resetSubtitleSidebarEmbeddedLayoutRuntime: () => resetSubtitleSidebarEmbeddedLayoutRuntime(),
   syncOverlayMpvSubtitleSuppression: () => syncOverlayMpvSubtitleSuppression(),
   setOverlayVisible: (visible) => setOverlayVisible(visible),
   ensureYomitanExtensionLoaded: () => yomitan.ensureExtensionLoaded(),
@@ -2084,65 +2063,22 @@ const {
   getRuntimeBooleanOption: (id, fallback) => getRuntimeBooleanOption(id, fallback),
   onFullscreenChange: (fullscreen) => handleMpvFullscreenChange(fullscreen),
 });
-
-const aniSkipRuntime = createAniSkipRuntime({
-  getAniSkipConfig: () => ({
-    aniskipEnabled: configService.getConfig().mpv.aniskipEnabled,
-    aniskipButtonKey: configService.getConfig().mpv.aniskipButtonKey,
-  }),
-  resolveMetadataForFile: (mediaPath) => resolveAniSkipMetadataForFile(mediaPath),
-  sendMpvCommand: (command) => {
-    appState.mpvClient?.send({ command });
-  },
-  requestMpvProperty: (name) => {
-    if (!appState.mpvClient) {
-      return Promise.reject(new Error('MPV not connected'));
-    }
-    return appState.mpvClient.requestProperty(name);
-  },
-  isMpvConnected: () => appState.mpvClient?.connected === true,
-  getCurrentTimePos: () => appState.mpvClient?.currentTimePos ?? Number.NaN,
-  showMpvOsd: (text, durationMs) => {
-    appState.mpvClient?.send({ command: ['show-text', text, durationMs] });
-  },
-  showPlaybackFeedback: (text) => showConfiguredPlaybackFeedback(text),
-  logInfo: (message) => logger.info(message),
-  logWarn: (message, error) => logger.warn(message, error),
-  logDebug: (message) => logger.debug(message),
-});
-
-function createMpvClientRuntimeService(): MpvIpcClient {
-  const client = createMpvClientRuntimeServiceHandler() as MpvIpcClient;
-  client.on('connection-change', ({ connected }) => {
-    if (connected) {
-      return;
-    }
-    youtube.browserPlayback.handleMpvDisconnected();
-    youtube.flow.cancelWhisperGeneration();
-    subtitleGenerationRuntime.handleMediaPathChange(null);
-    if (youtube.shouldQuitWhenMpvCloses()) {
-      requestAppQuit();
-      return;
-    }
-    if (!youtube.flow.hasActiveSession()) {
-      return;
-    }
-    youtube.flow.cancelActivePicker();
-    overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.youtubePickerCancel, null);
-    overlayModalRuntime.handleOverlayModalClosed('youtube-track-picker');
-  });
-  client.on('connection-change', aniSkipRuntime.handleConnectionChange);
-  client.on('media-path-change', aniSkipRuntime.handleMediaPathChange);
-  client.on('time-pos-change', aniSkipRuntime.handleTimePosChange);
-  client.on('client-message', aniSkipRuntime.handleClientMessage);
-  pluginHost.attachMpvClient(client);
-  return client;
-}
-
-function resetSubtitleSidebarEmbeddedLayoutRuntime(): void {
-  sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-margin-ratio-right', 0]);
-  sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-pan-x', 0]);
-}
+const {
+  subtitleProcessingController,
+  autoplaySubtitlePrimingRuntime,
+  subtitlePrefetchRuntime,
+  cachedInternalSubtitleTrackExtractor,
+  sendRendererMpvCommand,
+  refreshCurrentSubtitleAnnotations,
+  createMecabTokenizerAndCheck,
+  prewarmSubtitleDictionaries,
+  startBackgroundWarmups,
+  startTokenizationWarmups,
+  isTokenizationWarmupReady,
+  getSubtitlePrefetchService,
+  getLastObservedTimePos,
+  getTokenizeSubtitleDeferred,
+} = playback;
 
 const overlayGeometryRuntime = createOverlayGeometryRuntime({
   overlayManager: {
@@ -2393,94 +2329,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       stopMediaTimingReviewPreview: (reviewId) =>
         mining.mediaTimingReviewRuntime.stopPreview(reviewId),
       resolveMediaTimingReview: (request) => mining.mediaTimingReviewRuntime.resolveReview(request),
-      getMainWindow: () => overlayManager.getMainWindow(),
-      focusMainWindow: () => {
-        const mainWindow = overlayManager.getMainWindow();
-        if (!mainWindow || mainWindow.isDestroyed()) return;
-        if (process.platform === 'darwin') {
-          focusMacOSOverlayWindow({
-            platform: process.platform,
-            getOverlayWindow: () => mainWindow,
-            stealAppFocus: () => app.focus({ steal: true }),
-            warn: (message, details) => logger.warn(message, details),
-          });
-          return;
-        }
-        if (!mainWindow.isFocused()) {
-          mainWindow.focus();
-        }
-      },
-      activatePlaybackWindowForOverlayInteraction: async () => {
-        try {
-          const raised = (await appState.windowTracker?.raiseTargetWindow?.()) ?? false;
-          overlayGeometryRuntime.enforceOverlayLayerOrder();
-          return raised;
-        } catch (error) {
-          logger.debug(
-            'Failed to raise tracked mpv window for overlay interaction:',
-            error instanceof Error ? error.message : String(error),
-          );
-          overlayGeometryRuntime.enforceOverlayLayerOrder();
-          return false;
-        }
-      },
-      onOverlayModalClosed: (modal, senderWindow, instanceId) => {
-        // A late close for a replaced plugin panel must not hide the panel now showing.
-        if (
-          modal === 'plugin-panel' &&
-          instanceId !== undefined &&
-          !pluginPanelRuntime.handleModalClosed(instanceId)
-        ) {
-          return;
-        }
-        if (modal === 'media-timing-review') {
-          void mining.mediaTimingReviewRuntime.dispose();
-        }
-        if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
-          subtitleSidebarRequestedOpen = false;
-        }
-        const modalWindow = overlayManager.getModalWindow();
-        if (
-          senderWindow &&
-          modalWindow &&
-          senderWindow === modalWindow &&
-          !senderWindow.isDestroyed()
-        ) {
-          applyOverlayClickThrough(senderWindow);
-          senderWindow.hide();
-        }
-        handleOverlayModalClosedHandler(modal);
-      },
-      onOverlayModalOpened: (modal, senderWindow) => {
-        if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
-          subtitleSidebarRequestedOpen = true;
-        }
-        overlayModalRuntime.notifyOverlayModalOpened(modal);
-      },
-      onOverlayMouseInteractionChanged: (active, senderWindow) => {
-        const mainWindow = overlayManager.getMainWindow();
-        if (!mainWindow || senderWindow !== mainWindow) {
-          return;
-        }
-        const previousActive =
-          visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive();
-        visibleOverlayInteractionRuntime.setVisibleOverlayInteractionActive(active);
-        if (previousActive === active) {
-          if (active && process.platform === 'darwin' && !mainWindow.isFocused()) {
-            overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-          }
-          return;
-        }
-        overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-      },
-      onOverlayInteractiveHint: (interactive, senderWindow) => {
-        const mainWindow = overlayManager.getMainWindow();
-        if (!mainWindow || senderWindow !== mainWindow) {
-          return;
-        }
-        visibleOverlayInteractionRuntime.setLinuxOverlayInteractiveHint(interactive);
-        visibleOverlayInteractionRuntime.applyLinuxOverlayInputShapeFromLatestMeasurement();
-      },
+      ...overlay.ipc,
       handleOverlayNotificationAction: (notificationId, actionId, noteId) => {
         if (
           notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID &&
@@ -2524,96 +2373,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             ? shiftSubtitleRangeToVideoClock(context, appState.mpvClient?.currentSubDelay ?? 0)
             : mining.captureCurrentPrimarySubtitleMiningContext(),
         ),
-      tokenizeCurrentSubtitle: async () => {
-        const tokenizeSubtitleForCurrent = getTokenizeSubtitleDeferred();
-        return resolveCurrentSubtitleForRenderer({
-          currentSubText: appState.currentSubText,
-          currentSubtitleData: appState.currentSubtitleData,
-          withCurrentSubtitleTiming: (payload) => withCurrentSubtitleTiming(payload),
-          tokenizeUncached: false,
-          tokenizeSubtitle: tokenizeSubtitleForCurrent
-            ? (text) => tokenizeSubtitleForCurrent(text)
-            : undefined,
-          onResolvedSubtitle: (payload) => {
-            appState.currentSubtitleData = payload;
-            autoplayReadyGate.maybeSignalPluginAutoplayReady(payload, { forceWhilePaused: true });
-          },
-        });
-      },
-      getCurrentSubtitleRaw: () => appState.currentSubText,
-      getSubtitleSidebarOpen: () => subtitleSidebarRequestedOpen,
-      getSubtitleSidebarPlaybackState: () => getSubtitleSidebarPlaybackState(),
-      // Full snapshot: resolves the active source over mpv IPC and re-parses it when it changed.
-      // The renderer fetches it on open, on source/cue changes, and on a slow fallback cadence.
-      getSubtitleSidebarSnapshot: async () => {
-        const config = configService.getConfig().subtitleSidebar;
-        const cachedSnapshot = () => ({
-          ...getSubtitleSidebarPlaybackState(),
-          cues: appState.activeParsedSubtitleCues,
-          config,
-        });
-        const client = appState.mpvClient;
-        if (!client?.connected) {
-          return cachedSnapshot();
-        }
-
-        try {
-          const [currentExternalFilenameRaw, currentTrackRaw, trackListRaw, sidRaw, videoPathRaw] =
-            await Promise.all([
-              client.requestProperty('current-tracks/sub/external-filename').catch(() => null),
-              client.requestProperty('current-tracks/sub').catch(() => null),
-              client.requestProperty('track-list'),
-              client.requestProperty('sid'),
-              client.requestProperty('path'),
-            ]);
-          const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
-          if (!videoPath) {
-            return cachedSnapshot();
-          }
-          if (
-            shouldUseCachedYoutubeParsedCues({
-              videoPath,
-              cachedMediaPath: appState.activeParsedSubtitleMediaPath,
-              cachedCueCount: appState.activeParsedSubtitleCues.length,
-            })
-          ) {
-            return cachedSnapshot();
-          }
-
-          const resolvedSource = await resolveActiveSubtitleSidebarSourceHandler({
-            currentExternalFilenameRaw,
-            currentTrackRaw,
-            trackListRaw,
-            sidRaw,
-            videoPath,
-          });
-          if (!resolvedSource) {
-            return cachedSnapshot();
-          }
-
-          try {
-            if (appState.activeParsedSubtitleSource === resolvedSource.sourceKey) {
-              return cachedSnapshot();
-            }
-
-            const content = await loadSubtitleSourceText(resolvedSource.path);
-            const cues = parseSubtitleCues(content, resolvedSource.path);
-            appState.activeParsedSubtitleCues = cues;
-            appState.activeParsedSubtitleSource = resolvedSource.sourceKey;
-            appState.activeParsedSubtitleMediaPath = videoPath || null;
-            return cachedSnapshot();
-          } finally {
-            await resolvedSource.cleanup?.();
-          }
-        } catch {
-          return cachedSnapshot();
-        }
-      },
-      getPlaybackPaused: () =>
-        resolveFreshPlaybackPaused({
-          getCachedPlaybackPaused: () => appState.playbackPaused,
-          getMpvClient: () => appState.mpvClient,
-        }),
+      ...playback.ipc,
       getSubtitlePosition: () => loadSubtitlePosition(),
       getSubtitleStyle: () => {
         const resolvedConfig = configService.getConfig();
@@ -2650,17 +2410,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         });
       },
       getSecondarySubMode: () => appState.secondarySubMode,
-      getMpvClient: () => appState.mpvClient,
       getRuntimeOptions: () => getRuntimeOptionsStateHandler(),
-      reportOverlayContentBounds: (payload: unknown) => {
-        if (overlayContentMeasurementStore.report(payload)) {
-          visibleOverlayInteractionRuntime.tickLinuxOverlayPointerInteractionNow();
-          visibleOverlayInteractionRuntime.tickWindowsOverlayPointerInteractionNow();
-          visibleOverlayInteractionRuntime.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
-          autoplayReadyGate.flushPendingAutoplayReadySignal();
-          autoplaySubtitlePrimingRuntime.scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
-        }
-      },
       getAnilistStatus: () => anilist.stateRuntime.getStatusSnapshot(),
       clearAnilistToken: () => anilist.stateRuntime.clearTokenState(),
       openAnilistSetup: () => anilist.openSetupWindow(),
