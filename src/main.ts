@@ -141,7 +141,6 @@ import {
   enforceUnsupportedWaylandMode,
   forceX11Backend,
   generateDefaultConfigFile,
-  resolveConfiguredShortcuts,
   resolveKeybindings,
   showDesktopNotification,
 } from './core/utils';
@@ -162,7 +161,6 @@ import {
   loadSubtitlePosition as loadSubtitlePositionCore,
   playNextSubtitleRuntime,
   promoteSettingsWindowAboveOverlay,
-  registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
   toJellyfinOriginalStreamUrl,
   runStartupBootstrapRuntime,
@@ -195,6 +193,7 @@ import { createOverlayAssembly } from './main/assemblies/overlay';
 import { createYomitanAssembly } from './main/assemblies/yomitan';
 import { createStatsAssembly } from './main/assemblies/stats';
 import { createMiningAssembly } from './main/assemblies/mining';
+import { createShortcutsAssembly } from './main/assemblies/shortcuts';
 import { createPlaybackAssembly } from './main/assemblies/playback';
 import {
   createAutoplayReadyGate,
@@ -233,10 +232,8 @@ import {
   composeHeadlessStartupHandlers,
   composeIpcRuntimeHandlers,
   composeOverlayVisibilityRuntime,
-  composeShortcutRuntimes,
   composeStartupLifecycleHandlers,
 } from './main/runtime/composers';
-import { tryBeginVisibleOverlayNumericSelection } from './main/runtime/overlay-numeric-selection';
 import { createStartupBootstrapRuntimeDeps } from './main/startup';
 import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
 import {
@@ -274,8 +271,6 @@ import {
 } from './main/runtime/plugin-panel-runtime';
 import { createPluginWindowRuntime } from './main/runtime/plugin-window-runtime';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
-import { createSessionBindingsRuntime } from './main/runtime/session-bindings-runtime';
-import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import {
@@ -382,8 +377,6 @@ const texthookerService = new Texthooker(() => {
     },
   };
 });
-let syncOverlayShortcutsForModal: (isActive: boolean) => void = () => {};
-let syncOverlayVisibilityForModal: () => void = () => {};
 const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler({
   platform: process.platform,
 });
@@ -481,8 +474,11 @@ const bootServices = createMainBootServices({
       warn: (message: string) => logger.warn(message),
     });
   },
-  getSyncOverlayShortcutsForModal: () => syncOverlayShortcutsForModal,
-  getSyncOverlayVisibilityForModal: () => syncOverlayVisibilityForModal,
+  // Read lazily from modal-state callbacks, which only fire once the assemblies below exist.
+  getSyncOverlayShortcutsForModal: () => (isActive) =>
+    shortcuts.syncOverlayShortcutsForModal(isActive),
+  getSyncOverlayVisibilityForModal: () => () =>
+    overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
   createOverlayModalRuntime: ({ overlayManager, overlayModalInputState }) => {
     return createOverlayModalRuntimeService(
       {
@@ -1034,7 +1030,7 @@ const {
   getYomitanSession: () => yomitan.getOverlaySession(),
   getVisibleOverlayInteraction: () => visibleOverlayInteractionRuntime,
   getOverlayGeometry: () => overlayGeometryRuntime,
-  getOverlayShortcuts: () => overlayShortcutsRuntime,
+  getOverlayShortcuts: () => shortcuts.overlayShortcutsRuntime,
   getOverlayNotifications: () => overlayNotificationsRuntime,
   getOverlayVisibilityComposer: () => overlayVisibilityComposer,
   getMediaTimingReviewRuntime: () => mining.mediaTimingReviewRuntime,
@@ -1046,71 +1042,22 @@ const {
 });
 let subtitleSidebarRequestedOpen = false;
 
-const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
-  getConfiguredShortcuts: () => getConfiguredShortcuts(),
-  getShortcutsRegistered: () => appState.shortcutsRegistered,
-  setShortcutsRegistered: (registered: boolean) => {
-    appState.shortcutsRegistered = registered;
-  },
-  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-  isOverlayShortcutContextActive: () => {
-    if (process.platform !== 'win32') {
-      return true;
-    }
-
-    if (!overlayManager.getVisibleOverlayVisible()) {
-      return false;
-    }
-
-    const windowTracker = appState.windowTracker;
-    if (!windowTracker || !windowTracker.isTracking()) {
-      return false;
-    }
-
-    return windowTracker.isTargetWindowFocused();
-  },
-  showMpvOsd: (text: string) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-  openRuntimeOptionsPalette: () => {
-    overlayModals.openRuntimeOptionsPalette();
-  },
-  openCharacterDictionaryManager: () => {
-    overlayModals.openCharacterDictionaryManagerOverlay();
-  },
-  openJimaku: () => {
-    overlayModals.openJimakuOverlay();
-  },
-  openTsukihime: () => {
-    overlayModals.openTsukihimeOverlay();
-  },
-  markAudioCard: () => mining.markLastCardAsAudioCard(),
-  copySubtitleMultiple: (timeoutMs: number) => {
-    startPendingMultiCopy(timeoutMs);
-  },
-  copySubtitle: () => {
-    mining.copyCurrentSubtitle();
-  },
-  toggleSecondarySubMode: () => cycleSecondarySubMode(),
-  updateLastCardFromClipboard: () => mining.updateLastCardFromClipboard(),
-  triggerFieldGrouping: () => mining.triggerFieldGrouping(),
+const shortcuts = createShortcutsAssembly({
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
+  configDir: CONFIG_DIR,
+  isDev,
+  overlayManager,
+  globalShortcut,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  getOverlayModals: () => overlayModals,
+  getMining: () => mining,
   triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
-  mineSentenceCard: () => mining.mineSentenceCard(),
-  mineSentenceMultiple: (timeoutMs: number) => {
-    startPendingMineSentenceMultiple(timeoutMs);
-  },
-  cancelPendingMultiCopy: () => {
-    cancelPendingMultiCopy();
-  },
-  cancelPendingMineSentenceMultiple: () => {
-    cancelPendingMineSentenceMultiple();
-  },
+  cycleSecondarySubMode: () => cycleSecondarySubMode(),
+  toggleVisibleOverlay: () => toggleVisibleOverlay(),
+  openDictionarySettings: () => yomitan.openDictionarySettings(),
 });
-syncOverlayShortcutsForModal = (isActive: boolean): void => {
-  if (isActive) {
-    overlayShortcutsRuntime.unregisterOverlayShortcuts();
-  } else {
-    overlayShortcutsRuntime.syncOverlayShortcuts();
-  }
-};
 
 const settings = createSettingsAssembly({
   appState,
@@ -1124,10 +1071,10 @@ const settings = createSettingsAssembly({
       appState.keybindings = keybindings;
     },
     setSessionBindings: (sessionBindings, sessionBindingWarnings) => {
-      persistSessionBindings(sessionBindings, sessionBindingWarnings);
+      shortcuts.persistSessionBindings(sessionBindings, sessionBindingWarnings);
     },
     refreshGlobalAndOverlayShortcuts: () => {
-      refreshGlobalAndOverlayShortcuts();
+      shortcuts.refreshGlobalAndOverlayShortcuts();
     },
     setSecondarySubMode: (mode) => {
       setSecondarySubMode(mode);
@@ -1344,7 +1291,7 @@ const visibleOverlayInteractionRuntime = createVisibleOverlayInteractionRuntime(
     subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
   },
   getOverlayWindows: () => overlayManager.getOverlayWindows(),
-  syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
+  syncOverlayShortcuts: () => shortcuts.overlayShortcutsRuntime.syncOverlayShortcuts(),
   resetLastOverlayWindowGeometry: () => overlayGeometryRuntime.resetLastOverlayWindowGeometry(),
   enforceOverlayLayerOrder: () => {
     overlayGeometryRuntime.enforceOverlayLayerOrder();
@@ -1355,10 +1302,6 @@ const visibleOverlayInteractionRuntime = createVisibleOverlayInteractionRuntime(
 const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler({
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
 });
-
-syncOverlayVisibilityForModal = () => {
-  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-};
 
 const overlayNotificationsRuntime = createOverlayNotificationsRuntime({
   getResolvedConfig: () => configService.getConfig(),
@@ -1830,7 +1773,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     loadSubtitlePosition: () => loadSubtitlePosition(),
     resolveKeybindings: () => {
       appState.keybindings = resolveKeybindings(configService.getConfig(), DEFAULT_KEYBINDINGS);
-      refreshCurrentSessionBindings();
+      shortcuts.refreshCurrentSessionBindings();
     },
     createMpvClient: () => {
       appState.mpvClient = createMpvClientRuntimeService();
@@ -1858,7 +1801,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
             subtitleProcessingController.invalidateTokenizationCache();
             getSubtitlePrefetchService()?.onSeek(getLastObservedTimePos());
             overlayVisibilityComposer.broadcastRuntimeOptionsChanged();
-            refreshOverlayShortcuts();
+            shortcuts.refreshOverlayShortcuts();
           },
         },
       );
@@ -2003,9 +1946,9 @@ function ensureOverlayStartupPrereqs(): void {
   }
   if (appState.keybindings.length === 0) {
     appState.keybindings = resolveKeybindings(configService.getConfig(), DEFAULT_KEYBINDINGS);
-    refreshCurrentSessionBindings();
+    shortcuts.refreshCurrentSessionBindings();
   } else if (!appState.sessionBindingsInitialized) {
-    refreshCurrentSessionBindings();
+    shortcuts.refreshCurrentSessionBindings();
   }
   if (!appState.mpvClient) {
     appState.mpvClient = createMpvClientRuntimeService();
@@ -2024,7 +1967,7 @@ function ensureOverlayStartupPrereqs(): void {
           subtitleProcessingController.invalidateTokenizationCache();
           getSubtitlePrefetchService()?.onSeek(getLastObservedTimePos());
           overlayVisibilityComposer.broadcastRuntimeOptionsChanged();
-          refreshOverlayShortcuts();
+          shortcuts.refreshOverlayShortcuts();
         },
       },
     );
@@ -2092,7 +2035,7 @@ const {
   requestAppQuit: () => requestAppQuit(),
   maybeStartOverlayLoadingOsd: (mediaPath) => maybeStartOverlayLoadingOsd(mediaPath),
   flushQueuedMpvOsdNotifications: () => flushQueuedMpvOsdNotifications(),
-  refreshMpvSessionBindings: () => refreshMpvSessionBindings(),
+  refreshMpvSessionBindings: () => shortcuts.refreshMpvSessionBindings(),
   ensureImmersionTrackerStarted: () => stats.ensureImmersionTrackerStarted(),
   restoreOverlayMpvSubtitles: () => restoreOverlayMpvSubtitles(),
   resetSubtitleSidebarEmbeddedLayoutRuntime: () => resetSubtitleSidebarEmbeddedLayoutRuntime(),
@@ -2216,95 +2159,6 @@ const { exportLogsFromTray } = createLogExportTrayRuntime({
   logInfo: (message) => logger.info(message),
   logWarn: (message, details) => logger.warn(message, details),
 });
-
-const {
-  getConfiguredShortcuts,
-  registerGlobalShortcuts,
-  refreshGlobalAndOverlayShortcuts,
-  cancelPendingMultiCopy,
-  startPendingMultiCopy,
-  cancelPendingMineSentenceMultiple,
-  startPendingMineSentenceMultiple,
-  syncOverlayShortcuts,
-  refreshOverlayShortcuts,
-} = composeShortcutRuntimes({
-  globalShortcuts: {
-    getConfiguredShortcutsMainDeps: {
-      getResolvedConfig: () => configService.getConfig(),
-      defaultConfig: DEFAULT_CONFIG,
-      resolveConfiguredShortcuts,
-    },
-    buildRegisterGlobalShortcutsMainDeps: (getConfiguredShortcutsHandler) => ({
-      getConfiguredShortcuts: () => getConfiguredShortcutsHandler(),
-      registerGlobalShortcutsCore,
-      onToggleVisibleOverlay: () => toggleVisibleOverlay(),
-      onOpenYomitanSettings: () => yomitan.openDictionarySettings(),
-      isDev,
-      getMainWindow: () => overlayManager.getMainWindow(),
-    }),
-    buildRefreshGlobalAndOverlayShortcutsMainDeps: (registerGlobalShortcutsHandler) => ({
-      unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
-      registerGlobalShortcuts: () => registerGlobalShortcutsHandler(),
-      syncOverlayShortcuts: () => syncOverlayShortcuts(),
-    }),
-  },
-  numericShortcutRuntimeMainDeps: {
-    globalShortcut,
-    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
-    setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
-    clearTimer: (timer) => clearTimeout(timer),
-  },
-  numericSessions: {
-    onMultiCopyDigit: (count) => mining.copySubtitleCount(count),
-    onMineSentenceDigit: (count) => mining.mineSentenceCount(count),
-    tryBeginMultiCopyOverlaySelection: (timeoutMs) =>
-      tryBeginVisibleOverlayNumericSelection({
-        actionId: 'copySubtitleMultiple',
-        timeoutMs,
-        getMainWindow: () => overlayManager.getMainWindow(),
-        getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      }),
-    tryBeginMineSentenceOverlaySelection: (timeoutMs) =>
-      tryBeginVisibleOverlayNumericSelection({
-        actionId: 'mineSentenceMultiple',
-        timeoutMs,
-        getMainWindow: () => overlayManager.getMainWindow(),
-        getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      }),
-  },
-  overlayShortcutsRuntimeMainDeps: {
-    overlayShortcutsRuntime,
-  },
-});
-
-const { persistSessionBindings, refreshCurrentSessionBindings, refreshMpvSessionBindings } =
-  createSessionBindingsRuntime({
-    configDir: CONFIG_DIR,
-    getKeybindings: () => appState.keybindings,
-    getConfiguredShortcuts: () => getConfiguredShortcuts(),
-    getResolvedConfig: () => configService.getConfig(),
-    getMpvClient: () => appState.mpvClient,
-    setSessionBindings: (bindings) => {
-      appState.sessionBindings = bindings;
-    },
-    setSessionBindingsInitialized: (initialized) => {
-      appState.sessionBindingsInitialized = initialized;
-    },
-    logWarn: (message) => logger.warn(message),
-    onBindingsChanged: (bindings) =>
-      overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.sessionBindingsChanged, bindings),
-    onMpvInputBindingsChanged: () =>
-      overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.mpvInputBindingsChanged),
-    onWarning: (warning) => {
-      if (warning.kind !== 'conflict') return;
-      overlayNotificationsRuntime.showOverlayNotification({
-        id: `session-binding-conflict:${warning.path}`,
-        title: 'Shortcut conflict',
-        body: warning.message,
-        variant: 'warning',
-      });
-    },
-  });
 
 const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
@@ -2729,7 +2583,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       },
       saveSubtitlePosition: (position) => saveSubtitlePosition(position),
       getMpvInputBindings: async () => {
-        await refreshMpvSessionBindings();
+        await shortcuts.refreshMpvSessionBindings();
         return readMpvInputBindings({
           getMpvClient: () => appState.mpvClient,
           getConfiguredKeybindings: () => configService.getConfig().keybindings ?? [],
@@ -2742,10 +2596,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         });
       },
       getSessionBindings: async () => {
-        await refreshMpvSessionBindings();
+        await shortcuts.refreshMpvSessionBindings();
         return appState.sessionBindings;
       },
-      getConfiguredShortcuts: () => getConfiguredShortcuts(),
+      getConfiguredShortcuts: () => shortcuts.getConfiguredShortcuts(),
       dispatchSessionAction: (request) => dispatchSessionAction(request),
       getStatsToggleKey: () => configService.getConfig().stats.toggleKey,
       getMarkWatchedKey: () => configService.getConfig().stats.markWatchedKey,
@@ -2907,10 +2761,10 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     openFirstRunSetupWindow: (force?: boolean) => firstRunSetup.openWindow(force),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
     copyCurrentSubtitle: () => mining.copyCurrentSubtitle(),
-    startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
+    startPendingMultiCopy: (timeoutMs: number) => shortcuts.startPendingMultiCopy(timeoutMs),
     mineSentenceCard: () => mining.mineSentenceCard(),
     startPendingMineSentenceMultiple: (timeoutMs: number) =>
-      startPendingMineSentenceMultiple(timeoutMs),
+      shortcuts.startPendingMineSentenceMultiple(timeoutMs),
     updateLastCardFromClipboard: () => mining.updateLastCardFromClipboard(),
     refreshKnownWordCache: () => mining.refreshKnownWordCache(),
     triggerFieldGrouping: () => mining.triggerFieldGrouping(),
@@ -2979,7 +2833,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
     dispatchSessionAction: (request: SessionActionDispatchRequest) =>
       dispatchSessionAction(request),
-    getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
+    getMultiCopyTimeoutMs: () => shortcuts.getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
     logInfo: (message: string) => logger.info(message),
     logDebug: (message: string) => logger.debug(message),
@@ -3226,7 +3080,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
       },
       overlayShortcutsRuntime: {
-        syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
+        syncOverlayShortcuts: () => shortcuts.overlayShortcutsRuntime.syncOverlayShortcuts(),
       },
       createMainWindow: () => {
         if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
@@ -3238,7 +3092,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
           return;
         }
-        registerGlobalShortcuts();
+        shortcuts.registerGlobalShortcuts();
       },
       createWindowTracker: (override, targetMpvSocketPath) =>
         visibleOverlayInteractionRuntime.createOverlayWindowTracker(override, targetMpvSocketPath),
