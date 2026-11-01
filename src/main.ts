@@ -42,15 +42,11 @@ import {
   DICTIONARY_EXTERNAL_LINK_CHANNEL,
   parseDictionaryExternalUrl,
 } from './shared/dictionary-external-link';
-import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { readMpvInputBindings } from './main/runtime/mpv-input-bindings';
 import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
 import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
-import {
-  assertYomitanDictionaryMutationSafe,
-  observeYomitanDictionaryCount,
-} from './main/runtime/yomitan-dictionary-integrity';
+import { observeYomitanDictionaryCount } from './main/runtime/yomitan-dictionary-integrity';
 import { startAppControlServer } from './main/runtime/app-control-server';
 import { createEnsureBackgroundStatsServerHandler } from './main/runtime/background-stats-startup';
 import {
@@ -58,7 +54,6 @@ import {
   shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
 } from './main/runtime/jellyfin-remote-playback';
 import { getAppControlSocketPath } from './shared/app-control';
-import { writeJellyfinCliResponse } from './shared/jellyfin-cli-response';
 import {
   type CancelLinuxMpvFullscreenOverlayRefreshBurst,
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
@@ -109,6 +104,7 @@ import type {
 } from './types';
 import { OPEN_ANKI_CARD_ACTION_ID } from './types';
 import { AnkiIntegration } from './anki-integration';
+import { AnkiConnectClient } from './anki-connect';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
@@ -138,45 +134,20 @@ import {
 import { printHelp } from './cli/help';
 import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
 import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
-import { AnkiConnectClient } from './anki-connect';
 import {
   getStartupModeFlags,
   shouldHandleInitialArgsBeforeDeferredOverlayWarmup,
   shouldRefreshAnilistOnConfigReload,
   shouldStartAutomaticUpdateChecks,
 } from './main/runtime/startup-mode-flags';
+import { buildConfigParseErrorDetails, failStartupFromConfig } from './main/config-validation';
 import {
-  buildConfigParseErrorDetails,
-  buildConfigWarningDialogDetails,
-  buildConfigWarningNotificationBody,
-  failStartupFromConfig,
-} from './main/config-validation';
-import {
-  buildAnilistSetupUrl,
-  consumeAnilistSetupCallbackUrl,
-  createAnilistStateRuntime,
-  createMaybeFocusExistingAnilistSetupWindowHandler,
-  createOpenAnilistSetupWindowHandler,
   findAnilistSetupDeepLinkArgvUrl,
   isAnilistTrackingEnabled,
-  loadAnilistManualTokenEntry,
-  openAnilistSetupInBrowser,
-  rememberAnilistAttemptedUpdateKey,
 } from './main/runtime/domains/anilist';
-import { DEFAULT_MIN_WATCH_RATIO } from './shared/watch-threshold';
 import { shouldShowTexthookerTrayEntry } from './main/runtime/tray-main-actions';
+import { createGetDefaultSocketPathHandler } from './main/runtime/domains/jellyfin';
 import {
-  createApplyJellyfinMpvDefaultsHandler,
-  createGetDefaultSocketPathHandler,
-  buildJellyfinSetupFormHtml,
-  parseJellyfinSetupSubmissionUrl,
-  getConfiguredJellyfinSession,
-  mergeJellyfinRecentServers,
-  persistJellyfinAuthSession,
-  type ActiveJellyfinRemotePlaybackState,
-} from './main/runtime/domains/jellyfin';
-import {
-  createWatchConfigPathHandler,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
   createGetRuntimeOptionsStateHandler,
@@ -186,17 +157,13 @@ import {
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
   createHandleOverlayModalClosedHandler,
-  createConfigHotReloadMessageHandler,
-  createConfigHotReloadAppliedHandler,
   buildTrayMenuTemplateRuntime,
   resolveTrayIconPathRuntime,
   createYomitanExtensionRuntime,
   createYomitanSettingsRuntime,
-  buildRestartRequiredConfigMessage,
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/domains/overlay';
 import {
-  createBuildDictionaryRootsHandler,
   createImmersionMediaRuntime,
   createConfigDerivedRuntime,
   appendClipboardVideoToQueueRuntime,
@@ -236,16 +203,13 @@ import {
 } from './shared/setup-state';
 import {
   ImmersionTrackerService,
-  JellyfinRemoteSessionService,
   MpvIpcClient,
   SubtitleWebSocket,
   Texthooker,
   applyMpvSubtitleRenderMetricsPatch,
-  authenticateWithPasswordRuntime,
   broadcastRuntimeOptionsChangedRuntime,
   captureLiveSubtitleMiningContext,
   copyCurrentSubtitle as copyCurrentSubtitleCore,
-  createConfigHotReloadRuntime,
   createDiscordPresenceService,
   createFieldGroupingOverlayRuntime,
   createOverlayContentMeasurementStore,
@@ -253,20 +217,14 @@ import {
   createOverlayWindow as createOverlayWindowCore,
   createTokenizerDepsRuntime,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
-  deleteYomitanDictionaryByTitle,
   destroyYomitanSettingsWindow,
   getYomitanDictionaryInfo,
   handleMineSentenceDigit as handleMineSentenceDigitCore,
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
-  importYomitanDictionaryFromZip,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
   isSubtitleAnnotationUpgrade,
   isOverlayWindowContentReady,
-  jellyfinTicksToSecondsRuntime,
-  listJellyfinItemsRuntime,
-  listJellyfinLibrariesRuntime,
-  listJellyfinSubtitleTracksRuntime,
   loadSubtitlePosition as loadSubtitlePositionCore,
   loadYomitanExtension as loadYomitanExtensionCore,
   markLastCardAsAudioCard as markLastCardAsAudioCardCore,
@@ -277,7 +235,6 @@ import {
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
   resolveSanitizedSubtitleSeekCommand,
-  resolveJellyfinPlaybackPlanRuntime,
   toJellyfinOriginalStreamUrl,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
@@ -289,22 +246,12 @@ import {
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
   shiftSubtitleRangeToVideoClock,
   showMpvOsdRuntime,
-  JellyfinPlaybackReporter,
   tokenizeSubtitle as tokenizeSubtitleCore,
   toSubtitleClock,
   triggerFieldGrouping as triggerFieldGroupingCore,
-  upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
-import {
-  acquireYoutubeSubtitleTrack,
-  acquireYoutubeSubtitleTracks,
-} from './core/services/youtube/generate';
 import { applyOverlayClickThrough } from './core/services/overlay-click-through';
-import { createYoutubeMediaCacheService } from './core/services/youtube/media-cache';
-import { createYoutubeWhisperSubtitleService } from './core/services/youtube/whisper-subtitles';
-import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
-import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import {
   destroyStatsWindow,
   registerStatsOverlayToggle,
@@ -317,13 +264,14 @@ import {
   isStandaloneFirstRunSetupCommand,
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
-import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
-import { createYoutubeMediaCachePlaybackRuntime } from './main/runtime/youtube-media-cache-playback';
-import { createYoutubePlaybackRuntime } from './main/runtime/youtube-playback-runtime';
-import {
-  clearYoutubePrimarySubtitleNotificationTimer,
-  createYoutubePrimarySubtitleNotificationRuntime,
-} from './main/runtime/youtube-primary-subtitle-notification';
+import { createCharacterDictionaryAssembly } from './main/assemblies/character-dictionary';
+import { createDictionariesAssembly } from './main/assemblies/dictionaries';
+import { createJellyfinAssembly } from './main/assemblies/jellyfin';
+import { createAnilistAssembly } from './main/assemblies/anilist';
+import { createSettingsAssembly } from './main/assemblies/settings';
+import { createSyncAssembly } from './main/assemblies/sync';
+import { createYoutubeAssembly } from './main/assemblies/youtube';
+import { createOverlayModalsAssembly } from './main/assemblies/overlay-modals';
 import {
   createAutoplayReadyGate,
   type AutoplayReadySignal,
@@ -342,7 +290,6 @@ import {
 import {
   detectInstalledFirstRunPlugin,
   detectInstalledFirstRunPluginCandidates,
-  detectInstalledMpvPlugin,
   removeLegacyMpvPluginCandidates,
 } from './main/runtime/first-run-setup-plugin';
 import { createWindowsMpvPluginDetectionRuntime } from './main/runtime/windows-mpv-plugin-detection';
@@ -363,24 +310,11 @@ import {
   getConfiguredWindowsMpvPathStatus,
   launchWindowsMpv,
 } from './main/runtime/windows-mpv-launch';
+import { findMpvExecutablePath } from './main/runtime/mpv-process';
 import {
-  findMpvExecutablePath,
-  resolveMpvExecutablePath,
-  spawnMpvProcess,
-} from './main/runtime/mpv-process';
-import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
-import {
-  DEFAULT_JELLYFIN_CLIENT_NAME,
-  DEFAULT_JELLYFIN_CLIENT_VERSION,
-  createHostDerivedJellyfinDeviceId,
-  resolveJellyfinRemoteDeviceName,
-} from './main/runtime/jellyfin-device-identity';
-import {
-  clearJellyfinAuthSessionAndRefreshTray as clearJellyfinAuthSessionAndRefreshTrayRuntime,
   isJellyfinConfiguredForTray as isJellyfinConfiguredForTrayRuntime,
   toggleJellyfinDiscoveryFromTray as toggleJellyfinDiscoveryFromTrayRuntime,
 } from './main/runtime/jellyfin-tray-discovery';
-import { createPrepareYoutubePlaybackInMpvHandler } from './main/runtime/youtube-playback-launch';
 import {
   shouldEnsureTrayOnStartupForInitialArgs,
   shouldQuitOnMpvShutdownForTrayState,
@@ -399,10 +333,6 @@ import { createStatsServerRuntime } from './main/runtime/stats-server-runtime';
 import { createForceQuitHandler } from './main/runtime/app-lifecycle-actions';
 import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
-import {
-  guessAnilistMediaInfo,
-  updateAnilistPostWatchProgress,
-} from './core/services/anilist/anilist-updater';
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
@@ -418,13 +348,10 @@ import {
   createRestoreOverlayMpvSubtitlesHandler,
 } from './main/runtime/overlay-mpv-sub-visibility';
 import {
-  composeAnilistSetupHandlers,
-  composeAnilistTrackingHandlers,
   composeAppReadyRuntime,
   composeCliStartupHandlers,
   composeHeadlessStartupHandlers,
   composeIpcRuntimeHandlers,
-  composeJellyfinRuntimeHandlers,
   composeMpvRuntimeHandlers,
   composeOverlayVisibilityRuntime,
   composeShortcutRuntimes,
@@ -464,15 +391,7 @@ import {
   createMediaTimingReviewRuntime,
 } from './main/runtime/media-timing-review';
 import { openMediaTimingReviewModal } from './main/runtime/media-timing-review-open';
-import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
-import { createYoutubeBrowserPlaybackRuntime } from './main/runtime/youtube-browser-playback';
-import { createYoutubeBrowserWindowRuntime } from './main/runtime/youtube-browser-window';
-import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
-import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
-import { openTsukihimeModal as openTsukihimeModalRuntime } from './main/runtime/tsukihime-open';
 import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
-import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
-import { openChangelogModal as openChangelogModalRuntime } from './main/runtime/changelog-open';
 import { createChangelogRuntime } from './main/runtime/changelog/changelog-runtime';
 import {
   createPluginHost,
@@ -485,42 +404,23 @@ import {
   openPluginPanelModal,
 } from './main/runtime/plugin-panel-runtime';
 import { createPluginWindowRuntime } from './main/runtime/plugin-window-runtime';
-import { openCharacterDictionaryManagerModal as openCharacterDictionaryManagerModalRuntime } from './main/runtime/character-dictionary-open';
-import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
-import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { createSessionBindingsRuntime } from './main/runtime/session-bindings-runtime';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
-import {
-  createFrequencyDictionaryRuntimeService,
-  getFrequencyDictionarySearchPaths,
-} from './main/frequency-dictionary-runtime';
-import {
-  createJlptDictionaryRuntimeService,
-  getJlptDictionarySearchPaths,
-} from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createPrefetchAwareSubtitleProcessingController } from './main/runtime/subtitle-processing-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
-import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
-import { createCharacterDictionaryImageLookup } from './main/character-dictionary-runtime/image-lookup';
-import { createCharacterNameCandidateLookup } from './main/character-dictionary-runtime/name-candidates';
 import {
-  createCharacterDictionaryAutoSyncRuntimeService,
   getCharacterDictionaryManagerSnapshot,
   moveCharacterDictionaryManagedEntry,
   removeCharacterDictionaryManagedEntry,
   replaceCharacterDictionaryManagedEntry,
 } from './main/runtime/character-dictionary-auto-sync';
-import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/character-dictionary-auto-sync-completion';
-import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
-import { openCharacterDictionaryManagerWithConfigGate } from './main/runtime/character-dictionary-manager-gate';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
 import { createOverlayGeometryRuntime } from './main/runtime/overlay-geometry-runtime';
 import { createVisibleOverlayInteractionRuntime } from './main/runtime/visible-overlay-interaction-runtime';
-import { createJellyfinSubtitleCacheIo } from './main/runtime/jellyfin-subtitle-cache-io';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
   INSTALL_UPDATE_ACTION_ID,
@@ -543,19 +443,7 @@ import {
   createResolveActiveSubtitleSidebarSourceHandler,
 } from './main/runtime/subtitle-prefetch-runtime';
 import { createSecondarySubtitleTrackController } from './main/runtime/secondary-subtitle-track';
-import {
-  createCreateAnilistSetupWindowHandler,
-  createCreateConfigSettingsWindowHandler,
-  createCreateFirstRunSetupWindowHandler,
-  createCreateJellyfinSetupWindowHandler,
-  createCreateSyncUiWindowHandler,
-} from './main/runtime/setup-window-factory';
-import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
-import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
-import { createSyncUiRuntime } from './main/runtime/sync-ui-runtime';
-import { createSyncAutoScheduler } from './main/runtime/sync-auto-scheduler';
-import { resolveSyncLauncherCommand, runSyncLauncher } from './main/runtime/sync-launcher-client';
-import { getSyncHostsPath } from './shared/sync/sync-hosts-store';
+import { createCreateFirstRunSetupWindowHandler } from './main/runtime/setup-window-factory';
 import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
 import {
   isSameYoutubeMediaPath,
@@ -564,26 +452,8 @@ import {
 } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { reloadOverlayWindowsForYomitanContentScripts } from './main/runtime/yomitan-extension-overlay-reload';
-import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
 import { createYomitanAnkiServerSyncRuntime } from './main/runtime/yomitan-anki-server-sync';
-import {
-  type AnilistMediaGuessRuntimeState,
-  type StartupState,
-  applyStartupState,
-  createAppState,
-  createInitialAnilistMediaGuessRuntimeState,
-  createInitialAnilistUpdateInFlightState,
-  transitionAnilistClientSecretState,
-  transitionAnilistMediaGuessRuntimeState,
-  transitionAnilistRetryQueueLastAttemptAt,
-  transitionAnilistRetryQueueLastError,
-  transitionAnilistRetryQueueState,
-  transitionAnilistUpdateInFlightState,
-} from './main/state';
-import {
-  isAllowedAnilistExternalUrl,
-  isAllowedAnilistSetupNavigationUrl,
-} from './main/anilist-url-guard';
+import { type StartupState, applyStartupState, createAppState } from './main/state';
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -591,7 +461,6 @@ import {
   generateConfigTemplate,
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
-import { buildConfigSettingsRegistry } from './config/settings/registry';
 import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
 import {
   createSubtitlePrefetchService,
@@ -622,67 +491,13 @@ const DEFAULT_MPV_LOG_FILE = resolveDefaultLogFilePath('mpv', {
   homeDir: os.homedir(),
   appDataDir: process.env.APPDATA,
 });
-const ANILIST_SETUP_CLIENT_ID_URL = 'https://anilist.co/api/v2/oauth/authorize';
-const jellyfinSubtitleCacheIo = createJellyfinSubtitleCacheIo({
-  tmpDir: () => os.tmpdir(),
-  makeTempDir: (prefix) => fs.promises.mkdtemp(prefix),
-  writeFile: (filePath, bytes) => fs.promises.writeFile(filePath, bytes),
-  removeDir: (dir, options) => {
-    fs.rmSync(dir, options);
-  },
-  fetch: (url) => fetch(url),
-});
-const ANILIST_SETUP_RESPONSE_TYPE = 'token';
-const ANILIST_DEFAULT_CLIENT_ID = '36084';
-const ANILIST_REDIRECT_URI = 'https://anilist.subminer.moe/';
-const ANILIST_DEVELOPER_SETTINGS_URL = 'https://anilist.co/settings/developer';
-const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
-const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
-const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 const TRAY_TOOLTIP = 'SubMiner';
-const JELLYFIN_SETUP_PRELOAD_PATH = path.join(__dirname, 'preload-jellyfin-setup.js');
 
-let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
-  createInitialAnilistMediaGuessRuntimeState();
-let anilistUpdateInFlightState = createInitialAnilistUpdateInFlightState();
-const anilistAttemptedUpdateKeys = new Set<string>();
-let anilistCachedAccessToken: string | null = null;
-let jellyfinPlayQuitOnDisconnectArmed = false;
-const JELLYFIN_LANG_PREF = 'ja,jp,jpn,japanese,en,eng,english,enUS,en-US';
-const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
-const JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS = 3000;
-const JELLYFIN_REMOTE_STARTUP_STOP_GRACE_MS = 10_000;
 const DISCORD_PRESENCE_APP_ID = '1475264834730856619';
-const JELLYFIN_MPV_CONNECT_TIMEOUT_MS = 3000;
-const JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS = 20000;
-const YOUTUBE_MPV_CONNECT_TIMEOUT_MS = 3000;
-const YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS = 10000;
-// mpv's ytdl hook resolves the stream before tracks appear; a cold yt-dlp run takes well over 5s.
-const YOUTUBE_MPV_LOAD_TIMEOUT_MS = 20000;
-const YOUTUBE_MPV_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
-const YOUTUBE_DIRECT_PLAYBACK_FORMAT = 'b';
-const MPV_JELLYFIN_DEFAULT_ARGS = [
-  '--sub-auto=no',
-  '--sub-file-paths=.;subs;subtitles',
-  '--sid=no',
-  '--secondary-sid=no',
-  '--sub-visibility=no',
-  '--secondary-sub-visibility=no',
-  '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-  '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-] as const;
 
-let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
-let jellyfinRemoteLastProgressAtMs = 0;
-let jellyfinMpvAutoLaunchInFlight: Promise<boolean> | null = null;
 let backgroundWarmupsStarted = false;
 let yomitanLoadInFlight: Promise<Extension | null> | null = null;
 let notifyAnilistTokenStoreWarning: (message: string) => void = () => {};
-
-const applyJellyfinMpvDefaultsHandler = createApplyJellyfinMpvDefaultsHandler({
-  sendMpvCommandRuntime: (client, command) => sendMpvCommandRuntime(client, command),
-  jellyfinLangPref: JELLYFIN_LANG_PREF,
-});
 
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
 const texthookerService = new Texthooker(() => {
@@ -888,7 +703,6 @@ let inactiveYomitanExtension: Extension | null = null;
 let inactiveYomitanSettingsWindow: BrowserWindow | null = null;
 let inactiveYomitanLoad: Promise<Extension | null> | null = null;
 let pendingSubtitleMiningContext: SubtitleMiningContext | null = null;
-const configSettingsFields = buildConfigSettingsRegistry(DEFAULT_CONFIG);
 
 ipcMain.handle(DICTIONARY_EXTERNAL_LINK_CHANNEL, async (event, value: unknown) => {
   if (
@@ -1037,40 +851,17 @@ process.on('SIGTERM', () => {
 // Managed Whisper models live next to the config file.
 const getSubtitleGenerationModelDirectory = (): string =>
   path.join(path.dirname(configService.getConfigPath()), 'models', 'whisper');
-const youtubeWhisperSubtitles = createYoutubeWhisperSubtitleService({
-  getConfig: () => configService.getConfig().subtitleGeneration,
-  getModelDirectory: getSubtitleGenerationModelDirectory,
-});
-const youtubeFlowRuntime = createYoutubeFlowRuntime({
-  probeYoutubeTracks: (url: string) => probeYoutubeTracks(url),
-  acquireYoutubeSubtitleTrack: (input) => acquireYoutubeSubtitleTrack(input),
-  acquireYoutubeSubtitleTracks: (input) => acquireYoutubeSubtitleTracks(input),
-  openPicker: async (payload) => {
-    return await openYoutubeTrackPicker(
-      {
-        sendToActiveOverlayWindow: (channel, nextPayload, runtimeOptions) =>
-          overlayModalRuntime.sendToActiveOverlayWindow(channel, nextPayload, runtimeOptions),
-        waitForModalOpen: (modal, timeoutMs) =>
-          overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
-        logWarn: (message) => logger.warn(message),
-      },
-      payload,
-    );
-  },
-  pauseMpv: () => {
-    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'yes']);
-  },
-  resumeMpv: () => {
-    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'no']);
-  },
-  sendMpvCommand: (command) => {
-    sendMpvCommandRuntime(appState.mpvClient, command);
-  },
-  requestMpvProperty: async (name: string) => {
-    const client = appState.mpvClient;
-    if (!client) return null;
-    return await client.requestProperty(name);
-  },
+const youtube = createYoutubeAssembly({
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
+  getWhisperModelDirectory: getSubtitleGenerationModelDirectory,
+  getMainOverlayWindow: () => overlayManager.getMainWindow(),
+  overlayModalRuntime,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  getOverlayGeometry: () => overlayGeometryRuntime,
+  showMpvOsd: (text) => showMpvOsd(text),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
   refreshCurrentSubtitle: (text: string) => {
     subtitleProcessingController.refreshCurrentSubtitle(text);
   },
@@ -1080,209 +871,55 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
   startTokenizationWarmups: async () => {
     await startTokenizationWarmups();
   },
-  waitForTokenizationReady: async () => {
-    await currentMediaTokenizationGate.waitUntilReady(
-      appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
-    );
-  },
-  waitForAnkiReady: async () => {
-    const integration = appState.ankiIntegration;
-    if (!integration) {
-      return;
-    }
-    try {
-      await Promise.race([
-        integration.waitUntilReady(),
-        new Promise<never>((_, reject) => {
-          setTimeout(
-            () => reject(new Error('Timed out waiting for AnkiConnect integration')),
-            2500,
-          );
-        }),
-      ]);
-    } catch (error) {
-      logger.warn(
-        'Continuing YouTube playback before AnkiConnect integration reported ready:',
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  },
-  wait: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
-  waitForPlaybackWindowReady: async () => {
-    const deadline = Date.now() + 4000;
-    let stableGeometry: WindowGeometry | null = null;
-    let stableSinceMs = 0;
-    while (Date.now() < deadline) {
-      const tracker = appState.windowTracker;
-      const trackerGeometry = tracker?.getGeometry() ?? null;
-      const mediaPath =
-        appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
-      const trackerFocused = tracker?.isTargetWindowFocused() ?? false;
-      if (tracker && tracker.isTracking() && trackerGeometry && trackerFocused && mediaPath) {
-        if (!overlayGeometryRuntime.geometryMatches(stableGeometry, trackerGeometry)) {
-          stableGeometry = trackerGeometry;
-          stableSinceMs = Date.now();
-        } else if (Date.now() - stableSinceMs >= 200) {
-          return;
-        }
-      } else {
-        stableGeometry = null;
-        stableSinceMs = 0;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    logger.warn(
-      'Timed out waiting for tracked playback window focus/media readiness before opening YouTube subtitle picker.',
-    );
-  },
-  waitForOverlayGeometryReady: async () => {
-    const deadline = Date.now() + 4000;
-    while (Date.now() < deadline) {
-      const tracker = appState.windowTracker;
-      const trackerGeometry = tracker?.getGeometry() ?? null;
-      if (
-        trackerGeometry &&
-        overlayGeometryRuntime.geometryMatches(
-          overlayGeometryRuntime.getLastOverlayWindowGeometry(),
-          trackerGeometry,
-        )
-      ) {
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    logger.warn('Timed out waiting for overlay geometry to match tracked playback window.');
-  },
-  focusOverlayWindow: () => {
-    const mainWindow = overlayManager.getMainWindow();
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return;
-    }
-    mainWindow.setIgnoreMouseEvents(false);
-    if (!mainWindow.isFocused()) {
-      mainWindow.focus();
-    }
-    if (!mainWindow.webContents.isFocused()) {
-      mainWindow.webContents.focus();
-    }
-  },
-  showMpvOsd: (text: string) => overlayNotificationsRuntime.showYoutubeFlowStatusNotification(text),
-  reportSubtitleFailure: (message: string) => reportYoutubeSubtitleFailure(message),
-  notifyPrimarySubtitleLoaded: () =>
-    youtubePrimarySubtitleNotificationRuntime.markCurrentMediaPrimarySubtitleLoaded(),
-  warn: (message: string) => logger.warn(message),
-  log: (message: string) => logger.info(message),
-  getYoutubeOutputDir: () => path.join(os.homedir(), '.cache', 'subminer', 'youtube-subs'),
-  createSubtitleTempDir: () =>
-    fs.promises.mkdtemp(path.join(os.tmpdir(), 'subminer-youtube-subtitles-')),
-  cleanupSubtitleTempDirs: (dirs) => {
-    for (const dir of dirs) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  },
-  getSubtitleSource: () => configService.getConfig().youtube.subtitleSource,
-  // Runs as the subtitle generation modal's active job, so the modal shows it and can cancel it.
-  generateWhisperSubtitles: ({ url, outputPath, signal, onProgress }) =>
-    subtitleGenerationRuntime.generateYoutubeSubtitles({
-      url,
-      signal,
-      generate: (jobSignal, reportProgress) =>
-        youtubeWhisperSubtitles.generate({
-          url,
-          outputPath,
-          signal: jobSignal,
-          onProgress: (progress) => {
-            reportProgress(progress);
-            onProgress(progress);
-          },
-        }),
-    }),
+  waitForMediaTokenizationReady: (mediaPath) =>
+    currentMediaTokenizationGate.waitUntilReady(mediaPath),
+  generateYoutubeSubtitles: (request) =>
+    subtitleGenerationRuntime.generateYoutubeSubtitles(request),
   openSubtitleGenerationModal: () =>
-    openSubtitleGenerationModal(createOverlayHostedModalOpenDeps()),
-});
-const prepareYoutubePlaybackInMpv = createPrepareYoutubePlaybackInMpvHandler({
-  requestPath: async () => {
-    const client = appState.mpvClient;
-    if (!client) return null;
-    const value = await client.requestProperty('path').catch(() => null);
-    return typeof value === 'string' ? value : null;
-  },
-  requestProperty: async (name) => {
-    const client = appState.mpvClient;
-    if (!client) return null;
-    return await client.requestProperty(name);
-  },
-  sendMpvCommand: (command) => {
-    sendMpvCommandRuntime(appState.mpvClient, command);
-  },
-  wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-});
-const youtubeMediaCache = createYoutubeMediaCacheService({
-  onDownloadStarted: (event) => {
-    overlayNotificationsRuntime.showConfiguredStatusNotification(
-      'YouTube media cache is downloading.',
+    openSubtitleGenerationModal(overlayModals.createOverlayHostedModalOpenDeps()),
+  invalidatePendingAutoplayReadyFallbacks: () =>
+    autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks(),
+  ensurePlaybackRuntimeReady: () => ensureYoutubePlaybackRuntimeReady(),
+  launchWindowsMpv: (playbackUrl, args) => {
+    const config = configService.getConfig();
+    setLogFileToggles(config.logging.files);
+    const mpvLogPath = isLogFileEnabled('mpv') ? resolveDefaultLogFilePath('mpv') : '';
+    if (mpvLogPath) {
+      pruneLogDirectoryForPath(mpvLogPath, config.logging.rotation);
+    }
+    const mpvArgs = [...args, ...buildMpvLoggingArgs(config.logging.level, mpvLogPath, args)];
+    return launchWindowsMpv(
+      [playbackUrl],
+      createWindowsMpvLaunchDeps({
+        showError: (title, content) => dialog.showErrorBox(title, content),
+      }),
+      mpvArgs,
+      process.execPath,
+      resolveBundledMpvRuntimePluginEntrypoint(),
+      config.mpv.executablePath,
+      config.mpv.launchMode,
       {
-        id: 'youtube-media-cache-status',
-        title: 'YouTube media cache',
-        variant: 'progress',
-        persistent: true,
+        detectInstalledMpvPlugin: detectWindowsInstalledMpvPlugin,
+        notifyInstalledPluginDetected: logInstalledMpvPluginDetected,
+        resolveInstalledPluginBeforeLaunch: (detection, mpvPath) =>
+          promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(mpvPath, detection),
       },
+      getMpvPluginRuntimeConfig(),
     );
-    logger.info(`YouTube media cache download notification shown for ${event.url}`);
   },
-  onReady: (event) => {
-    overlayNotificationsRuntime.showConfiguredStatusNotification('YouTube media cache ready.', {
-      id: 'youtube-media-cache-status',
-      title: 'YouTube media cache',
-      variant: 'success',
-      persistent: false,
-    });
-    void appState.ankiIntegration
-      ?.handleYoutubeMediaCacheReady(event.url, event.path, { notifyNoQueued: false })
-      .catch((error) => {
-        logger.warn(
-          `Failed to apply queued YouTube media updates: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      });
+  ensureMpvConnectedForPlayback: () => jellyfin.ensureMpvConnectedForPlayback(),
+  requestAppQuit: () => requestAppQuit(),
+  browserWindow: {
+    createBrowserWindow: (options) => new BrowserWindow(options),
+    preloadPath: path.join(__dirname, 'preload-youtube-browser.js'),
+    ipcMain,
+    showContextMenu: (window, template) => {
+      Menu.buildFromTemplate(template).popup({ window });
+    },
+    openExternal: (url) => {
+      void shell.openExternal(url);
+    },
   },
-  onFailed: (event) => {
-    overlayNotificationsRuntime.showConfiguredStatusNotification('YouTube media cache failed.', {
-      id: 'youtube-media-cache-status',
-      title: 'YouTube media cache',
-      variant: 'error',
-      persistent: false,
-    });
-    void appState.ankiIntegration
-      ?.handleYoutubeMediaCacheFailed(event.url, { notifyStatus: false })
-      .catch((error) => {
-        logger.warn(
-          `Failed to drain queued YouTube media updates after cache failure: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      });
-  },
-  logInfo: (message) => logger.info(message),
-  logWarn: (message) => logger.warn(message),
-});
-const youtubeMediaCachePlaybackRuntime = createYoutubeMediaCachePlaybackRuntime({
-  getMediaCacheConfig: () => configService.getConfig().youtube.mediaCache,
-  requestMpvProperty: async (name) => {
-    const client = appState.mpvClient;
-    if (!client) return null;
-    return await client.requestProperty(name);
-  },
-  startYoutubeMediaCache: (url, options) => {
-    youtubeMediaCache.start(url, options);
-  },
-  logWarn: (message) => logger.warn(message),
-});
-const waitForYoutubeMpvConnected = createWaitForMpvConnectedHandler({
-  getMpvClient: () => appState.mpvClient,
-  now: () => Date.now(),
-  sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
 });
 const POST_WARM_AUTOPLAY_SUBTITLE_PRIME_DELAYS_MS = [0, 75, 200, 500, 1_000] as const;
 
@@ -1314,7 +951,7 @@ function schedulePostWarmAutoplaySubtitlePrime(signal: AutoplayReadySignal): voi
 }
 
 const autoplayReadyGate = createAutoplayReadyGate({
-  isAppOwnedFlowInFlight: () => youtubePrimarySubtitleNotificationRuntime.isAppOwnedFlowInFlight(),
+  isAppOwnedFlowInFlight: () => youtube.primarySubtitleNotification.isAppOwnedFlowInFlight(),
   getCurrentMediaPath: () => appState.currentMediaPath,
   getCurrentVideoPath: () => appState.mpvClient?.currentVideoPath ?? null,
   getPlaybackPaused: () => appState.playbackPaused,
@@ -1379,67 +1016,6 @@ const {
 } = createWindowsMpvPluginDetectionRuntime({
   mainDirname: __dirname,
   logWarn: (message) => logger.warn(message),
-});
-
-const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
-  platform: process.platform,
-  directPlaybackFormat: YOUTUBE_DIRECT_PLAYBACK_FORMAT,
-  mpvYtdlFormat: YOUTUBE_MPV_YTDL_FORMAT,
-  autoLaunchTimeoutMs: YOUTUBE_MPV_AUTO_LAUNCH_TIMEOUT_MS,
-  connectTimeoutMs: YOUTUBE_MPV_CONNECT_TIMEOUT_MS,
-  getSocketPath: () => appState.mpvSocketPath,
-  getMpvConnected: () => Boolean(appState.mpvClient?.connected),
-  invalidatePendingAutoplayReadyFallbacks: () =>
-    autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks(),
-  setAppOwnedFlowInFlight: (next) => {
-    youtubePrimarySubtitleNotificationRuntime.setAppOwnedFlowInFlight(next);
-  },
-  ensureYoutubePlaybackRuntimeReady: async () => {
-    await ensureYoutubePlaybackRuntimeReady();
-  },
-  resolveYoutubePlaybackUrl: (url, format) => resolveYoutubePlaybackUrl(url, format),
-  launchWindowsMpv: (playbackUrl, args) => {
-    const config = configService.getConfig();
-    setLogFileToggles(config.logging.files);
-    const mpvLogPath = isLogFileEnabled('mpv') ? resolveDefaultLogFilePath('mpv') : '';
-    if (mpvLogPath) {
-      pruneLogDirectoryForPath(mpvLogPath, config.logging.rotation);
-    }
-    const mpvArgs = [...args, ...buildMpvLoggingArgs(config.logging.level, mpvLogPath, args)];
-    return launchWindowsMpv(
-      [playbackUrl],
-      createWindowsMpvLaunchDeps({
-        showError: (title, content) => dialog.showErrorBox(title, content),
-      }),
-      mpvArgs,
-      process.execPath,
-      resolveBundledMpvRuntimePluginEntrypoint(),
-      config.mpv.executablePath,
-      config.mpv.launchMode,
-      {
-        detectInstalledMpvPlugin: detectWindowsInstalledMpvPlugin,
-        notifyInstalledPluginDetected: logInstalledMpvPluginDetected,
-        resolveInstalledPluginBeforeLaunch: (detection, mpvPath) =>
-          promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(mpvPath, detection),
-      },
-      getMpvPluginRuntimeConfig(),
-    );
-  },
-  waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
-  prepareYoutubePlaybackInMpv: (request) =>
-    prepareYoutubePlaybackInMpv({ ...request, timeoutMs: YOUTUBE_MPV_LOAD_TIMEOUT_MS }),
-  startYoutubeMediaCache: (url) => {
-    const mediaCacheConfig = configService.getConfig().youtube.mediaCache;
-    youtubeMediaCache.start(url, {
-      mode: mediaCacheConfig.mode,
-      maxHeight: mediaCacheConfig.maxHeight,
-    });
-  },
-  runYoutubePlaybackFlow: (request) => youtubeFlowRuntime.runYoutubePlaybackFlow(request),
-  logInfo: (message) => logger.info(message),
-  logWarn: (message) => logger.warn(message),
-  schedule: (callback, delayMs) => setTimeout(callback, delayMs),
-  clearScheduled: (timer) => clearTimeout(timer),
 });
 
 function getMpvPluginRuntimeConfig() {
@@ -1620,7 +1196,7 @@ const discordPresenceRuntime = createDiscordPresenceRuntime({
   getCurrentMediaPath: () => appState.currentMediaPath,
   getCurrentSubtitleText: () => appState.currentSubText,
   getPlaybackPaused: () => appState.playbackPaused,
-  getFallbackMediaDurationSec: () => anilistMediaGuessRuntimeState.mediaDurationSec,
+  getFallbackMediaDurationSec: () => anilist.getMediaDurationSec(),
   getSessionStartedAtMs: () => discordPresenceSessionStartedAtMs,
   getMediaDurationSec: () => discordPresenceMediaDurationSec,
   setMediaDurationSec: (next) => {
@@ -1710,27 +1286,6 @@ const statsCoverArtFetcher = createCoverArtFetcher(
     ),
   },
 );
-const anilistStateRuntime = createAnilistStateRuntime({
-  getClientSecretState: () => appState.anilistClientSecretState,
-  setClientSecretState: (next) => {
-    appState.anilistClientSecretState = transitionAnilistClientSecretState(
-      appState.anilistClientSecretState,
-      next,
-    );
-  },
-  getRetryQueueState: () => appState.anilistRetryQueueState,
-  setRetryQueueState: (next) => {
-    appState.anilistRetryQueueState = transitionAnilistRetryQueueState(
-      appState.anilistRetryQueueState,
-      next,
-    );
-  },
-  getUpdateQueueSnapshot: () => anilistUpdateQueue.getSnapshot(),
-  clearStoredToken: () => anilistTokenStore.clearToken(),
-  clearCachedAccessToken: () => {
-    anilistCachedAccessToken = null;
-  },
-});
 const configDerivedRuntime = createConfigDerivedRuntime({
   getResolvedConfig: () => configService.getConfig(),
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
@@ -1747,7 +1302,7 @@ const subsyncRuntime = createMainSubsyncRuntime({
   },
   showMpvOsd: (text) => overlayNotificationsRuntime.showSubsyncStatusNotification(text),
   openManualPicker: (payload) => {
-    openOverlayHostedModalWithOsd(
+    overlayModals.openOverlayHostedModalWithOsd(
       (deps) => openSubsyncManualModalRuntime(deps, payload),
       'Subsync overlay unavailable.',
       'Failed to open subsync overlay.',
@@ -1762,139 +1317,6 @@ const startupOsdSequencer = createStartupOsdSequencer({
     overlayNotificationsRuntime.showOverlayNotification(payload),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
-const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNotificationRuntime({
-  getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
-  notifyFailure: (message) => reportYoutubeSubtitleFailure(message),
-  schedule: (fn, delayMs) => setTimeout(fn, delayMs),
-  clearSchedule: clearYoutubePrimarySubtitleNotificationTimer,
-  getCurrentSubtitleState: async () => {
-    const client = appState.mpvClient;
-    if (!client?.connected) {
-      return null;
-    }
-    const [sid, trackList] = await Promise.all([
-      client.requestProperty('sid').catch(() => null),
-      client.requestProperty('track-list').catch(() => null),
-    ]);
-    return {
-      sid,
-      trackList: Array.isArray(trackList) ? trackList : null,
-    };
-  },
-});
-
-function isYoutubePlaybackActiveNow(): boolean {
-  return Boolean(getCurrentYoutubeMediaCacheSourceUrlSnapshot());
-}
-
-function getCurrentYoutubeMediaCacheSourceUrlSnapshot(): string | null {
-  const currentMediaPath = appState.currentMediaPath?.trim() || null;
-  if (isYoutubeMediaPath(currentMediaPath)) {
-    return currentMediaPath;
-  }
-
-  const currentVideoPath = appState.mpvClient?.currentVideoPath?.trim() || null;
-  if (isYoutubeMediaPath(currentVideoPath)) {
-    return currentVideoPath;
-  }
-
-  return youtubeMediaCachePlaybackRuntime.getActiveYoutubeSourceUrlSnapshot();
-}
-
-async function getCurrentYoutubeMediaCacheSourceUrl(): Promise<string | null> {
-  const currentMediaPath = appState.currentMediaPath?.trim() || null;
-  if (isYoutubeMediaPath(currentMediaPath)) {
-    return currentMediaPath;
-  }
-
-  const currentVideoPath = appState.mpvClient?.currentVideoPath?.trim() || null;
-  if (isYoutubeMediaPath(currentVideoPath)) {
-    return currentVideoPath;
-  }
-
-  return await youtubeMediaCachePlaybackRuntime.getActiveYoutubeSourceUrl();
-}
-
-function shouldRequireYoutubeMediaCacheForCurrentPlayback(): boolean {
-  return (
-    configService.getConfig().youtube.mediaCache.mode === 'background' &&
-    isYoutubePlaybackActiveNow()
-  );
-}
-
-async function getCachedYoutubeMediaPathForCurrentPlayback(
-  currentVideoPath: string,
-  _kind: 'audio' | 'video',
-): Promise<string | null> {
-  if (configService.getConfig().youtube.mediaCache.mode !== 'background') {
-    return null;
-  }
-  const cacheSourceUrl = isYoutubeMediaPath(currentVideoPath)
-    ? currentVideoPath
-    : await getCurrentYoutubeMediaCacheSourceUrl();
-  if (!cacheSourceUrl) {
-    return null;
-  }
-  // mpv can expose the resolved stream URL here while the cache key uses the original page URL.
-  // Keep the active-cache fallback so current playback can still resolve the ready cached file.
-  return (
-    (await youtubeMediaCache.getCachedMediaPath(cacheSourceUrl)) ??
-    (await youtubeMediaCache.getActiveCachedMediaPath())
-  );
-}
-
-function reportYoutubeSubtitleFailure(message: string): void {
-  const type = overlayNotificationsRuntime.getConfiguredStatusNotificationType();
-  if (type === 'none') {
-    return;
-  }
-  if (type === 'overlay' || type === 'both') {
-    overlayNotificationsRuntime.showOverlayNotification({
-      title: 'SubMiner',
-      body: message,
-      variant: 'warning',
-    });
-  }
-  if (type === 'osd' || type === 'osd-system') {
-    showMpvOsd(message);
-  }
-  if (type === 'system' || type === 'both' || type === 'osd-system') {
-    try {
-      showDesktopNotification('SubMiner', { body: message });
-    } catch {
-      logger.warn(`Unable to show desktop notification: ${message}`);
-    }
-  }
-}
-
-async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
-  if (youtubeFlowRuntime.hasActiveSession()) {
-    overlayNotificationsRuntime.showConfiguredStatusNotification(
-      'YouTube subtitle flow already in progress.',
-      {
-        title: 'YouTube subtitles',
-        variant: 'warning',
-      },
-    );
-    return;
-  }
-  const currentMediaPath =
-    appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
-  if (!isYoutubePlaybackActiveNow() || !currentMediaPath) {
-    overlayNotificationsRuntime.showConfiguredStatusNotification(
-      'YouTube subtitle picker is only available during YouTube playback.',
-      {
-        title: 'YouTube subtitles',
-        variant: 'warning',
-      },
-    );
-    return;
-  }
-  await youtubeFlowRuntime.openManualPicker({
-    url: currentMediaPath,
-  });
-}
-
 let appTray: Tray | null = null;
 let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null = null;
 function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
@@ -2288,16 +1710,16 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
   },
   showMpvOsd: (text: string) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   openRuntimeOptionsPalette: () => {
-    openRuntimeOptionsPalette();
+    overlayModals.openRuntimeOptionsPalette();
   },
   openCharacterDictionaryManager: () => {
-    openCharacterDictionaryManagerOverlay();
+    overlayModals.openCharacterDictionaryManagerOverlay();
   },
   openJimaku: () => {
-    openJimakuOverlay();
+    overlayModals.openJimakuOverlay();
   },
   openTsukihime: () => {
-    openTsukihimeOverlay();
+    overlayModals.openTsukihimeOverlay();
   },
   markAudioCard: () => markLastCardAsAudioCardHandler(),
   copySubtitleMultiple: (timeoutMs: number) => {
@@ -2329,90 +1751,6 @@ syncOverlayShortcutsForModal = (isActive: boolean): void => {
   }
 };
 
-const notifyConfigHotReloadMessage = createConfigHotReloadMessageHandler({
-  getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
-  showMpvOsd: (message) => showMpvOsd(message),
-  showOverlayNotification: (payload) =>
-    overlayNotificationsRuntime.showOverlayNotification(payload),
-  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-});
-const watchConfigPathHandler = createWatchConfigPathHandler({
-  fileExists: (targetPath) => fs.existsSync(targetPath),
-  dirname: (targetPath) => path.dirname(targetPath),
-  watchPath: (targetPath, listener) => fs.watch(targetPath, listener),
-});
-const applyConfigHotReloadDiff = createConfigHotReloadAppliedHandler({
-  setKeybindings: (keybindings) => {
-    appState.keybindings = keybindings;
-  },
-  setSessionBindings: (sessionBindings, sessionBindingWarnings) => {
-    persistSessionBindings(sessionBindings, sessionBindingWarnings);
-  },
-  refreshGlobalAndOverlayShortcuts: () => {
-    refreshGlobalAndOverlayShortcuts();
-  },
-  setSecondarySubMode: (mode) => {
-    setSecondarySubMode(mode);
-  },
-  broadcastToOverlayWindows: (channel, payload) => {
-    overlayManager.broadcastToOverlayWindows(channel, payload);
-  },
-  applyAnkiRuntimeConfigPatch: (patch) => {
-    if (appState.ankiIntegration) {
-      appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-    }
-    if (activeDictionaryBackend === 'hachidori' && appState.yomitanExt) {
-      void syncYomitanDefaultProfileAnkiServer().catch((error: unknown) =>
-        logger.error('Failed to auto-populate Hachidori Anki settings', error),
-      );
-    }
-  },
-  invalidateTokenizationCache: () => {
-    subtitleProcessingController.invalidateTokenizationCache();
-  },
-  refreshSubtitlePrefetch: () => {
-    subtitlePrefetchService?.onSeek(lastObservedTimePos);
-  },
-  refreshCurrentSubtitle: () => {
-    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-  },
-  setLogLevel: (level) => {
-    setLogLevel(level, 'config');
-  },
-  setLogRotation: (rotation) => {
-    setLogRotation(rotation);
-  },
-  setLogFileToggles: (files) => {
-    setLogFileToggles(files);
-  },
-  applyAniSkipConfig: () => {
-    aniSkipRuntime.applyConfigChange();
-  },
-});
-const configHotReloadRuntime = createConfigHotReloadRuntime({
-  getCurrentConfig: () => configService.getConfig(),
-  reloadConfigStrict: () => configService.reloadConfigStrict(),
-  watchConfigPath: (configPath, onChange) => watchConfigPathHandler(configPath, onChange),
-  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
-  clearTimeout: (timeout) => clearTimeout(timeout),
-  debounceMs: 250,
-  onHotReloadApplied: applyConfigHotReloadDiff,
-  onRestartRequired: (fields) =>
-    notifyConfigHotReloadMessage(buildRestartRequiredConfigMessage(fields)),
-  onInvalidConfig: notifyConfigHotReloadMessage,
-  onValidationWarnings: (configPath, warnings) => {
-    showDesktopNotification('SubMiner', {
-      body: buildConfigWarningNotificationBody(configPath, warnings),
-    });
-    if (process.platform === 'darwin') {
-      dialog.showErrorBox(
-        'SubMiner config validation warning',
-        buildConfigWarningDialogDetails(configPath, warnings),
-      );
-    }
-  },
-});
-
 async function getCurrentYomitanAnkiDeckNameForRuntime(): Promise<string> {
   await yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
   return getYomitanCurrentAnkiDeckNameCore(getYomitanParserRuntimeDeps(), {
@@ -2425,71 +1763,84 @@ async function getCurrentYomitanAnkiDeckNameForRuntime(): Promise<string> {
   });
 }
 
-const configSettingsRuntime = createConfigSettingsRuntime({
-  fields: configSettingsFields,
-  getConfigPath: () => configService.getConfigPath(),
-  getRawConfig: () => configService.getRawConfig(),
-  getConfig: () => configService.getConfig(),
-  getWarnings: () => configService.getWarnings(),
-  reloadConfigStrict: () => configService.reloadConfigStrict(),
-  onHotReloadApplied: applyConfigHotReloadDiff,
-  defaultAnkiConnectUrl: DEFAULT_CONFIG.ankiConnect.url,
-  createAnkiClient: (url) => new AnkiConnectClient(url),
-  getYomitanAnkiDeckName: getCurrentYomitanAnkiDeckNameForRuntime,
-  getSettingsWindow: () => appState.configSettingsWindow,
-  setSettingsWindow: (window) => {
-    appState.configSettingsWindow = window as BrowserWindow | null;
+const settings = createSettingsAssembly({
+  appState,
+  configService,
+  logger,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  showMpvOsd: (message) => showMpvOsd(message),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+  hotReloadApplied: {
+    setKeybindings: (keybindings) => {
+      appState.keybindings = keybindings;
+    },
+    setSessionBindings: (sessionBindings, sessionBindingWarnings) => {
+      persistSessionBindings(sessionBindings, sessionBindingWarnings);
+    },
+    refreshGlobalAndOverlayShortcuts: () => {
+      refreshGlobalAndOverlayShortcuts();
+    },
+    setSecondarySubMode: (mode) => {
+      setSecondarySubMode(mode);
+    },
+    broadcastToOverlayWindows: (channel, payload) => {
+      overlayManager.broadcastToOverlayWindows(channel, payload);
+    },
+    applyAnkiRuntimeConfigPatch: (patch) => {
+      if (appState.ankiIntegration) {
+        appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+      }
+      if (activeDictionaryBackend === 'hachidori' && appState.yomitanExt) {
+        void syncYomitanDefaultProfileAnkiServer().catch((error: unknown) =>
+          logger.error('Failed to auto-populate Hachidori Anki settings', error),
+        );
+      }
+    },
+    invalidateTokenizationCache: () => {
+      subtitleProcessingController.invalidateTokenizationCache();
+    },
+    refreshSubtitlePrefetch: () => {
+      subtitlePrefetchService?.onSeek(lastObservedTimePos);
+    },
+    refreshCurrentSubtitle: () => {
+      subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+    },
+    setLogLevel: (level) => {
+      setLogLevel(level, 'config');
+    },
+    setLogRotation: (rotation) => {
+      setLogRotation(rotation);
+    },
+    setLogFileToggles: (files) => {
+      setLogFileToggles(files);
+    },
+    applyAniSkipConfig: () => {
+      aniSkipRuntime.applyConfigChange();
+    },
   },
-  createSettingsWindow: createCreateConfigSettingsWindowHandler({
-    createBrowserWindow: (options) => new BrowserWindow(options),
-    preloadPath: path.join(__dirname, 'preload-settings.js'),
-  }),
-  settingsHtmlPath: path.join(__dirname, 'settings', 'index.html'),
-  promoteSettingsWindowAboveOverlay: (window) =>
-    promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  getYomitanAnkiDeckName: getCurrentYomitanAnkiDeckNameForRuntime,
+  showErrorBox: (title, content) => dialog.showErrorBox(title, content),
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  mainDirname: __dirname,
   openPath: (targetPath) => shell.openPath(targetPath),
   ipcMain,
-  ipcChannels: IPC_CHANNELS.request,
-  log: (message) => logger.error(message),
 });
 
-configSettingsRuntime.registerHandlers();
+settings.window.registerHandlers();
 
-const openSyncUiWindowHandler = createOpenConfigSettingsWindowHandler({
-  getSettingsWindow: () => appState.syncUiWindow,
-  setSettingsWindow: (window) => {
-    appState.syncUiWindow = window as BrowserWindow | null;
-  },
-  createSettingsWindow: createCreateSyncUiWindowHandler({
-    createBrowserWindow: (options) => new BrowserWindow(options),
-    preloadPath: path.join(__dirname, 'preload-syncui.js'),
-  }),
-  settingsHtmlPath: path.join(__dirname, 'syncui', 'index.html'),
-  promoteSettingsWindowAboveOverlay: (window) =>
-    promoteSettingsWindowAboveOverlay(window as BrowserWindow),
-  onClosed: () => {
-    // requestAppQuit (not app.quit) so the forced-exit fallback covers a
-    // stalled quit; a standalone sync window is the app's only reason to live.
-    if (appState.initialArgs?.syncWindow) requestAppQuit();
-  },
-  log: (message) => logger.error(message),
-});
-
-const syncUiRuntime = createSyncUiRuntime({
+const sync = createSyncAssembly({
+  appState,
+  configService,
+  logger,
+  userDataPath: USER_DATA_PATH,
+  defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  requestAppQuit: () => requestAppQuit(),
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  mainDirname: __dirname,
   ipcMain,
-  hostsFilePath: getSyncHostsPath(USER_DATA_PATH),
-  snapshotsDir: path.join(os.tmpdir(), 'subminer-db-snapshots'),
-  getDbPath: () => {
-    const configured = configService.getConfig().immersionTracking?.dbPath?.trim();
-    return configured || DEFAULT_IMMERSION_DB_PATH;
-  },
-  resolveLauncherCommand: () =>
-    resolveSyncLauncherCommand({
-      execPath: process.execPath,
-      appPath: app.isPackaged ? null : app.getAppPath(),
-    }),
-  runLauncher: runSyncLauncher,
-  getWindow: () => appState.syncUiWindow,
+  isPackaged: () => app.isPackaged,
+  getAppPath: () => app.getAppPath(),
   pickSnapshotFile: async () => {
     const result = await dialog.showOpenDialog({
       title: 'Choose a SubMiner stats snapshot',
@@ -2499,74 +1850,26 @@ const syncUiRuntime = createSyncUiRuntime({
     return result.canceled ? null : (result.filePaths[0] ?? null);
   },
   revealPath: (targetPath) => shell.showItemInFolder(targetPath),
-  nowMs: () => Date.now(),
-  log: (message) => logger.info(message),
-  notify: (payload) =>
-    overlayNotificationsRuntime.showOverlayNotification({
-      title: payload.title,
-      body: payload.body,
-      variant: payload.variant,
-    }),
 });
-syncUiRuntime.registerHandlers();
+sync.runtime.registerHandlers();
+sync.autoScheduler.start();
 
-// Live sync uses a consistent WAL snapshot plus a transactional merge, and it
-// skips unfinished sessions, so resident stats writers do not block scheduling.
-const syncAutoScheduler = createSyncAutoScheduler({
-  readState: () => syncUiRuntime.readState(),
-  isRunning: () => syncUiRuntime.isRunning(),
-  triggerHostSync: (host, direction) => {
-    void syncUiRuntime.runHostSync({ host, direction }, { notify: true });
+const dictionaries = createDictionariesAssembly({
+  roots: {
+    platform: process.platform,
+    dirname: __dirname,
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath,
+    userDataPath: USER_DATA_PATH,
+    appUserDataPath: app.getPath('userData'),
+    homeDir: os.homedir(),
+    appDataDir: process.env.APPDATA,
+    cwd: process.cwd(),
+    joinPath: (...parts: string[]) => path.join(...parts),
   },
-  nowMs: () => Date.now(),
-  log: (message) => logger.info(message),
-});
-syncAutoScheduler.start();
-
-const dictionaryRootsDeps = {
-  platform: process.platform,
-  dirname: __dirname,
-  appPath: app.getAppPath(),
-  resourcesPath: process.resourcesPath,
-  userDataPath: USER_DATA_PATH,
-  appUserDataPath: app.getPath('userData'),
-  homeDir: os.homedir(),
-  appDataDir: process.env.APPDATA,
-  cwd: process.cwd(),
-  joinPath: (...parts: string[]) => path.join(...parts),
-};
-const buildJlptDictionaryRootsHandler = createBuildDictionaryRootsHandler({
-  ...dictionaryRootsDeps,
-  vendorDirName: 'yomitan-jlpt-vocab',
-});
-const buildFrequencyDictionaryRootsHandler = createBuildDictionaryRootsHandler({
-  ...dictionaryRootsDeps,
-  vendorDirName: 'frequency-dictionary',
-});
-
-const jlptDictionaryRuntime = createJlptDictionaryRuntimeService({
-  isJlptEnabled: () => configService.getConfig().subtitleStyle.enableJlpt,
-  getSearchPaths: () =>
-    getJlptDictionarySearchPaths({ getDictionaryRoots: () => buildJlptDictionaryRootsHandler() }),
-  setJlptLevelLookup: (lookup) => {
-    appState.jlptLevelLookup = lookup;
-  },
-  log: (message) => logger.info(`[JLPT] ${message}`),
-});
-
-const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService({
-  isFrequencyDictionaryEnabled: () =>
-    configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
-  getSearchPaths: () =>
-    getFrequencyDictionarySearchPaths({
-      getDictionaryRoots: () =>
-        buildFrequencyDictionaryRootsHandler().filter((dictionaryRoot) => dictionaryRoot),
-      getSourcePath: () => configService.getConfig().subtitleStyle.frequencyDictionary.sourcePath,
-    }),
-  setFrequencyRankLookup: (lookup) => {
-    appState.frequencyRankLookup = lookup;
-  },
-  log: (message) => logger.info(`[Frequency] ${message}`),
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
 });
 
 const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler({
@@ -2632,166 +1935,28 @@ const mediaRuntime = createMediaRuntimeService({
   },
 });
 
-const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
+const characterDictionary = createCharacterDictionaryAssembly({
   userDataPath: USER_DATA_PATH,
-  getCurrentMediaPath: () => appState.currentMediaPath,
-  getCurrentVideoPath: () => appState.mpvClient?.currentVideoPath,
-  getCurrentMediaTitle: () => appState.currentMediaTitle,
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
+  startupOsdSequencer,
   resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
-  guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
-  getNameMatchImagesEnabled: () => configService.getConfig().subtitleStyle.nameMatchImagesEnabled,
-  getCollapsibleSectionOpenState: (section) =>
-    configService.getConfig().anilist.characterDictionary.collapsibleSections[section],
-  tokenizeJapaneseName: async (text) => (await appState.mecabTokenizer?.tokenize(text)) ?? null,
-  getJapaneseNameTokenizerAvailable: () => {
-    const status = appState.mecabTokenizer?.getStatus();
-    return status?.available === true && status.enabled === true;
+  getYomitanProfilePolicy: () => yomitanProfilePolicy,
+  isYoutubePlaybackActive: () => youtube.isPlaybackActiveNow(),
+  waitForMediaTokenizationReady: (mediaPath) =>
+    currentMediaTokenizationGate.waitUntilReady(mediaPath),
+  ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
+  getYomitanParserRuntimeDeps: () => getYomitanParserRuntimeDeps(),
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  showMpvOsd: (message) => showMpvOsd(message),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+  invalidateTokenizationCache: () => subtitleProcessingController.invalidateTokenizationCache(),
+  refreshCurrentSubtitle: (text) => subtitleProcessingController.refreshCurrentSubtitle(text),
+  refreshSubtitlePrefetch: () => {
+    subtitlePrefetchService?.onSeek(lastObservedTimePos);
   },
-  now: () => Date.now(),
-  logInfo: (message) => logger.info(message),
-  logWarn: (message) => logger.warn(message),
-});
-
-const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRuntimeService({
-  userDataPath: USER_DATA_PATH,
-  getConfig: () => {
-    const config = configService.getConfig().anilist.characterDictionary;
-    return {
-      enabled:
-        configService.getConfig().subtitleStyle.nameMatchEnabled &&
-        yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
-        !isYoutubePlaybackActiveNow(),
-      maxLoaded: config.maxLoaded,
-      profileScope: config.profileScope,
-    };
-  },
-  getOrCreateCurrentSnapshot: (targetPath, progress) =>
-    characterDictionaryRuntime.getOrCreateCurrentSnapshot(targetPath, progress),
-  buildMergedDictionary: (mediaIds) => characterDictionaryRuntime.buildMergedDictionary(mediaIds),
-  waitForYomitanMutationReady: () =>
-    currentMediaTokenizationGate.waitUntilReady(
-      appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
-    ),
-  getYomitanDictionaryInfo: async () => {
-    await ensureYomitanExtensionLoaded();
-    const dictionaries = await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
-      error: (message, ...args) => logger.error(message, ...args),
-      info: (message, ...args) => logger.info(message, ...args),
-    });
-    assertYomitanDictionaryMutationSafe(USER_DATA_PATH, dictionaries.length);
-    return dictionaries;
-  },
-  importYomitanDictionary: async (zipPath) => {
-    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
-      yomitanProfilePolicy.logSkippedWrite(
-        formatSkippedYomitanWriteAction('importYomitanDictionary', zipPath),
-      );
-      return false;
-    }
-    await ensureYomitanExtensionLoaded();
-    return await importYomitanDictionaryFromZip(zipPath, getYomitanParserRuntimeDeps(), {
-      error: (message, ...args) => logger.error(message, ...args),
-      info: (message, ...args) => logger.info(message, ...args),
-      warn: (message, ...args) => logger.warn(message, ...args),
-    });
-  },
-  dictionaryImportReplacesExisting: () =>
-    getYomitanParserRuntimeDeps().getYomitanExt()?.name === 'Hachidori',
-  deleteYomitanDictionary: async (dictionaryTitle) => {
-    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
-      yomitanProfilePolicy.logSkippedWrite(
-        formatSkippedYomitanWriteAction('deleteYomitanDictionary', dictionaryTitle),
-      );
-      return false;
-    }
-    await ensureYomitanExtensionLoaded();
-    return await deleteYomitanDictionaryByTitle(dictionaryTitle, getYomitanParserRuntimeDeps(), {
-      error: (message, ...args) => logger.error(message, ...args),
-      info: (message, ...args) => logger.info(message, ...args),
-    });
-  },
-  upsertYomitanDictionarySettings: async (dictionaryTitle, profileScope) => {
-    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
-      yomitanProfilePolicy.logSkippedWrite(
-        formatSkippedYomitanWriteAction('upsertYomitanDictionarySettings', dictionaryTitle),
-      );
-      return false;
-    }
-    await ensureYomitanExtensionLoaded();
-    return await upsertYomitanDictionarySettings(
-      dictionaryTitle,
-      profileScope,
-      getYomitanParserRuntimeDeps(),
-      {
-        error: (message, ...args) => logger.error(message, ...args),
-        info: (message, ...args) => logger.info(message, ...args),
-      },
-    );
-  },
-  now: () => Date.now(),
-  schedule: (fn, delayMs) => setTimeout(fn, delayMs),
-  clearSchedule: (timer) => clearTimeout(timer),
-  logInfo: (message) => logger.info(message),
-  logWarn: (message) => logger.warn(message),
-  onSyncStatus: (event) => {
-    notifyCharacterDictionaryAutoSyncStatus(event, {
-      getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
-      showOsd: (message) => showMpvOsd(message),
-      showOverlayNotification: (payload) =>
-        overlayNotificationsRuntime.showOverlayNotification(payload),
-      showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-      startupOsdSequencer,
-    });
-  },
-  onSyncComplete: ({ mediaId, mediaTitle, changed }) => {
-    handleCharacterDictionaryAutoSyncComplete(
-      {
-        mediaId,
-        mediaTitle,
-        changed,
-      },
-      {
-        hasParserWindow: () => Boolean(appState.yomitanParserWindow),
-        invalidateCharacterDictionaryLookups: () => {
-          characterDictionaryImageLookup.invalidate();
-          characterNameCandidateLookup.invalidate();
-        },
-        clearParserCaches: () => {
-          if (appState.yomitanParserWindow) {
-            clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
-          }
-        },
-        invalidateTokenizationCache: () => {
-          subtitleProcessingController.invalidateTokenizationCache();
-        },
-        refreshSubtitlePrefetch: () => {
-          subtitlePrefetchService?.onSeek(lastObservedTimePos);
-        },
-        refreshCurrentSubtitle: () => {
-          subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-        },
-        logInfo: (message) => logger.info(message),
-      },
-    );
-  },
-});
-
-const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
-  userDataPath: USER_DATA_PATH,
-  getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
-  onIndexReady: () => refreshCurrentSubtitleAnnotations(),
-  onIndexReadyError: (error) =>
-    logger.warn(
-      'Failed to refresh subtitle annotations after character portrait index became ready.',
-      error,
-    ),
-});
-
-// Lets the Yomitan scan runtime skip name lookups at positions where no
-// character name can start; absent candidates just mean the exhaustive scan.
-const characterNameCandidateLookup = createCharacterNameCandidateLookup({
-  userDataPath: USER_DATA_PATH,
-  getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+  refreshCurrentSubtitleAnnotations: () => refreshCurrentSubtitleAnnotations(),
 });
 
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService({
@@ -2959,21 +2124,24 @@ const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
   },
 });
 
-function createOverlayHostedModalOpenDeps(): Parameters<typeof openPluginPanelModal>[0] {
-  return {
-    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
-    ensureOverlayWindowsReadyForVisibilityActions: () =>
-      ensureOverlayWindowsReadyForVisibilityActions(),
-    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
-      overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
-    waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
-    logWarn: (message) => logger.warn(message),
-  };
-}
+const overlayModals = createOverlayModalsAssembly({
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
+  overlayModalRuntime,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+  ensureOverlayWindowsReadyForVisibilityActions: () =>
+    ensureOverlayWindowsReadyForVisibilityActions(),
+  sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+    overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+  showMpvOsd: (text) => showMpvOsd(text),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+});
 
 const pluginPanelRuntime = createPluginPanelRuntime({
   openModal: (getSnapshot, signal) =>
-    openPluginPanelModal(createOverlayHostedModalOpenDeps(), getSnapshot, signal),
+    openPluginPanelModal(overlayModals.createOverlayHostedModalOpenDeps(), getSnapshot, signal),
   closeModal: () => overlayModalRuntime.handleOverlayModalClosed('plugin-panel'),
   // The panel may live in either window; broadcastToOverlayWindows only reaches the main one.
   broadcast: (channel, payload) => {
@@ -3040,7 +2208,7 @@ const pluginHost = createPluginHost({
     if (!appState.mpvClient) throw new Error('mpv is not connected.');
     return await appState.mpvClient.requestCommand(command);
   },
-  ensureMpvRunning: () => ensureMpvConnectedForPlayback(),
+  ensureMpvRunning: () => jellyfin.ensureMpvConnectedForPlayback(),
   invokeAnkiConnect: (action, params, options) => {
     const ankiConfig = configService.getConfig().ankiConnect;
     const url = (
@@ -3090,14 +2258,18 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   resolveVideoSource: () =>
     resolveMediaGenerationInput(appState.mpvClient, 'video', {
       getCachedMediaPath: (currentVideoPath, kind) =>
-        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
-      remoteCacheMode: shouldRequireYoutubeMediaCacheForCurrentPlayback() ? 'required' : 'optional',
+        youtube.getCachedMediaPathForCurrentPlayback(currentVideoPath, kind),
+      remoteCacheMode: youtube.shouldRequireMediaCacheForCurrentPlayback()
+        ? 'required'
+        : 'optional',
     }),
   resolveMediaSource: async () => {
     const resolved = await resolveMediaGenerationInput(appState.mpvClient, 'audio', {
       getCachedMediaPath: (currentVideoPath, kind) =>
-        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
-      remoteCacheMode: shouldRequireYoutubeMediaCacheForCurrentPlayback() ? 'required' : 'optional',
+        youtube.getCachedMediaPathForCurrentPlayback(currentVideoPath, kind),
+      remoteCacheMode: youtube.shouldRequireMediaCacheForCurrentPlayback()
+        ? 'required'
+        : 'optional',
     });
     return resolved
       ? {
@@ -3119,7 +2291,7 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
       endTime: range.endTime,
     }),
   openModal: (payload, signal) =>
-    openMediaTimingReviewModal(createOverlayHostedModalOpenDeps(), payload, signal),
+    openMediaTimingReviewModal(overlayModals.createOverlayHostedModalOpenDeps(), payload, signal),
   onPreviewEnded: (reviewId) => {
     // The review may live in either overlay window; the renderer ignores foreign review ids.
     for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
@@ -3138,134 +2310,6 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   showStatus: (message) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' }),
 });
-
-function openOverlayHostedModalWithOsd(
-  openModal: (deps: ReturnType<typeof createOverlayHostedModalOpenDeps>) => Promise<boolean>,
-  unavailableMessage: string,
-  failureLogMessage: string,
-): void {
-  void openModal(createOverlayHostedModalOpenDeps())
-    .then((opened) => {
-      if (!opened) {
-        overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
-          variant: 'warning',
-        });
-      }
-    })
-    .catch((error) => {
-      logger.error(failureLogMessage, error);
-      overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
-        variant: 'error',
-      });
-    });
-}
-
-function openRuntimeOptionsPalette(): void {
-  openOverlayHostedModalWithOsd(
-    openRuntimeOptionsModalRuntime,
-    'Runtime options overlay unavailable.',
-    'Failed to open runtime options overlay.',
-  );
-}
-
-function openJimakuOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openJimakuModalRuntime,
-    'Jimaku overlay unavailable.',
-    'Failed to open Jimaku overlay.',
-  );
-}
-
-function openTsukihimeOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openTsukihimeModalRuntime,
-    'TsukiHime overlay unavailable.',
-    'Failed to open TsukiHime overlay.',
-  );
-}
-
-function openSubtitleGenerationOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openSubtitleGenerationModal,
-    'Subtitle generation overlay unavailable.',
-    'Failed to open subtitle generation overlay.',
-  );
-}
-
-// currentMediaPath follows every mpv path change and is cleared on disconnect; the
-// client's currentVideoPath outlives the connection, so a reconnect could reuse it.
-function isMediaPlaybackActive(): boolean {
-  return appState.mpvClient?.connected === true && Boolean(appState.currentMediaPath?.trim());
-}
-
-function openSessionHelpOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    (deps) => openSessionHelpModalRuntime({ ...deps, isMediaPlaybackActive }),
-    'Session help overlay unavailable.',
-    'Failed to open session help overlay.',
-  );
-}
-
-function openChangelogOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openChangelogModalRuntime,
-    'Changelog overlay unavailable.',
-    'Failed to open changelog overlay.',
-  );
-}
-
-function openCharacterDictionaryManagerOverlay(): void {
-  openCharacterDictionaryManagerWithConfigGate({
-    isCharacterDictionaryEnabled: () => configService.getConfig().subtitleStyle.nameMatchEnabled,
-    getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
-    openManager: () => {
-      openOverlayHostedModalWithOsd(
-        openCharacterDictionaryManagerModalRuntime,
-        'Character dictionary manager unavailable.',
-        'Failed to open character dictionary manager.',
-      );
-    },
-    showOsd: (message) => showMpvOsd(message),
-    showOverlayNotification: (payload) =>
-      overlayNotificationsRuntime.showOverlayNotification(payload),
-    showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-    logWarn: (message, error) => logger.warn(message, error),
-  });
-}
-
-function openControllerSelectOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openControllerSelectModalRuntime,
-    'Controller select overlay unavailable.',
-    'Failed to open controller select overlay.',
-  );
-}
-
-function openControllerDebugOverlay(): void {
-  openOverlayHostedModalWithOsd(
-    openControllerDebugModalRuntime,
-    'Controller debug overlay unavailable.',
-    'Failed to open controller debug overlay.',
-  );
-}
-
-function openPlaylistBrowser(): void {
-  if (!appState.mpvClient?.connected) {
-    overlayNotificationsRuntime.showConfiguredStatusNotification(
-      'Playlist browser requires active playback.',
-      {
-        title: 'Playlist browser',
-        variant: 'warning',
-      },
-    );
-    return;
-  }
-  openOverlayHostedModalWithOsd(
-    openPlaylistBrowserRuntime,
-    'Playlist browser overlay unavailable.',
-    'Failed to open playlist browser overlay.',
-  );
-}
 
 function getRuntimeBooleanOption(
   id:
@@ -3300,343 +2344,27 @@ function shouldInitializeMecabForAnnotations(): boolean {
   return knownWordsEnabled || nPlusOneEnabled || jlptEnabled || frequencyEnabled;
 }
 
-const {
-  getResolvedJellyfinConfig,
-  reportJellyfinRemoteProgress,
-  reportJellyfinRemoteStopped,
-  startJellyfinRemoteSession,
-  stopJellyfinRemoteSession,
-  cleanupJellyfinSubtitleCache,
-  runJellyfinCommand,
-  openJellyfinSetupWindow,
-  ensureMpvConnectedForPlayback,
-} = composeJellyfinRuntimeHandlers({
-  getResolvedJellyfinConfigMainDeps: {
-    getResolvedConfig: () => configService.getConfig(),
-    loadStoredSession: () => jellyfinTokenStore.loadSession(),
-    getEnv: (name) => process.env[name],
-  },
-  getJellyfinClientInfoMainDeps: {
-    getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
-    getHostName: () => os.hostname(),
-    defaultClientName: DEFAULT_JELLYFIN_CLIENT_NAME,
-    defaultClientVersion: DEFAULT_JELLYFIN_CLIENT_VERSION,
-  },
-  waitForMpvConnectedMainDeps: {
-    getMpvClient: () => appState.mpvClient,
-    now: () => Date.now(),
-    sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
-  },
-  launchMpvIdleForJellyfinPlaybackMainDeps: {
-    getMpvExecutablePath: () =>
-      resolveMpvExecutablePath(configService.getConfig().mpv.executablePath),
-    getSocketPath: () => appState.mpvSocketPath,
-    getLaunchMode: () => configService.getConfig().mpv.launchMode,
-    platform: process.platform,
-    execPath: process.execPath,
-    getRuntimePluginEntrypoint: () => resolveBundledMpvRuntimePluginEntrypoint(),
-    getInstalledPluginDetection: (mpvExecutablePath) =>
-      detectInstalledMpvPlugin({
-        platform: process.platform,
-        homeDir: os.homedir(),
-        xdgConfigHome: process.env.XDG_CONFIG_HOME,
-        appDataDir: app.getPath('appData'),
-        mpvExecutablePath,
-      }),
-    getPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
-    getDefaultMpvLogPath: () => (isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : ''),
-    defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
-    removeSocketPath: (socketPath) => {
-      fs.rmSync(socketPath, { force: true });
-    },
-    spawnMpv: spawnMpvProcess,
-    logWarn: (message, error) => logger.warn(message, error),
-    logInfo: (message) => logger.info(message),
-  },
-  ensureMpvConnectedForJellyfinPlaybackMainDeps: {
-    getMpvClient: () => appState.mpvClient,
-    setMpvClient: (client) => {
-      appState.mpvClient = client as MpvIpcClient | null;
-    },
-    createMpvClient: () => createMpvClientRuntimeService(),
-    getAutoLaunchInFlight: () => jellyfinMpvAutoLaunchInFlight,
-    setAutoLaunchInFlight: (promise) => {
-      jellyfinMpvAutoLaunchInFlight = promise;
-    },
-    connectTimeoutMs: JELLYFIN_MPV_CONNECT_TIMEOUT_MS,
-    autoLaunchTimeoutMs: JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS,
-  },
-  preloadJellyfinExternalSubtitlesMainDeps: {
-    listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
-      listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
-    getMpvClient: () => appState.mpvClient,
-    sendMpvCommand: (command) => {
-      sendMpvCommandRuntime(appState.mpvClient, command);
-    },
-    wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-    cacheSubtitleTrack: (track) => jellyfinSubtitleCacheIo.cacheSubtitleTrack(track),
-    cleanupCachedSubtitles: (dirs) => jellyfinSubtitleCacheIo.cleanupCachedSubtitles(dirs),
-    initSubtitlePrefetch: (sourcePath) =>
-      subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath),
-    logDebug: (message, error) => {
-      logger.debug(message, error);
-    },
-  },
-  playJellyfinItemInMpvMainDeps: {
-    getMpvClient: () => appState.mpvClient,
-    resolvePlaybackPlan: (params) =>
-      resolveJellyfinPlaybackPlanRuntime(
-        params.session,
-        params.clientInfo,
-        params.jellyfinConfig as ReturnType<typeof getResolvedJellyfinConfig>,
-        {
-          itemId: params.itemId,
-          audioStreamIndex: params.audioStreamIndex ?? undefined,
-          subtitleStreamIndex: params.subtitleStreamIndex ?? undefined,
-        },
-      ),
-    applyJellyfinMpvDefaults: (mpvClient) => applyJellyfinMpvDefaultsHandler(mpvClient),
-    showVisibleOverlay: () => setVisibleOverlayVisible(true),
-    sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
-    armQuitOnDisconnect: () => {
-      jellyfinPlayQuitOnDisconnectArmed = false;
-      setTimeout(() => {
-        jellyfinPlayQuitOnDisconnectArmed = true;
-      }, 3000);
-    },
-    schedule: (callback, delayMs) => {
-      setTimeout(callback, delayMs);
-    },
-    convertTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
-    setActivePlayback: (state) => {
-      activeJellyfinRemotePlayback = {
-        ...(state as ActiveJellyfinRemotePlaybackState),
-        stopReportsAfterMs:
-          state.stopReportsAfterMs ?? Date.now() + JELLYFIN_REMOTE_STARTUP_STOP_GRACE_MS,
-      };
-    },
-    setLastProgressAtMs: (value) => {
-      jellyfinRemoteLastProgressAtMs = value;
-    },
-    // Same device identity as the cast session, so Jellyfin attributes reports to one session.
-    createPlaybackReporter: ({ session, clientInfo }) =>
-      new JellyfinPlaybackReporter({
-        serverUrl: session.serverUrl,
-        accessToken: session.accessToken,
-        deviceId: clientInfo.deviceId,
-        clientName: clientInfo.clientName,
-        clientVersion: clientInfo.clientVersion,
-        deviceName: resolveJellyfinRemoteDeviceName({ hostName: os.hostname() }),
-        logWarn: (message, details) => logger.warn(message, details),
-      }),
-    showMpvOsd: (text) => {
-      overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Jellyfin' });
-    },
-    updateCurrentMediaTitle: (title) => {
-      mediaRuntime.updateCurrentMediaTitle(title);
-    },
-    recordJellyfinPlaybackMetadata: (metadata) => {
-      ensureImmersionTrackerStarted();
-      appState.immersionTracker?.recordJellyfinPlaybackMetadata(metadata);
-    },
-  },
-  remoteComposerOptions: {
-    getConfiguredSession: () => getConfiguredJellyfinSession(getResolvedJellyfinConfig()),
-    logWarn: (message) => logger.warn(message),
-    getMpvClient: () => appState.mpvClient,
-    sendMpvCommand: (client, command) => sendMpvCommandRuntime(client as MpvIpcClient, command),
-    jellyfinTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
-    getActivePlayback: () => activeJellyfinRemotePlayback,
-    clearActivePlayback: () => {
-      activeJellyfinRemotePlayback = null;
-    },
-    getNow: () => Date.now(),
-    getLastProgressAtMs: () => jellyfinRemoteLastProgressAtMs,
-    setLastProgressAtMs: (value) => {
-      jellyfinRemoteLastProgressAtMs = value;
-    },
-    progressIntervalMs: JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS,
-    ticksPerSecond: JELLYFIN_TICKS_PER_SECOND,
-    logDebug: (message, error) => logger.debug(message, error),
-  },
-  handleJellyfinAuthCommandsMainDeps: {
-    patchRawConfig: (patch) => {
-      configService.patchRawConfig(patch);
-      refreshTrayMenuIfPresent();
-    },
-    authenticateWithPassword: (serverUrl, username, password, clientInfo) =>
-      authenticateWithPasswordRuntime(serverUrl, username, password, clientInfo),
-    saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    clearStoredSession: () =>
-      clearJellyfinAuthSessionAndRefreshTrayRuntime(getJellyfinTrayDiscoveryDeps()),
-    logInfo: (message) => logger.info(message),
-  },
-  handleJellyfinListCommandsMainDeps: {
-    listJellyfinLibraries: (session, clientInfo) =>
-      listJellyfinLibrariesRuntime(session, clientInfo),
-    listJellyfinItems: (session, clientInfo, params) =>
-      listJellyfinItemsRuntime(session, clientInfo, params),
-    listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
-      listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
-    writeJellyfinResponse: writeJellyfinCliResponse,
-    logInfo: (message) => logger.info(message),
-  },
-  handleJellyfinPlayCommandMainDeps: {
-    logWarn: (message) => logger.warn(message),
-  },
-  handleJellyfinRemoteAnnounceCommandMainDeps: {
-    getRemoteSession: () => appState.jellyfinRemoteSession,
-    logInfo: (message) => logger.info(message),
-    logWarn: (message) => logger.warn(message),
-  },
-  startJellyfinRemoteSessionMainDeps: {
-    getCurrentSession: () => appState.jellyfinRemoteSession,
-    setCurrentSession: (session) => {
-      appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
-    },
-    createRemoteSessionService: (options) => new JellyfinRemoteSessionService(options),
-    getHostName: () => os.hostname(),
-    defaultDeviceId: createHostDerivedJellyfinDeviceId(os.hostname()),
-    defaultClientName: DEFAULT_JELLYFIN_CLIENT_NAME,
-    defaultClientVersion: DEFAULT_JELLYFIN_CLIENT_VERSION,
-    logInfo: (message) => logger.info(message),
-    logWarn: (message, details) => logger.warn(message, details),
-    onSessionStateChanged: () => refreshTrayMenuIfPresent(),
-  },
-  stopJellyfinRemoteSessionMainDeps: {
-    getCurrentSession: () => appState.jellyfinRemoteSession,
-    setCurrentSession: (session) => {
-      appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
-    },
-    clearActivePlayback: () => {
-      activeJellyfinRemotePlayback = null;
-    },
-    onSessionStateChanged: () => refreshTrayMenuIfPresent(),
-  },
-  runJellyfinCommandMainDeps: {
-    defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl,
-    writeJellyfinResponse: writeJellyfinCliResponse,
-  },
-  maybeFocusExistingJellyfinSetupWindowMainDeps: {
-    getSetupWindow: () => appState.jellyfinSetupWindow,
-  },
-  openJellyfinSetupWindowMainDeps: {
-    createSetupWindow: createCreateJellyfinSetupWindowHandler({
-      createBrowserWindow: (options) => new BrowserWindow(options),
-      preloadPath: JELLYFIN_SETUP_PRELOAD_PATH,
-    }),
-    buildSetupFormHtml: (state) => buildJellyfinSetupFormHtml(state),
-    parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
-    authenticateWithPassword: (server, username, password, clientInfo) =>
-      authenticateWithPasswordRuntime(server, username, password, clientInfo),
-    saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    clearStoredSession: () =>
-      clearJellyfinAuthSessionAndRefreshTrayRuntime(getJellyfinTrayDiscoveryDeps()),
-    patchJellyfinConfig: (session) => {
-      const recentServers = mergeJellyfinRecentServers(
-        session.serverUrl,
-        configService.getConfig().jellyfin.recentServers || [],
-      );
-      configService.patchRawConfig({
-        jellyfin: {
-          enabled: true,
-          serverUrl: session.serverUrl,
-          username: session.username,
-          recentServers,
-        },
-      });
-      refreshTrayMenuIfPresent();
-    },
-    persistAuthenticatedSession: (session, clientInfo) =>
-      persistJellyfinAuthSession({
-        session,
-        clientInfo,
-        existingRecentServers: configService.getConfig().jellyfin.recentServers || [],
-        saveStoredSession: (storedSession) => jellyfinTokenStore.saveSession(storedSession),
-        patchRawConfig: (patch) => {
-          configService.patchRawConfig(patch);
-          refreshTrayMenuIfPresent();
-        },
-      }),
-    logInfo: (message) => logger.info(message),
-    logError: (message, error) => logger.error(message, error),
-    showMpvOsd: (message) =>
-      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
-    clearSetupWindow: () => {
-      appState.jellyfinSetupWindow = null;
-    },
-    setSetupWindow: (window) => {
-      appState.jellyfinSetupWindow = window as BrowserWindow;
-    },
-    registerSetupIpcHandler: (handler) => {
-      const channel = IPC_CHANNELS.request.jellyfinSetupSubmit;
-      ipcMain.removeHandler(channel);
-      ipcMain.handle(channel, async (event, payload) => {
-        const setupWindow = appState.jellyfinSetupWindow;
-        if (!setupWindow || event.sender !== setupWindow.webContents) {
-          return {
-            handled: false,
-            statusMessage: 'This Jellyfin setup window is no longer active.',
-            statusKind: 'error',
-          };
-        }
-        return handler(payload);
-      });
-      return () => {
-        ipcMain.removeHandler(channel);
-      };
-    },
-    encodeURIComponent: (value) => encodeURIComponent(value),
-    defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl || 'http://127.0.0.1:8096',
-    hasStoredSession: () => Boolean(jellyfinTokenStore.loadSession()),
-  },
-});
-
-let quitWhenMpvClosesAfterYoutubeBrowser = false;
-const isMpvPlayingMedia = (): boolean =>
-  Boolean(appState.mpvClient?.connected && appState.currentMediaPath?.trim());
-const youtubeBrowserPlaybackRuntime = createYoutubeBrowserPlaybackRuntime({
-  isMpvPlaying: isMpvPlayingMedia,
-  // Windows playback bootstraps its own mpv inside the playback flow.
-  ensureMpvReady: async () =>
-    process.platform === 'win32' ? true : await ensureMpvConnectedForPlayback(),
-  runPlaybackFlow: (url) =>
-    youtubePlaybackRuntime.runYoutubePlaybackFlow({ url, source: 'youtube-browser' }),
-  appendToMpvPlaylist: (url) => {
-    sendMpvCommandRuntime(appState.mpvClient, ['loadfile', url, 'append']);
-  },
-  notifyFailure: (message) =>
-    overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'YouTube' }),
-  logWarn: (message) => logger.warn(message),
-  onStartupFailed: () => quitAfterYoutubeBrowserIfIdle(),
-});
-const youtubeBrowserWindowRuntime = createYoutubeBrowserWindowRuntime({
+const jellyfin = createJellyfinAssembly({
+  appState,
+  configService,
+  jellyfinTokenStore,
+  logger,
+  defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
+  getAppDataPath: () => app.getPath('appData'),
+  getRuntimePluginEntrypoint: () => resolveBundledMpvRuntimePluginEntrypoint(),
+  getMpvPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
+  createMpvClient: () => createMpvClientRuntimeService(),
+  initSubtitlePrefetch: (sourcePath) =>
+    subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath),
+  showVisibleOverlay: () => setVisibleOverlayVisible(true),
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  updateCurrentMediaTitle: (title) => mediaRuntime.updateCurrentMediaTitle(title),
+  ensureImmersionTrackerStarted: () => ensureImmersionTrackerStarted(),
+  refreshTrayMenu: () => refreshTrayMenuIfPresent(),
+  setupPreloadPath: path.join(__dirname, 'preload-jellyfin-setup.js'),
   createBrowserWindow: (options) => new BrowserWindow(options),
-  preloadPath: path.join(__dirname, 'preload-youtube-browser.js'),
   ipcMain,
-  showContextMenu: (window, template) => {
-    Menu.buildFromTemplate(template).popup({ window });
-  },
-  openExternal: (url) => {
-    void shell.openExternal(url);
-  },
-  openVideo: (request) => youtubeBrowserPlaybackRuntime.openVideo(request),
-  logWarn: (message, error) => logger.warn(message, error),
-  logDebug: (message) => logger.debug(message),
-  onClosed: () => {
-    if (!appState.initialArgs?.youtubeBrowser) return;
-    quitWhenMpvClosesAfterYoutubeBrowser = true;
-    quitAfterYoutubeBrowserIfIdle();
-  },
 });
-// A process started just for the browser (`--youtube-browser`) exits once the window is closed,
-// but keeps the overlay alive until mpv closes if a video is playing or still starting. Rechecked
-// when a start fails, so a failed start after the window closed does not leave the app running.
-const quitAfterYoutubeBrowserIfIdle = (): void => {
-  if (!quitWhenMpvClosesAfterYoutubeBrowser || youtubeBrowserWindowRuntime.isOpen()) return;
-  if (isMpvPlayingMedia() || youtubeBrowserPlaybackRuntime.isStartingPlayback()) return;
-  requestAppQuit();
-};
 
 const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
   getSetupWindow: () => appState.firstRunSetupWindow,
@@ -3742,7 +2470,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       return;
     }
     if (submission.action === 'open-config-settings') {
-      const opened = configSettingsRuntime.openWindow();
+      const opened = settings.window.openWindow();
       firstRunSetupMessage = opened
         ? 'Opened SubMiner settings.'
         : 'SubMiner settings are unavailable.';
@@ -3797,372 +2525,22 @@ function openFirstRunSetupWindow(force = false): void {
   openFirstRunSetupWindowHandler();
 }
 
-const {
-  notifyAnilistSetup,
-  consumeAnilistSetupTokenFromUrl,
-  handleAnilistSetupProtocolUrl,
-  registerSubminerProtocolClient,
-} = composeAnilistSetupHandlers({
-  notifyDeps: {
-    getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
-    hasMpvClient: () => Boolean(appState.mpvClient),
-    showMpvOsd: (message) =>
-      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'AniList' }),
-    showOverlayNotification: (payload) =>
-      overlayNotificationsRuntime.showOverlayNotification(payload),
-    showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-    logInfo: (message) => logger.info(message),
-  },
-  consumeTokenDeps: {
-    consumeAnilistSetupCallbackUrl,
-    saveToken: (token) => anilistTokenStore.saveToken(token),
-    setCachedToken: (token) => {
-      anilistCachedAccessToken = token;
-    },
-    setResolvedState: (resolvedAt) => {
-      anilistStateRuntime.setClientSecretState({
-        status: 'resolved',
-        source: 'stored',
-        message: 'saved token from AniList login',
-        resolvedAt,
-        errorAt: null,
-      });
-    },
-    setSetupPageOpened: (opened) => {
-      appState.anilistSetupPageOpened = opened;
-    },
-    onSuccess: () => {
-      notifyAnilistSetup('AniList login success');
-    },
-    closeWindow: () => {
-      if (appState.anilistSetupWindow && !appState.anilistSetupWindow.isDestroyed()) {
-        appState.anilistSetupWindow.close();
-      }
-    },
-  },
-  handleProtocolDeps: {
-    consumeAnilistSetupTokenFromUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
-    logWarn: (message, details) => logger.warn(message, details),
-  },
-  registerProtocolClientDeps: {
-    isDefaultApp: () => Boolean(process.defaultApp),
-    getArgv: () => process.argv,
-    execPath: process.execPath,
-    resolvePath: (value) => path.resolve(value),
-    setAsDefaultProtocolClient: (scheme, appPath, args) =>
-      appPath
-        ? app.setAsDefaultProtocolClient(scheme, appPath, args)
-        : app.setAsDefaultProtocolClient(scheme),
-    logDebug: (message, details) => logger.debug(message, details),
-  },
+const anilist = createAnilistAssembly({
+  appState,
+  configService,
+  logger,
+  anilistTokenStore,
+  anilistUpdateQueue,
+  anilistRateLimiter,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+  resolveMediaPathForJimaku: (currentMediaPath) =>
+    mediaRuntime.resolveMediaPathForJimaku(currentMediaPath),
+  resolvePinnedMediaId: (request) => characterDictionary.runtime.resolvePinnedMediaId(request),
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  shell,
+  app,
 });
-
-const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetupWindowHandler({
-  getSetupWindow: () => appState.anilistSetupWindow,
-});
-const openAnilistSetupWindowHandler = createOpenAnilistSetupWindowHandler({
-  maybeFocusExistingSetupWindow: maybeFocusExistingAnilistSetupWindow,
-  createSetupWindow: createCreateAnilistSetupWindowHandler({
-    createBrowserWindow: (options) => new BrowserWindow(options),
-  }),
-  buildAuthorizeUrl: () =>
-    buildAnilistSetupUrl({
-      authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
-      clientId: ANILIST_DEFAULT_CLIENT_ID,
-      responseType: ANILIST_SETUP_RESPONSE_TYPE,
-    }),
-  consumeCallbackUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
-  openSetupInBrowser: (authorizeUrl) =>
-    openAnilistSetupInBrowser({
-      authorizeUrl,
-      openExternal: (url) => shell.openExternal(url),
-      logError: (message, error) => logger.error(message, error),
-    }),
-  loadManualTokenEntry: (setupWindow, authorizeUrl) =>
-    loadAnilistManualTokenEntry({
-      setupWindow: setupWindow as BrowserWindow,
-      authorizeUrl,
-      developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-      logWarn: (message, data) => logger.warn(message, data),
-    }),
-  redirectUri: ANILIST_REDIRECT_URI,
-  developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-  isAllowedExternalUrl: (url) => isAllowedAnilistExternalUrl(url),
-  isAllowedNavigationUrl: (url) => isAllowedAnilistSetupNavigationUrl(url),
-  logWarn: (message, details) => logger.warn(message, details),
-  logError: (message, details) => logger.error(message, details),
-  clearSetupWindow: () => {
-    appState.anilistSetupWindow = null;
-  },
-  setSetupPageOpened: (opened) => {
-    appState.anilistSetupPageOpened = opened;
-  },
-  setSetupWindow: (setupWindow) => {
-    appState.anilistSetupWindow = setupWindow as BrowserWindow;
-  },
-  openExternal: (url) => {
-    void shell.openExternal(url);
-  },
-});
-
-const {
-  refreshAnilistClientSecretState,
-  getCurrentAnilistMediaKey,
-  resetAnilistMediaTracking,
-  getAnilistMediaGuessRuntimeState,
-  setAnilistMediaGuessRuntimeState,
-  recordAnilistMediaDuration,
-  resetAnilistMediaGuessState,
-  maybeProbeAnilistDuration,
-  ensureAnilistMediaGuess,
-  processNextAnilistRetryUpdate,
-  maybeRunAnilistPostWatchUpdate,
-} = composeAnilistTrackingHandlers({
-  refreshClientSecretMainDeps: {
-    getResolvedConfig: () => configService.getConfig(),
-    isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
-    getCachedAccessToken: () => anilistCachedAccessToken,
-    setCachedAccessToken: (token) => {
-      anilistCachedAccessToken = token;
-    },
-    saveStoredToken: (token) => {
-      anilistTokenStore.saveToken(token);
-    },
-    loadStoredToken: () => anilistTokenStore.loadToken(),
-    setClientSecretState: (state) => {
-      anilistStateRuntime.setClientSecretState(state);
-    },
-    getAnilistSetupPageOpened: () => appState.anilistSetupPageOpened,
-    setAnilistSetupPageOpened: (opened) => {
-      appState.anilistSetupPageOpened = opened;
-    },
-    openAnilistSetupWindow: () => {
-      openAnilistSetupWindowHandler();
-    },
-    now: () => Date.now(),
-  },
-  getCurrentMediaKeyMainDeps: {
-    getCurrentMediaPath: () => appState.currentMediaPath,
-  },
-  resetMediaTrackingMainDeps: {
-    setMediaKey: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaKey: value },
-      );
-    },
-    setMediaDurationSec: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaDurationSec: value },
-      );
-    },
-    setMediaGuess: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuess: value },
-      );
-    },
-    setMediaGuessPromise: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuessPromise: value },
-      );
-    },
-    setLastDurationProbeAtMs: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { lastDurationProbeAtMs: value },
-      );
-    },
-  },
-  getMediaGuessRuntimeStateMainDeps: {
-    getMediaKey: () => anilistMediaGuessRuntimeState.mediaKey,
-    getMediaDurationSec: () => anilistMediaGuessRuntimeState.mediaDurationSec,
-    getMediaGuess: () => anilistMediaGuessRuntimeState.mediaGuess,
-    getMediaGuessPromise: () => anilistMediaGuessRuntimeState.mediaGuessPromise,
-    getLastDurationProbeAtMs: () => anilistMediaGuessRuntimeState.lastDurationProbeAtMs,
-  },
-  setMediaGuessRuntimeStateMainDeps: {
-    setMediaKey: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaKey: value },
-      );
-    },
-    setMediaDurationSec: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaDurationSec: value },
-      );
-    },
-    setMediaGuess: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuess: value },
-      );
-    },
-    setMediaGuessPromise: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuessPromise: value },
-      );
-    },
-    setLastDurationProbeAtMs: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { lastDurationProbeAtMs: value },
-      );
-    },
-  },
-  recordMediaDurationMainDeps: {
-    getCurrentMediaKey: () => getCurrentAnilistMediaKey(),
-    getState: () => getAnilistMediaGuessRuntimeState(),
-    setState: (state) => {
-      setAnilistMediaGuessRuntimeState(state);
-    },
-  },
-  resetMediaGuessStateMainDeps: {
-    setMediaGuess: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuess: value },
-      );
-    },
-    setMediaGuessPromise: (value) => {
-      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
-        anilistMediaGuessRuntimeState,
-        { mediaGuessPromise: value },
-      );
-    },
-  },
-  maybeProbeDurationMainDeps: {
-    getState: () => getAnilistMediaGuessRuntimeState(),
-    setState: (state) => {
-      setAnilistMediaGuessRuntimeState(state);
-    },
-    durationRetryIntervalMs: ANILIST_DURATION_RETRY_INTERVAL_MS,
-    now: () => Date.now(),
-    requestMpvDuration: async () => appState.mpvClient?.requestProperty('duration'),
-    logWarn: (message, error) => logger.warn(message, error),
-  },
-  ensureMediaGuessMainDeps: {
-    getState: () => getAnilistMediaGuessRuntimeState(),
-    setState: (state) => {
-      setAnilistMediaGuessRuntimeState(state);
-    },
-    resolveMediaPathForJimaku: (currentMediaPath) =>
-      mediaRuntime.resolveMediaPathForJimaku(currentMediaPath),
-    getCurrentMediaPath: () => appState.currentMediaPath,
-    getCurrentMediaTitle: () => appState.currentMediaTitle,
-    guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
-  },
-  processNextRetryUpdateMainDeps: {
-    nextReady: () => anilistUpdateQueue.nextReady(),
-    refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
-    setLastAttemptAt: (value) => {
-      appState.anilistRetryQueueState = transitionAnilistRetryQueueLastAttemptAt(
-        appState.anilistRetryQueueState,
-        value,
-      );
-    },
-    setLastError: (value) => {
-      appState.anilistRetryQueueState = transitionAnilistRetryQueueLastError(
-        appState.anilistRetryQueueState,
-        value,
-      );
-    },
-    refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode, season, mediaId) =>
-      updateAnilistPostWatchProgress(accessToken, title, episode, {
-        rateLimiter: anilistRateLimiter,
-        season,
-        mediaId,
-        logInfo: (message) => logger.info(message),
-      }),
-    markSuccess: (key) => {
-      anilistUpdateQueue.markSuccess(key);
-    },
-    rememberAttemptedUpdateKey: (key) => {
-      rememberAnilistAttemptedUpdate(key);
-    },
-    markFailure: (key, message) => {
-      anilistUpdateQueue.markFailure(key, message);
-    },
-    logInfo: (message) => logger.info(message),
-    now: () => Date.now(),
-  },
-  maybeRunPostWatchUpdateMainDeps: {
-    getInFlight: () => anilistUpdateInFlightState.inFlight,
-    setInFlight: (value) => {
-      anilistUpdateInFlightState = transitionAnilistUpdateInFlightState(
-        anilistUpdateInFlightState,
-        value,
-      );
-    },
-    getResolvedConfig: () => configService.getConfig(),
-    isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
-    getCurrentMediaKey: () => getCurrentAnilistMediaKey(),
-    hasMpvClient: () => Boolean(appState.mpvClient),
-    getTrackedMediaKey: () => anilistMediaGuessRuntimeState.mediaKey,
-    resetTrackedMedia: (mediaKey) => {
-      resetAnilistMediaTracking(mediaKey);
-    },
-    getWatchedSeconds: () => appState.mpvClient?.currentTimePos ?? Number.NaN,
-    maybeProbeAnilistDuration: (mediaKey, options) => maybeProbeAnilistDuration(mediaKey, options),
-    ensureAnilistMediaGuess: (mediaKey) => ensureAnilistMediaGuess(mediaKey),
-    hasAttemptedUpdateKey: (key) => anilistAttemptedUpdateKeys.has(key),
-    processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
-    refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    enqueueRetry: (key, title, episode, season, mediaId) => {
-      anilistUpdateQueue.enqueue(key, title, episode, season, mediaId);
-    },
-    getCurrentMediaTitle: () => appState.currentMediaTitle,
-    resolvePinnedAnilistMediaId: ({ mediaPath, mediaTitle, guess }) =>
-      characterDictionaryRuntime.resolvePinnedMediaId({ mediaPath, mediaTitle, guess }),
-    markRetryFailure: (key, message) => {
-      anilistUpdateQueue.markFailure(key, message);
-    },
-    markRetrySuccess: (key) => {
-      anilistUpdateQueue.markSuccess(key);
-    },
-    refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode, season, mediaId) =>
-      updateAnilistPostWatchProgress(accessToken, title, episode, {
-        rateLimiter: anilistRateLimiter,
-        season,
-        mediaId,
-        logInfo: (message) => logger.info(message),
-      }),
-    rememberAttemptedUpdateKey: (key) => {
-      rememberAnilistAttemptedUpdate(key);
-    },
-    showMpvOsd: (message) =>
-      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'AniList' }),
-    logInfo: (message) => logger.info(message),
-    logWarn: (message) => logger.warn(message),
-    minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
-    minWatchRatio: DEFAULT_MIN_WATCH_RATIO,
-  },
-});
-
-function refreshAnilistClientSecretStateIfEnabled(options?: {
-  force?: boolean;
-  allowSetupPrompt?: boolean;
-}): Promise<string | null> {
-  if (!isAnilistTrackingEnabled(configService.getConfig())) {
-    return Promise.resolve(null);
-  }
-  return refreshAnilistClientSecretState(options);
-}
-
-const rememberAnilistAttemptedUpdate = (key: string): void => {
-  rememberAnilistAttemptedUpdateKey(
-    anilistAttemptedUpdateKeys,
-    key,
-    ANILIST_MAX_ATTEMPTED_UPDATE_KEYS,
-  );
-};
 
 const loadSubtitlePosition = createLoadSubtitlePositionHandler({
   loadSubtitlePositionCore: () =>
@@ -4195,7 +2573,7 @@ const saveSubtitlePosition = createSaveSubtitlePositionHandler({
   },
 });
 
-registerSubminerProtocolClient();
+anilist.registerSubminerProtocolClient();
 let flushPendingMpvLogWrites = (): void => {};
 const {
   registerProtocolUrlHandlers: registerProtocolUrlHandlersHandler,
@@ -4210,7 +2588,7 @@ const {
     registerSecondInstance: (listener) => {
       registerSecondInstanceHandlerEarly(app, listener);
     },
-    handleAnilistSetupProtocolUrl: (rawUrl) => handleAnilistSetupProtocolUrl(rawUrl),
+    handleAnilistSetupProtocolUrl: (rawUrl) => anilist.handleAnilistSetupProtocolUrl(rawUrl),
     findAnilistSetupDeepLinkArgvUrl: (argv) => findAnilistSetupDeepLinkArgvUrl(argv),
     logUnhandledOpenUrl: (rawUrl) => {
       logger.warn('Unhandled app protocol URL', { rawUrl });
@@ -4221,7 +2599,7 @@ const {
   },
   onWillQuitCleanupMainDeps: {
     destroyTray: () => destroyTrayHandler(),
-    stopConfigHotReload: () => configHotReloadRuntime.stop(),
+    stopConfigHotReload: () => settings.hotReload.stop(),
     restorePreviousSecondarySubVisibility: () =>
       overlayVisibilityComposer.restorePreviousSecondarySubVisibility(),
     restoreMpvSubVisibility: () => {
@@ -4235,8 +2613,8 @@ const {
     },
     stopTexthookerService: () => texthookerService.stop(),
     stopSyncAutoScheduler: async () => {
-      syncAutoScheduler.stop();
-      await syncUiRuntime.shutdown();
+      sync.autoScheduler.stop();
+      await sync.runtime.shutdown();
     },
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       visibleOverlayInteractionRuntime.clearWindowsVisibleOverlayForegroundPollLoop(),
@@ -4287,17 +2665,17 @@ const {
     clearYomitanSettingsWindow: () => {
       appState.yomitanSettingsWindow = null;
     },
-    stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
+    stopJellyfinRemoteSession: () => jellyfin.stopJellyfinRemoteSession(),
     cleanupInternalSubtitleTrackCache: () => cachedInternalSubtitleTrackExtractor.clear(),
     cleanupYoutubeSubtitleTempDirs: () => {
       // Stops yt-dlp/whisper-cli and deletes the audio they were working on.
-      youtubeFlowRuntime.cancelWhisperGeneration();
-      youtubeWhisperSubtitles.removeActiveAudio();
-      youtubeFlowRuntime.cleanupSubtitleTempDirs();
+      youtube.flow.cancelWhisperGeneration();
+      youtube.whisperSubtitles.removeActiveAudio();
+      youtube.flow.cleanupSubtitleTempDirs();
     },
-    cleanupYoutubeMediaCache: () => youtubeMediaCache.cleanup(),
+    cleanupYoutubeMediaCache: () => youtube.mediaCache.cleanup(),
     cleanupRemoteMediaWindows: () => getSharedRemoteMediaWindowCache().cleanup(),
-    cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
+    cleanupJellyfinSubtitleCache: () => jellyfin.cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => {
       void appState.discordPresenceService?.stop();
       appState.discordPresenceService = null;
@@ -4536,10 +2914,11 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     logDebug: (message) => appLogger.logDebug(message),
     logWarning: (message) => appLogger.logWarning(message),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-    startConfigHotReload: () => configHotReloadRuntime.start(),
+    startConfigHotReload: () => settings.hotReload.start(),
     shouldRefreshAnilistClientSecretState: () =>
       shouldRefreshAnilistOnConfigReload(appState.initialArgs),
-    refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretStateIfEnabled(options),
+    refreshAnilistClientSecretState: (options) =>
+      anilist.refreshClientSecretStateIfEnabled(options),
     failHandlers: {
       logError: (details) => logger.error(details),
       showErrorBox: (title, details) => dialog.showErrorBox(title, details),
@@ -4683,7 +3062,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       }
     },
     startJellyfinRemoteSession: async () => {
-      await startJellyfinRemoteSession();
+      await jellyfin.startJellyfinRemoteSession();
     },
     prewarmSubtitleDictionaries: async () => {
       await prewarmSubtitleDictionaries();
@@ -4799,13 +3178,13 @@ const {
   bindMpvMainEventHandlersMainDeps: {
     appState,
     getQuitOnDisconnectArmed: () =>
-      jellyfinPlayQuitOnDisconnectArmed || youtubePlaybackRuntime.getQuitOnDisconnectArmed(),
+      jellyfin.getQuitOnDisconnectArmed() || youtube.playback.getQuitOnDisconnectArmed(),
     scheduleQuitCheck: (callback) => {
       setTimeout(callback, 500);
     },
     quitApp: () => requestAppQuit(),
     reportJellyfinRemoteStopped: () => {
-      void reportJellyfinRemoteStopped();
+      void jellyfin.reportJellyfinRemoteStopped();
     },
     onMpvConnected: () => {
       maybeStartOverlayLoadingOsd();
@@ -4822,9 +3201,9 @@ const {
         subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
       }
     },
-    maybeRunAnilistPostWatchUpdate: (options) => maybeRunAnilistPostWatchUpdate(options),
+    maybeRunAnilistPostWatchUpdate: (options) => anilist.maybeRunAnilistPostWatchUpdate(options),
     recordAnilistMediaDuration: (durationSec) => {
-      recordAnilistMediaDuration(durationSec);
+      anilist.recordAnilistMediaDuration(durationSec);
     },
     logSubtitleTimingError: (message, error) => logger.error(message, error),
     broadcastToOverlayWindows: (channel, payload) => {
@@ -4896,10 +3275,10 @@ const {
       if (!preserveParsedSubtitleCues) {
         subtitlePrefetchRuntime.cancelPendingInit();
       }
-      youtubePrimarySubtitleNotificationRuntime.handleMediaPathChange(path);
-      void youtubeMediaCachePlaybackRuntime.handleMediaPathChange(path);
-      youtubeBrowserPlaybackRuntime.handleMediaPathChange(path);
-      youtubeFlowRuntime.handleMediaPathChange(path);
+      youtube.primarySubtitleNotification.handleMediaPathChange(path);
+      void youtube.mediaCachePlayback.handleMediaPathChange(path);
+      youtube.browserPlayback.handleMediaPathChange(path);
+      youtube.flow.handleMediaPathChange(path);
       subtitleGenerationRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
@@ -4916,41 +3295,41 @@ const {
     resetSubtitleSidebarEmbeddedLayout: () => {
       resetSubtitleSidebarEmbeddedLayoutRuntime();
     },
-    getCurrentAnilistMediaKey: () => getCurrentAnilistMediaKey(),
+    getCurrentAnilistMediaKey: () => anilist.getCurrentAnilistMediaKey(),
     resetAnilistMediaTracking: (mediaKey) => {
-      resetAnilistMediaTracking(mediaKey);
+      anilist.resetAnilistMediaTracking(mediaKey);
     },
     maybeProbeAnilistDuration: (mediaKey) => {
-      void maybeProbeAnilistDuration(mediaKey);
+      void anilist.maybeProbeAnilistDuration(mediaKey);
     },
     ensureAnilistMediaGuess: (mediaKey) => {
-      void ensureAnilistMediaGuess(mediaKey);
+      void anilist.ensureAnilistMediaGuess(mediaKey);
     },
     syncImmersionMediaState: () => {
       immersionMediaRuntime.syncFromCurrentMediaState();
     },
     signalAutoplayReadyIfWarm: (path) => signalAutoplayReadyFromWarmTokenization?.(path),
     markJellyfinRemotePlaybackLoaded: (path) => {
-      markJellyfinRemotePlaybackLoadedState(activeJellyfinRemotePlayback, path);
+      markJellyfinRemotePlaybackLoadedState(jellyfin.getActivePlayback(), path);
     },
     scheduleCharacterDictionarySync: () => {
       if (
         !configService.getConfig().subtitleStyle.nameMatchEnabled ||
         !yomitanProfilePolicy.isCharacterDictionaryEnabled() ||
-        isYoutubePlaybackActiveNow()
+        youtube.isPlaybackActiveNow()
       ) {
         return;
       }
-      characterDictionaryAutoSyncRuntime.scheduleSync();
+      characterDictionary.autoSync.scheduleSync();
     },
     updateCurrentMediaTitle: (title) => {
       mediaRuntime.updateCurrentMediaTitle(title);
     },
     resetAnilistMediaGuessState: () => {
-      resetAnilistMediaGuessState();
+      anilist.resetAnilistMediaGuessState();
     },
     reportJellyfinRemoteProgress: (forceImmediate) => {
-      void reportJellyfinRemoteProgress(forceImmediate);
+      void jellyfin.reportJellyfinRemoteProgress(forceImmediate);
     },
     consumeExplicitSeek: () => consumeExplicitSeekIntent(),
     onTimePosUpdate: (time) => {
@@ -4985,7 +3364,7 @@ const {
       lastObservedPrimarySubtitleTrackId = sid;
       logger.info('[mpv-subtitles] primary subtitle track changed', { sid });
       autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
-      youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
+      youtube.primarySubtitleNotification.handleSubtitleTrackChange(sid);
     },
     onSecondarySubtitleTrackChange: () => {
       secondarySubtitleTrackController.handleTrackChange();
@@ -5009,7 +3388,7 @@ const {
       managedLocalSubtitleSelectionRuntime.handleSubtitleTrackListChange(trackList);
       secondarySubtitleTrackController.scheduleRefresh(0);
       autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
-      youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
+      youtube.primarySubtitleNotification.handleSubtitleTrackListChange(trackList);
     },
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetricsHandler(patch as Partial<MpvSubtitleRenderMetrics>);
@@ -5030,7 +3409,7 @@ const {
       appState.reconnectTimer = timer;
     },
     shouldAutoLoadSecondarySubTrack: (path: string) =>
-      shouldAutoLoadSecondarySubTrackForJellyfinPlayback(activeJellyfinRemotePlayback, path),
+      shouldAutoLoadSecondarySubTrackForJellyfinPlayback(jellyfin.getActivePlayback(), path),
     shouldQuitOnMpvShutdown: () =>
       shouldQuitOnMpvShutdownForTrayState({
         managedPlayback: appState.initialArgs?.managedPlayback === true,
@@ -5097,14 +3476,13 @@ const {
       getCharacterDictionaryEnabled: () =>
         configService.getConfig().subtitleStyle.nameMatchEnabled &&
         yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
-        !isYoutubePlaybackActiveNow(),
+        !youtube.isPlaybackActiveNow(),
       getNameMatchEnabled: () => configService.getConfig().subtitleStyle.nameMatchEnabled,
       getNameMatchImagesEnabled: () =>
         configService.getConfig().subtitleStyle.nameMatchImagesEnabled,
-      getCharacterNameImage: (term) => characterDictionaryImageLookup.get(term),
-      getCurrentCharacterDictionaryMediaId: () =>
-        characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
-      getCharacterNameCandidates: () => characterNameCandidateLookup.get(),
+      getCharacterNameImage: (term) => characterDictionary.imageLookup.get(term),
+      getCurrentCharacterDictionaryMediaId: () => characterDictionary.autoSync.getCurrentMediaId(),
+      getCharacterNameCandidates: () => characterDictionary.nameCandidates.get(),
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',
@@ -5133,9 +3511,9 @@ const {
       checkAvailability: async (tokenizer) => (tokenizer as MecabTokenizer).checkAvailability(),
     },
     prewarmSubtitleDictionariesMainDeps: {
-      ensureJlptDictionaryLookup: () => jlptDictionaryRuntime.ensureJlptDictionaryLookup(),
+      ensureJlptDictionaryLookup: () => dictionaries.jlpt.ensureJlptDictionaryLookup(),
       ensureFrequencyDictionaryLookup: () =>
-        frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
+        dictionaries.frequency.ensureFrequencyDictionaryLookup(),
       showMpvOsd: (message: string) =>
         overlayNotificationsRuntime.showConfiguredStatusNotification(message),
       showLoadingOsd: (message: string) => startupOsdSequencer.showAnnotationLoading(message),
@@ -5191,7 +3569,7 @@ const {
           jellyfin.enabled && jellyfin.remoteControlEnabled && jellyfin.remoteControlAutoConnect
         );
       },
-      startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
+      startJellyfinRemoteSession: () => jellyfin.startJellyfinRemoteSession(),
       logDebug: (message) => logger.debug(message),
     },
   },
@@ -5250,17 +3628,17 @@ function createMpvClientRuntimeService(): MpvIpcClient {
     if (connected) {
       return;
     }
-    youtubeBrowserPlaybackRuntime.handleMpvDisconnected();
-    youtubeFlowRuntime.cancelWhisperGeneration();
+    youtube.browserPlayback.handleMpvDisconnected();
+    youtube.flow.cancelWhisperGeneration();
     subtitleGenerationRuntime.handleMediaPathChange(null);
-    if (quitWhenMpvClosesAfterYoutubeBrowser && !youtubeBrowserWindowRuntime.isOpen()) {
+    if (youtube.shouldQuitWhenMpvCloses()) {
       requestAppQuit();
       return;
     }
-    if (!youtubeFlowRuntime.hasActiveSession()) {
+    if (!youtube.flow.hasActiveSession()) {
       return;
     }
-    youtubeFlowRuntime.cancelActivePicker();
+    youtube.flow.cancelActivePicker();
     overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.youtubePickerCancel, null);
     overlayModalRuntime.handleOverlayModalClosed('youtube-track-picker');
   });
@@ -5782,31 +4160,31 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
       const marked = (await appState.immersionTracker?.markActiveVideoWatched()) ?? false;
       if (marked) {
         try {
-          await maybeRunAnilistPostWatchUpdate({ force: true });
+          await anilist.maybeRunAnilistPostWatchUpdate({ force: true });
         } catch (error) {
           logger.warn('Failed to run AniList post-watch update after manual watched mark:', error);
         }
       }
       return marked;
     },
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    openJimaku: () => openJimakuOverlay(),
-    openTsukihime: () => openTsukihimeOverlay(),
-    openSessionHelp: () => openSessionHelpOverlay(),
+    openRuntimeOptionsPalette: () => overlayModals.openRuntimeOptionsPalette(),
+    openJimaku: () => overlayModals.openJimakuOverlay(),
+    openTsukihime: () => overlayModals.openTsukihimeOverlay(),
+    openSessionHelp: () => overlayModals.openSessionHelpOverlay(),
     openSubtitleSelection: () => {
       if (!configService.getConfig().subtitleSelection.enabled) return;
-      openOverlayHostedModalWithOsd(
+      overlayModals.openOverlayHostedModalWithOsd(
         openSubtitleSelectionModal,
         'Subtitle selection overlay unavailable.',
         'Failed to open subtitle selection overlay.',
       );
     },
-    openSubtitleGeneration: () => openSubtitleGenerationOverlay(),
-    openCharacterDictionaryManager: () => openCharacterDictionaryManagerOverlay(),
-    openControllerSelect: () => openControllerSelectOverlay(),
-    openControllerDebug: () => openControllerDebugOverlay(),
-    openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
-    openPlaylistBrowser: () => openPlaylistBrowser(),
+    openSubtitleGeneration: () => overlayModals.openSubtitleGenerationOverlay(),
+    openCharacterDictionaryManager: () => overlayModals.openCharacterDictionaryManagerOverlay(),
+    openControllerSelect: () => overlayModals.openControllerSelectOverlay(),
+    openControllerDebug: () => overlayModals.openControllerDebugOverlay(),
+    openYoutubeTrackPicker: () => youtube.openTrackPickerFromPlayback(),
+    openPlaylistBrowser: () => overlayModals.openPlaylistBrowser(),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
     cycleRuntimeOption: (id, direction) => {
@@ -5837,11 +4215,11 @@ const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appSta
 const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    openJimaku: () => openJimakuOverlay(),
-    openTsukihime: () => openTsukihimeOverlay(),
-    openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
-    openPlaylistBrowser: () => openPlaylistBrowser(),
+    openRuntimeOptionsPalette: () => overlayModals.openRuntimeOptionsPalette(),
+    openJimaku: () => overlayModals.openJimakuOverlay(),
+    openTsukihime: () => overlayModals.openTsukihimeOverlay(),
+    openYoutubeTrackPicker: () => youtube.openTrackPickerFromPlayback(),
+    openPlaylistBrowser: () => overlayModals.openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: 'Runtime options manager unavailable' };
@@ -5981,7 +4359,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID &&
           actionId === VIEW_CHANGELOG_ACTION_ID
         ) {
-          openChangelogOverlay();
+          overlayModals.openChangelogOverlay();
         }
         if (actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined) {
           void openAnkiCardFromNotification(noteId).catch((error) => {
@@ -5996,7 +4374,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           });
         }
       },
-      onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
+      onYoutubePickerResolve: (request) => youtube.flow.resolveActivePicker(request),
       // Overlay lookups carry no cue context of their own; fall back to snapshotting the
       // live mpv sub timings at lookup time so media generation clips the mined line even
       // when extraction finishes long after playback has moved on.
@@ -6143,14 +4521,15 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           autoplaySubtitlePrimingRuntime.scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
         }
       },
-      getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
-      clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
-      openAnilistSetup: () => openAnilistSetupWindowHandler(),
-      getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
-      retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
-      runAnilistPostWatchUpdateOnManualMark: () => maybeRunAnilistPostWatchUpdate({ force: true }),
+      getAnilistStatus: () => anilist.stateRuntime.getStatusSnapshot(),
+      clearAnilistToken: () => anilist.stateRuntime.clearTokenState(),
+      openAnilistSetup: () => anilist.openSetupWindow(),
+      getAnilistQueueStatus: () => anilist.stateRuntime.getQueueStatusSnapshot(),
+      retryAnilistQueueNow: () => anilist.processNextAnilistRetryUpdate(),
+      runAnilistPostWatchUpdateOnManualMark: () =>
+        anilist.maybeRunAnilistPostWatchUpdate({ force: true }),
       getCharacterDictionarySelection: (searchTitle?: string) =>
-        characterDictionaryRuntime.getManualSelectionSnapshot(undefined, searchTitle),
+        characterDictionary.runtime.getManualSelectionSnapshot(undefined, searchTitle),
       setCharacterDictionarySelection: async (
         mediaId: number,
         replaceManagedMediaId?: number,
@@ -6167,7 +4546,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           );
           if (result.ok && result.rebuildRequired) {
             try {
-              await characterDictionaryAutoSyncRuntime.runSyncNow();
+              await characterDictionary.autoSync.runSyncNow();
             } catch (error) {
               logger.warn('Failed to rebuild character dictionary after manager override:', error);
             }
@@ -6177,9 +4556,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         return await applyCharacterDictionarySelection(
           { mediaId },
           {
-            setManualSelection: (request) => characterDictionaryRuntime.setManualSelection(request),
-            resetAnilistMediaGuessState,
-            runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
+            setManualSelection: (request) =>
+              characterDictionary.runtime.setManualSelection(request),
+            resetAnilistMediaGuessState: anilist.resetAnilistMediaGuessState,
+            runSyncNow: () => characterDictionary.autoSync.runSyncNow(),
             warn: (message, error) => logger.warn(message, error),
           },
         );
@@ -6187,17 +4567,17 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getCharacterDictionaryManagerSnapshot: async () =>
         getCharacterDictionaryManagerSnapshot(
           USER_DATA_PATH,
-          characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+          characterDictionary.autoSync.getCurrentMediaId(),
         ),
       removeCharacterDictionaryManagedEntry: async (mediaId: number) => {
         const result = removeCharacterDictionaryManagedEntry(
           USER_DATA_PATH,
           mediaId,
-          characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+          characterDictionary.autoSync.getCurrentMediaId(),
         );
         if (result.ok && result.rebuildRequired) {
           try {
-            await characterDictionaryAutoSyncRuntime.runSyncNow();
+            await characterDictionary.autoSync.runSyncNow();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager removal:', error);
           }
@@ -6209,11 +4589,11 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           USER_DATA_PATH,
           mediaId,
           direction,
-          characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+          characterDictionary.autoSync.getCurrentMediaId(),
         );
         if (result.ok && result.rebuildRequired) {
           try {
-            await characterDictionaryAutoSyncRuntime.runSyncNow();
+            await characterDictionary.autoSync.runSyncNow();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager reorder:', error);
           }
@@ -6288,30 +4668,30 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     triggerFieldGrouping: () => triggerFieldGroupingHandler(),
     triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCardHandler(),
-    getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
-    clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
-    openAnilistSetupWindow: () => openAnilistSetupWindowHandler(),
-    openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
-    getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
-    processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
+    getAnilistStatus: () => anilist.stateRuntime.getStatusSnapshot(),
+    clearAnilistToken: () => anilist.stateRuntime.clearTokenState(),
+    openAnilistSetupWindow: () => anilist.openSetupWindow(),
+    openJellyfinSetupWindow: () => jellyfin.openJellyfinSetupWindow(),
+    getAnilistQueueStatus: () => anilist.stateRuntime.getQueueStatusSnapshot(),
+    processNextAnilistRetryUpdate: () => anilist.processNextAnilistRetryUpdate(),
     generateCharacterDictionary: async (targetPath?: string) => {
       const disabledReason = yomitanProfilePolicy.getCharacterDictionaryDisabledReason();
       if (disabledReason) {
         throw new Error(disabledReason);
       }
-      return await characterDictionaryRuntime.generateForCurrentMedia(targetPath);
+      return await characterDictionary.runtime.generateForCurrentMedia(targetPath);
     },
     getCharacterDictionarySelection: async (targetPath?: string) =>
-      characterDictionaryRuntime.getManualSelectionSnapshot(targetPath),
+      characterDictionary.runtime.getManualSelectionSnapshot(targetPath),
     setCharacterDictionarySelection: async (request) =>
       applyCharacterDictionarySelection(request, {
         setManualSelection: (selectionRequest) =>
-          characterDictionaryRuntime.setManualSelection(selectionRequest),
-        resetAnilistMediaGuessState,
-        runSyncNow: () => characterDictionaryAutoSyncRuntime.runSyncNow(),
+          characterDictionary.runtime.setManualSelection(selectionRequest),
+        resetAnilistMediaGuessState: anilist.resetAnilistMediaGuessState,
+        runSyncNow: () => characterDictionary.autoSync.runSyncNow(),
         warn: (message, error) => logger.warn(message, error),
       }),
-    runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
+    runJellyfinCommand: (argsFromCommand: CliArgs) => jellyfin.runJellyfinCommand(argsFromCommand),
     runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
       runStatsCliCommand(argsFromCommand, source),
     runUpdateCommand: async (argsFromCommand: CliArgs, source: CliCommandSource) => {
@@ -6337,15 +4717,15 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
         source,
       );
     },
-    runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
+    runYoutubePlaybackFlow: (request) => youtube.playback.runYoutubePlaybackFlow(request),
     ensureBackgroundStatsServer: () => ensureBackgroundStatsServer(),
     openHachidoriSettings: () => openHachidoriSettings(),
     openYomitanSettings: () => openYomitanSettings(),
-    openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
-    openSyncUiWindow: () => openSyncUiWindowHandler(),
-    openYoutubeBrowserWindow: () => youtubeBrowserWindowRuntime.open(),
+    openConfigSettingsWindow: () => settings.window.openWindow(),
+    openSyncUiWindow: () => sync.openWindow(),
+    openYoutubeBrowserWindow: () => youtube.browserWindow.open(),
     cycleSecondarySubMode: () => cycleSecondarySubMode(),
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    openRuntimeOptionsPalette: () => overlayModals.openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
     stopApp: () => requestAppQuit(),
     hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
@@ -6493,13 +4873,15 @@ const shouldUseMinimalStartup = startupModeFlags.shouldUseMinimalStartup;
 const shouldSkipHeavyStartup = startupModeFlags.shouldSkipHeavyStartup;
 if (!appState.initialArgs || (!shouldUseMinimalStartup && !shouldSkipHeavyStartup)) {
   if (isAnilistTrackingEnabled(configService.getConfig())) {
-    void refreshAnilistClientSecretStateIfEnabled({
-      force: true,
-      allowSetupPrompt: false,
-    }).catch((error) => {
-      logger.error('Failed to refresh AniList client secret state during startup', error);
-    });
-    anilistStateRuntime.refreshRetryQueueState();
+    void anilist
+      .refreshClientSecretStateIfEnabled({
+        force: true,
+        allowSetupPrompt: false,
+      })
+      .catch((error) => {
+        logger.error('Failed to refresh AniList client secret state during startup', error);
+      });
+    anilist.stateRuntime.refreshRetryQueueState();
   }
   void initializeDiscordPresenceService().catch((error) => {
     logger.error('Failed to initialize Discord presence service during startup', error);
@@ -6567,20 +4949,6 @@ function refreshTrayMenuIfPresent(): void {
   }
 }
 
-function getJellyfinTrayDiscoveryDeps() {
-  return {
-    getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
-    getRemoteSession: () => appState.jellyfinRemoteSession,
-    clearStoredSession: () => jellyfinTokenStore.clearSession(),
-    stopRemoteSession: () => stopJellyfinRemoteSession(),
-    startRemoteSession: (options: { explicit: true }) => startJellyfinRemoteSession(options),
-    refreshTrayMenu: () => refreshTrayMenuIfPresent(),
-    logger,
-    showMpvOsd: (message: string) =>
-      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
-  };
-}
-
 const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
   createTrayRuntimeHandlers({
     resolveTrayIconPathDeps: {
@@ -6597,8 +4965,8 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       platform: process.platform,
       initializeOverlayRuntime: () => initializeOverlayRuntime(),
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-      openSessionHelpModal: () => openSessionHelpOverlay(),
-      openChangelogModal: () => openChangelogOverlay(),
+      openSessionHelpModal: () => overlayModals.openSessionHelpOverlay(),
+      openChangelogModal: () => overlayModals.openChangelogOverlay(),
       openTexthookerInBrowser: () =>
         handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
       showTexthookerPage: () => shouldShowTexthookerTrayEntry(configService.getConfig()),
@@ -6608,21 +4976,21 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       getDictionaryBackend: () => activeDictionaryBackend,
       openHachidoriSettings: () => openHachidoriSettings(),
       openYomitanSettings: () => openYomitanSettings(),
-      openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
-      openSyncUiWindow: () => openSyncUiWindowHandler(),
-      openYoutubeBrowserWindow: () => youtubeBrowserWindowRuntime.open(),
+      openConfigSettingsWindow: () => settings.window.openWindow(),
+      openSyncUiWindow: () => sync.openWindow(),
+      openYoutubeBrowserWindow: () => youtube.browserWindow.open(),
       exportLogs: () => {
         void exportLogsFromTray();
       },
-      openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+      openJellyfinSetupWindow: () => jellyfin.openJellyfinSetupWindow(),
       isJellyfinConfigured: () =>
-        isJellyfinConfiguredForTrayRuntime(getJellyfinTrayDiscoveryDeps()),
+        isJellyfinConfiguredForTrayRuntime(jellyfin.getTrayDiscoveryDeps()),
       isJellyfinDiscoveryActive: () => Boolean(appState.jellyfinRemoteSession),
       toggleJellyfinDiscovery: (checked: boolean) =>
-        toggleJellyfinDiscoveryFromTrayRuntime(getJellyfinTrayDiscoveryDeps(), {
+        toggleJellyfinDiscoveryFromTrayRuntime(jellyfin.getTrayDiscoveryDeps(), {
           desiredActive: checked,
         }),
-      openAnilistSetupWindow: () => openAnilistSetupWindowHandler(),
+      openAnilistSetupWindow: () => anilist.openSetupWindow(),
       checkForUpdates: () => {
         void getUpdateService().checkForUpdates({ source: 'manual' });
       },
@@ -6752,9 +5120,9 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       getCachedMediaPath: (currentVideoPath, kind) =>
-        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
-      shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
-      getYoutubeMediaSourceUrl: () => getCurrentYoutubeMediaCacheSourceUrl(),
+        youtube.getCachedMediaPathForCurrentPlayback(currentVideoPath, kind),
+      shouldRequireRemoteMediaCache: () => youtube.shouldRequireMediaCacheForCurrentPlayback(),
+      getYoutubeMediaSourceUrl: () => youtube.getCurrentMediaCacheSourceUrl(),
       shouldStartAnkiIntegration: () =>
         !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     },
@@ -6897,20 +5265,16 @@ const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
   getConfig: () => configService.getConfig().subtitleGeneration,
   getModelDirectory: getSubtitleGenerationModelDirectory,
   generateYoutube: async ({ url, config, signal, onProgress }) =>
-    youtubeWhisperSubtitles.generate({
+    youtube.whisperSubtitles.generate({
       url,
       config,
       signal,
       onProgress,
-      outputPath: path.join(
-        await youtubeFlowRuntime.createSubtitleTempDir(),
-        'youtube-whisper.ja.srt',
-      ),
+      outputPath: path.join(await youtube.flow.createSubtitleTempDir(), 'youtube-whisper.ja.srt'),
     }),
-  resolveYoutubeSourceUrl: (mediaPath) =>
-    youtubePlaybackRuntime.getYoutubeSourceUrlForStream(mediaPath),
+  resolveYoutubeSourceUrl: (mediaPath) => youtube.playback.getYoutubeSourceUrlForStream(mediaPath),
   resolveJellyfinMedia: (mediaPath) => {
-    const playback = activeJellyfinRemotePlayback;
+    const playback = jellyfin.getActivePlayback();
     const sourceUrl = playback && toJellyfinOriginalStreamUrl(mediaPath, playback.itemId);
     return sourceUrl
       ? {
@@ -6935,6 +5299,6 @@ registerSubtitleGenerationIpc({
       (window) => window && !window.isDestroyed() && window.webContents === sender,
     ),
   runtime: subtitleGenerationRuntime,
-  openModal: () => openSubtitleGenerationModal(createOverlayHostedModalOpenDeps()),
+  openModal: () => openSubtitleGenerationModal(overlayModals.createOverlayHostedModalOpenDeps()),
 });
 app.on('before-quit', () => subtitleGenerationRuntime.cancel());

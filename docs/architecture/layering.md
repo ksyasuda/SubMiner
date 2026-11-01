@@ -23,6 +23,11 @@ Renderer, launcher, plugin, and stats each keep their own local layering and sho
   deps builders (`createBuild*MainDepsHandler`, `*-main-deps.ts`) that re-wrap deps.
   Adaptation logic (defaults, appState getters/setters, shared state) belongs in the
   handler or in a named adapter that returns the deps directly.
+- Group a domain's runtimes in one assembly under `src/main/assemblies/` (for example
+  `createYoutubeAssembly(deps)`). It owns the domain's state, takes an explicit deps
+  object, and returns its runtimes; `main.ts` builds it once and calls through the result.
+  Siblings built later in `main.ts` are passed as getters or callbacks, and construction must
+  not call them.
 - Prefer injecting dependencies from `src/main/` instead of reaching outward from core services.
 - Keep side effects explicit and close to composition boundaries.
 - Put reusable business logic in focused services, not in top-level lifecycle files.

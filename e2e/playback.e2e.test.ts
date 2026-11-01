@@ -173,6 +173,12 @@ test(
     const delay = 2;
     await session.mpv.command('set_property', 'sub-delay', delay);
     try {
+      // The previous test leaves this cue on screen, so blank the line first; otherwise the wait
+      // below passes before the seek lands and mining can catch mpv's empty mid-seek sub-text.
+      await session.mpv.command('seek', FIXTURE_CUES[0].start / 2, 'absolute+exact');
+      await overlay.waitFor(`document.getElementById('subtitleRoot').textContent === ''`, {
+        description: 'overlay to clear the line before the first delayed cue',
+      });
       // Past the cue's own end, so the line is only on screen because of the delay.
       await session.mpv.command('seek', cue.end + delay / 2, 'absolute+exact');
       await overlay.waitFor(

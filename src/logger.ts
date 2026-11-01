@@ -14,7 +14,7 @@ export type LogLevelSource = 'cli' | 'config';
 
 type LogMethod = (message: string, ...meta: unknown[]) => void;
 
-type Logger = {
+export type Logger = {
   debug: LogMethod;
   info: LogMethod;
   warn: LogMethod;
