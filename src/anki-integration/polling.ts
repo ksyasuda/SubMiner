@@ -1,3 +1,5 @@
+import { STATS_MINING_TAG } from '../shared/anki-source';
+
 export interface PollingRunnerDeps {
   getDeck: () => string | undefined;
   getPollingRate: () => number;
@@ -10,6 +12,8 @@ export interface PollingRunnerDeps {
   shouldAutoUpdateNewCards: () => boolean;
   processNewCard: (noteId: number) => Promise<void>;
   recordCardsAdded?: (count: number, noteIds: number[]) => void;
+  /** Called once SubMiner is done with a new note: after enrichment, or at detection when it is off. */
+  onCardsReady?: (noteIds: number[]) => void;
   isUpdateInProgress: () => boolean;
   setUpdateInProgress: (value: boolean) => void;
   getTrackedNoteIds: () => Set<number>;
@@ -83,11 +87,39 @@ export class PollingRunner {
         this.deps.setTrackedNoteIds(previousNoteIds);
         this.deps.recordCardsAdded?.(newNoteIds.length, newNoteIds);
 
+        // Stats cards still count and update known words, but do not trigger plugins.
+        const pluginNoteIds = new Set<number>();
+        if (this.deps.onCardsReady) {
+          try {
+            const statsNoteIds = new Set(
+              await this.deps.findNotes(`nid:${newNoteIds.join(',')} tag:"${STATS_MINING_TAG}"`, {
+                maxRetries: 0,
+              }),
+            );
+            for (const noteId of newNoteIds) {
+              if (!statsNoteIds.has(noteId)) pluginNoteIds.add(noteId);
+            }
+          } catch (error) {
+            this.deps.logWarn(
+              'Skipping plugin events because note sources could not be checked:',
+              error,
+            );
+          }
+        }
+
         if (this.deps.shouldAutoUpdateNewCards()) {
           for (const noteId of newNoteIds) {
-            await this.deps.processNewCard(noteId);
+            try {
+              await this.deps.processNewCard(noteId);
+            } catch (error) {
+              // One failed note must not leave the rest of the batch unprocessed.
+              this.deps.logWarn(`Failed to auto-enrich note ${noteId}:`, (error as Error).message);
+            } finally {
+              if (pluginNoteIds.has(noteId)) this.deps.onCardsReady?.([noteId]);
+            }
           }
         } else {
+          if (pluginNoteIds.size > 0) this.deps.onCardsReady?.([...pluginNoteIds]);
           this.deps.logInfo(
             'New card detected (auto-update disabled). Press Ctrl+V to update from clipboard.',
           );

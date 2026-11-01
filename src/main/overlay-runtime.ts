@@ -50,6 +50,7 @@ export interface OverlayModalRuntime {
     runtimeOptions?: {
       restoreOnModalClose?: OverlayHostedModal;
       preferModalWindow?: boolean;
+      signal?: AbortSignal;
     },
   ) => boolean;
   openRuntimeOptionsPalette: () => void;
@@ -265,7 +266,9 @@ export function createOverlayModalRuntimeService(
   const sendOrQueueForWindow = (
     window: BrowserWindow,
     sendNow: (window: BrowserWindow) => void,
+    signal?: AbortSignal,
   ): void => {
+    if (signal?.aborted) return;
     if (isWindowReadyForIpc(window)) {
       sendNow(window);
       return;
@@ -273,7 +276,7 @@ export function createOverlayModalRuntimeService(
 
     let delivered = false;
     const deliver = (isReady: () => boolean): void => {
-      if (delivered || window.isDestroyed() || !isReady()) {
+      if (delivered || signal?.aborted || window.isDestroyed() || !isReady()) {
         return;
       }
       delivered = true;
@@ -433,8 +436,10 @@ export function createOverlayModalRuntimeService(
     runtimeOptions?: {
       restoreOnModalClose?: OverlayHostedModal;
       preferModalWindow?: boolean;
+      signal?: AbortSignal;
     },
   ): boolean => {
+    if (runtimeOptions?.signal?.aborted) return false;
     const restoreOnModalClose = runtimeOptions?.restoreOnModalClose;
     const preferModalWindow = runtimeOptions?.preferModalWindow === true;
 
@@ -451,13 +456,17 @@ export function createOverlayModalRuntimeService(
       const mainWindow = getTargetOverlayWindow();
       if (!preferModalWindow && mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
         restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
-        sendOrQueueForWindow(mainWindow, (window) => {
-          if (payload === undefined) {
-            window.webContents.send(channel);
-          } else {
-            window.webContents.send(channel, payload);
-          }
-        });
+        sendOrQueueForWindow(
+          mainWindow,
+          (window) => {
+            if (payload === undefined) {
+              window.webContents.send(channel);
+            } else {
+              window.webContents.send(channel, payload);
+            }
+          },
+          runtimeOptions?.signal,
+        );
         return true;
       }
 
@@ -479,16 +488,20 @@ export function createOverlayModalRuntimeService(
         showModalWindow(modalWindow);
       }
 
-      sendOrQueueForWindow(modalWindow, (window) => {
-        if (window.isVisible()) {
-          ensureModalWindowInteractive(window);
-        }
-        if (payload === undefined) {
-          window.webContents.send(channel);
-        } else {
-          window.webContents.send(channel, payload);
-        }
-      });
+      sendOrQueueForWindow(
+        modalWindow,
+        (window) => {
+          if (window.isVisible()) {
+            ensureModalWindowInteractive(window);
+          }
+          if (payload === undefined) {
+            window.webContents.send(channel);
+          } else {
+            window.webContents.send(channel, payload);
+          }
+        },
+        runtimeOptions?.signal,
+      );
       return true;
     }
 
@@ -500,7 +513,7 @@ export function createOverlayModalRuntimeService(
       showOverlayWindowForModal(target);
     }
 
-    sendOrQueueForWindow(target, sendNow);
+    sendOrQueueForWindow(target, sendNow, runtimeOptions?.signal);
     return true;
   };
 

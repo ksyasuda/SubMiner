@@ -1,23 +1,18 @@
 import type { OverlayHostedModal } from '../../shared/ipc/contracts';
+import type { OverlayModalRuntime } from '../overlay-runtime';
 
 export function openOverlayHostedModal(
   deps: {
     ensureOverlayStartupPrereqs: () => void;
     ensureOverlayWindowsReadyForVisibilityActions: () => void;
-    sendToActiveOverlayWindow: (
-      channel: string,
-      payload?: unknown,
-      runtimeOptions?: {
-        restoreOnModalClose?: OverlayHostedModal;
-        preferModalWindow?: boolean;
-      },
-    ) => boolean;
+    sendToActiveOverlayWindow: OverlayModalRuntime['sendToActiveOverlayWindow'];
   },
   input: {
     channel: string;
     modal: OverlayHostedModal;
     payload?: unknown;
     preferModalWindow?: boolean;
+    signal?: AbortSignal;
   },
 ): boolean {
   deps.ensureOverlayStartupPrereqs();
@@ -25,6 +20,7 @@ export function openOverlayHostedModal(
   return deps.sendToActiveOverlayWindow(input.channel, input.payload, {
     restoreOnModalClose: input.modal,
     preferModalWindow: input.preferModalWindow,
+    ...(input.signal ? { signal: input.signal } : {}),
   });
 }
 

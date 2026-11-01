@@ -1,5 +1,5 @@
 import type { RuntimeOptionState } from '../../types';
-import type { OverlayHostedModal } from '../../shared/ipc/contracts';
+import type { OverlayModalRuntime } from '../overlay-runtime';
 
 type RuntimeOptionsManagerLike = {
   listOptions: () => RuntimeOptionState[];
@@ -47,16 +47,12 @@ export function createBroadcastRuntimeOptionsChangedHandler(deps: {
 }
 
 export function createSendToActiveOverlayWindowHandler(deps: {
-  sendToActiveOverlayWindowRuntime: (
-    channel: string,
-    payload?: unknown,
-    runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
-  ) => boolean;
+  sendToActiveOverlayWindowRuntime: OverlayModalRuntime['sendToActiveOverlayWindow'];
 }) {
   return (
     channel: string,
     payload?: unknown,
-    runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
+    runtimeOptions?: Parameters<OverlayModalRuntime['sendToActiveOverlayWindow']>[2],
   ): boolean => deps.sendToActiveOverlayWindowRuntime(channel, payload, runtimeOptions);
 }
 

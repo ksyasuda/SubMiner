@@ -117,6 +117,8 @@ export interface AppReadyRuntimeDeps {
   loadSubtitlePosition: () => void;
   resolveKeybindings: () => void;
   createMpvClient: () => void;
+  /** Loads enabled plugins; full startup only. */
+  startPlugins?: () => void;
   reloadConfig: () => void;
   getResolvedConfig: () => AppReadyConfigLike;
   getConfigWarnings: () => ConfigValidationWarning[];
@@ -310,6 +312,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   deps.createMpvClient();
   deps.initRuntimeOptionsManager();
   deps.setSecondarySubMode(config.secondarySub?.defaultMode ?? deps.defaultSecondarySubMode);
+  deps.startPlugins?.();
 
   const wsConfig = config.websocket || {};
   const wsEnabled = wsConfig.enabled ?? 'auto';

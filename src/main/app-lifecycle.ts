@@ -24,6 +24,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   loadSubtitlePosition: AppReadyRuntimeDeps['loadSubtitlePosition'];
   resolveKeybindings: AppReadyRuntimeDeps['resolveKeybindings'];
   createMpvClient: AppReadyRuntimeDeps['createMpvClient'];
+  startPlugins?: AppReadyRuntimeDeps['startPlugins'];
   reloadConfig: AppReadyRuntimeDeps['reloadConfig'];
   getResolvedConfig: AppReadyRuntimeDeps['getResolvedConfig'];
   getConfigWarnings: AppReadyRuntimeDeps['getConfigWarnings'];
@@ -94,6 +95,7 @@ export function createAppReadyRuntimeDeps(
     loadSubtitlePosition: params.loadSubtitlePosition,
     resolveKeybindings: params.resolveKeybindings,
     createMpvClient: params.createMpvClient,
+    startPlugins: params.startPlugins,
     reloadConfig: params.reloadConfig,
     getResolvedConfig: params.getResolvedConfig,
     getConfigWarnings: params.getConfigWarnings,

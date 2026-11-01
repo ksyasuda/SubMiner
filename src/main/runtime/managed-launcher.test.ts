@@ -279,114 +279,127 @@ test('Windows managed runtime path is absolute, versioned, and injectable', () =
   );
 });
 
-test('Windows managed launcher forwards arguments without a system Bun', async (t) => {
-  if (process.platform !== 'win32') return;
-  const root = workspace(t);
-  const appDirectory = path.join(root, 'Installed App');
-  const appPath = path.join(appDirectory, 'SubMiner.exe');
-  const launcherDirectory = path.join(appDirectory, 'resources', 'launcher');
-  const script = path.join(launcherDirectory, 'subminer.js');
-  fs.mkdirSync(launcherDirectory, { recursive: true });
-  fs.copyFileSync(process.execPath, appPath);
-  fs.writeFileSync(script, 'console.log(JSON.stringify(process.argv.slice(2)));');
-  fs.writeFileSync(path.join(launcherDirectory, 'version'), '1.0.0');
-  const options = {
-    platform: process.platform,
-    env: { ...process.env, PATH: '', LOCALAPPDATA: root },
-    bundledBunPath: process.execPath,
-    launcherResourcePath: script,
-    appExePath: appPath,
-    appVersion: '1.0.0',
-    localAppData: root,
-    getUserPath: () => '',
-    setUserPath: () => {},
-    broadcastEnvironmentChange: () => {},
-  };
-  const snapshot = await installLauncher(options);
-  assert.equal(snapshot.status, 'ready', snapshot.message ?? 'install failed');
-  const { getRunCommand } = await import('./command-line-launcher-deps');
-  const args = ['spaces here', 'a&b', 'p%TEMP%q', 'bang!z', 'say "hi"', '日本語'];
-  const result = await getRunCommand({})(snapshot.installPath!, args, { env: options.env });
-  assert.equal(result.exitCode, 0, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout), args);
-});
+// These copy and spawn the real bun.exe, which can outlast the default 5s on CI runners.
+const WINDOWS_BUN_TEST_TIMEOUT_MS = 30_000;
 
-test('Windows stages a new runtime version while the prior Bun executable is running', async (t) => {
-  if (process.platform !== 'win32') return;
-  const root = workspace(t);
-  const bundledDirectory = path.join(root, 'packaged', 'bun');
-  const bundledBunPath = path.join(bundledDirectory, 'bun.exe');
-  const launcherResourcePath = path.join(root, 'packaged', 'launcher', 'subminer');
-  fs.mkdirSync(path.join(bundledDirectory, 'licenses'), { recursive: true });
-  fs.mkdirSync(path.dirname(launcherResourcePath), { recursive: true });
-  fs.copyFileSync(process.execPath, bundledBunPath);
-  fs.writeFileSync(path.join(bundledDirectory, 'licenses', 'Bun-LICENSE.md'), 'license');
-  fs.writeFileSync(launcherResourcePath, 'console.log("launcher");');
+test(
+  'Windows managed launcher forwards arguments without a system Bun',
+  { timeout: WINDOWS_BUN_TEST_TIMEOUT_MS },
+  async (t) => {
+    if (process.platform !== 'win32') return;
+    const root = workspace(t);
+    const appDirectory = path.join(root, 'Installed App');
+    const appPath = path.join(appDirectory, 'SubMiner.exe');
+    const launcherDirectory = path.join(appDirectory, 'resources', 'launcher');
+    const script = path.join(launcherDirectory, 'subminer.js');
+    fs.mkdirSync(launcherDirectory, { recursive: true });
+    fs.copyFileSync(process.execPath, appPath);
+    fs.writeFileSync(script, 'console.log(JSON.stringify(process.argv.slice(2)));');
+    fs.writeFileSync(path.join(launcherDirectory, 'version'), '1.0.0');
+    const options = {
+      platform: process.platform,
+      env: { ...process.env, PATH: '', LOCALAPPDATA: root },
+      bundledBunPath: process.execPath,
+      launcherResourcePath: script,
+      appExePath: appPath,
+      appVersion: '1.0.0',
+      localAppData: root,
+      getUserPath: () => '',
+      setUserPath: () => {},
+      broadcastEnvironmentChange: () => {},
+    };
+    const snapshot = await installLauncher(options);
+    assert.equal(snapshot.status, 'ready', snapshot.message ?? 'install failed');
+    const { getRunCommand } = await import('./command-line-launcher-deps');
+    const args = ['spaces here', 'a&b', 'p%TEMP%q', 'bang!z', 'say "hi"', '日本語'];
+    const result = await getRunCommand({})(snapshot.installPath!, args, { env: options.env });
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), args);
+  },
+);
 
-  const first = stageManagedLauncher({
-    platform: 'win32',
-    localAppData: root,
-    appVersion: '1.0.0',
-    bundledBunPath,
-    launcherResourcePath,
-  });
-  const running = spawn(first.bunPath, ['-e', 'setInterval(() => {}, 1000)']);
-  await new Promise<void>((resolve, reject) => {
-    running.once('spawn', resolve);
-    running.once('error', reject);
-  });
+test(
+  'Windows stages a new runtime version while the prior Bun executable is running',
+  { timeout: WINDOWS_BUN_TEST_TIMEOUT_MS },
+  async (t) => {
+    if (process.platform !== 'win32') return;
+    const root = workspace(t);
+    const bundledDirectory = path.join(root, 'packaged', 'bun');
+    const bundledBunPath = path.join(bundledDirectory, 'bun.exe');
+    const launcherResourcePath = path.join(root, 'packaged', 'launcher', 'subminer');
+    fs.mkdirSync(path.join(bundledDirectory, 'licenses'), { recursive: true });
+    fs.mkdirSync(path.dirname(launcherResourcePath), { recursive: true });
+    fs.copyFileSync(process.execPath, bundledBunPath);
+    fs.writeFileSync(path.join(bundledDirectory, 'licenses', 'Bun-LICENSE.md'), 'license');
+    fs.writeFileSync(launcherResourcePath, 'console.log("launcher");');
 
-  const expectedSecond = windowsManagedRuntimePaths({
-    platform: 'win32',
-    localAppData: root,
-    appVersion: '2.0.0',
-  });
-  try {
-    const second = stageManagedLauncher({
+    const first = stageManagedLauncher({
       platform: 'win32',
       localAppData: root,
-      appVersion: '2.0.0',
+      appVersion: '1.0.0',
       bundledBunPath,
       launcherResourcePath,
     });
-    assert.notEqual(second.bunPath, first.bunPath);
-    assert.ok(fs.existsSync(second.bunPath));
-    cleanupOldWindowsManagedRuntimes({
+    const running = spawn(first.bunPath, ['-e', 'setInterval(() => {}, 1000)']);
+    await new Promise<void>((resolve, reject) => {
+      running.once('spawn', resolve);
+      running.once('error', reject);
+    });
+
+    const expectedSecond = windowsManagedRuntimePaths({
       platform: 'win32',
       localAppData: root,
       appVersion: '2.0.0',
     });
-    assert.ok(fs.existsSync(first.bunPath));
-    assert.ok(fs.existsSync(path.join(path.dirname(first.bunPath), 'licenses', 'Bun-LICENSE.md')));
-    assert.equal(
-      fs.readFileSync(
-        path.join(path.dirname(second.bunPath), 'licenses', 'Bun-LICENSE.md'),
-        'utf8',
-      ),
-      'license',
-    );
-  } finally {
-    if (running.exitCode === null) {
-      const exited = new Promise<void>((resolve) => running.once('exit', () => resolve()));
-      running.kill();
-      await exited;
+    try {
+      const second = stageManagedLauncher({
+        platform: 'win32',
+        localAppData: root,
+        appVersion: '2.0.0',
+        bundledBunPath,
+        launcherResourcePath,
+      });
+      assert.notEqual(second.bunPath, first.bunPath);
+      assert.ok(fs.existsSync(second.bunPath));
+      cleanupOldWindowsManagedRuntimes({
+        platform: 'win32',
+        localAppData: root,
+        appVersion: '2.0.0',
+      });
+      assert.ok(fs.existsSync(first.bunPath));
+      assert.ok(
+        fs.existsSync(path.join(path.dirname(first.bunPath), 'licenses', 'Bun-LICENSE.md')),
+      );
+      assert.equal(
+        fs.readFileSync(
+          path.join(path.dirname(second.bunPath), 'licenses', 'Bun-LICENSE.md'),
+          'utf8',
+        ),
+        'license',
+      );
+    } finally {
+      if (running.exitCode === null) {
+        const exited = new Promise<void>((resolve) => running.once('exit', () => resolve()));
+        running.kill();
+        await exited;
+      }
     }
-  }
-  // Windows can keep bun.exe locked briefly after the exit event; cleanup
-  // skips locked runtimes, so retry the way the next launch would.
-  const firstDirectory = path.dirname(first.bunPath);
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    cleanupOldWindowsManagedRuntimes({
-      platform: 'win32',
-      localAppData: root,
-      appVersion: '2.0.0',
-    });
-    if (!fs.existsSync(firstDirectory)) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.equal(fs.existsSync(firstDirectory), false);
-  assert.ok(fs.existsSync(expectedSecond.bunPath));
-});
+    // Windows can keep bun.exe locked briefly after the exit event; cleanup
+    // skips locked runtimes, so retry the way the next launch would.
+    const firstDirectory = path.dirname(first.bunPath);
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      cleanupOldWindowsManagedRuntimes({
+        platform: 'win32',
+        localAppData: root,
+        appVersion: '2.0.0',
+      });
+      if (!fs.existsSync(firstDirectory)) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.equal(fs.existsSync(firstDirectory), false);
+    assert.ok(fs.existsSync(expectedSecond.bunPath));
+  },
+);
 
 test('Windows cleanup removes an obsolete runtime with no Bun executable', (t) => {
   if (process.platform !== 'win32') return;

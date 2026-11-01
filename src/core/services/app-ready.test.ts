@@ -13,6 +13,7 @@ function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
     loadSubtitlePosition: () => calls.push('loadSubtitlePosition'),
     resolveKeybindings: () => calls.push('resolveKeybindings'),
     createMpvClient: () => calls.push('createMpvClient'),
+    startPlugins: () => calls.push('startPlugins'),
     reloadConfig: () => calls.push('reloadConfig'),
     getResolvedConfig: () => ({
       websocket: { enabled: 'auto' },
@@ -162,6 +163,7 @@ test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns
   assert.equal(calls.includes('loadSubtitlePosition'), false);
   assert.equal(calls.includes('resolveKeybindings'), false);
   assert.equal(calls.includes('createMpvClient'), false);
+  assert.equal(calls.includes('startPlugins'), false);
   assert.equal(calls.includes('initRuntimeOptionsManager'), false);
   assert.equal(calls.includes('createImmersionTracker'), false);
   assert.equal(calls.includes('startJellyfinRemoteSession'), false);
@@ -326,6 +328,9 @@ test('runAppReadyRuntime starts background warmups after overlay startup', async
 
   assert.ok(calls.indexOf('loadSubtitlePosition') < calls.indexOf('startBackgroundWarmups'));
   assert.ok(calls.indexOf('createMpvClient') < calls.indexOf('startBackgroundWarmups'));
+  assert.ok(calls.includes('setLogLevel:info:config'));
+  assert.ok(calls.indexOf('setLogLevel:info:config') < calls.indexOf('startPlugins'));
+  assert.ok(calls.indexOf('startPlugins') < calls.indexOf('startBackgroundWarmups'));
   assert.ok(calls.indexOf('initializeOverlayRuntime') < calls.indexOf('startBackgroundWarmups'));
   assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('handleInitialArgs'));
 });

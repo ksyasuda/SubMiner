@@ -486,3 +486,19 @@ test('dispatchMpvProtocolMessage emits client-message string args', async () => 
 
   assert.deepEqual(received, [{ args: ['subminer-skip-intro', 'extra'] }]);
 });
+
+test('dispatchMpvProtocolMessage emits end-file with reason, entry id, and error', async () => {
+  const received: unknown[] = [];
+  const { deps } = createDeps({ emitEndFile: (payload) => received.push(payload) });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'end-file', reason: 'error', playlist_entry_id: 3, file_error: 'loading failed' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage({ event: 'end-file', reason: 'something-new' }, deps);
+
+  assert.deepEqual(received, [
+    { reason: 'error', playlistEntryId: 3, error: 'loading failed' },
+    { reason: 'unknown', playlistEntryId: null, error: null },
+  ]);
+});

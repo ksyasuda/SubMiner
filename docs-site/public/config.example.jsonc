@@ -219,6 +219,14 @@
   }, // Overlay notification display behavior.
 
   // ==========================================
+  // Plugins
+  // JavaScript plugins loaded from <config dir>/plugins/<id>/ at startup.
+  // Plugins run inside SubMiner with full access to your system. Only enable code you trust.
+  // Restart SubMiner after changing plugins.
+  // ==========================================
+  "plugins": {}, // Plugins to load at startup, keyed by directory name under <config dir>/plugins/. Each entry is { "enabled": true, "settings": { ... } }; settings are passed to the plugin as ctx.settings.
+
+  // ==========================================
   // Keyboard Shortcuts
   // Overlay keyboard shortcuts. Set a shortcut to null to disable.
   // Hot-reload: shortcut changes apply live and update the session help modal on reopen.

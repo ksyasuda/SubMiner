@@ -81,6 +81,7 @@ const JSON_OBJECT_FIELDS = new Set([
   'keybindings',
   'controller.bindings',
   'controller.profiles',
+  'plugins',
   'ankiConnect.knownWords.decks',
   'subtitleStyle.css',
   'subtitleStyle.secondary.css',
@@ -440,6 +441,9 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   }
   if (path.startsWith('notifications.')) {
     return { category: 'behavior', section: 'Notifications' };
+  }
+  if (path === 'plugins') {
+    return { category: 'advanced', section: 'Plugins' };
   }
   if (path === 'mpv.aniskipButtonKey') {
     return { category: 'input', section: 'Overlay Shortcuts' };

@@ -17,6 +17,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'startupWarmups'
   | 'updates'
   | 'notifications'
+  | 'plugins'
   | 'auto_start_overlay'
 > = {
   dictionaryBackend: 'yomitan',
@@ -145,5 +146,6 @@ export const CORE_DEFAULT_CONFIG: Pick<
   notifications: {
     overlayPosition: 'top-right',
   },
+  plugins: {},
   auto_start_overlay: true,
 };

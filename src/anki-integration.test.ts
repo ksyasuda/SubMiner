@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { AnkiIntegration } from './anki-integration';
+import type { PluginMinedNote, PluginMiningProvenance } from './plugin-api';
 import type { MediaInput } from './media-input';
 import { AnkiConnectConfig } from './types';
 
@@ -82,6 +83,8 @@ type IntegrationInternals = {
     fields: Record<string, { value: string }>;
   }) => void;
   rememberMergedNoteIds: (deletedNoteId: number, keptNoteId: number) => void;
+  reportCardsReady: (noteIds: number[]) => void;
+  rememberMiningProvenance: (noteIds: number[], provenance: PluginMiningProvenance | null) => void;
 };
 
 /** Named stand-ins for AnkiIntegration's long positional constructor arguments. */
@@ -273,6 +276,44 @@ test('AnkiIntegration resolves merged-away note ids to the kept note id', () => 
   assert.equal(integration.resolveCurrentNoteId(444), 444);
 });
 
+test('AnkiIntegration reports ready cards under the note that kept them after a merge', () => {
+  const integration = createIntegration({});
+  const ready: number[][] = [];
+  integration.setCardsReadyCallback((noteIds) => ready.push(noteIds));
+  const internals = internalsOf(integration);
+  internals.rememberMergedNoteIds(111, 222);
+
+  internals.reportCardsReady([111, 222, 444]);
+
+  assert.deepEqual(ready, [[222, 444]]);
+});
+
+test('ready events preserve each mining source when multiple notes merge into an older note', () => {
+  const integration = createIntegration({});
+  const ready: PluginMinedNote[][] = [];
+  integration.setCardsReadyCallback((_ids, notes) => ready.push(notes));
+  const internals = internalsOf(integration);
+  const provenance = {
+    minedAt: 1234,
+    media: { playbackId: 1, path: 'Show - 02.mkv', title: null },
+    subtitle: { text: 'テスト', startTime: 1, endTime: 2 },
+  };
+  internals.rememberMiningProvenance([111, 222], provenance);
+  provenance.media.path = 'Show - 03.mkv';
+  internals.rememberMergedNoteIds(111, 7);
+  internals.rememberMergedNoteIds(222, 7);
+  internals.reportCardsReady([111, 222]);
+  assert.deepEqual(
+    ready[0]?.map((note) => [note.originalNoteId, note.noteId, note.provenance?.media?.path]),
+    [
+      [111, 7, 'Show - 02.mkv'],
+      [222, 7, 'Show - 02.mkv'],
+    ],
+  );
+  internals.reportCardsReady([333]);
+  assert.equal(ready[1]?.[0]?.provenance, null);
+});
+
 // --- Sentence highlighting --------------------------------------------------
 
 const MPV_SENTENCE = '先日 貴様らが潜入した キールダンジョンから―';
@@ -402,6 +443,57 @@ test('AnkiIntegration triggers field grouping after a local duplicate sentence c
 
   assert.equal(await integration.createSentenceCard('duplicate sentence', 0, 1), true);
   assert.equal(groupingTriggered, 1);
+});
+
+test('AnkiIntegration reports a new sentence card ready only after field grouping', async () => {
+  const integration = createIntegration({
+    isKiku: { enabled: true, fieldGrouping: 'manual' },
+  });
+  const events: string[] = [];
+  integration.setCardsReadyCallback((noteIds) => events.push(`ready ${noteIds.join(',')}`));
+  const internals = internalsOf(integration);
+  internals.cardCreationService = {
+    createSentenceCard: async () => {
+      integration.trackDuplicateNoteIdsForNote(42, [7]);
+      internals.reportCardsReady([42]);
+      return true;
+    },
+  };
+  internals.fieldGroupingService = {
+    triggerFieldGroupingForLastAddedCard: async () => {
+      events.push('group');
+    },
+  };
+
+  assert.equal(await integration.createSentenceCard('duplicate sentence', 0, 1), true);
+  assert.deepEqual(events, ['group', 'ready 42']);
+});
+
+test('AnkiIntegration reports a card with queued YouTube media ready once the media lands', async () => {
+  const events: string[] = [];
+  const integration = createIntegration({
+    fields: { audio: 'ExpressionAudio', image: 'Picture' },
+    media: { imageFormat: 'jpg' },
+    behavior: { notificationType: 'osd' },
+  });
+  installFakeAnki(integration, {
+    noteFieldNames: ['ExpressionAudio', 'Picture'],
+    mediaGenerator: {
+      generateAudio: async () => Buffer.from('audio'),
+      generateScreenshot: async () => Buffer.from('image'),
+    },
+  });
+  integration.setCardsReadyCallback((noteIds) => events.push(`ready ${noteIds.join(',')}`));
+  const internals = internalsOf(integration);
+  internals.queuePendingYoutubeMediaUpdate(youtubeJob({ noteId: 101 }));
+  // Note 7 was merged into 101, so it waits on 101's media too.
+  internals.rememberMergedNoteIds(7, 101);
+
+  internals.reportCardsReady([101, 7, 5]);
+  assert.deepEqual(events, ['ready 5']);
+
+  await integration.handleYoutubeMediaCacheReady('https://youtu.be/abc123', '/tmp/media.mkv');
+  assert.deepEqual(events, ['ready 5', 'ready 101']);
 });
 
 test('AnkiIntegration marks partial update notifications as failures in OSD mode', async () => {

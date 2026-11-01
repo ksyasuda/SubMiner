@@ -104,6 +104,7 @@ subminer doctor                    # check dependencies, config, and the mpv soc
 subminer generate-subs video.mkv   # make Japanese subtitles from the audio
 subminer logs -e                   # export a log ZIP for bug reports
 subminer app --setup               # reopen first-run setup
+subminer app --plugin-action <id>/<name>  # run a plugin action
 subminer -u                        # update SubMiner
 ```
 

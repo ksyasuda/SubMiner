@@ -547,6 +547,13 @@ export function buildCoreConfigOptionRegistry(
       description: 'Position for in-overlay notification cards.',
     },
     {
+      path: 'plugins',
+      kind: 'object',
+      defaultValue: defaultConfig.plugins,
+      description:
+        'Plugins to load at startup, keyed by directory name under <config dir>/plugins/. Each entry is { "enabled": true, "settings": { ... } }; settings are passed to the plugin as ctx.settings.',
+    },
+    {
       path: 'shortcuts.multiCopyTimeoutMs',
       kind: 'number',
       defaultValue: defaultConfig.shortcuts.multiCopyTimeoutMs,

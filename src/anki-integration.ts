@@ -17,6 +17,7 @@
  */
 
 import { AnkiConnectClient } from './anki-connect';
+import type { PluginMinedNote, PluginMiningProvenance } from './plugin-api';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { MediaGenerator } from './media-generator';
 import path from 'path';
@@ -241,6 +242,11 @@ export class AnkiIntegration {
   private runtime: AnkiIntegrationRuntime;
   private aiConfig: AiConfig;
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
+  private cardsReadyCallback: ((noteIds: number[], notes: PluginMinedNote[]) => void) | null = null;
+  private miningProvenanceProvider: (() => PluginMiningProvenance | null) | null = null;
+  private miningProvenance = new Map<number, PluginMiningProvenance | null>();
+  // Ready reports collected while createSentenceCard still has field grouping to run.
+  private heldReadyNoteIds: number[] | null = null;
   private knownWordCacheUpdatedCallback: (() => void) | null = null;
   private consumeSubtitleMiningContextCallback: (() => SubtitleMiningContext | null) | null = null;
   private generateSentenceFuriganaCallback:
@@ -337,6 +343,74 @@ export class AnkiIntegration {
     }
   }
 
+  private reportCardsReady(noteIds: number[]): void {
+    if (this.heldReadyNoteIds) {
+      this.heldReadyNoteIds.push(...noteIds);
+      return;
+    }
+    // Notes still waiting on queued YouTube media, directly or through the note they were
+    // merged into, are reported by the queue once it settles.
+    const queue = this.pendingYoutubeMediaQueue;
+    this.emitCardsReady(
+      noteIds.filter(
+        (noteId) =>
+          !queue.hasPendingNote(noteId) && !queue.hasPendingNote(this.resolveCurrentNoteId(noteId)),
+      ),
+    );
+  }
+
+  private emitCardsReady(noteIds: number[]): void {
+    if (noteIds.length === 0) return;
+    // Field grouping may have merged a note away; report the note that kept its content.
+    const currentNoteIds = [...new Set(noteIds.map((noteId) => this.resolveCurrentNoteId(noteId)))];
+    const notes: PluginMinedNote[] = [];
+    for (const [originalNoteId, provenance] of this.miningProvenance) {
+      const noteId = this.resolveCurrentNoteId(originalNoteId);
+      if (
+        !currentNoteIds.includes(noteId) ||
+        this.pendingYoutubeMediaQueue.hasPendingNote(originalNoteId) ||
+        this.pendingYoutubeMediaQueue.hasPendingNote(noteId)
+      )
+        continue;
+      notes.push({ originalNoteId, noteId, provenance });
+      this.miningProvenance.delete(originalNoteId);
+    }
+    for (const originalNoteId of noteIds) {
+      const noteId = this.resolveCurrentNoteId(originalNoteId);
+      if (
+        !notes.some((note) => note.noteId === noteId) &&
+        ![...this.miningProvenance.keys()].some((id) => this.resolveCurrentNoteId(id) === noteId)
+      ) {
+        notes.push({ originalNoteId, noteId, provenance: null });
+      }
+    }
+    if (notes.length === 0) return;
+    try {
+      this.cardsReadyCallback?.([...new Set(notes.map((note) => note.noteId))], notes);
+    } catch (error) {
+      log.warn('cardsReady callback failed:', (error as Error).message);
+    }
+  }
+
+  private rememberMiningProvenance(
+    noteIds: number[],
+    provenance: PluginMiningProvenance | null,
+  ): void {
+    for (const noteId of noteIds) {
+      if (!this.miningProvenance.get(noteId)) {
+        this.miningProvenance.set(
+          noteId,
+          provenance &&
+            Object.freeze({
+              ...provenance,
+              media: provenance.media && Object.freeze({ ...provenance.media }),
+              subtitle: provenance.subtitle && Object.freeze({ ...provenance.subtitle }),
+            }),
+        );
+      }
+    }
+  }
+
   private getMediaResolverOptions(): MediaGenerationInputResolverOptions {
     const options: MediaGenerationInputResolverOptions = {
       logDebug: (message) => log.debug(message),
@@ -415,6 +489,7 @@ export class AnkiIntegration {
       showStatusNotification: (message) => this.showStatusNotification(message),
       showNotification: (noteId, label, errorSuffix) =>
         this.showNotification(noteId, label, errorSuffix),
+      onUpdateSettled: (noteId) => this.reportCardsReady([noteId]),
       logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
       logWarn: (...args) => log.warn(args[0] as string, ...args.slice(1)),
       logError: (...args) => log.error(args[0] as string, ...args.slice(1)),
@@ -445,6 +520,10 @@ export class AnkiIntegration {
       recordCardsAdded: (count, noteIds) => {
         this.recordCardsMinedSafely(count, noteIds, 'polling');
       },
+      onCardsReady: (noteIds) => {
+        this.rememberMiningProvenance(noteIds, null);
+        this.reportCardsReady(noteIds);
+      },
       isUpdateInProgress: () => this.updateInProgress,
       setUpdateInProgress: (value) => {
         this.updateInProgress = value;
@@ -464,11 +543,14 @@ export class AnkiIntegration {
     const { AnkiConnectProxyServer } =
       require('./anki-integration/anki-connect-proxy') as typeof import('./anki-integration/anki-connect-proxy');
     return new AnkiConnectProxyServer({
+      captureMiningProvenance: () => this.miningProvenanceProvider?.() ?? null,
+      onNotesAdded: (noteIds, provenance) => this.rememberMiningProvenance(noteIds, provenance),
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId: number) => this.processNewCard(noteId),
       recordCardsAdded: (count, noteIds) => {
         this.recordCardsMinedSafely(count, noteIds, 'proxy');
       },
+      onCardsReady: (noteIds) => this.reportCardsReady(noteIds),
       trackAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
         this.trackDuplicateNoteIdsForNote(noteId, duplicateNoteIds);
       },
@@ -594,6 +676,9 @@ export class AnkiIntegration {
       recordCardsMinedCallback: (count, noteIds) => {
         this.recordCardsMinedSafely(count, noteIds, 'card creation');
       },
+      captureMiningProvenance: () => this.miningProvenanceProvider?.() ?? null,
+      onNoteCreated: (noteId, provenance) => this.rememberMiningProvenance([noteId], provenance),
+      onCardsReady: (noteIds) => this.reportCardsReady(noteIds),
       reviewMediaTiming: (request) => this.reviewMediaTiming(request),
     });
   }
@@ -1544,25 +1629,36 @@ export class AnkiIntegration {
     secondarySubText?: string,
   ): Promise<boolean> {
     const trackedDuplicateNoteIdsBeforeCreate = new Set(this.trackedDuplicateNoteIds.keys());
-    const created = await this.cardCreationService.createSentenceCard(
-      sentence,
-      startTime,
-      endTime,
-      secondarySubText,
-    );
-    if (
-      created &&
-      this.shouldTriggerFieldGroupingAfterLocalSentenceCardCreate(
-        trackedDuplicateNoteIdsBeforeCreate,
-      )
-    ) {
-      try {
-        await this.fieldGroupingService.triggerFieldGroupingForLastAddedCard();
-      } catch (error) {
-        log.warn('Failed to trigger field grouping after sentence card creation:', error);
+    // Field grouping below can still rewrite the new card, so hold its ready report until then.
+    const ownsHold = this.heldReadyNoteIds === null;
+    if (ownsHold) this.heldReadyNoteIds = [];
+    try {
+      const created = await this.cardCreationService.createSentenceCard(
+        sentence,
+        startTime,
+        endTime,
+        secondarySubText,
+      );
+      if (
+        created &&
+        this.shouldTriggerFieldGroupingAfterLocalSentenceCardCreate(
+          trackedDuplicateNoteIdsBeforeCreate,
+        )
+      ) {
+        try {
+          await this.fieldGroupingService.triggerFieldGroupingForLastAddedCard();
+        } catch (error) {
+          log.warn('Failed to trigger field grouping after sentence card creation:', error);
+        }
+      }
+      return created;
+    } finally {
+      if (ownsHold) {
+        const held = this.heldReadyNoteIds ?? [];
+        this.heldReadyNoteIds = null;
+        this.reportCardsReady(held);
       }
     }
-    return created;
   }
 
   trackDuplicateNoteIdsForNote(noteId: number, duplicateNoteIds: number[]): void {
@@ -1779,6 +1875,21 @@ export class AnkiIntegration {
     callback: ((count: number, noteIds?: number[]) => void) | null,
   ): void {
     this.recordCardsMinedCallback = callback;
+  }
+
+  /**
+   * Called once SubMiner has finished writing a mined card (fields, media including queued YouTube
+   * media, and field grouping), or as soon as polling or the proxy sees it when auto-update is off.
+   * Ids merged away by field grouping are reported as the note that kept them.
+   */
+  setCardsReadyCallback(
+    callback: ((noteIds: number[], notes: PluginMinedNote[]) => void) | null,
+  ): void {
+    this.cardsReadyCallback = callback;
+  }
+
+  setMiningProvenanceProvider(provider: (() => PluginMiningProvenance | null) | null): void {
+    this.miningProvenanceProvider = provider;
   }
 
   setKnownWordCacheUpdatedCallback(callback: (() => void) | null): void {
