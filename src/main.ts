@@ -37,7 +37,6 @@ import {
   createHachidoriExtensionRuntime,
   getHachidoriSession,
 } from './core/services/hachidori-extension';
-import { requestHachidoriSharing } from './core/services/tokenizer/yomitan-parser-runtime';
 import {
   DICTIONARY_EXTERNAL_LINK_CHANNEL,
   parseDictionaryExternalUrl,
@@ -46,7 +45,6 @@ import { readMpvInputBindings } from './main/runtime/mpv-input-bindings';
 import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
 import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
-import { observeYomitanDictionaryCount } from './main/runtime/yomitan-dictionary-integrity';
 import { startAppControlServer } from './main/runtime/app-control-server';
 import { createEnsureBackgroundStatsServerHandler } from './main/runtime/background-stats-startup';
 import {
@@ -196,11 +194,7 @@ import {
   resolveKeybindings,
   showDesktopNotification,
 } from './core/utils';
-import {
-  ensureDefaultConfigBootstrap,
-  getDefaultConfigFilePaths,
-  resolveDefaultMpvInstallPaths,
-} from './shared/setup-state';
+import { ensureDefaultConfigBootstrap, getDefaultConfigFilePaths } from './shared/setup-state';
 import {
   ImmersionTrackerService,
   MpvIpcClient,
@@ -218,7 +212,6 @@ import {
   createTokenizerDepsRuntime,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
   destroyYomitanSettingsWindow,
-  getYomitanDictionaryInfo,
   handleMineSentenceDigit as handleMineSentenceDigitCore,
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
@@ -258,12 +251,7 @@ import {
   toggleStatsOverlay as toggleStatsOverlayWindow,
   withStatsWindowLayerSuspendedForNativeDialog,
 } from './core/services/stats-window.js';
-import {
-  createFirstRunSetupService,
-  getFirstRunSetupCompletionMessage,
-  isStandaloneFirstRunSetupCommand,
-  shouldAutoOpenFirstRunSetup,
-} from './main/runtime/first-run-setup-service';
+import { shouldAutoOpenFirstRunSetup } from './main/runtime/first-run-setup-service';
 import { createCharacterDictionaryAssembly } from './main/assemblies/character-dictionary';
 import { createDictionariesAssembly } from './main/assemblies/dictionaries';
 import { createJellyfinAssembly } from './main/assemblies/jellyfin';
@@ -272,6 +260,7 @@ import { createSettingsAssembly } from './main/assemblies/settings';
 import { createSyncAssembly } from './main/assemblies/sync';
 import { createYoutubeAssembly } from './main/assemblies/youtube';
 import { createOverlayModalsAssembly } from './main/assemblies/overlay-modals';
+import { createFirstRunSetupAssembly } from './main/assemblies/first-run-setup';
 import {
   createAutoplayReadyGate,
   type AutoplayReadySignal,
@@ -280,36 +269,10 @@ import { createAutoplaySubtitlePrimingRuntime } from './main/runtime/autoplay-su
 import { createAutoplayTokenizationWarmRelease } from './main/runtime/autoplay-tokenization-warm-release';
 import { isVisibleOverlayAutoplayTargetReady } from './main/runtime/visible-overlay-autoplay-readiness';
 import { createManagedLocalSubtitleSelectionRuntime } from './main/runtime/local-subtitle-selection';
-import {
-  buildFirstRunSetupHtml,
-  createMaybeFocusExistingFirstRunSetupWindowHandler,
-  createOpenFirstRunSetupWindowHandler,
-  parseFirstRunSetupSubmissionUrl,
-  type FirstRunSetupSubmission,
-} from './main/runtime/first-run-setup-window';
-import {
-  detectInstalledFirstRunPlugin,
-  detectInstalledFirstRunPluginCandidates,
-  removeLegacyMpvPluginCandidates,
-} from './main/runtime/first-run-setup-plugin';
 import { createWindowsMpvPluginDetectionRuntime } from './main/runtime/windows-mpv-plugin-detection';
-import {
-  applyWindowsMpvShortcuts,
-  detectWindowsMpvShortcuts,
-  resolveWindowsMpvShortcutPaths,
-} from './main/runtime/windows-mpv-shortcuts';
-import {
-  detectCommandLineLauncher,
-  installBun as installCommandLineBun,
-  installLauncher as installCommandLineLauncher,
-  refreshManagedCommandLineLauncher,
-} from './main/runtime/command-line-launcher';
+import { refreshManagedCommandLineLauncher } from './main/runtime/command-line-launcher';
 import { applyLoginShellPath } from './main/runtime/login-shell-path';
-import {
-  createWindowsMpvLaunchDeps,
-  getConfiguredWindowsMpvPathStatus,
-  launchWindowsMpv,
-} from './main/runtime/windows-mpv-launch';
+import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 import { findMpvExecutablePath } from './main/runtime/mpv-process';
 import {
   isJellyfinConfiguredForTray as isJellyfinConfiguredForTrayRuntime,
@@ -443,7 +406,6 @@ import {
   createResolveActiveSubtitleSidebarSourceHandler,
 } from './main/runtime/subtitle-prefetch-runtime';
 import { createSecondarySubtitleTrackController } from './main/runtime/secondary-subtitle-track';
-import { createCreateFirstRunSetupWindowHandler } from './main/runtime/setup-window-factory';
 import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
 import {
   isSameYoutubeMediaPath,
@@ -1034,12 +996,6 @@ function getMpvPluginRuntimeConfig() {
   };
 }
 
-let firstRunSetupMessage: string | null = null;
-const resolveWindowsMpvShortcutRuntimePaths = () =>
-  resolveWindowsMpvShortcutPaths({
-    appDataDir: app.getPath('appData'),
-    desktopDir: app.getPath('desktop'),
-  });
 // Finder/Dock launches inherit launchd's minimal PATH; pick up the user's shell PATH so
 // launcher/Bun detection and spawned tools match what their terminal sees.
 const loginShellPathReady: Promise<void> =
@@ -1069,122 +1025,29 @@ const createCommandLineLauncherRuntimeOptions = async () => {
       : undefined,
   };
 };
-const firstRunSetupService = createFirstRunSetupService({
-  getDictionaryBackend: () => activeDictionaryBackend,
-  getHachidoriHostStatus: async () => {
-    await ensureYomitanExtensionLoaded();
-    return requestHachidoriSharing(
-      { type: 'hd_sharing_status' },
-      getYomitanParserRuntimeDeps(),
-      logger,
-    );
-  },
-  platform: process.platform,
+const firstRunSetup = createFirstRunSetupAssembly({
+  appState,
+  configService,
+  logger,
   configDir: CONFIG_DIR,
-  getYomitanDictionaryCount: async () => {
-    await ensureYomitanExtensionLoaded();
-    const dictionaries = await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
-      error: (message, ...args) => logger.error(message, ...args),
-      info: (message, ...args) => logger.info(message, ...args),
-    });
-    const integrity = observeYomitanDictionaryCount(USER_DATA_PATH, dictionaries.length);
-    if (!integrity.safe) {
-      logger.error(`[dictionary:integrity] ${integrity.message}`);
-    }
-    return dictionaries.length;
-  },
-  isExternalYomitanConfigured: () =>
-    configService.getConfig().yomitan.externalProfilePath.trim().length > 0,
-  detectPluginInstalled: () => {
-    const candidates = detectInstalledFirstRunPluginCandidates({
-      platform: process.platform,
-      homeDir: os.homedir(),
-      xdgConfigHome: process.env.XDG_CONFIG_HOME,
-      appDataDir: app.getPath('appData'),
-      mpvExecutablePath: configService.getConfig().mpv.executablePath,
-    });
-    if (candidates.length > 0) {
-      return true;
-    }
-    const installPaths = resolveDefaultMpvInstallPaths(
-      process.platform,
-      os.homedir(),
-      process.env.XDG_CONFIG_HOME,
-    );
-    return detectInstalledFirstRunPlugin(installPaths);
-  },
-  detectLegacyMpvPluginCandidates: () =>
-    detectInstalledFirstRunPluginCandidates({
-      platform: process.platform,
-      homeDir: os.homedir(),
-      xdgConfigHome: process.env.XDG_CONFIG_HOME,
-      appDataDir: app.getPath('appData'),
-      mpvExecutablePath: configService.getConfig().mpv.executablePath,
-    }),
-  removeLegacyMpvPlugins: (candidates) =>
-    removeLegacyMpvPluginCandidates({
-      candidates,
-      trashItem: (candidatePath) => shell.trashItem(candidatePath),
-    }),
-  detectWindowsMpvShortcuts: () => {
-    if (process.platform !== 'win32') {
-      return {
-        startMenuInstalled: false,
-        desktopInstalled: false,
-      };
-    }
-    return detectWindowsMpvShortcuts(resolveWindowsMpvShortcutRuntimePaths());
-  },
-  applyWindowsMpvShortcuts: async (preferences) => {
-    if (process.platform !== 'win32') {
-      return {
-        ok: true,
-        status: 'unknown' as const,
-        message: '',
-      };
-    }
-    return applyWindowsMpvShortcuts({
-      preferences,
-      paths: resolveWindowsMpvShortcutRuntimePaths(),
-      exePath: process.execPath,
-      writeShortcutLink: (shortcutPath, operation, details) =>
-        shell.writeShortcutLink(shortcutPath, operation, details),
-    });
-  },
-  detectCommandLineLauncher: async () =>
-    detectCommandLineLauncher(await createCommandLineLauncherRuntimeOptions()),
-  installBun: async () => {
-    const snapshot = await installCommandLineBun(await createCommandLineLauncherRuntimeOptions());
-    return {
-      ok: snapshot.status === 'ready',
-      message:
-        snapshot.message ??
-        (snapshot.status === 'ready'
-          ? 'Bun is ready. Open a new terminal.'
-          : 'Bun installation failed.'),
-    };
-  },
-  installCommandLineLauncher: async () => {
-    const snapshot = await installCommandLineLauncher(
-      await createCommandLineLauncherRuntimeOptions(),
-    );
-    const ok = snapshot.status === 'ready' || snapshot.status === 'not_on_path';
-    return {
-      ok,
-      installPath: snapshot.installPath,
-      message:
-        snapshot.message ??
-        (ok
-          ? 'Command-line launcher installed. Open a new terminal.'
-          : 'Command-line launcher installation failed.'),
-    };
-  },
-  onStateChanged: (state) => {
-    appState.firstRunSetupCompleted = state.status === 'completed';
+  userDataPath: USER_DATA_PATH,
+  dictionaryBackend: activeDictionaryBackend,
+  ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
+  getYomitanParserRuntimeDeps: () => getYomitanParserRuntimeDeps(),
+  createCommandLineLauncherRuntimeOptions: () => createCommandLineLauncherRuntimeOptions(),
+  getAppPath: (name) => app.getPath(name),
+  trashItem: (targetPath) => shell.trashItem(targetPath),
+  writeShortcutLink: (shortcutPath, operation, details) =>
+    shell.writeShortcutLink(shortcutPath, operation, details),
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  openDictionarySettings: () => openDictionarySettings(),
+  openConfigSettingsWindow: () => settings.window.openWindow(),
+  onSetupStateChanged: () => {
     if (appTray) {
       ensureTrayHandler();
     }
   },
+  requestAppQuit: () => requestAppQuit(),
 });
 const discordPresenceSessionStartedAtMs = Date.now();
 let discordPresenceMediaDurationSec: number | null = null;
@@ -2366,165 +2229,6 @@ const jellyfin = createJellyfinAssembly({
   ipcMain,
 });
 
-const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
-  getSetupWindow: () => appState.firstRunSetupWindow,
-});
-const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
-  maybeFocusExistingSetupWindow: maybeFocusExistingFirstRunSetupWindow,
-  createSetupWindow: createCreateFirstRunSetupWindowHandler({
-    createBrowserWindow: (options) => new BrowserWindow(options),
-  }),
-  getSetupSnapshot: async () => {
-    const snapshot = await firstRunSetupService.getSetupStatus();
-    const mpvExecutablePath = configService.getConfig().mpv.executablePath;
-    return {
-      configReady: snapshot.configReady,
-      dictionaryCount: snapshot.dictionaryCount,
-      dictionaryBackend: snapshot.dictionaryBackend,
-      hachidoriHost: snapshot.hachidoriHost,
-      canFinish: snapshot.canFinish,
-      externalYomitanConfigured: snapshot.externalYomitanConfigured,
-      pluginStatus: snapshot.pluginStatus,
-      pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
-      legacyMpvPluginPaths: snapshot.legacyMpvPluginPaths,
-      mpvExecutablePath,
-      mpvExecutablePathStatus: getConfiguredWindowsMpvPathStatus(mpvExecutablePath),
-      windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
-      commandLineLauncher: snapshot.commandLineLauncher,
-      message: firstRunSetupMessage,
-    };
-  },
-  buildSetupHtml: (model) => buildFirstRunSetupHtml(model),
-  parseSubmissionUrl: (rawUrl) => parseFirstRunSetupSubmissionUrl(rawUrl),
-  handleAction: async (submission: FirstRunSetupSubmission) => {
-    if (
-      submission.action === 'link-hachidori-host' ||
-      submission.action === 'unlink-hachidori-host'
-    ) {
-      try {
-        if (activeDictionaryBackend !== 'hachidori')
-          throw new Error('Select Hachidori and restart SubMiner before linking a host.');
-        await ensureYomitanExtensionLoaded();
-        const status = await requestHachidoriSharing(
-          submission.action === 'link-hachidori-host'
-            ? { type: 'hd_sharing_client_link', address: submission.address }
-            : { type: 'hd_sharing_client_unlink' },
-          getYomitanParserRuntimeDeps(),
-          logger,
-        );
-        firstRunSetupMessage =
-          status.kind === 'local'
-            ? 'Using dictionaries installed in SubMiner.'
-            : status.kind === 'connected'
-              ? `Linked to ${status.name}. Anki mining stays in SubMiner.`
-              : status.message;
-      } catch (error) {
-        firstRunSetupMessage =
-          error instanceof Error ? error.message : 'Could not update the dictionary host.';
-      }
-      return;
-    }
-    if (submission.action === 'remove-legacy-plugin') {
-      const snapshot = await firstRunSetupService.removeLegacyMpvPlugin();
-      firstRunSetupMessage = snapshot.message;
-      return;
-    }
-    if (submission.action === 'configure-mpv-executable-path') {
-      const mpvExecutablePath = submission.mpvExecutablePath?.trim() ?? '';
-      const pathStatus = getConfiguredWindowsMpvPathStatus(mpvExecutablePath);
-      configService.patchRawConfig({
-        mpv: {
-          executablePath: mpvExecutablePath,
-        },
-      });
-      firstRunSetupMessage =
-        pathStatus === 'invalid'
-          ? `Saved mpv executable path, but the file was not found: ${mpvExecutablePath}`
-          : mpvExecutablePath
-            ? `Saved mpv executable path: ${mpvExecutablePath}`
-            : 'Cleared mpv executable path. SubMiner will auto-discover mpv.exe from SUBMINER_MPV_PATH or PATH.';
-      return;
-    }
-    if (submission.action === 'configure-windows-mpv-shortcuts') {
-      const snapshot = await firstRunSetupService.configureWindowsMpvShortcuts({
-        startMenuEnabled: submission.startMenuEnabled === true,
-        desktopEnabled: submission.desktopEnabled === true,
-      });
-      firstRunSetupMessage = snapshot.message;
-      return;
-    }
-    if (submission.action === 'install-bun') {
-      const snapshot = await firstRunSetupService.installBun();
-      firstRunSetupMessage = snapshot.message;
-      return;
-    }
-    if (submission.action === 'install-command-line-launcher') {
-      const snapshot = await firstRunSetupService.installCommandLineLauncher();
-      firstRunSetupMessage = snapshot.message;
-      return;
-    }
-    if (submission.action === 'open-yomitan-settings') {
-      firstRunSetupMessage = openDictionarySettings()
-        ? `Opened ${activeDictionaryBackend === 'hachidori' ? 'Hachidori' : 'Yomitan'} settings. Install dictionaries, then refresh status.`
-        : 'Yomitan settings are unavailable while external read-only profile mode is enabled.';
-      return;
-    }
-    if (submission.action === 'open-config-settings') {
-      const opened = settings.window.openWindow();
-      firstRunSetupMessage = opened
-        ? 'Opened SubMiner settings.'
-        : 'SubMiner settings are unavailable.';
-      if (opened) {
-        return { skipRender: true };
-      }
-      return;
-    }
-    if (submission.action === 'refresh') {
-      const snapshot = await firstRunSetupService.refreshStatus('Status refreshed.');
-      firstRunSetupMessage = snapshot.message;
-      return;
-    }
-
-    const snapshot = await firstRunSetupService.markSetupCompleted();
-    if (snapshot.state.status === 'completed') {
-      firstRunSetupMessage = null;
-      return { closeWindow: true };
-    }
-    firstRunSetupMessage =
-      getFirstRunSetupCompletionMessage(snapshot) ??
-      'Finish setup requires the mpv plugin and Yomitan dictionaries.';
-    return;
-  },
-  markSetupInProgress: async () => {
-    firstRunSetupMessage = null;
-    await firstRunSetupService.markSetupInProgress();
-  },
-  markSetupCancelled: async () => {
-    firstRunSetupMessage = null;
-    await firstRunSetupService.markSetupCancelled();
-  },
-  isSetupCompleted: () => firstRunSetupService.isSetupCompleted(),
-  shouldQuitWhenClosedIncomplete: () => !appState.backgroundMode,
-  shouldQuitWhenClosedCompleted: () =>
-    Boolean(appState.initialArgs && isStandaloneFirstRunSetupCommand(appState.initialArgs)),
-  quitApp: () => requestAppQuit(),
-  clearSetupWindow: () => {
-    appState.firstRunSetupWindow = null;
-  },
-  setSetupWindow: (window) => {
-    appState.firstRunSetupWindow = window as BrowserWindow;
-  },
-  encodeURIComponent: (value) => encodeURIComponent(value),
-  logError: (message, error) => logger.error(message, error),
-});
-
-function openFirstRunSetupWindow(force = false): void {
-  if (!force && firstRunSetupService.isSetupCompleted()) {
-    return;
-  }
-  openFirstRunSetupWindowHandler();
-}
-
 const anilist = createAnilistAssembly({
   appState,
   configService,
@@ -3051,13 +2755,13 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       await ensureYomitanExtensionLoaded();
     },
     handleFirstRunSetup: async () => {
-      const snapshot = await firstRunSetupService.ensureSetupStateInitialized();
+      const snapshot = await firstRunSetup.service.ensureSetupStateInitialized();
       appState.firstRunSetupCompleted = snapshot.state.status === 'completed';
       const args = appState.initialArgs;
       if (args && shouldAutoOpenFirstRunSetup(args)) {
         const force = Boolean(args.setup);
         if (force || snapshot.state.status !== 'completed') {
-          openFirstRunSetupWindow(force);
+          firstRunSetup.openWindow(force);
         }
       }
     },
@@ -4656,7 +4360,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
     togglePrimarySubtitleBar: () =>
       overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.primarySubtitleBarToggle),
-    openFirstRunSetupWindow: (force?: boolean) => openFirstRunSetupWindow(force),
+    openFirstRunSetupWindow: (force?: boolean) => firstRunSetup.openWindow(force),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
     copyCurrentSubtitle: () => copyCurrentSubtitleHandler(),
     startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
@@ -4970,8 +4674,8 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openTexthookerInBrowser: () =>
         handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
       showTexthookerPage: () => shouldShowTexthookerTrayEntry(configService.getConfig()),
-      showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
-      openFirstRunSetupWindow: (force?: boolean) => openFirstRunSetupWindow(force),
+      showFirstRunSetup: () => !firstRunSetup.service.isSetupCompleted(),
+      openFirstRunSetupWindow: (force?: boolean) => firstRunSetup.openWindow(force),
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       getDictionaryBackend: () => activeDictionaryBackend,
       openHachidoriSettings: () => openHachidoriSettings(),
