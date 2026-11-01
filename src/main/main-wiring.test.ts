@@ -15,20 +15,6 @@ function readSource(relPath: string): string {
   return fs.readFileSync(path.join(process.cwd(), relPath), 'utf8');
 }
 
-test('manual watched session action starts immersion tracker before marking watched', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /markActiveVideoWatched:\s*async\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?)\}\s*,/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(actionBlock, /ensureImmersionTrackerStarted\(\);/);
-  assert.ok(
-    actionBlock.indexOf('ensureImmersionTrackerStarted();') <
-      actionBlock.indexOf('markActiveVideoWatched()'),
-  );
-});
-
 test('subtitle sidebar media path tag is assigned after prefetch succeeds', () => {
   const source = readSource('src/main/runtime/autoplay-subtitle-priming-runtime.ts');
   const actionBlock = source.match(

@@ -36,7 +36,6 @@ import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
 import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
-import { createEnsureBackgroundStatsServerHandler } from './main/runtime/background-stats-startup';
 import { getAppControlSocketPath } from './shared/app-control';
 import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-focus';
 import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
@@ -132,7 +131,6 @@ import {
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/domains/overlay';
 import {
-  createImmersionMediaRuntime,
   createConfigDerivedRuntime,
   appendClipboardVideoToQueueRuntime,
   createMainSubsyncRuntime,
@@ -162,7 +160,6 @@ import {
 } from './core/utils';
 import { ensureDefaultConfigBootstrap, getDefaultConfigFilePaths } from './shared/setup-state';
 import {
-  ImmersionTrackerService,
   MpvIpcClient,
   SubtitleWebSocket,
   Texthooker,
@@ -218,6 +215,7 @@ import { createOverlayModalsAssembly } from './main/assemblies/overlay-modals';
 import { createFirstRunSetupAssembly } from './main/assemblies/first-run-setup';
 import { createOverlayAssembly } from './main/assemblies/overlay';
 import { createYomitanAssembly } from './main/assemblies/yomitan';
+import { createStatsAssembly } from './main/assemblies/stats';
 import { createPlaybackAssembly } from './main/assemblies/playback';
 import {
   createAutoplayReadyGate,
@@ -239,23 +237,9 @@ import {
   shouldQuitOnWindowAllClosedForTrayState,
 } from './main/runtime/startup-tray-policy';
 import { createLogExportTrayRuntime } from './main/runtime/log-export-tray';
-import {
-  createImmersionTrackerStartupHandler,
-  type ImmersionTrackerStartupDeps,
-} from './main/runtime/immersion-startup';
-import {
-  createRunStatsCliCommandHandler,
-  writeStatsCliCommandResponse,
-} from './main/runtime/stats-cli-command';
-import { createStatsServerRuntime } from './main/runtime/stats-server-runtime';
 import { createForceQuitHandler } from './main/runtime/app-lifecycle-actions';
-import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
-import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
-import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
-import { createTmdbClient, createTmdbApiKeyResolver } from './core/services/tmdb/tmdb-client';
-import { readBundledTmdbApiKey } from './core/services/tmdb/bundled-api-key';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
@@ -657,57 +641,36 @@ const reportFatalError = createFatalErrorReporter({
 });
 
 let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
-const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
-// Release builds stage a project TMDB key next to the compiled main process.
-const bundledTmdbApiKey = readBundledTmdbApiKey(__dirname);
-const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
-const statsServerRuntime = createStatsServerRuntime({
+const anilistRateLimiter = createAnilistRateLimiter();
+const stats = createStatsAssembly({
+  appState,
+  getConfig: () => configService.getConfig(),
+  logger,
   userDataPath: USER_DATA_PATH,
-  statsDistPath,
-  getResolvedConfig: () => configService.getConfig(),
-  getImmersionTracker: () => appState.immersionTracker,
-  setAppStateStatsServer: (server) => {
-    appState.statsServer = server;
+  mainDirname: __dirname,
+  defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
+  anilistRateLimiter,
+  statsWindow: {
+    registerToggle: (options) => registerStatsOverlayToggle(options),
+    toggle: (options) => toggleStatsOverlayWindow(options),
   },
-  getMpvSocketPath: () => appState.mpvSocketPath,
-  getYomitanExt: () => appState.yomitanExt,
-  getYomitanSession: () => appState.yomitanSession,
-  getYomitanParserWindow: () => appState.yomitanParserWindow,
-  setYomitanParserWindow: (w) => {
-    appState.yomitanParserWindow = w;
-  },
-  getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
-  setYomitanParserReadyPromise: (p) => {
-    appState.yomitanParserReadyPromise = p;
-  },
-  getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
-  setYomitanParserInitPromise: (p) => {
-    appState.yomitanParserInitPromise = p;
-  },
+  yomitanParserRuntimeDeps: yomitan.getParserRuntimeDeps(),
   getYomitanAnkiDeckName: () => yomitan.getCurrentAnkiDeckName(),
-  getAnilistRateLimiter: () => anilistRateLimiter,
-  getBundledTmdbApiKey: () => bundledTmdbApiKey,
-  resolveAnkiNoteId: (noteId) => appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
-  trackDuplicateNoteIdsForNote: (noteId, duplicateNoteIds) => {
-    appState.ankiIntegration?.trackDuplicateNoteIdsForNote(noteId, duplicateNoteIds);
-  },
-  resolveSentenceSearchHeadwords: (term) => resolveSentenceSearchHeadwords(term),
-  ensureImmersionTrackerStarted: () => ensureImmersionTrackerStarted(),
-  setStatsStartupInProgress: (inProgress) => {
-    appState.statsStartupInProgress = inProgress;
-  },
+  getTokenizeSubtitle: () => getTokenizeSubtitleDeferred(),
+  createMecabTokenizerAndCheck: () => createMecabTokenizerAndCheck(),
+  getOverlayNotifications: () => overlayNotificationsRuntime,
+  getOverlayBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
+  onStatsOverlayVisibilityChanged: (visible) =>
+    visibleOverlayInteractionRuntime.handleStatsOverlayVisibilityChanged(visible),
+  runAnilistPostWatchUpdate: () => anilist.maybeRunAnilistPostWatchUpdate({ force: true }),
+  openExternal: (url) => shell.openExternal(url),
+  requestAppQuit: () => requestAppQuit(),
 });
-const {
-  stopStatsServer,
-  ensureStatsServerStarted,
-  ensureBackgroundStatsServerStarted,
-  stopBackgroundStatsServer,
-} = statsServerRuntime;
 
 function requestAppQuit(): void {
   yomitan.destroySettingsWindows();
   destroyStatsWindow();
-  void stopStatsServer().catch((error: unknown) => {
+  void stats.stopStatsServer().catch((error: unknown) => {
     logger.warn('Failed to stop stats server while quitting.', error);
   });
   if (!forceQuitTimer) {
@@ -1044,32 +1007,6 @@ function syncOverlayMpvSubtitleSuppression(): void {
   restoreOverlayMpvSubtitles();
 }
 
-const immersionMediaRuntime = createImmersionMediaRuntime({
-  getResolvedConfig: () => configService.getConfig(),
-  defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
-  getTracker: () => appState.immersionTracker,
-  getMpvClient: () => appState.mpvClient,
-  getCurrentMediaPath: () => appState.currentMediaPath,
-  getCurrentMediaTitle: () => appState.currentMediaTitle,
-  logDebug: (message) => logger.debug(message),
-  logInfo: (message) => logger.info(message),
-});
-const anilistRateLimiter = createAnilistRateLimiter();
-const statsCoverArtFetcher = createCoverArtFetcher(
-  anilistRateLimiter,
-  createLogger('main:stats-cover-art'),
-  {
-    liveAction: createLiveActionMetadataResolver(
-      createTmdbClient({
-        resolveApiKey: createTmdbApiKeyResolver(
-          () => configService.getConfig().tmdb,
-          () => bundledTmdbApiKey,
-        ),
-      }),
-      createLogger('main:tmdb'),
-    ),
-  },
-);
 const configDerivedRuntime = createConfigDerivedRuntime({
   getResolvedConfig: () => configService.getConfig(),
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
@@ -1136,32 +1073,6 @@ function captureCurrentPrimarySubtitleMiningContext(): SubtitleMiningContext | n
     subDelay,
   );
 }
-async function resolveSentenceSearchHeadwords(term: string): Promise<string[]> {
-  const fallback = term.trim() ? [term.trim()] : [];
-  try {
-    const tokenizeSubtitleDeferred = getTokenizeSubtitleDeferred();
-    const tokenized = tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(term) : null;
-    const tokens = tokenized?.tokens ?? [];
-    if (tokens.length === 0) return fallback;
-
-    const seen = new Set<string>();
-    const headwords: string[] = [];
-    for (const token of tokens) {
-      const headword = (token.headword || token.surface).trim();
-      if (!headword || seen.has(headword)) continue;
-      seen.add(headword);
-      headwords.push(headword);
-    }
-    return headwords.length > 0 ? headwords : fallback;
-  } catch (error) {
-    logger.debug(
-      'Failed to resolve sentence-search headwords:',
-      error instanceof Error ? error.message : String(error),
-    );
-    return fallback;
-  }
-}
-
 const {
   linuxOverlayModeRuntime,
   overlayVisibilityRuntime,
@@ -1805,7 +1716,7 @@ const jellyfin = createJellyfinAssembly({
   showVisibleOverlay: () => setVisibleOverlayVisible(true),
   getOverlayNotifications: () => overlayNotificationsRuntime,
   updateCurrentMediaTitle: (title) => mediaRuntime.updateCurrentMediaTitle(title),
-  ensureImmersionTrackerStarted: () => ensureImmersionTrackerStarted(),
+  ensureImmersionTrackerStarted: () => stats.ensureImmersionTrackerStarted(),
   refreshTrayMenu: () => refreshTrayMenuIfPresent(),
   setupPreloadPath: path.join(__dirname, 'preload-jellyfin-setup.js'),
   createBrowserWindow: (options) => new BrowserWindow(options),
@@ -1926,7 +1837,7 @@ const {
     },
     getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
     getImmersionTracker: () => appState.immersionTracker,
-    stopStatsServer: () => stopStatsServer(),
+    stopStatsServer: () => stats.stopStatsServer(),
     clearImmersionTracker: () => {
       appState.statsServer = null;
       appState.immersionTracker = null;
@@ -1983,91 +1894,6 @@ const {
 });
 registerProtocolUrlHandlersHandler();
 
-const resolveLegacyVocabularyPos = async (row: {
-  headword: string;
-  word: string;
-  reading: string | null;
-}) => {
-  const tokenizer = appState.mecabTokenizer;
-  if (!tokenizer) {
-    return null;
-  }
-
-  const lookupTexts = [...new Set([row.headword, row.word, row.reading ?? ''])]
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-
-  for (const lookupText of lookupTexts) {
-    const tokens = await tokenizer.tokenize(lookupText);
-    const resolved = resolveLegacyVocabularyPosFromTokens(lookupText, tokens);
-    if (resolved) {
-      return resolved;
-    }
-  }
-
-  return null;
-};
-
-const immersionTrackerStartupMainDeps: ImmersionTrackerStartupDeps = {
-  getResolvedConfig: () => configService.getConfig(),
-  getConfiguredDbPath: () => immersionMediaRuntime.getConfiguredDbPath(),
-  createTrackerService: (params) =>
-    new ImmersionTrackerService({
-      ...params,
-      resolveLegacyVocabularyPos,
-    }),
-  setTracker: (tracker) => {
-    const trackerHasChanged =
-      appState.immersionTracker !== null && appState.immersionTracker !== tracker;
-    if (trackerHasChanged && appState.statsServer) {
-      void stopStatsServer().catch((error: unknown) => {
-        logger.warn('Failed to stop stats server while replacing immersion tracker.', error);
-      });
-      appState.statsServer = null;
-    }
-
-    appState.immersionTracker = tracker as ImmersionTrackerService | null;
-    appState.immersionTracker?.setCoverArtFetcher(statsCoverArtFetcher);
-    if (tracker) {
-      // Start HTTP stats server
-      if (!appState.statsServer) {
-        const config = configService.getConfig();
-        if (config.stats.autoStartServer) {
-          void ensureStatsServerStarted().catch((error: unknown) => {
-            logger.warn('Failed to auto-start stats server.', error);
-          });
-        }
-      }
-
-      // Register stats overlay toggle IPC handler (idempotent)
-      registerStatsOverlayToggle({
-        preloadPath: statsPreloadPath,
-        getApiBaseUrl: async () => (await ensureStatsServerStarted()).url,
-        onStartupError: (error) =>
-          overlayNotificationsRuntime.showConfiguredStatusNotification(
-            `Stats server startup failed: ${error instanceof Error ? error.message : String(error)}`,
-            { title: 'Stats' },
-          ),
-        getToggleKey: () => configService.getConfig().stats.toggleKey,
-        resolveBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
-        onVisibilityChanged: (visible) => {
-          visibleOverlayInteractionRuntime.handleStatsOverlayVisibilityChanged(visible);
-        },
-      });
-    }
-  },
-  getMpvClient: () => appState.mpvClient,
-  shouldAutoConnectMpv: () => !appState.statsStartupInProgress,
-  seedTrackerFromCurrentMedia: () => {
-    void immersionMediaRuntime.seedFromCurrentMedia();
-  },
-  logInfo: (message) => logger.info(message),
-  logDebug: (message) => logger.debug(message),
-  logWarn: (message, details) => logger.warn(message, details),
-};
-const createImmersionTrackerStartup = createImmersionTrackerStartupHandler(
-  immersionTrackerStartupMainDeps,
-);
 const recordSubtitleMiningContext = (context: SubtitleMiningContext | null): void => {
   pendingSubtitleMiningContext = context;
 };
@@ -2076,64 +1902,6 @@ const consumePendingSubtitleMiningContext = (): SubtitleMiningContext | null => 
   pendingSubtitleMiningContext = null;
   return context;
 };
-const recordTrackedCardsMined = (count: number, noteIds?: number[]): void => {
-  ensureImmersionTrackerStarted();
-  appState.immersionTracker?.recordCardsMined(count, noteIds);
-};
-let hasAttemptedImmersionTrackerStartup = false;
-const ensureImmersionTrackerStarted = (): void => {
-  if (hasAttemptedImmersionTrackerStartup || appState.immersionTracker) {
-    return;
-  }
-  hasAttemptedImmersionTrackerStartup = true;
-  createImmersionTrackerStartup();
-};
-const statsStartupRuntime = {
-  ensureStatsServerStarted: () => ensureStatsServerStarted(),
-  ensureBackgroundStatsServerStarted: () => ensureBackgroundStatsServerStarted(),
-  stopBackgroundStatsServer: () => stopBackgroundStatsServer(),
-  ensureImmersionTrackerStarted: () => {
-    appState.statsStartupInProgress = true;
-    try {
-      ensureImmersionTrackerStarted();
-    } finally {
-      appState.statsStartupInProgress = false;
-    }
-  },
-} as const;
-const ensureBackgroundStatsServer = createEnsureBackgroundStatsServerHandler({
-  isStatsAutoStartEnabled: () => configService.getConfig().stats.autoStartServer,
-  isImmersionTrackingEnabled: () => configService.getConfig().immersionTracking?.enabled !== false,
-  ensureBackgroundStatsServerStarted: () =>
-    statsStartupRuntime.ensureBackgroundStatsServerStarted(),
-  logInfo: (message) => logger.info(message),
-  logWarn: (message, error) => logger.warn(message, error),
-});
-
-const runStatsCliCommand = createRunStatsCliCommandHandler({
-  getResolvedConfig: () => configService.getConfig(),
-  ensureImmersionTrackerStarted: () => statsStartupRuntime.ensureImmersionTrackerStarted(),
-  ensureVocabularyCleanupTokenizerReady: async () => {
-    await createMecabTokenizerAndCheck();
-  },
-  getImmersionTracker: () => appState.immersionTracker,
-  ensureStatsServerStarted: async () => (await statsStartupRuntime.ensureStatsServerStarted()).url,
-  ensureBackgroundStatsServerStarted: () =>
-    statsStartupRuntime.ensureBackgroundStatsServerStarted(),
-  stopBackgroundStatsServer: () => statsStartupRuntime.stopBackgroundStatsServer(),
-  openExternal: (url: string) => shell.openExternal(url),
-  writeResponse: (responsePath, payload) => {
-    writeStatsCliCommandResponse(responsePath, payload);
-  },
-  exitAppWithCode: (code) => {
-    process.exitCode = code;
-    requestAppQuit();
-  },
-  logInfo: (message) => logger.info(message),
-  logWarn: (message, error) => logger.warn(message, error),
-  logError: (message, error) => logger.error(message, error),
-});
-
 async function runHeadlessInitialCommand(): Promise<void> {
   if (!appState.initialArgs?.refreshKnownWords) {
     handleInitialArgs();
@@ -2358,14 +2126,14 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     shouldHandleInitialArgsBeforeDeferredOverlayWarmup: () =>
       shouldHandleInitialArgsBeforeDeferredOverlayWarmup(appState.initialArgs),
     createImmersionTracker: () => {
-      ensureImmersionTrackerStarted();
+      stats.ensureImmersionTrackerStarted();
     },
     logDebug: (message: string) => {
       logger.debug(message);
     },
     now: () => Date.now(),
   },
-  immersionTrackerStartupMainDeps,
+  immersionTrackerStartupMainDeps: stats.immersionTrackerStartupDeps,
 });
 
 async function runAppReadyRuntimeWithFatalReporting(): Promise<void> {
@@ -2461,7 +2229,7 @@ const {
   managedLocalSubtitleSelectionRuntime,
   mediaTimingReviewRuntime,
   discordPresenceRuntime,
-  immersionMediaRuntime,
+  immersionMediaRuntime: stats.immersionMediaRuntime,
   mediaRuntime,
   overlayNotificationsRuntime,
   youtube,
@@ -2478,7 +2246,7 @@ const {
   maybeStartOverlayLoadingOsd: (mediaPath) => maybeStartOverlayLoadingOsd(mediaPath),
   flushQueuedMpvOsdNotifications: () => flushQueuedMpvOsdNotifications(),
   refreshMpvSessionBindings: () => refreshMpvSessionBindings(),
-  ensureImmersionTrackerStarted: () => ensureImmersionTrackerStarted(),
+  ensureImmersionTrackerStarted: () => stats.ensureImmersionTrackerStarted(),
   restoreOverlayMpvSubtitles: () => restoreOverlayMpvSubtitles(),
   resetSubtitleSidebarEmbeddedLayoutRuntime: () => resetSubtitleSidebarEmbeddedLayoutRuntime(),
   syncOverlayMpvSubtitleSuppression: () => syncOverlayMpvSubtitleSuppression(),
@@ -2590,7 +2358,7 @@ function initializeOverlayRuntime(): void {
   if (!(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs))) {
     overlayModalRuntime.primeModalWindow();
   }
-  appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
+  appState.ankiIntegration?.setRecordCardsMinedCallback(stats.recordCardsMined);
   appState.ankiIntegration?.setMiningProvenanceProvider(() => ({
     minedAt: Date.now(),
     media: pluginHost.getMediaSnapshot(),
@@ -2846,21 +2614,7 @@ const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHand
 
 async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
   await dispatchSessionActionCore(request, {
-    toggleStatsOverlay: async () =>
-      await toggleStatsOverlayWindow({
-        preloadPath: statsPreloadPath,
-        getApiBaseUrl: async () => (await ensureStatsServerStarted()).url,
-        onStartupError: (error) =>
-          overlayNotificationsRuntime.showConfiguredStatusNotification(
-            `Stats server startup failed: ${error instanceof Error ? error.message : String(error)}`,
-            { title: 'Stats' },
-          ),
-        getToggleKey: () => configService.getConfig().stats.toggleKey,
-        resolveBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
-        onVisibilityChanged: (visible) => {
-          visibleOverlayInteractionRuntime.handleStatsOverlayVisibilityChanged(visible);
-        },
-      }),
+    toggleStatsOverlay: async () => await stats.toggleStatsOverlay(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
     copyCurrentSubtitle: () => copyCurrentSubtitleHandler(),
     copySubtitleCount: (count) => handleMultiCopyDigitHandler(count),
@@ -2877,18 +2631,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
       appendClipboardVideoToQueueHandler();
     },
     markLastCardAsAudioCard: () => markLastCardAsAudioCardHandler(),
-    markActiveVideoWatched: async () => {
-      ensureImmersionTrackerStarted();
-      const marked = (await appState.immersionTracker?.markActiveVideoWatched()) ?? false;
-      if (marked) {
-        try {
-          await anilist.maybeRunAnilistPostWatchUpdate({ force: true });
-        } catch (error) {
-          logger.warn('Failed to run AniList post-watch update after manual watched mark:', error);
-        }
-      }
-      return marked;
-    },
+    markActiveVideoWatched: () => stats.markActiveVideoWatched(),
     openRuntimeOptionsPalette: () => overlayModals.openRuntimeOptionsPalette(),
     openJimaku: () => overlayModals.openJimakuOverlay(),
     openTsukihime: () => overlayModals.openTsukihimeOverlay(),
@@ -3415,7 +3158,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
       }),
     runJellyfinCommand: (argsFromCommand: CliArgs) => jellyfin.runJellyfinCommand(argsFromCommand),
     runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
-      runStatsCliCommand(argsFromCommand, source),
+      stats.runStatsCliCommand(argsFromCommand, source),
     runUpdateCommand: async (argsFromCommand: CliArgs, source: CliCommandSource) => {
       await runUpdateCliCommand(argsFromCommand, source, {
         checkForUpdates: (request) => getUpdateService().checkForUpdates(request),
@@ -3440,7 +3183,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
       );
     },
     runYoutubePlaybackFlow: (request) => youtube.playback.runYoutubePlaybackFlow(request),
-    ensureBackgroundStatsServer: () => ensureBackgroundStatsServer(),
+    ensureBackgroundStatsServer: () => stats.ensureBackgroundStatsServer(),
     openHachidoriSettings: () => yomitan.openHachidoriSettings(),
     openYomitanSettings: () => yomitan.openYomitanSettings(),
     openConfigSettingsWindow: () => settings.window.openWindow(),
