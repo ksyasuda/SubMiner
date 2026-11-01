@@ -256,6 +256,25 @@ test(
       assert.ok(line);
       return JSON.parse(line.slice(line.indexOf('probe subtitle ') + 'probe subtitle '.length));
     };
+    const seekToCue = async (time: number, cueIndex: number): Promise<void> => {
+      await session.mpv.command('seek', time, 'absolute+exact');
+      // time-pos can activate the sidebar while mpv is still rendering the seek with
+      // sub-text cleared. Wait for the seek, then for main to receive the live text.
+      await waitUntil(
+        async () => (await session.mpv.command('get_property', 'seeking')) === false,
+        {
+          description: `the seek to ${time}s to finish`,
+        },
+      );
+      await overlay.waitFor(
+        `(async () => {
+          const text = await window.electronAPI.getCurrentSubtitleRaw();
+          return text === ${JSON.stringify(text)} &&
+            document.querySelectorAll('#subtitleSidebarList .subtitle-sidebar-item')[${cueIndex}]?.classList.contains('active') === true;
+        })()`,
+        { description: `delayed cue ${cueIndex + 1} to be active with live subtitle text` },
+      );
+    };
     try {
       await session.mpv.command('seek', 0, 'absolute+exact');
       await session.mpv.command('sub-add', subtitlePath, 'select');
@@ -265,19 +284,11 @@ test(
         `document.querySelectorAll('#subtitleSidebarList .subtitle-sidebar-item').length === 2`,
         { description: 'the repeated subtitle cues to be parsed' },
       );
-      await session.mpv.command('seek', 7, 'absolute+exact');
-      await overlay.waitFor(
-        `document.getElementById('subtitleRoot').textContent === ${JSON.stringify(text)}`,
-        { description: 'the first delayed line to be visible' },
-      );
+      await seekToCue(7, 0);
       assert.deepEqual(await reportSubtitle(1), { text, startTime: 1, endTime: 3 });
 
       // Same text again at 6-8 on the subtitle clock, so only the timings tell the cues apart.
-      await session.mpv.command('seek', 12, 'absolute+exact');
-      await overlay.waitFor(
-        `document.querySelectorAll('#subtitleSidebarList .subtitle-sidebar-item')[1]?.classList.contains('active') === true`,
-        { description: 'the second delayed line to become active' },
-      );
+      await seekToCue(12, 1);
       assert.deepEqual(await reportSubtitle(2), { text, startTime: 6, endTime: 8 });
     } finally {
       await session.mpv.command('set_property', 'sub-delay', 0);
