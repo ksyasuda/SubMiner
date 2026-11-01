@@ -24,7 +24,7 @@ src/
   preload*.ts             # preload bridges (overlay, settings, stats, sync, Jellyfin setup)
   main/                   # main-process runtime modules and IPC/CLI wiring
     boot/                 # pre-ready boot helpers
-    assemblies/           # per-domain assemblies main.ts builds once (YouTube, Jellyfin, AniList, settings, sync, dictionaries, overlay modals)
+    assemblies/           # per-domain assemblies main.ts builds once (overlay, playback, first-run setup, YouTube, Jellyfin, AniList, settings, sync, dictionaries, overlay modals)
     runtime/composers/    # larger runtime clusters assembled for main.ts
     runtime/domains/      # domain barrels (startup, overlay, mpv, ipc, shortcuts, anilist, jellyfin, mining)
   core/services/          # focused services: mpv client, overlay, tokenizer, mining, integrations, stats
@@ -139,7 +139,7 @@ Runtime code uses dependency injection:
 2. Build its runtime dependencies in a `src/main/` module. Pass simple dependencies inline; extract an adapter only when it adds behavior or gets reused.
 3. Call the service from lifecycle or command wiring.
 
-`main.ts` gets domain handlers through `createMainRuntimeRegistry()` (`src/main/runtime/registry.ts`), which exposes the barrels in `src/main/runtime/domains/`. Larger clusters, such as app-ready startup, mpv, Jellyfin, AniList tracking, shortcuts, and IPC, are assembled by composers in `src/main/runtime/composers/`. A domain whose runtimes share state, such as YouTube, Jellyfin, AniList, config settings, sync, or the character dictionary, is grouped into one assembly in `src/main/assemblies/` that owns that state and returns its runtimes. Handlers take their dependencies as a plain object passed straight to the handler factory, which keeps side effects out of the unit under test.
+`main.ts` gets domain handlers through `createMainRuntimeRegistry()` (`src/main/runtime/registry.ts`), which exposes the barrels in `src/main/runtime/domains/`. Larger clusters, such as app-ready startup, mpv, Jellyfin, AniList tracking, shortcuts, and IPC, are assembled by composers in `src/main/runtime/composers/`. A domain whose runtimes share state, such as the overlay windows, mpv playback and subtitle state, YouTube, Jellyfin, AniList, config settings, sync, or the character dictionary, is grouped into one assembly in `src/main/assemblies/` that owns that state and returns its runtimes. Handlers take their dependencies as a plain object passed straight to the handler factory, which keeps side effects out of the unit under test.
 
 Composers declare their inputs with `ComposerInputs<T>` and results with `ComposerOutputs<T>` from `src/main/runtime/composers/contracts.ts`. A missing dependency then fails at compile time.
 

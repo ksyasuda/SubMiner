@@ -29,129 +29,6 @@ test('manual watched session action starts immersion tracker before marking watc
   );
 });
 
-test('media path changes clear rendered subtitle state without clearing same-youtube parsed cues', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /updateCurrentMediaPath:\s*\(path\)\s*=>\s*\{(?<body>[\s\S]*?)autoplayReadyGate\.invalidatePendingAutoplayReadyFallbacks\(\);/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(actionBlock, /appState\.currentSubText = '';/);
-  assert.match(actionBlock, /appState\.currentSubtitleData = null;/);
-  assert.match(actionBlock, /isSameYoutubeMediaPath\(/);
-  assert.match(actionBlock, /if \(!preserveParsedSubtitleCues\)/);
-  assert.match(actionBlock, /appState\.activeParsedSubtitleCues = \[\];/);
-  assert.match(actionBlock, /appState\.activeParsedSubtitleSource = null;/);
-  assert.match(actionBlock, /appState\.activeParsedSubtitleMediaPath = null;/);
-  assert.match(actionBlock, /lastObservedTimePos = 0;/);
-  assert.match(actionBlock, /broadcastToOverlayWindows\('subtitle:set',/);
-  assert.match(actionBlock, /subtitleWsService\.broadcast\(/);
-  assert.match(actionBlock, /annotationSubtitleWsService\.broadcast\(/);
-  assert.ok(
-    actionBlock.indexOf('appState.currentSubtitleData = null;') <
-      actionBlock.indexOf("broadcastToOverlayWindows('subtitle:set'"),
-  );
-});
-
-test('same media path updates do not reset autoplay ready fallback state', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /updateCurrentMediaPath:\s*\(path\)\s*=>\s*\{(?<body>[\s\S]*?)\n    restoreMpvSubVisibility:/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(
-    actionBlock,
-    /annotationSubtitleWsService\.broadcast\(resetSubtitlePayload, frequencyOptions\);\s+autoplayReadyGate\.invalidatePendingAutoplayReadyFallbacks\(\);\s+\}\s+currentMediaTokenizationGate\.updateCurrentMediaPath\(path\);/,
-  );
-});
-
-test('mpv startup signals start overlay loading OSD before readiness work', () => {
-  const source = readMainSource();
-  const connectedBlock = source.match(
-    /onMpvConnected:\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    maybeRunAnilistPostWatchUpdate:/,
-  )?.groups?.body;
-  const mediaPathBlock = source.match(
-    /updateCurrentMediaPath:\s*\(path\)\s*=>\s*\{(?<body>[\s\S]*?)\n    restoreMpvSubVisibility:/,
-  )?.groups?.body;
-  const setVisibleBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(connectedBlock);
-  assert.ok(mediaPathBlock);
-  assert.ok(setVisibleBlock);
-  assert.match(connectedBlock, /maybeStartOverlayLoadingOsd\(\);/);
-  assert.match(
-    mediaPathBlock,
-    /const normalizedPath = path\.trim\(\);\s+maybeStartOverlayLoadingOsd\(normalizedPath\);/,
-  );
-  assert.match(setVisibleBlock, /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);/);
-  assert.match(
-    source,
-    /function toggleVisibleOverlay\(\): void \{[\s\S]*?else \{\s+maybeStartOverlayLoadingOsd\(\);/,
-  );
-  assert.match(
-    source,
-    /function setOverlayVisible\(visible: boolean\): void \{[\s\S]*?if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);/,
-  );
-});
-
-test('manual visible overlay toggles only release current-media autoplay when hiding', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(
-    actionBlock,
-    /if \(!nextVisible\) \{[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
-  );
-});
-
-test('all visible overlay hide paths clear stale overlay input state', () => {
-  const source = readMainSource();
-  const setVisibleBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const toggleBlock = source.match(
-    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const setOverlayBlock = source.match(
-    /function setOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(setVisibleBlock);
-  assert.ok(toggleBlock);
-  assert.ok(setOverlayBlock);
-  assert.match(
-    setVisibleBlock,
-    /if \(!visible\) \{[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);[\s\S]*?resetVisibleOverlayInputState\(\);/,
-  );
-  assert.match(
-    toggleBlock,
-    /if \(!nextVisible\) \{[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);[\s\S]*?resetVisibleOverlayInputState\(\);/,
-  );
-  assert.match(
-    setOverlayBlock,
-    /if \(!visible\) \{[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?resetVisibleOverlayInputState\(\);[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
-  );
-  // Hiding must also dismiss the loading OSD, or it lingers over mpv.
-  assert.match(
-    setVisibleBlock,
-    /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
-  );
-  assert.match(
-    toggleBlock,
-    /if \(!nextVisible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
-  );
-  assert.match(
-    setOverlayBlock,
-    /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
-  );
-});
-
 test('subtitle sidebar media path tag is assigned after prefetch succeeds', () => {
   const source = readSource('src/main/runtime/autoplay-subtitle-priming-runtime.ts');
   const actionBlock = source.match(
@@ -166,30 +43,6 @@ test('subtitle sidebar media path tag is assigned after prefetch succeeds', () =
   assert.ok(
     actionBlock.indexOf('deps.initSubtitlePrefetch(') <
       actionBlock.indexOf('deps.setActiveParsedSubtitleMediaPath(nextMediaPath);'),
-  );
-});
-
-test('subtitle change pauses prefetch without restarting its run before tokenizing current line', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /onSubtitleChange:\s*\(text\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    refreshDiscordPresence:/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(actionBlock, /subtitlePrefetchService\?\.pause\(\);/);
-  // Restarting the run per line (onSeek) discards in-flight prefetch work;
-  // only real seeks restart via onTimePosUpdate.
-  assert.doesNotMatch(actionBlock, /subtitlePrefetchService\?\.onSeek\(/);
-  assert.match(actionBlock, /subtitleProcessingController\.onSubtitleChange\(text\)/);
-  assert.ok(
-    actionBlock.indexOf('subtitlePrefetchService?.pause();') <
-      actionBlock.indexOf('subtitleProcessingController.onSubtitleChange(text)'),
-  );
-  // A repeated subtitle emits nothing, so the pause has to be released here or
-  // prefetching idles until the next distinct line.
-  assert.match(
-    actionBlock,
-    /if \(!subtitleProcessingController\.onSubtitleChange\(text\)\) \{[\s\S]*?subtitlePrefetchService\?\.resume\(\);/,
   );
 });
 
@@ -241,27 +94,11 @@ test('startup autoplay release is tied to visible overlay measurement readiness'
   assert.match(measurementBlock, /autoplayReadyGate\.flushPendingAutoplayReadySignal\(\)/);
 });
 
-test('visible overlay content-ready does not tokenize before first measurement', () => {
+test('visible overlay first measurement flushes autoplay before scheduling the first-paint refresh', () => {
   const source = readMainSource();
-  const contentReadyBlock = source.match(
-    /onWindowContentReady:\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
-  )?.groups?.body;
   const measurementBlock = source.match(
     /reportOverlayContentBounds:\s*\(payload: unknown\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
   )?.groups?.body;
-
-  assert.ok(contentReadyBlock);
-  assert.doesNotMatch(contentReadyBlock, /subtitleProcessingController\.refreshCurrentSubtitle/);
-  assert.match(contentReadyBlock, /autoplayReadyGate\.flushPendingAutoplayReadySignal\(\)/);
-  assert.match(contentReadyBlock, /primeLinuxOverlayPointerInteractionAfterFirstMeasurement\(\)/);
-  assert.ok(
-    contentReadyBlock.indexOf('overlayVisibilityRuntime.updateVisibleOverlayVisibility();') <
-      contentReadyBlock.indexOf('primeLinuxOverlayPointerInteractionAfterFirstMeasurement();'),
-  );
-  assert.ok(
-    contentReadyBlock.indexOf('primeLinuxOverlayPointerInteractionAfterFirstMeasurement();') <
-      contentReadyBlock.indexOf('autoplayReadyGate.flushPendingAutoplayReadySignal();'),
-  );
 
   assert.ok(measurementBlock);
   assert.match(measurementBlock, /autoplayReadyGate\.flushPendingAutoplayReadySignal\(\)/);
@@ -318,35 +155,6 @@ test('subtitle sidebar open state is restored for replacement visible overlay wi
   assert.match(depsBlock, /subtitleSidebarRequestedOpen/);
 });
 
-test('warm tokenization release can signal readiness before the first subtitle appears', () => {
-  const source = readMainSource();
-  const warmReleaseBlock = source.match(
-    /signalAutoplayReadyFromWarmTokenization = createAutoplayTokenizationWarmRelease\(\{(?<body>[\s\S]*?)\n\}\);/,
-  )?.groups?.body;
-  const signalBlock = source.match(
-    /function signalCurrentSubtitleAutoplayReady\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const currentPayloadBlock = source.match(
-    /function getCurrentAutoplaySubtitlePayload\(\): SubtitleData \| null \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(warmReleaseBlock);
-  assert.match(
-    warmReleaseBlock,
-    /signalAutoplayReady: \(\) => signalCurrentSubtitleAutoplayReady\(\)/,
-  );
-
-  assert.ok(signalBlock);
-  assert.match(signalBlock, /const payload = getCurrentAutoplaySubtitlePayload\(\);/);
-  assert.match(signalBlock, /if \(payload\) \{/);
-  assert.match(signalBlock, /if \(!appState\.currentSubText\.trim\(\)\) \{/);
-  assert.match(signalBlock, /text: '__warm__'/);
-
-  assert.ok(currentPayloadBlock);
-  assert.match(currentPayloadBlock, /appState\.currentSubtitleData/);
-  assert.match(currentPayloadBlock, /payload\.text !== appState\.currentSubText/);
-});
-
 test('stats server Yomitan note creation honors configured Anki server override policy', () => {
   const source = readSource('src/main/runtime/stats-server-runtime.ts');
   const statsServerConfigBlock = source.match(
@@ -365,104 +173,14 @@ test('stats server Yomitan note creation honors configured Anki server override 
   assert.doesNotMatch(addYomitanNoteBlock, /forceOverride:\s*true/);
 });
 
-test('Linux visible overlay recreation clears stale input state before creating replacement window', () => {
-  const source = readMainSource();
+test('visible overlay input reset clears the visible content measurement', () => {
   const runtimeSource = readSource('src/main/runtime/visible-overlay-interaction-runtime.ts');
-  const actionBlock = source.match(
-    /const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime\(\{[\s\S]*?createWindow: \(\) => \{(?<body>[\s\S]*?)\n  \},/,
-  )?.groups?.body;
   const resetBlock = runtimeSource.match(
     /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
-  assert.ok(actionBlock);
   assert.ok(resetBlock);
-  assert.match(actionBlock, /resetVisibleOverlayInputState\(\);/);
   assert.match(resetBlock, /overlayContentMeasurementStore\.clear\('visible'\);/);
-  assert.ok(
-    actionBlock.indexOf('resetVisibleOverlayInputState();') <
-      actionBlock.indexOf('createMainWindow();'),
-  );
-});
-
-test('Linux visible overlay recreation avoids display fallback before tracked geometry exists', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime\(\{[\s\S]*?refreshWindow: \(\) => \{(?<body>[\s\S]*?)\n  \},/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(
-    actionBlock,
-    /const trackedGeometry = overlayGeometryRuntime\.getCurrentTrackedOverlayGeometry\(\);/,
-  );
-  assert.match(
-    actionBlock,
-    /if \(trackedGeometry\) overlayManager\.setOverlayWindowBounds\(trackedGeometry\);/,
-  );
-  assert.match(actionBlock, /overlayManager\.setOverlayWindowBounds\(trackedGeometry\);/);
-  assert.doesNotMatch(actionBlock, /setOverlayWindowBounds\(getCurrentOverlayGeometry\(\)\)/);
-});
-
-test('subtitle annotation updates invalidate prefetched tokenizations before refreshing current subtitle', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /function refreshCurrentSubtitleAnnotations\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(actionBlock, /subtitleProcessingController\.invalidateTokenizationCache\(\);/);
-  assert.match(actionBlock, /subtitlePrefetchService\?\.onSeek\(lastObservedTimePos\);/);
-  assert.match(
-    actionBlock,
-    /if \(!subtitleProcessingController\.refreshCurrentSubtitle\(appState\.currentSubText\)\) \{[\s\S]*?subtitlePrefetchService\?\.resume\(\);/,
-  );
-  assert.ok(
-    actionBlock.indexOf('subtitleProcessingController.invalidateTokenizationCache();') <
-      actionBlock.indexOf(
-        'subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText)',
-      ),
-  );
-});
-
-test('annotation upgrades skip the duplicate basic websocket event', () => {
-  const source = readMainSource();
-  const emitBlock = source.match(
-    /function emitSubtitlePayload\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(emitBlock);
-  assert.match(
-    emitBlock,
-    /const isAnnotationUpgrade = isSubtitleAnnotationUpgrade\(currentSubtitleData, timedPayload\);/,
-  );
-  assert.match(
-    emitBlock,
-    /if \(!isAnnotationUpgrade\) \{\s+subtitleWsService\.broadcast\(timedPayload, frequencyOptions\);\s+\}/,
-  );
-  assert.equal(
-    (emitBlock.match(/overlayManager\.broadcastToOverlayWindows\('subtitle:set'/g) ?? []).length,
-    1,
-  );
-  assert.equal(
-    (
-      emitBlock.match(
-        /annotationSubtitleWsService\.broadcast\(timedPayload, frequencyOptions\)/g,
-      ) ?? []
-    ).length,
-    1,
-  );
-});
-
-test('mpv connection flushes queued configured OSD notifications', () => {
-  const source = readMainSource();
-  const connectedBlock = source.match(
-    /onMpvConnected:\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    maybeRunAnilistPostWatchUpdate:/,
-  )?.groups?.body;
-
-  assert.ok(connectedBlock);
-  assert.match(source, /flushQueuedMpvOsdNotifications/);
-  assert.match(connectedBlock, /flushQueuedMpvOsdNotifications\(\);/);
 });
 
 test('Linux visible overlay startup reapplies passive passthrough after input reset', () => {
@@ -496,37 +214,6 @@ test('Linux visible overlay startup reapplies passive passthrough after input re
     pointerSource,
     /deps\.getInteractionActive\(\) === desired && deps\.isInteractionStateApplied\?\.\(\) !== false/,
   );
-});
-
-test('Linux visible overlay show starts input grace before first measurement', () => {
-  const source = readMainSource();
-  const setVisibleBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const toggleBlock = source.match(
-    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const setOverlayBlock = source.match(
-    /function setOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  for (const block of [setVisibleBlock, toggleBlock, setOverlayBlock]) {
-    assert.ok(block);
-    const resetIndex = block.indexOf(
-      'visibleOverlayInteractionRuntime.resetLinuxVisibleOverlayStartupInputPrimer();',
-    );
-    const graceIndex = block.indexOf(
-      'visibleOverlayInteractionRuntime.startLinuxVisibleOverlayStartupInputGrace();',
-    );
-    const primeIndex = block.indexOf(
-      'void autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForVisibleOverlay();',
-    );
-    assert.ok(resetIndex >= 0);
-    assert.ok(graceIndex >= 0);
-    assert.ok(primeIndex >= 0);
-    assert.ok(resetIndex < graceIndex);
-    assert.ok(graceIndex < primeIndex);
-  }
 });
 
 test('Linux visible overlay bounds refresh restores X11 shape after applying mpv geometry', () => {

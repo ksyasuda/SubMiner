@@ -21,11 +21,14 @@ Read when: you need to find the owner module for a behavior or test surface
   `src/config/resolve/anki-connect/`
   Config hot-reload and the settings window: `src/main/assemblies/settings.ts`
 - Overlay/window state: `src/core/services/overlay-*`, `src/main/overlay-*.ts`
+  Overlay windows, visibility, and Linux fullscreen handling: `src/main/assemblies/overlay.ts`
   Overlay-hosted modal openers: `src/main/assemblies/overlay-modals.ts`
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
+  mpv event wiring, subtitle prefetch, and subtitle sidebar state: `src/main/assemblies/playback.ts`
   Windows executable lookup and detached process creation are shared in `src/main/runtime/mpv-process.ts`. The Windows launcher and Jellyfin handlers retain their own playback and connection workflows.
 - Subtitle/token pipeline: `src/core/services/subtitle-*.ts`, `src/core/services/tokenizer*`, `src/core/services/tokenizer/`, `src/subsync/`
   JLPT and frequency annotation lookups: `src/main/jlpt-runtime.ts`, `src/main/frequency-dictionary-runtime.ts`, assembled by `src/main/assemblies/dictionaries.ts`
+- First-run setup: `src/main/runtime/first-run-setup-*.ts`, assembled by `src/main/assemblies/first-run-setup.ts`
 - Anki workflow: `src/anki-integration/`, `src/core/services/anki-jimaku*.ts`
 - Media timing review: `src/main/runtime/media-timing-review.ts` owns the review and hidden `MediaTimingPreviewSession`. The session waits for mpv readiness and acknowledges playback commands; its `time-pos` observations reach the modal through `media-timing-review:preview-position`. The renderer places the cursor from those timestamps and uses an inactivity timeout instead of timing the clip itself.
 - Immersion tracking: `src/core/services/immersion-tracker/`
