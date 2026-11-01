@@ -36,7 +36,6 @@ function baseParams() {
     createAnilistUpdateQueue: (targetPath: string) => ({ targetPath }),
     createSubtitleWebSocket: (payloadMode: 'plain' | 'annotated') => ({ payloadMode }),
     createLogger: () => ({ warn: () => {}, info: () => {}, error: () => {} }),
-    createMainRuntimeRegistry: () => ({}),
     createOverlayManager: () => ({ getMainWindow: () => null, getModalWindow: () => null }),
     createOverlayModalInputState: () => ({
       getModalInputExclusive: () => false,
