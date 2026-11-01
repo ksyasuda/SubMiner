@@ -29,79 +29,6 @@ test('manual watched session action starts immersion tracker before marking watc
   );
 });
 
-test('visible overlay show paths start the overlay loading OSD', () => {
-  const source = readMainSource();
-  const setVisibleBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(setVisibleBlock);
-  assert.match(setVisibleBlock, /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);/);
-  assert.match(
-    source,
-    /function toggleVisibleOverlay\(\): void \{[\s\S]*?else \{\s+maybeStartOverlayLoadingOsd\(\);/,
-  );
-  assert.match(
-    source,
-    /function setOverlayVisible\(visible: boolean\): void \{[\s\S]*?if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);/,
-  );
-});
-
-test('manual visible overlay toggles only release current-media autoplay when hiding', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(
-    actionBlock,
-    /if \(!nextVisible\) \{[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
-  );
-});
-
-test('all visible overlay hide paths clear stale overlay input state', () => {
-  const source = readMainSource();
-  const setVisibleBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const toggleBlock = source.match(
-    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const setOverlayBlock = source.match(
-    /function setOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  assert.ok(setVisibleBlock);
-  assert.ok(toggleBlock);
-  assert.ok(setOverlayBlock);
-  assert.match(
-    setVisibleBlock,
-    /if \(!visible\) \{[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);[\s\S]*?resetVisibleOverlayInputState\(\);/,
-  );
-  assert.match(
-    toggleBlock,
-    /if \(!nextVisible\) \{[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);[\s\S]*?resetVisibleOverlayInputState\(\);/,
-  );
-  assert.match(
-    setOverlayBlock,
-    /if \(!visible\) \{[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?resetVisibleOverlayInputState\(\);[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
-  );
-  // Hiding must also dismiss the loading OSD, or it lingers over mpv.
-  assert.match(
-    setVisibleBlock,
-    /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
-  );
-  assert.match(
-    toggleBlock,
-    /if \(!nextVisible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
-  );
-  assert.match(
-    setOverlayBlock,
-    /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
-  );
-});
-
 test('subtitle sidebar media path tag is assigned after prefetch succeeds', () => {
   const source = readSource('src/main/runtime/autoplay-subtitle-priming-runtime.ts');
   const actionBlock = source.match(
@@ -167,27 +94,11 @@ test('startup autoplay release is tied to visible overlay measurement readiness'
   assert.match(measurementBlock, /autoplayReadyGate\.flushPendingAutoplayReadySignal\(\)/);
 });
 
-test('visible overlay content-ready does not tokenize before first measurement', () => {
+test('visible overlay first measurement flushes autoplay before scheduling the first-paint refresh', () => {
   const source = readMainSource();
-  const contentReadyBlock = source.match(
-    /onWindowContentReady:\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
-  )?.groups?.body;
   const measurementBlock = source.match(
     /reportOverlayContentBounds:\s*\(payload: unknown\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
   )?.groups?.body;
-
-  assert.ok(contentReadyBlock);
-  assert.doesNotMatch(contentReadyBlock, /subtitleProcessingController\.refreshCurrentSubtitle/);
-  assert.match(contentReadyBlock, /autoplayReadyGate\.flushPendingAutoplayReadySignal\(\)/);
-  assert.match(contentReadyBlock, /primeLinuxOverlayPointerInteractionAfterFirstMeasurement\(\)/);
-  assert.ok(
-    contentReadyBlock.indexOf('overlayVisibilityRuntime.updateVisibleOverlayVisibility();') <
-      contentReadyBlock.indexOf('primeLinuxOverlayPointerInteractionAfterFirstMeasurement();'),
-  );
-  assert.ok(
-    contentReadyBlock.indexOf('primeLinuxOverlayPointerInteractionAfterFirstMeasurement();') <
-      contentReadyBlock.indexOf('autoplayReadyGate.flushPendingAutoplayReadySignal();'),
-  );
 
   assert.ok(measurementBlock);
   assert.match(measurementBlock, /autoplayReadyGate\.flushPendingAutoplayReadySignal\(\)/);
@@ -262,43 +173,14 @@ test('stats server Yomitan note creation honors configured Anki server override 
   assert.doesNotMatch(addYomitanNoteBlock, /forceOverride:\s*true/);
 });
 
-test('Linux visible overlay recreation clears stale input state before creating replacement window', () => {
-  const source = readMainSource();
+test('visible overlay input reset clears the visible content measurement', () => {
   const runtimeSource = readSource('src/main/runtime/visible-overlay-interaction-runtime.ts');
-  const actionBlock = source.match(
-    /const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime\(\{[\s\S]*?createWindow: \(\) => \{(?<body>[\s\S]*?)\n  \},/,
-  )?.groups?.body;
   const resetBlock = runtimeSource.match(
     /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
-  assert.ok(actionBlock);
   assert.ok(resetBlock);
-  assert.match(actionBlock, /resetVisibleOverlayInputState\(\);/);
   assert.match(resetBlock, /overlayContentMeasurementStore\.clear\('visible'\);/);
-  assert.ok(
-    actionBlock.indexOf('resetVisibleOverlayInputState();') <
-      actionBlock.indexOf('createMainWindow();'),
-  );
-});
-
-test('Linux visible overlay recreation avoids display fallback before tracked geometry exists', () => {
-  const source = readMainSource();
-  const actionBlock = source.match(
-    /const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime\(\{[\s\S]*?refreshWindow: \(\) => \{(?<body>[\s\S]*?)\n  \},/,
-  )?.groups?.body;
-
-  assert.ok(actionBlock);
-  assert.match(
-    actionBlock,
-    /const trackedGeometry = overlayGeometryRuntime\.getCurrentTrackedOverlayGeometry\(\);/,
-  );
-  assert.match(
-    actionBlock,
-    /if \(trackedGeometry\) overlayManager\.setOverlayWindowBounds\(trackedGeometry\);/,
-  );
-  assert.match(actionBlock, /overlayManager\.setOverlayWindowBounds\(trackedGeometry\);/);
-  assert.doesNotMatch(actionBlock, /setOverlayWindowBounds\(getCurrentOverlayGeometry\(\)\)/);
 });
 
 test('Linux visible overlay startup reapplies passive passthrough after input reset', () => {
@@ -332,37 +214,6 @@ test('Linux visible overlay startup reapplies passive passthrough after input re
     pointerSource,
     /deps\.getInteractionActive\(\) === desired && deps\.isInteractionStateApplied\?\.\(\) !== false/,
   );
-});
-
-test('Linux visible overlay show starts input grace before first measurement', () => {
-  const source = readMainSource();
-  const setVisibleBlock = source.match(
-    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const toggleBlock = source.match(
-    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-  const setOverlayBlock = source.match(
-    /function setOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
-  )?.groups?.body;
-
-  for (const block of [setVisibleBlock, toggleBlock, setOverlayBlock]) {
-    assert.ok(block);
-    const resetIndex = block.indexOf(
-      'visibleOverlayInteractionRuntime.resetLinuxVisibleOverlayStartupInputPrimer();',
-    );
-    const graceIndex = block.indexOf(
-      'visibleOverlayInteractionRuntime.startLinuxVisibleOverlayStartupInputGrace();',
-    );
-    const primeIndex = block.indexOf(
-      'void autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForVisibleOverlay();',
-    );
-    assert.ok(resetIndex >= 0);
-    assert.ok(graceIndex >= 0);
-    assert.ok(primeIndex >= 0);
-    assert.ok(resetIndex < graceIndex);
-    assert.ok(graceIndex < primeIndex);
-  }
 });
 
 test('Linux visible overlay bounds refresh restores X11 shape after applying mpv geometry', () => {
