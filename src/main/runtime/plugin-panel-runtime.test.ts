@@ -3,23 +3,27 @@ import test from 'node:test';
 
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import type { PluginPanelSnapshot } from '../../types/runtime';
-import { createPluginPanelRuntime } from './plugin-panel-runtime';
+import { createPluginPanelRuntime, openPluginPanelModal } from './plugin-panel-runtime';
 
 function createHarness(openResult: Promise<boolean>) {
   const sent: Array<{ channel: string; payload: unknown }> = [];
   const opened: PluginPanelSnapshot[] = [];
   let openFailures = 0;
+  let modalCloses = 0;
   const runtime = createPluginPanelRuntime({
     openModal: async (getSnapshot) => {
       opened.push(getSnapshot());
       return await openResult;
     },
     broadcast: (channel, payload) => sent.push({ channel, payload }),
+    closeModal: () => {
+      modalCloses += 1;
+    },
     onOpenFailed: () => {
       openFailures += 1;
     },
   });
-  return { runtime, sent, opened, failures: () => openFailures };
+  return { runtime, sent, opened, failures: () => openFailures, closes: () => modalCloses };
 }
 
 test('re-sends content updated before the renderer acknowledged the open', async () => {
@@ -85,6 +89,7 @@ test('plugin close tells the renderer which panel to close', () => {
   panel.close();
 
   assert.equal(panel.signal.aborted, true);
+  assert.equal(h.closes(), 1);
   assert.deepEqual(h.sent.at(-1), { channel: IPC_CHANNELS.event.pluginPanelClose, payload: 1 });
 });
 
@@ -95,4 +100,47 @@ test('a failed open aborts the handle and reports it once', async () => {
 
   assert.equal(panel.signal.aborted, true);
   assert.equal(h.failures(), 1);
+  assert.equal(h.closes(), 1);
 });
+
+for (const cancel of ['close', 'replace'] as const) {
+  test(`${cancel} cancels a pending plugin panel open before it can retry`, async () => {
+    const sent: unknown[] = [];
+    const acknowledgements: Array<(opened: boolean) => void> = [];
+    let modalCloses = 0;
+    const runtime = createPluginPanelRuntime({
+      openModal: (getSnapshot, signal) =>
+        openPluginPanelModal(
+          {
+            ensureOverlayStartupPrereqs: () => {},
+            ensureOverlayWindowsReadyForVisibilityActions: () => {},
+            sendToActiveOverlayWindow: (_channel, payload) => {
+              sent.push(payload);
+              return true;
+            },
+            waitForModalOpen: () => new Promise((resolve) => acknowledgements.push(resolve)),
+            logWarn: () => {},
+          },
+          getSnapshot,
+          signal,
+        ),
+      closeModal: () => {
+        modalCloses += 1;
+      },
+      broadcast: () => {},
+      onOpenFailed: () => assert.fail('cancelled opens must not report failures'),
+    });
+    const first = runtime.open({ title: 'first', markdown: '' });
+    if (cancel === 'close') first.close();
+    else runtime.open({ title: 'second', markdown: '' });
+    acknowledgements[0]!(false);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(first.closed, true);
+    assert.deepEqual(sent, [
+      { panelId: 1, title: 'first', markdown: '' },
+      ...(cancel === 'replace' ? [{ panelId: 2, title: 'second', markdown: '' }] : []),
+    ]);
+    assert.equal(modalCloses, cancel === 'close' ? 1 : 0);
+    acknowledgements[1]?.(true);
+  });
+}

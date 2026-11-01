@@ -604,8 +604,9 @@ function registerModalOpenHandlers(): void {
   });
   window.electronAPI.onOpenPluginPanel((snapshot) => {
     runGuarded('plugin-panel:open', () => {
-      pluginPanelModal.openPluginPanelModal(snapshot);
-      window.electronAPI.notifyOverlayModalOpened('plugin-panel');
+      if (pluginPanelModal.openPluginPanelModal(snapshot)) {
+        window.electronAPI.notifyOverlayModalOpened('plugin-panel');
+      }
     });
   });
   window.electronAPI.onPluginPanelUpdate((snapshot) => {

@@ -15,6 +15,8 @@ export function createPluginPanelModal(
 ) {
   let priorFocus: Element | null = null;
   let panelId: number | null = null;
+  let latestPanelId = 0;
+  let closedThroughPanelId = 0;
 
   const focus = createModalFocusGuard({
     isOpen: () => ctx.state.pluginPanelModalOpen,
@@ -29,11 +31,13 @@ export function createPluginPanelModal(
     renderPluginPanelMarkdown(ctx.dom.pluginPanelBody, snapshot.markdown);
   }
 
-  function openPluginPanelModal(snapshot: PluginPanelSnapshot): void {
+  function openPluginPanelModal(snapshot: PluginPanelSnapshot): boolean {
+    if (snapshot.panelId <= closedThroughPanelId || snapshot.panelId < latestPanelId) return false;
+    latestPanelId = snapshot.panelId;
     panelId = snapshot.panelId;
     render(snapshot);
     ctx.dom.pluginPanelBody.scrollTop = 0;
-    if (ctx.state.pluginPanelModalOpen) return;
+    if (ctx.state.pluginPanelModalOpen) return true;
     priorFocus = document.activeElement;
 
     ctx.state.pluginPanelModalOpen = true;
@@ -50,6 +54,7 @@ export function createPluginPanelModal(
     focus.requestOverlayFocus();
     window.focus();
     focus.enforceModalFocus();
+    return true;
   }
 
   function updatePluginPanel(snapshot: PluginPanelSnapshot): void {
@@ -61,6 +66,7 @@ export function createPluginPanelModal(
     if (!ctx.state.pluginPanelModalOpen) return;
 
     const closedPanelId = panelId ?? undefined;
+    closedThroughPanelId = Math.max(closedThroughPanelId, panelId ?? 0);
     ctx.state.pluginPanelModalOpen = false;
     panelId = null;
     options.syncSettingsModalSubtitleSuppression();
@@ -90,6 +96,7 @@ export function createPluginPanelModal(
 
   /** The plugin closed its panel; ignore requests for a panel that was already replaced. */
   function closePluginPanelFromMain(closedPanelId: number): void {
+    closedThroughPanelId = Math.max(closedThroughPanelId, closedPanelId);
     if (closedPanelId === panelId) closePluginPanelModal();
   }
 

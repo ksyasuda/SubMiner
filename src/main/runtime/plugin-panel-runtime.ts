@@ -17,9 +17,11 @@ interface PanelState {
 export async function openPluginPanelModal(
   deps: Parameters<typeof openOverlayHostedModal>[0] & Parameters<typeof retryOverlayModalOpen>[0],
   getSnapshot: () => PluginPanelSnapshot,
+  signal: AbortSignal,
 ): Promise<boolean> {
   return await retryOverlayModalOpen(deps, {
     modal: PLUGIN_PANEL_MODAL,
+    signal,
     timeoutMs: PLUGIN_PANEL_OPEN_TIMEOUT_MS,
     retryWarning:
       'Plugin panel did not acknowledge modal open on first attempt; retrying dedicated modal window.',
@@ -29,6 +31,7 @@ export async function openPluginPanelModal(
         modal: PLUGIN_PANEL_MODAL,
         payload: getSnapshot(),
         preferModalWindow: true,
+        signal,
       }),
   });
 }
@@ -38,7 +41,8 @@ export async function openPluginPanelModal(
  * signal aborts when its panel goes away so plugins can stop the work feeding it.
  */
 export function createPluginPanelRuntime(deps: {
-  openModal: (getSnapshot: () => PluginPanelSnapshot) => Promise<boolean>;
+  openModal: (getSnapshot: () => PluginPanelSnapshot, signal: AbortSignal) => Promise<boolean>;
+  closeModal: () => void;
   /** Sends to every overlay window; renderers ignore panel ids they are not showing. */
   broadcast: (channel: string, payload: unknown) => void;
   onOpenFailed: () => void;
@@ -69,10 +73,11 @@ export function createPluginPanelRuntime(deps: {
       const handleOpenFailure = (): void => {
         if (state.controller.signal.aborted) return;
         finish(state);
+        deps.closeModal();
         deps.onOpenFailed();
       };
       deps
-        .openModal(() => snapshot(state))
+        .openModal(() => snapshot(state), state.controller.signal)
         .then((opened) => {
           if (!opened) {
             handleOpenFailure();
@@ -99,6 +104,7 @@ export function createPluginPanelRuntime(deps: {
           if (state.controller.signal.aborted) return;
           finish(state);
           deps.broadcast(IPC_CHANNELS.event.pluginPanelClose, state.panelId);
+          deps.closeModal();
         },
       };
     },

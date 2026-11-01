@@ -10,7 +10,7 @@ import {
   type MediaTimingReviewRequest,
   type WordCardKind,
 } from '../types/anki';
-import { shiftSubtitleRangeToVideoClock } from '../core/services/subtitle-clock';
+import { shiftSubtitleRangeToVideoClock, toSubtitleClock } from '../core/services/subtitle-clock';
 import { createLogger } from '../logger';
 import type { PluginMiningProvenance } from '../plugin-api';
 import type { MediaInput } from '../media-input';
@@ -611,7 +611,11 @@ export class CardCreationService {
     const captured = this.deps.captureMiningProvenance?.() ?? null;
     const provenance = captured && {
       ...captured,
-      subtitle: { text: sentence, startTime, endTime },
+      subtitle: {
+        text: sentence,
+        startTime: toSubtitleClock(startTime, mpvClient.currentSubDelay ?? 0),
+        endTime: toSubtitleClock(endTime, mpvClient.currentSubDelay ?? 0),
+      },
     };
     const cappedEndTime = clampMediaEndTime(startTime, endTime, maxMediaDuration);
     if (cappedEndTime !== endTime) {

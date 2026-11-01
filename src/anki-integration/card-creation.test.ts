@@ -56,6 +56,35 @@ test('CardCreationService counts locally created sentence cards', async () => {
   assert.deepEqual(minedCards, [{ count: 1, noteIds: [42] }]);
 });
 
+for (const delay of [5, -5]) {
+  test(`sentence provenance stays on the subtitle clock with delay ${delay}`, async () => {
+    let captured: PluginMiningProvenance | null = null;
+    const audioRanges: number[][] = [];
+    const defaults = createCardCreationDeps();
+    const service = new CardCreationService(
+      createCardCreationDeps({
+        getConfig: () => createAnkiConfig({ media: { generateAudio: true } }),
+        getMpvClient: () => ({ ...defaults.getMpvClient()!, currentSubDelay: delay }),
+        captureMiningProvenance: () => ({ minedAt: 1234, media: null, subtitle: null }),
+        onNoteCreated: (_id, provenance) => {
+          captured = provenance;
+        },
+        mediaGenerator: createFakeMediaGenerator({
+          generateAudio: async (_path, start, end) => {
+            audioRanges.push([start, end]);
+            return Buffer.from('audio');
+          },
+        }),
+      }),
+    );
+    assert.equal(await service.createSentenceCard('first\nsecond', 10 + delay, 12 + delay), true);
+    assert.partialDeepStrictEqual(captured, {
+      subtitle: { text: 'first\nsecond', startTime: 10, endTime: 12 },
+    });
+    assert.deepEqual(audioRanges, [[10 + delay, 12 + delay]]);
+  });
+}
+
 test('CardCreationService reports a created card ready after its fields are written', async () => {
   const events: string[] = [];
   const service = new CardCreationService(

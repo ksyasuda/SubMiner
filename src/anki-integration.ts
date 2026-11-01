@@ -518,10 +518,12 @@ export class AnkiIntegration {
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId) => this.processNewCard(noteId),
       recordCardsAdded: (count, noteIds) => {
-        this.rememberMiningProvenance(noteIds, null);
         this.recordCardsMinedSafely(count, noteIds, 'polling');
       },
-      onCardsReady: (noteIds) => this.reportCardsReady(noteIds),
+      onCardsReady: (noteIds) => {
+        this.rememberMiningProvenance(noteIds, null);
+        this.reportCardsReady(noteIds);
+      },
       isUpdateInProgress: () => this.updateInProgress,
       setUpdateInProgress: (value) => {
         this.updateInProgress = value;

@@ -2959,20 +2959,7 @@ const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
   },
 });
 
-function createOverlayHostedModalOpenDeps(): {
-  ensureOverlayStartupPrereqs: () => void;
-  ensureOverlayWindowsReadyForVisibilityActions: () => void;
-  sendToActiveOverlayWindow: (
-    channel: string,
-    payload?: unknown,
-    runtimeOptions?: {
-      restoreOnModalClose?: OverlayHostedModal;
-      preferModalWindow?: boolean;
-    },
-  ) => boolean;
-  waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
-  logWarn: (message: string) => void;
-} {
+function createOverlayHostedModalOpenDeps(): Parameters<typeof openPluginPanelModal>[0] {
   return {
     ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
     ensureOverlayWindowsReadyForVisibilityActions: () =>
@@ -2985,7 +2972,9 @@ function createOverlayHostedModalOpenDeps(): {
 }
 
 const pluginPanelRuntime = createPluginPanelRuntime({
-  openModal: (getSnapshot) => openPluginPanelModal(createOverlayHostedModalOpenDeps(), getSnapshot),
+  openModal: (getSnapshot, signal) =>
+    openPluginPanelModal(createOverlayHostedModalOpenDeps(), getSnapshot, signal),
+  closeModal: () => overlayModalRuntime.handleOverlayModalClosed('plugin-panel'),
   // The panel may live in either window; broadcastToOverlayWindows only reaches the main one.
   broadcast: (channel, payload) => {
     for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {

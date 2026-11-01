@@ -158,6 +158,32 @@ test('primeModalWindow leaves Linux modal creation lazy', () => {
   assert.equal(h.createCalls, 0);
 });
 
+test('a cancelled queued plugin panel cannot replace its successor when the window loads', () => {
+  const modal = new FakeOverlayWindow({ ...LOADING_BLANK_WINDOW, documentLoaded: false });
+  const h = createHarness({ modal });
+  const first = new AbortController();
+  h.runtime.sendToActiveOverlayWindow(
+    'plugin-panel:open',
+    { panelId: 1 },
+    {
+      restoreOnModalClose: 'plugin-panel',
+      preferModalWindow: true,
+      signal: first.signal,
+    },
+  );
+  first.abort();
+  h.runtime.sendToActiveOverlayWindow(
+    'plugin-panel:open',
+    { panelId: 2 },
+    {
+      restoreOnModalClose: 'plugin-panel',
+      preferModalWindow: true,
+    },
+  );
+  modal.finishLoad();
+  assert.deepEqual(modal.sent, [['plugin-panel:open', { panelId: 2 }]]);
+});
+
 test('sendToActiveOverlayWindow does not retain restore state when modal creation fails', () => {
   const h = createHarness({ createModal: () => null });
 

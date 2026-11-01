@@ -174,7 +174,7 @@ Use `ctx.signal` with `fetch` or other cancellable work. It aborts when unloadin
 | `exec(command, args, options)`         | Run a program without a shell (Windows `.cmd`/`.bat` shims go through `cmd.exe`). Resolves `{ exitCode, stdout, stderr }` |
 | `unstable`                             | SubMiner internals. These change between releases without notice                                                          |
 
-A panel's `signal` aborts when the user closes it or another panel replaces it. Pass it to `exec` to stop work nobody will see. Only one panel is open at a time. Panel markdown supports headings, lists, quotes, code, bold, and italics; HTML is shown as plain text.
+A panel's `signal` aborts when the user closes it or another panel replaces it. Pass it to `exec` to stop work nobody will see. Closing or replacing a panel also cancels pending open requests, including while its window loads. Only one panel is open at a time. Panel markdown supports headings, lists, quotes, code, bold, and italics; HTML is shown as plain text.
 
 `exec` options are `stdin`, `cwd`, `env`, `timeoutMs`, and `signal`. It resolves for any exit code and rejects when the program can't start, times out, or is aborted.
 
@@ -191,6 +191,8 @@ Anki events: `card-mined` gives `{ noteIds, notes }` once SubMiner has finished 
 Each `notes` entry has `{ originalNoteId, noteId, provenance }`. `originalNoteId` identifies the note before merges; `noteId` is the note that kept its content. `provenance` is `{ minedAt, media, subtitle }`, captured before asynchronous creation or the AnkiConnect proxy's upstream request. `minedAt` is Unix time in milliseconds. `media` uses the snapshot format above, and `subtitle` uses `{ text, startTime, endTime }`. Either may be `null`. Polling cannot establish the original source, so its provenance is `null` rather than the currently playing file.
 
 `subtitles.current()` resolves parsed cues using the current subtitle delay and returns their times on the subtitle file's timeline.
+
+Sentence-card provenance also uses the subtitle file's timeline. Multi-line mining converts the history range using the subtitle delay when mining starts; changing the delay between those lines can affect the reported range.
 
 Several original notes can merge into one kept note. `notes` preserves each source, while `noteIds` contains unique kept ids. Existing listeners using only `noteIds` continue to work. Cards mined from the stats dashboard do not emit this event.
 
