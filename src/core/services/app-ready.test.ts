@@ -54,7 +54,7 @@ function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
     startBackgroundWarmups: () => {
       calls.push('startBackgroundWarmups');
     },
-    texthookerOnlyMode: false,
+    isTexthookerOnlyMode: () => false,
     shouldAutoInitializeOverlayRuntimeFromConfig: () => true,
     setVisibleOverlayVisible: (visible) => calls.push(`setVisibleOverlayVisible:${visible}`),
     initializeOverlayRuntime: () => calls.push('initializeOverlayRuntime'),
@@ -180,7 +180,7 @@ test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns
 
 test('runAppReadyRuntime keeps websocket startup in texthooker-only mode but skips overlay window', async () => {
   const { deps, calls } = makeDeps({
-    texthookerOnlyMode: true,
+    isTexthookerOnlyMode: () => true,
     reloadConfig: () => calls.push('reloadConfig'),
     handleInitialArgs: () => calls.push('handleInitialArgs'),
   });

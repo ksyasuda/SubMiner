@@ -44,7 +44,7 @@ function createAppReadyDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
     handleFirstRunSetup: recordAsync('first-run'),
     prewarmSubtitleDictionaries: recordAsync('prewarm'),
     startBackgroundWarmups: record('warmups'),
-    texthookerOnlyMode: false,
+    isTexthookerOnlyMode: () => false,
     shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
     setVisibleOverlayVisible: record('visible-overlay'),
     initializeOverlayRuntime: record('init-overlay'),

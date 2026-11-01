@@ -52,7 +52,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   handleFirstRunSetup: AppReadyRuntimeDeps['handleFirstRunSetup'];
   prewarmSubtitleDictionaries?: AppReadyRuntimeDeps['prewarmSubtitleDictionaries'];
   startBackgroundWarmups: AppReadyRuntimeDeps['startBackgroundWarmups'];
-  texthookerOnlyMode: AppReadyRuntimeDeps['texthookerOnlyMode'];
+  isTexthookerOnlyMode: AppReadyRuntimeDeps['isTexthookerOnlyMode'];
   shouldAutoInitializeOverlayRuntimeFromConfig: AppReadyRuntimeDeps['shouldAutoInitializeOverlayRuntimeFromConfig'];
   setVisibleOverlayVisible: AppReadyRuntimeDeps['setVisibleOverlayVisible'];
   initializeOverlayRuntime: AppReadyRuntimeDeps['initializeOverlayRuntime'];
@@ -123,7 +123,7 @@ export function createAppReadyRuntimeDeps(
     handleFirstRunSetup: params.handleFirstRunSetup,
     prewarmSubtitleDictionaries: params.prewarmSubtitleDictionaries,
     startBackgroundWarmups: params.startBackgroundWarmups,
-    texthookerOnlyMode: params.texthookerOnlyMode,
+    isTexthookerOnlyMode: params.isTexthookerOnlyMode,
     shouldAutoInitializeOverlayRuntimeFromConfig:
       params.shouldAutoInitializeOverlayRuntimeFromConfig,
     setVisibleOverlayVisible: params.setVisibleOverlayVisible,

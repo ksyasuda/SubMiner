@@ -466,8 +466,7 @@ export function createStartupAssembly(deps: StartupAssemblyDeps) {
       startBackgroundWarmups: () => {
         deps.getPlayback().startBackgroundWarmups();
       },
-      // Captured when the runner is composed, before main.ts applies the startup state.
-      texthookerOnlyMode: appState.texthookerOnlyMode,
+      isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
       shouldAutoInitializeOverlayRuntimeFromConfig: () =>
         appState.backgroundMode
           ? false
