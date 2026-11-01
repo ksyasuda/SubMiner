@@ -31,7 +31,6 @@ import {
 } from 'electron';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
 import { createHachidoriExtensionRuntime } from './core/services/hachidori-extension';
-import { readMpvInputBindings } from './main/runtime/mpv-input-bindings';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
 import { getAppControlSocketPath } from './shared/app-control';
@@ -118,7 +117,6 @@ import {
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
-  createHandleOverlayModalClosedHandler,
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/domains/overlay';
 import {
@@ -161,7 +159,6 @@ import {
   sendMpvCommandRuntime,
   setMpvSubVisibilityRuntime,
   setOverlayDebugVisualizationEnabledRuntime,
-  shiftSubtitleRangeToVideoClock,
   showMpvOsdRuntime,
   toSubtitleClock,
 } from './core/services';
@@ -187,6 +184,8 @@ import { createStatsAssembly } from './main/assemblies/stats';
 import { createMiningAssembly } from './main/assemblies/mining';
 import { createShortcutsAssembly } from './main/assemblies/shortcuts';
 import { createTrayAssembly } from './main/assemblies/tray';
+import type { IpcHandlerDeps } from './main/assemblies/slices';
+import type { CliCommandContextMainDeps } from './main/runtime/cli-command-context-factory';
 import { createPlaybackAssembly } from './main/assemblies/playback';
 import {
   createAutoplayReadyGate,
@@ -266,12 +265,6 @@ import { createPluginWindowRuntime } from './main/runtime/plugin-window-runtime'
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
-import {
-  getCharacterDictionaryManagerSnapshot,
-  moveCharacterDictionaryManagedEntry,
-  removeCharacterDictionaryManagedEntry,
-  replaceCharacterDictionaryManagedEntry,
-} from './main/runtime/character-dictionary-auto-sync';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createOverlayGeometryRuntime } from './main/runtime/overlay-geometry-runtime';
 import { createVisibleOverlayInteractionRuntime } from './main/runtime/visible-overlay-interaction-runtime';
@@ -303,7 +296,6 @@ import {
 import { resolveConfigDir } from './config/path-resolution';
 import { createSubtitlePrefetchService } from './core/services/subtitle-prefetch';
 import { loadSubtitleSourceText } from './main/runtime/internal-subtitle-extraction';
-import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -1281,6 +1273,7 @@ const characterDictionary = createCharacterDictionaryAssembly({
     getSubtitlePrefetchService()?.onSeek(getLastObservedTimePos());
   },
   refreshCurrentSubtitleAnnotations: () => refreshCurrentSubtitleAnnotations(),
+  resetAnilistMediaGuessState: () => anilist.resetAnilistMediaGuessState(),
 });
 
 const visibleOverlayInteractionRuntime = createVisibleOverlayInteractionRuntime({
@@ -2207,10 +2200,6 @@ function setSecondarySubMode(mode: SecondarySubMode): void {
   appState.secondarySubMode = mode;
 }
 
-const handleOverlayModalClosedHandler = createHandleOverlayModalClosedHandler({
-  handleOverlayModalClosedRuntime: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
-});
-
 const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHandler({
   appendClipboardVideoToQueueRuntime,
   getMpvClient: () => appState.mpvClient,
@@ -2322,14 +2311,16 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       showMpvOsd: (text: string) => showConfiguredPlaybackFeedback(text),
     },
     mainDeps: {
-      previewMediaTimingReview: (request) => mining.mediaTimingReviewRuntime.previewRange(request),
-      getMediaTimingReviewFrame: (request) => mining.mediaTimingReviewRuntime.getFrame(request),
-      getMediaTimingReviewWaveform: (request) =>
-        mining.mediaTimingReviewRuntime.getWaveform(request),
-      stopMediaTimingReviewPreview: (reviewId) =>
-        mining.mediaTimingReviewRuntime.stopPreview(reviewId),
-      resolveMediaTimingReview: (request) => mining.mediaTimingReviewRuntime.resolveReview(request),
       ...overlay.ipc,
+      ...playback.ipc,
+      ...mining.ipc,
+      ...shortcuts.ipc,
+      ...anilist.ipc,
+      ...characterDictionary.ipc,
+      ...stats.ipc,
+      ...playlistBrowserMainDeps,
+      // App-level handlers with no owning assembly.
+      onYoutubePickerResolve: (request) => youtube.flow.resolveActivePicker(request),
       handleOverlayNotificationAction: (notificationId, actionId, noteId) => {
         if (
           notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID &&
@@ -2363,42 +2354,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           });
         }
       },
-      onYoutubePickerResolve: (request) => youtube.flow.resolveActivePicker(request),
-      // Overlay lookups carry no cue context of their own; fall back to snapshotting the
-      // live mpv sub timings at lookup time so media generation clips the mined line even
-      // when extraction finishes long after playback has moved on.
-      recordSubtitleMiningContext: (context) =>
-        mining.recordSubtitleMiningContext(
-          context
-            ? shiftSubtitleRangeToVideoClock(context, appState.mpvClient?.currentSubDelay ?? 0)
-            : mining.captureCurrentPrimarySubtitleMiningContext(),
-        ),
-      ...playback.ipc,
+      dispatchSessionAction: (request) => dispatchSessionAction(request),
       getSubtitlePosition: () => loadSubtitlePosition(),
+      saveSubtitlePosition: (position) => saveSubtitlePosition(position),
       getSubtitleStyle: () => {
         const resolvedConfig = configService.getConfig();
         return resolveSubtitleStyleForRenderer(resolvedConfig);
       },
-      saveSubtitlePosition: (position) => saveSubtitlePosition(position),
-      getMpvInputBindings: async () => {
-        await shortcuts.refreshMpvSessionBindings();
-        return readMpvInputBindings({
-          getMpvClient: () => appState.mpvClient,
-          getConfiguredKeybindings: () => configService.getConfig().keybindings ?? [],
-          platform:
-            process.platform === 'darwin'
-              ? 'darwin'
-              : process.platform === 'win32'
-                ? 'win32'
-                : 'linux',
-        });
-      },
-      getSessionBindings: async () => {
-        await shortcuts.refreshMpvSessionBindings();
-        return appState.sessionBindings;
-      },
-      getConfiguredShortcuts: () => shortcuts.getConfiguredShortcuts(),
-      dispatchSessionAction: (request) => dispatchSessionAction(request),
       getStatsToggleKey: () => configService.getConfig().stats.toggleKey,
       getMarkWatchedKey: () => configService.getConfig().stats.markWatchedKey,
       getOverlayNotificationPosition: () => configService.getConfig().notifications.overlayPosition,
@@ -2411,89 +2373,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       },
       getSecondarySubMode: () => appState.secondarySubMode,
       getRuntimeOptions: () => getRuntimeOptionsStateHandler(),
-      getAnilistStatus: () => anilist.stateRuntime.getStatusSnapshot(),
-      clearAnilistToken: () => anilist.stateRuntime.clearTokenState(),
-      openAnilistSetup: () => anilist.openSetupWindow(),
-      getAnilistQueueStatus: () => anilist.stateRuntime.getQueueStatusSnapshot(),
-      retryAnilistQueueNow: () => anilist.processNextAnilistRetryUpdate(),
-      runAnilistPostWatchUpdateOnManualMark: () =>
-        anilist.maybeRunAnilistPostWatchUpdate({ force: true }),
-      getCharacterDictionarySelection: (searchTitle?: string) =>
-        characterDictionary.runtime.getManualSelectionSnapshot(undefined, searchTitle),
-      setCharacterDictionarySelection: async (
-        mediaId: number,
-        replaceManagedMediaId?: number,
-        mediaTitle?: string,
-      ) => {
-        if (replaceManagedMediaId !== undefined && mediaTitle) {
-          const result = replaceCharacterDictionaryManagedEntry(
-            USER_DATA_PATH,
-            replaceManagedMediaId,
-            {
-              mediaId,
-              mediaTitle,
-            },
-          );
-          if (result.ok && result.rebuildRequired) {
-            try {
-              await characterDictionary.autoSync.runSyncNow();
-            } catch (error) {
-              logger.warn('Failed to rebuild character dictionary after manager override:', error);
-            }
-          }
-          return result;
-        }
-        return await applyCharacterDictionarySelection(
-          { mediaId },
-          {
-            setManualSelection: (request) =>
-              characterDictionary.runtime.setManualSelection(request),
-            resetAnilistMediaGuessState: anilist.resetAnilistMediaGuessState,
-            runSyncNow: () => characterDictionary.autoSync.runSyncNow(),
-            warn: (message, error) => logger.warn(message, error),
-          },
-        );
-      },
-      getCharacterDictionaryManagerSnapshot: async () =>
-        getCharacterDictionaryManagerSnapshot(
-          USER_DATA_PATH,
-          characterDictionary.autoSync.getCurrentMediaId(),
-        ),
-      removeCharacterDictionaryManagedEntry: async (mediaId: number) => {
-        const result = removeCharacterDictionaryManagedEntry(
-          USER_DATA_PATH,
-          mediaId,
-          characterDictionary.autoSync.getCurrentMediaId(),
-        );
-        if (result.ok && result.rebuildRequired) {
-          try {
-            await characterDictionary.autoSync.runSyncNow();
-          } catch (error) {
-            logger.warn('Failed to rebuild character dictionary after manager removal:', error);
-          }
-        }
-        return result;
-      },
-      moveCharacterDictionaryManagedEntry: async (mediaId: number, direction: 1 | -1) => {
-        const result = moveCharacterDictionaryManagedEntry(
-          USER_DATA_PATH,
-          mediaId,
-          direction,
-          characterDictionary.autoSync.getCurrentMediaId(),
-        );
-        if (result.ok && result.rebuildRequired) {
-          try {
-            await characterDictionary.autoSync.runSyncNow();
-          } catch (error) {
-            logger.warn('Failed to rebuild character dictionary after manager reorder:', error);
-          }
-        }
-        return result;
-      },
       getChangelogSnapshot: (options) => getChangelogSnapshot(options),
-      ...playlistBrowserMainDeps,
-      getImmersionTracker: () => appState.immersionTracker,
-    },
+    } satisfies Required<IpcHandlerDeps>,
     ankiJimakuDeps: createAnkiJimakuIpcRuntimeServiceDeps({
       getResolvedConfig: () => configService.getConfig(),
       getMpvClient: () => appState.mpvClient,
@@ -2524,6 +2405,12 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
 });
 const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
   cliCommandContextMainDeps: {
+    ...mining.cli,
+    ...shortcuts.cli,
+    ...anilist.cli,
+    ...characterDictionary.cli,
+    ...stats.cli,
+    // App-level commands with no owning assembly.
     appState,
     setLogLevel: (level) => setLogLevel(level, 'cli'),
     onMpvSocketPathChanged: (nextSocketPath, previousSocketPath) =>
@@ -2548,42 +2435,9 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
       overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.primarySubtitleBarToggle),
     openFirstRunSetupWindow: (force?: boolean) => firstRunSetup.openWindow(force),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
-    copyCurrentSubtitle: () => mining.copyCurrentSubtitle(),
-    startPendingMultiCopy: (timeoutMs: number) => shortcuts.startPendingMultiCopy(timeoutMs),
-    mineSentenceCard: () => mining.mineSentenceCard(),
-    startPendingMineSentenceMultiple: (timeoutMs: number) =>
-      shortcuts.startPendingMineSentenceMultiple(timeoutMs),
-    updateLastCardFromClipboard: () => mining.updateLastCardFromClipboard(),
-    refreshKnownWordCache: () => mining.refreshKnownWordCache(),
-    triggerFieldGrouping: () => mining.triggerFieldGrouping(),
     triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
-    markLastCardAsAudioCard: () => mining.markLastCardAsAudioCard(),
-    getAnilistStatus: () => anilist.stateRuntime.getStatusSnapshot(),
-    clearAnilistToken: () => anilist.stateRuntime.clearTokenState(),
-    openAnilistSetupWindow: () => anilist.openSetupWindow(),
     openJellyfinSetupWindow: () => jellyfin.openJellyfinSetupWindow(),
-    getAnilistQueueStatus: () => anilist.stateRuntime.getQueueStatusSnapshot(),
-    processNextAnilistRetryUpdate: () => anilist.processNextAnilistRetryUpdate(),
-    generateCharacterDictionary: async (targetPath?: string) => {
-      const disabledReason = yomitan.profilePolicy.getCharacterDictionaryDisabledReason();
-      if (disabledReason) {
-        throw new Error(disabledReason);
-      }
-      return await characterDictionary.runtime.generateForCurrentMedia(targetPath);
-    },
-    getCharacterDictionarySelection: async (targetPath?: string) =>
-      characterDictionary.runtime.getManualSelectionSnapshot(targetPath),
-    setCharacterDictionarySelection: async (request) =>
-      applyCharacterDictionarySelection(request, {
-        setManualSelection: (selectionRequest) =>
-          characterDictionary.runtime.setManualSelection(selectionRequest),
-        resetAnilistMediaGuessState: anilist.resetAnilistMediaGuessState,
-        runSyncNow: () => characterDictionary.autoSync.runSyncNow(),
-        warn: (message, error) => logger.warn(message, error),
-      }),
     runJellyfinCommand: (argsFromCommand: CliArgs) => jellyfin.runJellyfinCommand(argsFromCommand),
-    runStatsCommand: (argsFromCommand: CliArgs, source: CliCommandSource) =>
-      stats.runStatsCliCommand(argsFromCommand, source),
     runUpdateCommand: async (argsFromCommand: CliArgs, source: CliCommandSource) => {
       await runUpdateCliCommand(argsFromCommand, source, {
         checkForUpdates: (request) => getUpdateService().checkForUpdates(request),
@@ -2608,7 +2462,6 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
       );
     },
     runYoutubePlaybackFlow: (request) => youtube.playback.runYoutubePlaybackFlow(request),
-    ensureBackgroundStatsServer: () => stats.ensureBackgroundStatsServer(),
     openHachidoriSettings: () => yomitan.openHachidoriSettings(),
     openYomitanSettings: () => yomitan.openYomitanSettings(),
     openConfigSettingsWindow: () => settings.window.openWindow(),
@@ -2621,13 +2474,12 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
     dispatchSessionAction: (request: SessionActionDispatchRequest) =>
       dispatchSessionAction(request),
-    getMultiCopyTimeoutMs: () => shortcuts.getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
     logInfo: (message: string) => logger.info(message),
     logDebug: (message: string) => logger.debug(message),
     logWarn: (message: string) => logger.warn(message),
     logError: (message: string, err: unknown) => logger.error(message, err),
-  },
+  } satisfies Required<CliCommandContextMainDeps>,
   cliCommandRuntimeHandlerMainDeps: {
     handleTexthookerOnlyModeTransitionMainDeps: {
       isTexthookerOnlyMode: () => appState.texthookerOnlyMode,

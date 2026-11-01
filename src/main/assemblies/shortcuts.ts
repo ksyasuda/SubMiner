@@ -12,10 +12,12 @@ import { createOverlayShortcutsRuntimeService } from '../overlay-shortcuts-runti
 import { composeShortcutRuntimes } from '../runtime/composers';
 import { tryBeginVisibleOverlayNumericSelection } from '../runtime/overlay-numeric-selection';
 import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notifications-runtime';
+import { readMpvInputBindings } from '../runtime/mpv-input-bindings';
 import { createSessionBindingsRuntime } from '../runtime/session-bindings-runtime';
 import type { AppState } from '../state';
 import type { MiningAssembly } from './mining';
 import type { OverlayModalsAssembly } from './overlay-modals';
+import type { CliSlice, IpcSlice } from './slices';
 
 type OverlayManager = ReturnType<typeof createOverlayManager>;
 
@@ -233,7 +235,38 @@ export function createShortcutsAssembly(deps: ShortcutsAssemblyDeps) {
       },
     });
 
+  const ipc: IpcSlice<'getMpvInputBindings' | 'getSessionBindings' | 'getConfiguredShortcuts'> = {
+    getMpvInputBindings: async () => {
+      await refreshMpvSessionBindings();
+      return readMpvInputBindings({
+        getMpvClient: () => appState.mpvClient,
+        getConfiguredKeybindings: () => deps.getConfig().keybindings ?? [],
+        platform:
+          process.platform === 'darwin'
+            ? 'darwin'
+            : process.platform === 'win32'
+              ? 'win32'
+              : 'linux',
+      });
+    },
+    getSessionBindings: async () => {
+      await refreshMpvSessionBindings();
+      return appState.sessionBindings;
+    },
+    getConfiguredShortcuts: () => getConfiguredShortcuts(),
+  };
+
+  const cli: CliSlice<
+    'startPendingMultiCopy' | 'startPendingMineSentenceMultiple' | 'getMultiCopyTimeoutMs'
+  > = {
+    startPendingMultiCopy: (timeoutMs) => startPendingMultiCopy(timeoutMs),
+    startPendingMineSentenceMultiple: (timeoutMs) => startPendingMineSentenceMultiple(timeoutMs),
+    getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
+  };
+
   return {
+    ipc,
+    cli,
     overlayShortcutsRuntime,
     getConfiguredShortcuts,
     registerGlobalShortcuts,

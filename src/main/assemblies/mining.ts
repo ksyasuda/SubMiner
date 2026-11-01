@@ -46,6 +46,7 @@ import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notif
 import { resolvePrimarySubtitle } from '../runtime/primary-subtitle-text';
 import type { AppState } from '../state';
 import type { OverlayModalsAssembly } from './overlay-modals';
+import type { CliSlice, IpcSlice } from './slices';
 import type { YoutubeAssembly } from './youtube';
 
 type OverlayManager = ReturnType<typeof createOverlayManager>;
@@ -343,7 +344,49 @@ export function createMiningAssembly(deps: MiningAssemblyDeps) {
     integration.setSentenceFuriganaGenerator(callbacks.generateSentenceFurigana);
   }
 
+  const ipc: IpcSlice<
+    | 'recordSubtitleMiningContext'
+    | 'previewMediaTimingReview'
+    | 'getMediaTimingReviewFrame'
+    | 'getMediaTimingReviewWaveform'
+    | 'stopMediaTimingReviewPreview'
+    | 'resolveMediaTimingReview'
+  > = {
+    // Overlay lookups carry no cue context of their own; fall back to snapshotting the
+    // live mpv sub timings at lookup time so media generation clips the mined line even
+    // when extraction finishes long after playback has moved on.
+    recordSubtitleMiningContext: (context) =>
+      recordSubtitleMiningContext(
+        context
+          ? shiftSubtitleRangeToVideoClock(context, appState.mpvClient?.currentSubDelay ?? 0)
+          : captureCurrentPrimarySubtitleMiningContext(),
+      ),
+    previewMediaTimingReview: (request) => mediaTimingReviewRuntime.previewRange(request),
+    getMediaTimingReviewFrame: (request) => mediaTimingReviewRuntime.getFrame(request),
+    getMediaTimingReviewWaveform: (request) => mediaTimingReviewRuntime.getWaveform(request),
+    stopMediaTimingReviewPreview: (reviewId) => mediaTimingReviewRuntime.stopPreview(reviewId),
+    resolveMediaTimingReview: (request) => mediaTimingReviewRuntime.resolveReview(request),
+  };
+
+  const cli: CliSlice<
+    | 'copyCurrentSubtitle'
+    | 'mineSentenceCard'
+    | 'updateLastCardFromClipboard'
+    | 'refreshKnownWordCache'
+    | 'triggerFieldGrouping'
+    | 'markLastCardAsAudioCard'
+  > = {
+    copyCurrentSubtitle: () => copyCurrentSubtitle(),
+    mineSentenceCard: () => mineSentenceCard(),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    refreshKnownWordCache: () => refreshKnownWordCache(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+  };
+
   return {
+    ipc,
+    cli,
     captureCurrentPrimarySubtitleMiningContext,
     recordSubtitleMiningContext,
     getFieldGroupingResolver,

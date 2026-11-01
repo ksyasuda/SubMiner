@@ -26,6 +26,7 @@ import {
 } from '../runtime/stats-server-runtime';
 import type { AppState } from '../state';
 import type { PlaybackAssembly } from './playback';
+import type { CliSlice, IpcSlice } from './slices';
 import type { YomitanAssembly } from './yomitan';
 
 /**
@@ -312,7 +313,18 @@ export function createStatsAssembly(deps: StatsAssemblyDeps) {
     logError: (message, error) => logger.error(message, error),
   });
 
+  const ipc: IpcSlice<'getImmersionTracker'> = {
+    getImmersionTracker: () => appState.immersionTracker,
+  };
+
+  const cli: CliSlice<'runStatsCommand' | 'ensureBackgroundStatsServer'> = {
+    runStatsCommand: (args, source) => runStatsCliCommand(args, source),
+    ensureBackgroundStatsServer: () => ensureBackgroundStatsServer(),
+  };
+
   return {
+    ipc,
+    cli,
     immersionMediaRuntime,
     immersionTrackerStartupDeps,
     ensureImmersionTrackerStarted,

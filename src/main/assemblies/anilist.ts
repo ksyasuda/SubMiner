@@ -29,6 +29,7 @@ import {
 } from '../runtime/domains/anilist';
 import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notifications-runtime';
 import { createCreateAnilistSetupWindowHandler } from '../runtime/setup-window-factory';
+import type { CliSlice, IpcSlice } from './slices';
 import {
   type AnilistMediaGuessRuntimeState,
   type AppState,
@@ -507,7 +508,39 @@ export function createAnilistAssembly(deps: AnilistAssemblyDeps) {
     );
   };
 
+  const ipc: IpcSlice<
+    | 'getAnilistStatus'
+    | 'clearAnilistToken'
+    | 'openAnilistSetup'
+    | 'getAnilistQueueStatus'
+    | 'retryAnilistQueueNow'
+    | 'runAnilistPostWatchUpdateOnManualMark'
+  > = {
+    getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
+    clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
+    openAnilistSetup: () => openAnilistSetupWindowHandler(),
+    getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
+    retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
+    runAnilistPostWatchUpdateOnManualMark: () => maybeRunAnilistPostWatchUpdate({ force: true }),
+  };
+
+  const cli: CliSlice<
+    | 'getAnilistStatus'
+    | 'clearAnilistToken'
+    | 'openAnilistSetupWindow'
+    | 'getAnilistQueueStatus'
+    | 'processNextAnilistRetryUpdate'
+  > = {
+    getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
+    clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
+    openAnilistSetupWindow: () => openAnilistSetupWindowHandler(),
+    getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
+    processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
+  };
+
   return {
+    ipc,
+    cli,
     stateRuntime: anilistStateRuntime,
     openSetupWindow: openAnilistSetupWindowHandler,
     handleAnilistSetupProtocolUrl,

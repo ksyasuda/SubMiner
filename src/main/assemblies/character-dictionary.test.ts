@@ -38,6 +38,7 @@ function makeDeps(): CharacterDictionaryAssemblyDeps {
     refreshCurrentSubtitle: lazy('refreshCurrentSubtitle'),
     refreshSubtitlePrefetch: lazy('refreshSubtitlePrefetch'),
     refreshCurrentSubtitleAnnotations: lazy('refreshCurrentSubtitleAnnotations'),
+    resetAnilistMediaGuessState: lazy('resetAnilistMediaGuessState'),
   };
 }
 
@@ -45,4 +46,22 @@ function makeDeps(): CharacterDictionaryAssemblyDeps {
 test('createCharacterDictionaryAssembly does not call its deps while constructing', () => {
   const characterDictionary = createCharacterDictionaryAssembly(makeDeps());
   assert.equal(characterDictionary.autoSync.getCurrentMediaId(), null);
+});
+
+test('character dictionary generation from the CLI refuses while the dictionary is disabled', async () => {
+  const deps = makeDeps();
+  const characterDictionary = createCharacterDictionaryAssembly({
+    ...deps,
+    getYomitanProfilePolicy: () => ({
+      isCharacterDictionaryEnabled: () => false,
+      getCharacterDictionaryDisabledReason: () => 'external profile is read-only',
+      isExternalReadOnlyMode: () => true,
+      logSkippedWrite: () => {},
+    }),
+  });
+
+  await assert.rejects(
+    characterDictionary.cli.generateCharacterDictionary(),
+    /external profile is read-only/,
+  );
 });
