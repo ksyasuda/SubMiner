@@ -596,6 +596,46 @@ test('gamepad controller moves one popup entry per press while the lookup is ope
   assert.deepEqual(harness.calls, ['nextEntry', 'nextEntry', 'previousEntry']);
 });
 
+test('gamepad controller counts a popup press right as the popup reopens after a release', () => {
+  let buttons: Record<number, TestButton> = {};
+  let lookupOpen = true;
+  const harness = createHarness({
+    gamepads: () => [createGamepad('pad-1', { buttons })],
+    config: createControllerConfig({ bindings: ENTRY_ON_DPAD }),
+    deps: { getLookupWindowOpen: () => lookupOpen },
+  });
+
+  harness.poll(0);
+  buttons = { 13: PRESSED };
+  harness.poll(16);
+  // The popup closes while the button is still down, and the button is let go meanwhile.
+  lookupOpen = false;
+  harness.poll(32);
+  buttons = {};
+  harness.poll(48);
+  // The popup reopens on the same frame the button is pressed again.
+  lookupOpen = true;
+  buttons = { 13: PRESSED };
+  harness.poll(64);
+
+  assert.deepEqual(harness.calls, ['nextEntry', 'nextEntry']);
+});
+
+test('gamepad controller waits for a fresh press when the popup opens under a held button', () => {
+  let lookupOpen = false;
+  const harness = createHarness({
+    gamepads: [createGamepad('pad-1', { buttons: { 13: PRESSED } })],
+    config: createControllerConfig({ bindings: ENTRY_ON_DPAD }),
+    deps: { getLookupWindowOpen: () => lookupOpen },
+  });
+
+  harness.poll(0, 16);
+  lookupOpen = true;
+  harness.poll(32, 48);
+
+  assert.deepEqual(harness.calls, []);
+});
+
 test('gamepad controller ignores popup entry navigation while the lookup is closed', () => {
   const harness = createHarness({
     gamepads: [createGamepad('pad-1', { buttons: { 12: PRESSED, 13: PRESSED } })],
