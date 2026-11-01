@@ -147,7 +147,7 @@ export function createMainBootServices<
     TAnilistUpdateQueue,
     TSubtitleWebSocket,
     TLogger,
-      TOverlayManager,
+    TOverlayManager,
     TOverlayModalInputState,
     TOverlayContentMeasurementStore,
     TOverlayModalRuntime,

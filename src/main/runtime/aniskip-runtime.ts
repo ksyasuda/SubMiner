@@ -28,7 +28,7 @@ export interface AniSkipRuntimeDeps {
   logDebug: (message: string) => void;
 }
 
-interface AniSkipIntroWindow {
+export interface AniSkipIntroWindow {
   start: number;
   end: number;
   malId: number | null;
