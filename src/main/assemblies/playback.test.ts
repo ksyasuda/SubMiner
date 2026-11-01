@@ -361,8 +361,9 @@ test('annotation upgrade of the shown line skips the duplicate plain websocket e
   assert.deepEqual(appState.currentSubtitleData?.tokens, []);
 });
 
-test('warm tokenization releases autoplay with a warm signal before the first subtitle', async () => {
-  const { recorder, appState, emit } = setup();
+test('warm tokenization releases autoplay with a warm signal before the first subtitle', async (t) => {
+  const { recorder, appState, playback, emit } = setup();
+  t.after(() => playback.subtitlePrefetchRuntime.clearScheduledSubtitlePrefetchRefresh());
   appState.currentMediaPath = '/videos/a.mkv';
   appState.currentSubText = '';
 
@@ -378,8 +379,9 @@ test('warm tokenization releases autoplay with a warm signal before the first su
   assert.ok(names.lastIndexOf('autoplay.flushPending') < names.lastIndexOf('autoplay.maybeSignal'));
 });
 
-test('warm tokenization releases autoplay with the current subtitle when it is shown', async () => {
-  const { recorder, appState, emit } = setup();
+test('warm tokenization releases autoplay with the current subtitle when it is shown', async (t) => {
+  const { recorder, appState, playback, emit } = setup();
+  t.after(() => playback.subtitlePrefetchRuntime.clearScheduledSubtitlePrefetchRefresh());
   const current: SubtitleData = { text: '最初の行', tokens: null };
   appState.currentMediaPath = '/videos/a.mkv';
   appState.currentSubText = '最初の行';
