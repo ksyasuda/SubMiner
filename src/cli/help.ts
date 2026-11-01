@@ -46,6 +46,7 @@ ${B}Mining${R}
   --open-session-help            Open session help modal
   --open-controller-select       Open controller select modal
   --open-controller-debug        Open controller debug modal
+  --plugin-action ${D}<id>/<name>${R}    Run a plugin action
 
 ${B}AniList${R}
   --anilist-setup                Open AniList authentication flow

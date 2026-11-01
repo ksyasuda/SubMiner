@@ -422,6 +422,12 @@ export function handleCliCommand(
       `sessionAction:${args.sessionAction.actionId}`,
       'Session action failed',
     );
+  } else if (args.pluginAction) {
+    dispatchCliSessionAction(
+      { actionId: 'runPluginAction', payload: { pluginActionId: args.pluginAction } },
+      `pluginAction:${args.pluginAction}`,
+      'Plugin action failed',
+    );
   } else if (args.toggle || args.toggleVisibleOverlay) {
     deps.toggleVisibleOverlay();
   } else if (args.togglePrimarySubtitleBar) {

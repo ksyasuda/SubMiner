@@ -340,6 +340,14 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(shouldStartApp(sessionAction), true);
   assert.equal(commandNeedsOverlayRuntime(sessionAction), true);
 
+  const pluginAction = parseArgs(['--plugin-action', 'anime/open']);
+  assert.equal(pluginAction.pluginAction, 'anime/open');
+  assert.equal(parseArgs(['--plugin-action=anime/open']).pluginAction, 'anime/open');
+  assert.equal(hasExplicitCommand(pluginAction), true);
+  assert.equal(shouldStartApp(pluginAction), true);
+  // The plugin decides what it needs; a window-only action must not force the overlay up.
+  assert.equal(commandNeedsOverlayRuntime(pluginAction), false);
+
   const toggleStatsOverlayRuntime = parseArgs(['--toggle-stats-overlay']);
   assert.equal(commandNeedsOverlayRuntime(toggleStatsOverlayRuntime), true);
 

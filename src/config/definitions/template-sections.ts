@@ -93,6 +93,15 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'notifications',
   },
   {
+    title: 'Plugins',
+    description: [
+      'JavaScript plugins loaded from <config dir>/plugins/<id>/ at startup.',
+      'Plugins run inside SubMiner with full access to your system. Only enable code you trust.',
+    ],
+    notes: ['Restart SubMiner after changing plugins.'],
+    key: 'plugins',
+  },
+  {
     title: 'Keyboard Shortcuts',
     description: ['Overlay keyboard shortcuts. Set a shortcut to null to disable.'],
     notes: ['Hot-reload: shortcut changes apply live and update the session help modal on reopen.'],

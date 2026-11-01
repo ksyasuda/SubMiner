@@ -106,6 +106,15 @@ Overlay notifications are also kept in a session-only history panel. Toggle it w
 
 Mining and startup status notifications use `ankiConnect.behavior.notificationType` (see [AnkiConnect](#ankiconnect)).
 
+### Plugins
+
+`plugins` enables [plugins](/plugins) from the `plugins/` folder next to this config file. Each key is a plugin folder name. Changes apply after a restart.
+
+| Key                     | Default | What it does                           |
+| ----------------------- | ------- | -------------------------------------- |
+| `plugins.<id>.enabled`  | `false` | Load the plugin at startup             |
+| `plugins.<id>.settings` | `{}`    | Passed to the plugin as `ctx.settings` |
+
 ### Auto-start overlay
 
 When mpv is started by SubMiner or the `subminer` launcher, the launcher passes these settings to the bundled mpv plugin. There is no separate plugin config file. `mpv.autoStartSubMiner` and `mpv.pauseUntilOverlayReady` (see [MPV launcher](#mpv-launcher)) control the background start and the initial pause.
@@ -268,7 +277,7 @@ Adds a modal for choosing mpv's primary and secondary subtitle tracks. Open it w
 
 - `key` uses `KeyboardEvent.code` names (`Space`, `KeyR`, `ArrowRight`) with optional `Ctrl+`, `Alt+`, `Shift+`, `Meta+`. Mouse buttons are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, `MBTN_FORWARD`. Scroll wheel keys are `WHEEL_UP`, `WHEEL_DOWN`, `WHEEL_LEFT`, `WHEEL_RIGHT`.
 - `command` is any mpv JSON IPC command array. Set it to `null` to disable a default.
-- Commands starting with `__` run inside SubMiner: `__playlist-browser-open`, `__youtube-picker-open`, `__replay-subtitle`, `__play-next-subtitle`, `__runtime-options-open`, and `__runtime-option-cycle:<id>[:next|prev]`.
+- Commands starting with `__` run inside SubMiner: `__playlist-browser-open`, `__youtube-picker-open`, `__replay-subtitle`, `__play-next-subtitle`, `__runtime-options-open`, `__runtime-option-cycle:<id>[:next|prev]`, and `__plugin-action:<plugin id>/<action>` (see [Plugins](/plugins)).
 - Unused single-key, mouse button, and scroll wheel bindings from your mpv config also work in the overlay. Your SubMiner bindings win on conflicts.
 
 ### Shortcuts configuration

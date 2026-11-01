@@ -57,6 +57,7 @@ export const SPECIAL_COMMANDS = {
   ANIMETOSHO_OPEN: '__animetosho-open',
   TSUKIHIME_OPEN: '__tsukihime-open',
   RUNTIME_OPTION_CYCLE_PREFIX: '__runtime-option-cycle:',
+  PLUGIN_ACTION_PREFIX: '__plugin-action:',
   REPLAY_SUBTITLE: '__replay-subtitle',
   PLAY_NEXT_SUBTITLE: '__play-next-subtitle',
   YOUTUBE_PICKER_OPEN: '__youtube-picker-open',

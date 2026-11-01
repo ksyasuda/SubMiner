@@ -11,11 +11,36 @@ import {
 } from './card-creation-test-utils';
 import { toMpvEdlValue } from './mpv-edl-test-utils';
 import type { MediaInput } from '../media-generator';
+import type { PluginMiningProvenance } from '../plugin-api';
 
 const YOUTUBE_URL = 'https://www.youtube.com/watch?v=abc123';
 
 const mediaInputPath = (mediaInput: MediaInput): string =>
   typeof mediaInput === 'string' ? mediaInput : mediaInput.path;
+
+test('sentence provenance is captured before asynchronous creation and uses the mined line', async () => {
+  let currentPath = 'Show - 02.mkv';
+  const captured: Array<PluginMiningProvenance | null> = [];
+  const service = new CardCreationService(
+    createCardCreationDeps({
+      captureMiningProvenance: () => ({
+        minedAt: 1234,
+        media: { playbackId: 1, path: currentPath, title: null },
+        subtitle: null,
+      }),
+      client: createFakeClient({
+        addNote: async () => {
+          currentPath = 'Show - 03.mkv';
+          return 42;
+        },
+      }),
+      onNoteCreated: (_noteId, provenance) => captured.push(provenance),
+    }),
+  );
+  assert.equal(await service.createSentenceCard('テスト', 1, 2), true);
+  assert.equal(captured[0]?.media?.path, 'Show - 02.mkv');
+  assert.deepEqual(captured[0]?.subtitle, { text: 'テスト', startTime: 1, endTime: 2 });
+});
 
 test('CardCreationService counts locally created sentence cards', async () => {
   const minedCards: Array<{ count: number; noteIds?: number[] }> = [];
@@ -29,6 +54,58 @@ test('CardCreationService counts locally created sentence cards', async () => {
 
   assert.equal(await service.createSentenceCard('テスト', 0, 1), true);
   assert.deepEqual(minedCards, [{ count: 1, noteIds: [42] }]);
+});
+
+for (const delay of [5, -5]) {
+  test(`sentence provenance stays on the subtitle clock with delay ${delay}`, async () => {
+    let captured: PluginMiningProvenance | null = null;
+    const audioRanges: number[][] = [];
+    const defaults = createCardCreationDeps();
+    const service = new CardCreationService(
+      createCardCreationDeps({
+        getConfig: () => createAnkiConfig({ media: { generateAudio: true } }),
+        getMpvClient: () => ({ ...defaults.getMpvClient()!, currentSubDelay: delay }),
+        captureMiningProvenance: () => ({ minedAt: 1234, media: null, subtitle: null }),
+        onNoteCreated: (_id, provenance) => {
+          captured = provenance;
+        },
+        mediaGenerator: createFakeMediaGenerator({
+          generateAudio: async (_path, start, end) => {
+            audioRanges.push([start, end]);
+            return Buffer.from('audio');
+          },
+        }),
+      }),
+    );
+    assert.equal(await service.createSentenceCard('first\nsecond', 10 + delay, 12 + delay), true);
+    assert.partialDeepStrictEqual(captured, {
+      subtitle: { text: 'first\nsecond', startTime: 10, endTime: 12 },
+    });
+    assert.deepEqual(audioRanges, [[10 + delay, 12 + delay]]);
+  });
+}
+
+test('CardCreationService reports a created card ready after its fields are written', async () => {
+  const events: string[] = [];
+  const service = new CardCreationService(
+    createCardCreationDeps({
+      client: createFakeClient({
+        notesInfo: async () => [{ noteId: 42, fields: { Sentence: { value: 'existing' } } }],
+        updateNoteFields: async () => {
+          events.push('update');
+        },
+      }),
+      setCardTypeFields: (updatedFields) => {
+        updatedFields.CardType = 'sentence';
+      },
+      onCardsReady: (noteIds) => {
+        events.push(`ready ${noteIds.join(',')}`);
+      },
+    }),
+  );
+
+  assert.equal(await service.createSentenceCard('テスト', 0, 1), true);
+  assert.deepEqual(events, ['update', 'ready 42']);
 });
 
 const THROWING_HOOKS: Array<{

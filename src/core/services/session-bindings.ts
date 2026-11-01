@@ -342,6 +342,16 @@ function resolveCommandBinding(
     if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'playNextSubtitle' };
   }
+  if (first.startsWith(SPECIAL_COMMANDS.PLUGIN_ACTION_PREFIX)) {
+    const pluginActionId = first.slice(SPECIAL_COMMANDS.PLUGIN_ACTION_PREFIX.length);
+    const [pluginId, actionName, ...rest] = pluginActionId.split('/');
+    if (command.length !== 1 || !pluginId || !actionName || rest.length > 0) return null;
+    return {
+      actionType: 'session-action',
+      actionId: 'runPluginAction',
+      payload: { pluginActionId },
+    };
+  }
   if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
     if (command.length !== 1) {
       return null;

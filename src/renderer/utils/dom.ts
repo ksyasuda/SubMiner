@@ -180,6 +180,11 @@ export type RendererDom = {
   changelogStatus: HTMLDivElement;
   changelogList: HTMLDivElement;
 
+  pluginPanelModal: HTMLDivElement;
+  pluginPanelTitle: HTMLDivElement;
+  pluginPanelClose: HTMLButtonElement;
+  pluginPanelBody: HTMLDivElement;
+
   sessionHelpModal: HTMLDivElement;
   sessionHelpClose: HTMLButtonElement;
   sessionHelpShortcut: HTMLDivElement;
@@ -448,6 +453,10 @@ export function resolveRendererDom(): RendererDom {
     changelogWarning: getRequiredElement<HTMLDivElement>('changelogWarning'),
     changelogStatus: getRequiredElement<HTMLDivElement>('changelogStatus'),
     changelogList: getRequiredElement<HTMLDivElement>('changelogList'),
+    pluginPanelModal: getRequiredElement<HTMLDivElement>('pluginPanelModal'),
+    pluginPanelTitle: getRequiredElement<HTMLDivElement>('pluginPanelTitle'),
+    pluginPanelClose: getRequiredElement<HTMLButtonElement>('pluginPanelClose'),
+    pluginPanelBody: getRequiredElement<HTMLDivElement>('pluginPanelBody'),
     sessionHelpModal: getRequiredElement<HTMLDivElement>('sessionHelpModal'),
     sessionHelpClose: getRequiredElement<HTMLButtonElement>('sessionHelpClose'),
     sessionHelpShortcut: getRequiredElement<HTMLDivElement>('sessionHelpShortcut'),

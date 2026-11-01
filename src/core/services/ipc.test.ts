@@ -576,8 +576,8 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   const openedModals: unknown[] = [];
   registerIpcHandlers(
     {
-      onOverlayModalClosed: (modal) => {
-        closedModals.push(modal);
+      onOverlayModalClosed: (modal, _senderWindow, instanceId) => {
+        closedModals.push(instanceId === undefined ? modal : [modal, instanceId]);
       },
       onOverlayModalOpened: (modal) => {
         openedModals.push(modal);
@@ -638,7 +638,9 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'not-a-modal');
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'subsync');
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'kiku');
-  assert.deepEqual(closedModals, ['subsync', 'kiku']);
+  handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'plugin-panel', 4);
+  handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'plugin-panel', 'bad');
+  assert.deepEqual(closedModals, ['subsync', 'kiku', ['plugin-panel', 4], 'plugin-panel']);
 
   handlers.on.get(IPC_CHANNELS.command.overlayModalOpened)!({}, 'bad');
   handlers.on.get(IPC_CHANNELS.command.overlayModalOpened)!({}, 'subsync');

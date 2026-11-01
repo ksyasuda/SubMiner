@@ -3,6 +3,7 @@ import type {
   CompiledSessionActionBinding,
   CompiledSessionBinding,
   SessionActionId,
+  SessionActionPayload,
   SessionKeyModifier,
   SessionKeySpec,
 } from '../../types';
@@ -189,10 +190,7 @@ function formatSessionKeySpec(key: SessionKeySpec): string {
     .join(' + ');
 }
 
-function describeSessionAction(
-  actionId: SessionActionId,
-  payload?: { runtimeOptionId?: string; direction?: 1 | -1 },
-): string {
+function describeSessionAction(actionId: SessionActionId, payload?: SessionActionPayload): string {
   switch (actionId) {
     case 'toggleStatsOverlay':
       return 'Toggle stats overlay';
@@ -254,6 +252,8 @@ function describeSessionAction(
       return `Cycle runtime option ${payload?.runtimeOptionId ?? 'option'} ${
         payload?.direction === -1 ? 'previous' : 'next'
       }`;
+    case 'runPluginAction':
+      return `Plugin action ${payload?.pluginActionId ?? ''}`.trim();
   }
 }
 
@@ -297,6 +297,8 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
       return 'Playback and navigation';
     case 'cycleRuntimeOption':
       return 'Runtime settings';
+    case 'runPluginAction':
+      return 'Plugins';
   }
 }
 

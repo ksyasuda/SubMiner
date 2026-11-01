@@ -3,6 +3,7 @@ import http from 'node:http';
 import { once } from 'node:events';
 import test from 'node:test';
 import { AnkiConnectProxyServer } from './anki-connect-proxy';
+import type { PluginMiningProvenance } from '../plugin-api';
 
 async function waitForCondition(
   condition: () => boolean,
@@ -17,16 +18,22 @@ async function waitForCondition(
   throw new Error('Timed out waiting for condition');
 }
 
-test('proxy enqueues addNote result for enrichment', async () => {
+test('proxy enqueues addNote result for enrichment and reports it ready afterwards', async () => {
   const processed: number[] = [];
   const recordedCards: number[] = [];
+  const events: string[] = [];
   const proxy = new AnkiConnectProxyServer({
     shouldAutoUpdateNewCards: () => true,
     processNewCard: async (noteId) => {
       processed.push(noteId);
+      events.push(`process ${noteId}`);
+      throw new Error('enrichment failed');
     },
     recordCardsAdded: (count) => {
       recordedCards.push(count);
+    },
+    onCardsReady: (noteIds) => {
+      events.push(`ready ${noteIds.join(',')}`);
     },
     logInfo: () => undefined,
     logWarn: () => undefined,
@@ -42,9 +49,44 @@ test('proxy enqueues addNote result for enrichment', async () => {
     Buffer.from(JSON.stringify({ result: 42, error: null }), 'utf8'),
   );
 
-  await waitForCondition(() => processed.length === 1);
+  await waitForCondition(() => events.length === 2);
   assert.deepEqual(processed, [42]);
   assert.deepEqual(recordedCards, [1]);
+  assert.deepEqual(events, ['process 42', 'ready 42']);
+});
+
+test('proxy reports an added note ready right away when auto-update is off', () => {
+  const processed: number[] = [];
+  const recordedCards: number[] = [];
+  const ready: number[][] = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => false,
+    processNewCard: async (noteId) => {
+      processed.push(noteId);
+    },
+    recordCardsAdded: (count) => {
+      recordedCards.push(count);
+    },
+    onCardsReady: (noteIds) => {
+      ready.push(noteIds);
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
+    { action: 'addNote' },
+    Buffer.from(JSON.stringify({ result: 42, error: null }), 'utf8'),
+  );
+
+  assert.deepEqual(ready, [[42]]);
+  assert.deepEqual(processed, []);
+  assert.deepEqual(recordedCards, []);
 });
 
 test('proxy enqueues addNote bare numeric response for enrichment', async () => {
@@ -360,8 +402,11 @@ test('proxy tracks duplicate note ids from addNote request metadata before enric
   assert.deepEqual(processed, [42]);
 });
 
-test('proxy strips SubMiner duplicate metadata before forwarding upstream addNote request', async () => {
+test('proxy strips duplicate metadata and captures mining provenance before the upstream request', async () => {
   let upstreamBody = '';
+  let mediaPath = 'Show - 02.mkv';
+  let captureCount = 0;
+  const sources: Array<PluginMiningProvenance | null> = [];
   const upstream = http.createServer(async (req, res) => {
     upstreamBody = await new Promise<string>((resolve) => {
       const chunks: Buffer[] = [];
@@ -369,6 +414,7 @@ test('proxy strips SubMiner duplicate metadata before forwarding upstream addNot
       req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     });
     res.statusCode = 200;
+    mediaPath = 'Show - 03.mkv';
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ result: 42, error: null }));
   });
@@ -380,6 +426,15 @@ test('proxy strips SubMiner duplicate metadata before forwarding upstream addNot
 
   const tracked: Array<{ noteId: number; duplicateNoteIds: number[] }> = [];
   const proxy = new AnkiConnectProxyServer({
+    captureMiningProvenance: () => {
+      captureCount++;
+      return {
+        minedAt: 1234,
+        media: { playbackId: 1, path: mediaPath, title: null },
+        subtitle: null,
+      };
+    },
+    onNotesAdded: (_ids, provenance) => sources.push(provenance),
     shouldAutoUpdateNewCards: () => true,
     processNewCard: async () => undefined,
     trackAddedDuplicateNoteIds: (noteId, duplicateNoteIds) => {
@@ -434,6 +489,16 @@ test('proxy strips SubMiner duplicate metadata before forwarding upstream addNot
     await waitForCondition(() => tracked.length === 1);
     assert.equal(upstreamBody.includes('subminerDuplicateNoteIds'), false);
     assert.deepEqual(tracked, [{ noteId: 42, duplicateNoteIds: [7, 18] }]);
+    assert.equal(sources[0]?.media?.path, 'Show - 02.mkv');
+    assert.equal(captureCount, 1);
+    const preflight = await fetch(`http://127.0.0.1:${proxyPort}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'canAddNotes', version: 6, params: { notes: [] } }),
+    });
+    assert.equal(preflight.status, 200);
+    await preflight.json();
+    assert.equal(captureCount, 1);
   } finally {
     proxy.stop();
     upstream.close();

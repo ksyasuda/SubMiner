@@ -50,6 +50,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'replayCurrentSubtitle',
   'playNextSubtitle',
   'cycleRuntimeOption',
+  'runPluginAction',
 ];
 
 const RUNTIME_OPTION_IDS: RuntimeOptionId[] = [
@@ -109,6 +110,15 @@ function parseSessionActionPayload(
       runtimeOptionId: value.runtimeOptionId,
       direction: value.direction,
     };
+  }
+
+  if (actionId === 'runPluginAction') {
+    if (!isObject(value)) return null;
+    if (Object.keys(value).some((key) => key !== 'pluginActionId')) return null;
+    if (typeof value.pluginActionId !== 'string' || !value.pluginActionId.includes('/')) {
+      return null;
+    }
+    return { pluginActionId: value.pluginActionId };
   }
 
   return value === undefined ? undefined : null;

@@ -102,6 +102,10 @@ A stats dashboard tracks watch time, vocabulary growth, mining throughput, sessi
     <td><b>WebSocket</b></td>
     <td>Plain subtitle feed plus a dedicated annotated feed for texthooker pages and custom tools</td>
   </tr>
+  <tr>
+    <td><b>Plugins</b></td>
+    <td>Load your own JavaScript at startup to react to playback, run timers, add key-bound actions, and show results in an overlay panel. The bundled example explains the current line with Codex. <a href="https://docs.subminer.moe/plugins">Plugin guide</a></td>
+  </tr>
 </table>
 
 <br>
@@ -267,7 +271,7 @@ SubMiner builds on the work of these open-source projects:
 | [jellyfin-mpv-shim](https://github.com/jellyfin/jellyfin-mpv-shim)                          | Jellyfin integration                                                    |
 | [Jimaku.cc](https://jimaku.cc)                                                              | Japanese subtitle search and downloads                                  |
 | [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui)                        | Base for the WebSocket texthooker integration                           |
-| [Yomitan](https://github.com/yomidevs/yomitan)                                              | Default dictionary engine and morphological parser                     |
+| [Yomitan](https://github.com/yomidevs/yomitan)                                              | Default dictionary engine and morphological parser                      |
 | [Hachidori](https://github.com/bee-san/hachidori)                                           | Alternative dictionary backend, powered by HoshiDicts                   |
 | [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab)                       | JLPT level tags for vocabulary                                          |
 

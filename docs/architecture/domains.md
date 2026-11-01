@@ -40,6 +40,7 @@ Read when: you need to find the owner module for a behavior or test surface
   assembled by `src/main/assemblies/jellyfin.ts`
 - YouTube playback, subtitles, media cache, and in-app browser: `src/core/services/youtube/`,
   `src/main/runtime/youtube-*`, assembled by `src/main/assemblies/youtube.ts`
+- User plugins: `src/core/services/plugins/` (host, `ctx`, `exec`), `src/main/runtime/plugin-panel-runtime.ts` (panel modal), `src/main/runtime/plugin-window-runtime.ts` (plugin windows), `src/renderer/modals/plugin-panel*.ts`; examples in `assets/plugins/`
 - Window trackers: `src/window-trackers/`
 - Stats HTTP app: `src/core/services/stats-server.ts`, with route groups and shared route support
   in `src/core/services/stats-server/`

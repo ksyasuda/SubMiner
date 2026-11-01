@@ -138,6 +138,8 @@ The plugin's `v` replaces mpv's own subtitle visibility toggle. When the overlay
 }
 ```
 
+To run a [plugin](/plugins) action, use `["__plugin-action:<plugin id>/<action>"]` as the command.
+
 Mouse button names are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, and `MBTN_FORWARD`. Scroll wheel names are `WHEEL_UP`, `WHEEL_DOWN`, `WHEEL_LEFT`, and `WHEEL_RIGHT`. See [keybindings](/configuration#keybindings) and [shortcuts configuration](/configuration#shortcuts-configuration) in the config reference.
 
 ## Automatic mpv bindings

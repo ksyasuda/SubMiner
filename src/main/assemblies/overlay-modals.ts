@@ -32,14 +32,7 @@ export interface OverlayModalsAssemblyDeps {
   getOverlayNotifications: () => OverlayNotifications;
   ensureOverlayStartupPrereqs: () => void;
   ensureOverlayWindowsReadyForVisibilityActions: () => void;
-  sendToActiveOverlayWindow: (
-    channel: string,
-    payload?: unknown,
-    runtimeOptions?: {
-      restoreOnModalClose?: OverlayHostedModal;
-      preferModalWindow?: boolean;
-    },
-  ) => boolean;
+  sendToActiveOverlayWindow: OverlayModalRuntime['sendToActiveOverlayWindow'];
   showMpvOsd: (text: string) => void;
   showDesktopNotification: (title: string, options: { body?: string }) => void;
 }
@@ -56,14 +49,7 @@ export function createOverlayModalsAssembly(deps: OverlayModalsAssemblyDeps) {
   function createOverlayHostedModalOpenDeps(): {
     ensureOverlayStartupPrereqs: () => void;
     ensureOverlayWindowsReadyForVisibilityActions: () => void;
-    sendToActiveOverlayWindow: (
-      channel: string,
-      payload?: unknown,
-      runtimeOptions?: {
-        restoreOnModalClose?: OverlayHostedModal;
-        preferModalWindow?: boolean;
-      },
-    ) => boolean;
+    sendToActiveOverlayWindow: OverlayModalRuntime['sendToActiveOverlayWindow'];
     waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
     logWarn: (message: string) => void;
   } {

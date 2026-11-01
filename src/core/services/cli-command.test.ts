@@ -737,6 +737,23 @@ test('handleCliCommand dispatches generic session action payloads', async () => 
   });
 });
 
+test('handleCliCommand runs plugin actions through the session action dispatcher', async () => {
+  let request: unknown = null;
+  const { deps } = createDeps({
+    dispatchSessionAction: async (nextRequest) => {
+      request = nextRequest;
+    },
+  });
+
+  handleCliCommand(makeArgs({ pluginAction: 'anime/open' }), 'initial', deps);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(request, {
+    actionId: 'runPluginAction',
+    payload: { pluginActionId: 'anime/open' },
+  });
+});
+
 test('handleCliCommand dispatches mark-watched session action', async () => {
   let request: unknown = null;
   const { deps } = createDeps({

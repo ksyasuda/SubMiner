@@ -221,6 +221,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: 'AniList', link: '/anilist-integration' },
       { text: 'AniSkip', link: '/aniskip-integration' },
       { text: 'Character Dictionary', link: '/character-dictionary' },
+      { text: 'Plugins', link: '/plugins' },
     ],
   },
   {
