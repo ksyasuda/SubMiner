@@ -70,6 +70,9 @@ function createControllerConfigFixture() {
       nextAudio: { kind: 'button' as const, buttonIndex: 5 },
       playCurrentAudio: { kind: 'button' as const, buttonIndex: 7 },
       toggleMpvPause: { kind: 'button' as const, buttonIndex: 6 },
+      holdSecondarySub: { kind: 'none' as const },
+      previousEntry: { kind: 'none' as const },
+      nextEntry: { kind: 'none' as const },
       leftStickHorizontal: {
         kind: 'axis' as const,
         axisIndex: 0,

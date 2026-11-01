@@ -37,7 +37,10 @@ type GamepadControllerOptions = {
   previousAudio: () => void;
   nextAudio: () => void;
   playCurrentAudio: () => void;
+  previousEntry: () => void;
+  nextEntry: () => void;
   toggleMpvPause: () => void;
+  setSecondarySubHeld: (held: boolean) => void;
   scrollPopup: (deltaPixels: number) => void;
   jumpPopup: (deltaPixels: number) => void;
   onState: (state: ControllerRuntimeSnapshot) => void;
@@ -244,12 +247,22 @@ function resolveAxisBindingValue(
   return axisValue;
 }
 
+/** Discrete actions that only act while the lookup popup is open. */
+const POPUP_ONLY_ACTIONS = [
+  'previousAudio',
+  'nextAudio',
+  'playCurrentAudio',
+  'previousEntry',
+  'nextEntry',
+] as const;
+
 export function createGamepadController(options: GamepadControllerOptions) {
   let previousActions = new Map<string, boolean>();
   let selectionHold = createHoldState();
   let jumpHold = createHoldState();
   let activeGamepadId: string | null = null;
   let lastPollAt: number | null = null;
+  let secondarySubHeld = false;
 
   function getConnectedGamepads(): GamepadLike[] {
     return resolveConnectedGamepads(options.getGamepads());
@@ -288,6 +301,15 @@ export function createGamepadController(options: GamepadControllerOptions) {
           }))
         : [],
     });
+  }
+
+  // Level-triggered: reports every change in held state, so releasing the button,
+  // disconnecting the pad, disabling the controller, or opening a blocking modal
+  // all hide the secondary subtitle again instead of leaving it stuck visible.
+  function syncSecondarySubHold(held: boolean): void {
+    if (held === secondarySubHeld) return;
+    secondarySubHeld = held;
+    options.setSecondarySubHeld(held);
   }
 
   function handleActionEdge(
@@ -355,6 +377,8 @@ export function createGamepadController(options: GamepadControllerOptions) {
       ['previousAudio', config.bindings.previousAudio],
       ['nextAudio', config.bindings.nextAudio],
       ['playCurrentAudio', config.bindings.playCurrentAudio],
+      ['previousEntry', config.bindings.previousEntry],
+      ['nextEntry', config.bindings.nextEntry],
       ['toggleMpvPause', config.bindings.toggleMpvPause],
     ] as const;
 
@@ -398,6 +422,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
     publishState(connectedGamepads, activeGamepad);
 
     if (!activeGamepad) {
+      syncSecondarySubHold(false);
       previousActions = new Map();
       resetHeldAction(selectionHold);
       resetHeldAction(jumpHold);
@@ -412,6 +437,18 @@ export function createGamepadController(options: GamepadControllerOptions) {
     }
 
     const activeConfig = resolveControllerConfigForGamepad(config, activeGamepad.id);
+
+    // Unlike most actions, this one does not require keyboard-only mode, so it can be
+    // used while simply watching.
+    syncSecondarySubHold(
+      activeConfig.enabled &&
+        !options.getInteractionBlocked() &&
+        resolveDiscreteBindingPressed(
+          activeGamepad,
+          activeConfig.bindings.holdSecondarySub,
+          activeConfig,
+        ),
+    );
 
     if (activeConfig.enabled) {
       handleActionEdge(
@@ -484,6 +521,20 @@ export function createGamepadController(options: GamepadControllerOptions) {
         activeConfig,
         options.playCurrentAudio,
       );
+      handleActionEdge(
+        'previousEntry',
+        activeConfig.bindings.previousEntry,
+        activeGamepad,
+        activeConfig,
+        options.previousEntry,
+      );
+      handleActionEdge(
+        'nextEntry',
+        activeConfig.bindings.nextEntry,
+        activeGamepad,
+        activeConfig,
+        options.nextEntry,
+      );
 
       const primaryScroll = resolveAxisBindingValue(
         activeGamepad,
@@ -509,6 +560,19 @@ export function createGamepadController(options: GamepadControllerOptions) {
       );
     } else {
       resetHeldAction(jumpHold);
+      // Popup-only buttons keep tracking the pad while the popup is closed, like blocked
+      // actions do: a release is not missed, and a button held as the popup opens waits for
+      // a fresh press instead of firing at once.
+      for (const actionKey of POPUP_ONLY_ACTIONS) {
+        previousActions.set(
+          actionKey,
+          resolveDiscreteBindingPressed(
+            activeGamepad,
+            activeConfig.bindings[actionKey],
+            activeConfig,
+          ),
+        );
+      }
     }
 
     handleActionEdge(

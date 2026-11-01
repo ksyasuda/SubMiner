@@ -16,6 +16,7 @@ type CommandEventDetail = {
   visible?: boolean;
   key?: string;
   code?: string;
+  modifiers?: string[];
   repeat?: boolean;
   direction?: number;
   deltaX?: number;
@@ -2521,6 +2522,34 @@ test('an unfinished built-in y chord cannot start a configured sequence', async 
     testGlobals.dispatchKeydown({ key: 'g', code: 'KeyG' });
     testGlobals.dispatchKeydown({ key: 's', code: 'KeyS' });
     assert.equal(testGlobals.sessionActions.length, 1);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('controller popup entry navigation forwards Alt+Up / Alt+Down only while the popup is open', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    assert.equal(handlers.movePopupEntryForController(1), false);
+    assert.equal(
+      testGlobals.commandEvents.some((event) => event.type === 'forwardKeyDown'),
+      false,
+    );
+
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    assert.equal(handlers.movePopupEntryForController(1), true);
+    assert.equal(handlers.movePopupEntryForController(-1), true);
+
+    const forwarded = testGlobals.commandEvents
+      .filter((event) => event.type === 'forwardKeyDown')
+      .map((event) => [event.key, event.code, event.modifiers]);
+    assert.deepEqual(forwarded, [
+      ['ArrowDown', 'ArrowDown', ['alt']],
+      ['ArrowUp', 'ArrowUp', ['alt']],
+    ]);
   } finally {
     testGlobals.restore();
   }

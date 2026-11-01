@@ -16,6 +16,9 @@ const BINDINGS: ResolvedControllerConfig['bindings'] = {
   nextAudio: { kind: 'button', buttonIndex: 5 },
   playCurrentAudio: { kind: 'button', buttonIndex: 4 },
   toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+  holdSecondarySub: { kind: 'none' },
+  previousEntry: { kind: 'none' },
+  nextEntry: { kind: 'none' },
   leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
   leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
   rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
@@ -86,7 +89,10 @@ function findOne(root: FakeElement, className: string, text?: string): FakeEleme
 }
 
 /** Renders the form into a fake container with `document` stubbed for the duration. */
-function renderForm(learningActionId: ActionId | null) {
+function renderForm(
+  learningActionId: ActionId | null,
+  options: { bindings?: typeof BINDINGS; mapping?: string } = {},
+) {
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -98,7 +104,8 @@ function renderForm(learningActionId: ActionId | null) {
     const container = new FakeElement();
     createControllerConfigForm({
       container: container as unknown as HTMLElement,
-      getBindings: () => BINDINGS,
+      getBindings: () => options.bindings ?? BINDINGS,
+      getControllerMapping: () => options.mapping,
       getLearningActionId: () => learningActionId,
       getDpadLearningActionId: () => null,
       onLearn: (actionId, bindingType) => calls.push(`learn:${actionId}:${bindingType}`),
@@ -141,9 +148,12 @@ test('controller config form renders grouped rows with friendly binding labels',
     [
       ['Toggle Lookup', 'A / Cross'],
       ['Close Lookup', 'B / Circle'],
+      ['Previous Entry', 'None'],
+      ['Next Entry', 'None'],
       ['Mine Card', 'X / Square'],
       ['Toggle Keyboard-Only Mode', 'Y / Triangle'],
       ['Toggle MPV Pause', 'R3 / RS'],
+      ['Show Secondary Subtitle (Hold)', 'None'],
       ['Quit MPV', 'Back / Select'],
       ['Previous Audio', 'None'],
       ['Next Audio', 'RB / R1'],
@@ -160,7 +170,7 @@ test('controller config form renders grouped rows with friendly binding labels',
   );
   assert.deepEqual(
     findAll(container, 'disabled').map((badge) => badge.textContent),
-    ['None', 'None', 'None'],
+    ['None', 'None', 'None', 'None', 'None', 'None'],
   );
   assert.deepEqual(findAll(container, 'expanded'), []);
   assert.deepEqual(findAll(container, 'controller-config-edit-panel'), []);
@@ -227,3 +237,29 @@ for (const c of [
     assert.deepEqual(calls, [c.expected]);
   });
 }
+
+test('controller config form names buttons by the W3C standard layout for standard pads', () => {
+  const bindings: typeof BINDINGS = {
+    ...BINDINGS,
+    quitMpv: { kind: 'button', buttonIndex: 6 },
+    toggleMpvPause: { kind: 'button', buttonIndex: 10 },
+    holdSecondarySub: { kind: 'button', buttonIndex: 11 },
+    previousEntry: { kind: 'button', buttonIndex: 8 },
+    nextEntry: { kind: 'button', buttonIndex: 9 },
+    rightStickVertical: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+  };
+  const badge = (row: FakeElement) => findOne(row, 'controller-config-badge').textContent;
+
+  const standard = renderForm(null, { bindings, mapping: 'standard' });
+  assert.equal(badge(standard.row('Quit MPV')), 'LT / L2');
+  assert.equal(badge(standard.row('Previous Entry')), 'Back / Select');
+  assert.equal(badge(standard.row('Next Entry')), 'Start / Options');
+  assert.equal(badge(standard.row('Toggle MPV Pause')), 'L3 / LS');
+  assert.equal(badge(standard.row('Show Secondary Subtitle (Hold)')), 'R3 / RS');
+  assert.equal(badge(standard.row('Popup Jump (Stick)')), 'Right Stick Y');
+
+  // Pads without the standard mapping keep the previous names.
+  const raw = renderForm(null, { bindings, mapping: '' });
+  assert.equal(badge(raw.row('Quit MPV')), 'Back / Select');
+  assert.equal(badge(raw.row('Previous Entry')), 'L3 / LS');
+});

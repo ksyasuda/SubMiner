@@ -290,7 +290,7 @@ Adds a modal for choosing mpv's primary and secondary subtitle tracks. Open it w
 
 ### Controller support
 
-Gamepad input for the overlay, through the browser Gamepad API. It only works while keyboard-only mode is on. Use the `Alt+C` modal to pick a controller and learn bindings, and `Alt+Shift+C` to see raw button and axis values. Default button actions are on [Keyboard shortcuts](/shortcuts).
+Gamepad input for the overlay, through the browser Gamepad API. Most actions only work while keyboard-only mode is on; the toggle for that mode and the secondary subtitle hold (`controller.bindings.holdSecondarySub`) work either way. Use the `Alt+C` modal to pick a controller and learn bindings, and `Alt+Shift+C` to see raw button and axis values. Default button actions are on [Keyboard shortcuts](/shortcuts).
 
 | Key                                | Default  | What it does                                                                          |
 | ---------------------------------- | -------- | ------------------------------------------------------------------------------------- |

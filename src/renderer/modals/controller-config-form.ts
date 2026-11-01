@@ -31,6 +31,20 @@ export const CONTROLLER_BINDING_DEFINITIONS: ControllerBindingDefinition[] = [
     defaultBinding: { kind: 'button', buttonIndex: 1 },
   },
   {
+    id: 'previousEntry',
+    label: 'Previous Entry',
+    group: 'Lookup',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
+  },
+  {
+    id: 'nextEntry',
+    label: 'Next Entry',
+    group: 'Lookup',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
+  },
+  {
     id: 'mineCard',
     label: 'Mine Card',
     group: 'Lookup',
@@ -50,6 +64,13 @@ export const CONTROLLER_BINDING_DEFINITIONS: ControllerBindingDefinition[] = [
     group: 'Playback',
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 9 },
+  },
+  {
+    id: 'holdSecondarySub',
+    label: 'Show Secondary Subtitle (Hold)',
+    group: 'Playback',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
   },
   {
     id: 'quitMpv',
@@ -132,7 +153,9 @@ export function getDefaultDpadFallback(
   return 'dpadFallback' in binding && binding.dpadFallback ? binding.dpadFallback : 'none';
 }
 
-const STANDARD_BUTTON_NAMES: Record<number, string> = {
+// Names for pads that do not report the W3C "standard" mapping. Raw layouts
+// vary by driver, so these are a best guess.
+const RAW_LAYOUT_BUTTON_NAMES: Record<number, string> = {
   0: 'A / Cross',
   1: 'B / Circle',
   2: 'X / Square',
@@ -152,7 +175,7 @@ const STANDARD_BUTTON_NAMES: Record<number, string> = {
   16: 'Guide / Home',
 };
 
-const STANDARD_AXIS_NAMES: Record<number, string> = {
+const RAW_LAYOUT_AXIS_NAMES: Record<number, string> = {
   0: 'Left Stick X',
   1: 'Left Stick Y',
   2: 'Left Trigger',
@@ -161,18 +184,52 @@ const STANDARD_AXIS_NAMES: Record<number, string> = {
   5: 'Right Trigger',
 };
 
+// Names for pads that report `mapping === 'standard'` (most Xbox, PlayStation,
+// Switch and 8BitDo pads). Index meanings are fixed by the W3C Gamepad spec:
+// https://w3c.github.io/gamepad/#remapping
+const W3C_STANDARD_BUTTON_NAMES: Record<number, string> = {
+  0: 'A / Cross',
+  1: 'B / Circle',
+  2: 'X / Square',
+  3: 'Y / Triangle',
+  4: 'LB / L1',
+  5: 'RB / R1',
+  6: 'LT / L2',
+  7: 'RT / R2',
+  8: 'Back / Select',
+  9: 'Start / Options',
+  10: 'L3 / LS',
+  11: 'R3 / RS',
+  12: 'D-pad Up',
+  13: 'D-pad Down',
+  14: 'D-pad Left',
+  15: 'D-pad Right',
+  16: 'Guide / Home',
+};
+
+const W3C_STANDARD_AXIS_NAMES: Record<number, string> = {
+  0: 'Left Stick X',
+  1: 'Left Stick Y',
+  2: 'Right Stick X',
+  3: 'Right Stick Y',
+};
+
+type ControllerMapping = string | null | undefined;
+
 const DPAD_FALLBACK_LABELS: Record<ControllerDpadFallback, string> = {
   none: 'None',
   horizontal: 'D-pad \u2194',
   vertical: 'D-pad \u2195',
 };
 
-function getFriendlyButtonName(buttonIndex: number): string {
-  return STANDARD_BUTTON_NAMES[buttonIndex] ?? `Button ${buttonIndex}`;
+export function getFriendlyButtonName(buttonIndex: number, mapping?: ControllerMapping): string {
+  const names = mapping === 'standard' ? W3C_STANDARD_BUTTON_NAMES : RAW_LAYOUT_BUTTON_NAMES;
+  return names[buttonIndex] ?? `Button ${buttonIndex}`;
 }
 
-function getFriendlyAxisName(axisIndex: number): string {
-  return STANDARD_AXIS_NAMES[axisIndex] ?? `Axis ${axisIndex}`;
+export function getFriendlyAxisName(axisIndex: number, mapping?: ControllerMapping): string {
+  const names = mapping === 'standard' ? W3C_STANDARD_AXIS_NAMES : RAW_LAYOUT_AXIS_NAMES;
+  return names[axisIndex] ?? `Axis ${axisIndex}`;
 }
 
 export function formatControllerBindingSummary(
@@ -193,21 +250,25 @@ export function formatControllerBindingSummary(
   return `Axis ${binding.axisIndex} + D-pad ${binding.dpadFallback}`;
 }
 
-function formatFriendlyStickLabel(binding: ResolvedControllerAxisBinding): string {
+function formatFriendlyStickLabel(
+  binding: ResolvedControllerAxisBinding,
+  mapping: ControllerMapping,
+): string {
   if (binding.kind === 'none') return 'None';
-  return getFriendlyAxisName(binding.axisIndex);
+  return getFriendlyAxisName(binding.axisIndex, mapping);
 }
 
 function formatFriendlyBindingLabel(
   binding: ResolvedControllerDiscreteBinding | ResolvedControllerAxisBinding,
+  mapping: ControllerMapping,
 ): string {
   if (binding.kind === 'none') return 'None';
   if ('direction' in binding) {
-    const name = getFriendlyAxisName(binding.axisIndex);
+    const name = getFriendlyAxisName(binding.axisIndex, mapping);
     return `${name} ${binding.direction === 'positive' ? '+' : '\u2212'}`;
   }
-  if ('buttonIndex' in binding) return getFriendlyButtonName(binding.buttonIndex);
-  return getFriendlyAxisName(binding.axisIndex);
+  if ('buttonIndex' in binding) return getFriendlyButtonName(binding.buttonIndex, mapping);
+  return getFriendlyAxisName(binding.axisIndex, mapping);
 }
 
 /** Unique key for expanded rows. Stick rows use the action id, dpad rows append ':dpad'. */
@@ -224,6 +285,8 @@ export function createControllerConfigForm(options: {
   onDpadLearn: (actionId: ControllerBindingActionId) => void;
   onDpadClear: (actionId: ControllerBindingActionId) => void;
   onDpadReset: (actionId: ControllerBindingActionId) => void;
+  /** Gamepad API `mapping` of the controller being configured; picks the button names. */
+  getControllerMapping?: () => ControllerMapping;
 }) {
   let expandedRowKey: ExpandedRowKey | null = null;
 
@@ -275,7 +338,7 @@ export function createControllerConfigForm(options: {
 
     const row = createRow(
       definition.label,
-      formatFriendlyBindingLabel(binding),
+      formatFriendlyBindingLabel(binding, options.getControllerMapping?.()),
       binding.kind === 'none',
       isExpanded,
       `Learn ${definition.label}`,
@@ -329,7 +392,7 @@ export function createControllerConfigForm(options: {
 
     const row = createRow(
       `${definition.label} (Stick)`,
-      formatFriendlyStickLabel(binding),
+      formatFriendlyStickLabel(binding, options.getControllerMapping?.()),
       binding.kind === 'none',
       isExpanded,
       `Learn ${definition.label} stick`,

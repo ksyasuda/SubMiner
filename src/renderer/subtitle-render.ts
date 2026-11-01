@@ -830,13 +830,31 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     }
   }
 
-  function updateSecondarySubMode(mode: SecondarySubMode): void {
+  // The mode chosen by the user (hidden / visible / hover). A controller hold
+  // temporarily shows it as `visible` without changing this, so releasing the
+  // button restores exactly what was there before.
+  let secondarySubBaseMode: SecondarySubMode = 'hidden';
+  let secondarySubHeld = false;
+
+  function applySecondarySubModeClass(): void {
+    const effectiveMode: SecondarySubMode = secondarySubHeld ? 'visible' : secondarySubBaseMode;
     ctx.dom.secondarySubContainer.classList.remove(
       'secondary-sub-hidden',
       'secondary-sub-visible',
       'secondary-sub-hover',
     );
-    ctx.dom.secondarySubContainer.classList.add(`secondary-sub-${mode}`);
+    ctx.dom.secondarySubContainer.classList.add(`secondary-sub-${effectiveMode}`);
+  }
+
+  function updateSecondarySubMode(mode: SecondarySubMode): void {
+    secondarySubBaseMode = mode;
+    applySecondarySubModeClass();
+  }
+
+  function setSecondarySubHeld(held: boolean): void {
+    if (secondarySubHeld === held) return;
+    secondarySubHeld = held;
+    applySecondarySubModeClass();
   }
 
   function updatePrimarySubMode(mode: PrimarySubMode): void {
@@ -1071,5 +1089,6 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     renderSubtitle,
     updatePrimarySubMode,
     updateSecondarySubMode,
+    setSecondarySubHeld,
   };
 }
