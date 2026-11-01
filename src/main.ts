@@ -1207,7 +1207,11 @@ const {
   overlayManager,
   overlayModalInputState,
   autoplayReadyGate,
-  screen,
+  // Forward lazily: Electron's screen module must not be touched before app 'ready'.
+  screen: {
+    getCursorScreenPoint: () => screen.getCursorScreenPoint(),
+    getDisplayNearestPoint: (point) => screen.getDisplayNearestPoint(point),
+  },
   isDev,
   createOverlayWindowCore,
   getYomitanSession: () =>
