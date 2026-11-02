@@ -34,6 +34,11 @@ function clampSelectedIndex(ctx: RendererContext): void {
   );
 }
 
+const NO_CONTROLLER_STATUS = 'No controllers detected.';
+const WAITING_FOR_SAVED_CONTROLLER_STATUS =
+  'Press any button on your controller so this window can see it.';
+const NO_CONTROLLER_STATUSES = new Set([NO_CONTROLLER_STATUS, WAITING_FOR_SAVED_CONTROLLER_STATUS]);
+
 export function createControllerSelectModal(
   ctx: RendererContext,
   options: {
@@ -563,12 +568,24 @@ export function createControllerSelectModal(
       controllerConfigForm.render();
     }
 
+    // Polling publishes a snapshot every frame, pad or not: only a change in the devices
+    // sets the no-pad status, so it neither replaces the prompt nor a message like "Reset".
     const idle = !learningActionId && !dpadLearningActionId && !screenLearning;
-    if (ctx.state.connectedGamepads.length === 0 && idle) {
-      setStatus('No controllers detected.');
-    } else if (idle && ctx.dom.controllerSelectStatus.textContent === 'No controllers detected.') {
+    if (ctx.state.connectedGamepads.length === 0) {
+      if (idle && shouldRender) setStatus(getNoControllerStatus());
+    } else if (
+      idle &&
+      NO_CONTROLLER_STATUSES.has(ctx.dom.controllerSelectStatus.textContent ?? '')
+    ) {
       setStatus('Choose a controller or click Learn to remap an action.');
     }
+  }
+
+  /** A saved controller is only waiting for a press; without one there is nothing to show. */
+  function getNoControllerStatus(): string {
+    return ctx.state.controllerConfig?.preferredGamepadId
+      ? WAITING_FOR_SAVED_CONTROLLER_STATUS
+      : NO_CONTROLLER_STATUS;
   }
 
   function openControllerSelectModal(): boolean {
@@ -587,11 +604,7 @@ export function createControllerSelectModal(
     renderPicker();
     controllerConfigForm.render();
     if (ctx.state.connectedGamepads.length === 0) {
-      setStatus(
-        ctx.state.controllerConfig?.preferredGamepadId
-          ? 'Press any button on your controller so this window can see it.'
-          : 'No controllers detected.',
-      );
+      setStatus(getNoControllerStatus());
     } else {
       setStatus('Choose a controller or click Learn to remap an action.');
     }

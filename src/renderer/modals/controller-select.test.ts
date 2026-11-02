@@ -849,10 +849,12 @@ test('controller select modal shows and edits the saved controller before this w
     findByClass(dom.controllerConfigList, 'controller-config-group-toggle').dispatch('click');
     const row = findReviewRow(dom.controllerConfigList, 'Start \u22120.1s');
     assert.equal(row.children[1].children[0].textContent, 'L2 + D-pad \u25b6');
-    assert.equal(
-      dom.controllerSelectStatus.textContent,
-      'Press any button on your controller so this window can see it.',
-    );
+    const waiting = 'Press any button on your controller so this window can see it.';
+    assert.equal(dom.controllerSelectStatus.textContent, waiting);
+    // Controller polling keeps publishing snapshots while no pad is visible.
+    modal.updateDevices();
+    modal.updateDevices();
+    assert.equal(dom.controllerSelectStatus.textContent, waiting, 'the prompt stays');
 
     // Reset goes to the saved controller's profile, not the global layout.
     row.children[1].children[1].dispatch('click');
@@ -870,6 +872,27 @@ test('controller select modal shows and edits the saved controller before this w
         },
       },
     });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const afterReset = dom.controllerSelectStatus.textContent;
+    assert.equal(afterReset, 'Start \u22120.1s reset.');
+    modal.updateDevices();
+    assert.equal(dom.controllerSelectStatus.textContent, afterReset, 'the reset message stays');
+
+    // The pad appears, then disappears again.
+    state.connectedGamepads = [{ id: 'pad-1', index: 0, mapping: 'standard', connected: true }];
+    state.activeGamepadId = 'pad-1';
+    modal.updateDevices();
+    state.connectedGamepads = [];
+    state.activeGamepadId = null;
+    modal.updateDevices();
+    assert.equal(dom.controllerSelectStatus.textContent, waiting);
+    state.connectedGamepads = [{ id: 'pad-1', index: 0, mapping: 'standard', connected: true }];
+    state.activeGamepadId = 'pad-1';
+    modal.updateDevices();
+    assert.equal(
+      dom.controllerSelectStatus.textContent,
+      'Choose a controller or click Learn to remap an action.',
+    );
   } finally {
     domHandle.restore();
   }
