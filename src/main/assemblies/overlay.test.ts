@@ -3,6 +3,7 @@ import test, { type TestContext } from 'node:test';
 import type { BrowserWindow } from 'electron';
 import type { HyprlandPlacementStatus } from '../../core/services/hyprland-window-placement';
 import type { OverlayContentMeasurement, WindowGeometry } from '../../types';
+import { stopLinuxOverlayZOrderKeepAliveLoop } from '../runtime/linux-overlay-zorder-keepalive';
 import { createAppState } from '../state';
 import { createOverlayAssembly, type OverlayAssemblyDeps } from './overlay';
 
@@ -73,16 +74,22 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
       }),
       setOverlayWindowBounds: spy('overlay.setOverlayWindowBounds', () => NO_PLACEMENT),
       setModalWindowBounds: spy('overlay.setModalWindowBounds', () => NO_PLACEMENT),
+      getOverlayWindows: spy('overlay.getOverlayWindows', () => []),
+      broadcastToOverlayWindows: spy('overlay.broadcast', noop),
     },
     overlayModalInputState: { getModalInputExclusive: spy('modal.getInputExclusive', () => false) },
     overlayModalRuntime: {
       notifyOverlayModalOpened: spy('modal.notifyOpened', noop),
       handleOverlayModalClosed: spy('modal.handleClosed', noop),
+      sendToActiveOverlayWindow: spy('modal.sendToActive', () => false),
+      openRuntimeOptionsPalette: spy('modal.openRuntimeOptionsPalette', noop),
     },
     overlayContentMeasurementStore: {
       report: spy('measurement.report', () =>
         state.measurementAccepted ? ACCEPTED_MEASUREMENT : null,
       ),
+      clear: spy('measurement.clear', noop),
+      getLatestByLayer: spy('measurement.getLatest', () => null),
     },
     autoplayReadyGate: {
       markCurrentMediaAutoplayReady: spy('autoplay.markCurrentMediaReady', noop),
@@ -93,6 +100,10 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
       getDisplayNearestPoint: spy('screen.getDisplayNearestPoint', (): never => {
         throw new Error('display fallback used');
       }),
+      getDisplayMatching: spy('screen.getDisplayMatching', (): never => {
+        throw new Error('display matching used');
+      }),
+      screenToDipPoint: spy('screen.screenToDipPoint', (point: { x: number; y: number }) => point),
     },
     isDev: false,
     createOverlayWindowCore: spy('createOverlayWindowCore', (_kind, options): BrowserWindow => {
@@ -101,47 +112,6 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
       return state.window;
     }),
     getYomitanSession: spy('getYomitanSession', () => null),
-    getVisibleOverlayInteraction: spy('getVisibleOverlayInteraction', () => ({
-      getLinuxOverlayInputShapeActive: spy('interaction.getLinuxInputShapeActive', () => false),
-      getMacOSVisibleOverlayForegroundProbeActive: spy('interaction.getMacProbe', () => false),
-      getVisibleOverlayInteractionActive: spy('interaction.getActive', () => false),
-      setVisibleOverlayInteractionActive: spy('interaction.setActive', noop),
-      setLinuxOverlayInteractiveHint: spy('interaction.setLinuxInteractiveHint', noop),
-      applyLinuxOverlayInputShapeFromLatestMeasurement: spy(
-        'interaction.applyLinuxShape',
-        () => false,
-      ),
-      tickLinuxOverlayPointerInteractionNow: spy('interaction.tickLinuxNow', noop),
-      tickWindowsOverlayPointerInteractionNow: spy('interaction.tickWindowsNow', noop),
-      getWindowsNativeWindowHandleNumber: spy('interaction.getWindowsHandle', () => 0),
-      primeLinuxOverlayPointerInteractionAfterFirstMeasurement: spy(
-        'interaction.primePointerAfterFirstMeasurement',
-        noop,
-      ),
-      requestLinuxOverlayZOrderFollow: spy('interaction.requestLinuxZOrderFollow', noop),
-      requestWindowsVisibleOverlayZOrderSync: spy('interaction.requestWindowsZOrderSync', noop),
-      resetLinuxVisibleOverlayStartupInputPrimer: spy('interaction.resetStartupPrimer', noop),
-      resetVisibleOverlayInputState: spy('interaction.resetInputState', noop),
-      restoreVisibleOverlayWindowShapeForShow: spy('interaction.restoreShapeForShow', noop),
-      scheduleVisibleOverlayBlurRefresh: spy('interaction.scheduleBlurRefresh', noop),
-      startLinuxVisibleOverlayStartupInputGrace: spy('interaction.startStartupGrace', noop),
-    })),
-    getOverlayGeometry: spy('getOverlayGeometry', () => ({
-      enforceOverlayLayerOrder: spy('geometry.enforceLayerOrder', noop),
-      ensureOverlayWindowLevel: spy('geometry.ensureWindowLevel', noop),
-      getCurrentOverlayGeometry: spy('geometry.getCurrentOverlayGeometry', () => ({
-        x: 0,
-        y: 0,
-        width: 1920,
-        height: 1080,
-      })),
-      getCurrentTrackedOverlayGeometry: spy(
-        'geometry.getCurrentTrackedOverlayGeometry',
-        () => state.trackedGeometry,
-      ),
-      syncPrimaryOverlayWindowLayer: spy('geometry.syncPrimaryLayer', noop),
-      updateVisibleOverlayBounds: spy('geometry.updateVisibleBounds', () => 'not-applicable'),
-    })),
     getOverlayShortcuts: spy('getOverlayShortcuts', () => ({
       syncOverlayShortcuts: spy('shortcuts.sync', noop),
       tryHandleOverlayShortcutLocalFallback: spy('shortcuts.localFallback', () => false),
@@ -152,10 +122,9 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
       flushQueuedOverlayNotifications: spy('notifications.flushQueued', noop),
       maybeStartOverlayLoadingOsd: spy('notifications.maybeStartLoadingOsd', noop),
     })),
-    getOverlayVisibilityComposer: spy('getOverlayVisibilityComposer', () => ({
-      broadcastRuntimeOptionsChanged: spy('composer.broadcastRuntimeOptions', noop),
-      setOverlayDebugVisualizationEnabled: spy('composer.setDebugVisualization', noop),
-    })),
+    getRuntimeOptionsState: spy('getRuntimeOptionsState', () => []),
+    getOverlayForegroundSeparateWindows: spy('getOverlayForegroundSeparateWindows', () => []),
+    promoteStatsOverlayAbovePlayback: spy('promoteStatsOverlayAbovePlayback', noop),
     getMediaTimingReviewRuntime: spy('getMediaTimingReviewRuntime', () => ({
       dispose: spy('mediaTimingReview.dispose', resolved),
     })),
@@ -172,8 +141,6 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
     })),
     setSubtitleSidebarRequestedOpen: spy('setSubtitleSidebarRequestedOpen', noop),
     stealAppFocus: spy('stealAppFocus', noop),
-    ensureOverlayMpvSubtitlesHidden: spy('ensureOverlayMpvSubtitlesHidden', resolved),
-    syncOverlayMpvSubtitleSuppression: spy('syncOverlayMpvSubtitleSuppression', noop),
     initializeOverlayRuntime: spy('initializeOverlayRuntime', noop),
   };
   return { deps, windowOptions };
@@ -197,7 +164,61 @@ function setup(t: TestContext, options: { platform?: NodeJS.Platform; visible?: 
   };
   const { deps, windowOptions } = makeDeps(recorder, state);
   const overlay = createOverlayAssembly(deps);
-  return { recorder, state, overlay, windowOptions };
+  // Building the assembly on Linux starts the shared z-order keep-alive loop.
+  t.after(() => stopLinuxOverlayZOrderKeepAliveLoop());
+  stubRuntimeMethods(recorder, state, overlay);
+  return { recorder, state, overlay, windowOptions, deps };
+}
+
+/**
+ * Replaces the assembly's own pointer-interaction and geometry methods with recording stubs,
+ * so these tests pin the order of the assembly's calls into them, not the runtimes' internals.
+ * The assembly looks these methods up at call time, so stubbing after construction works.
+ */
+function stubRuntimeMethods(recorder: Recorder, state: FixtureState, overlay: Overlay): void {
+  const { spy } = recorder;
+  const noop = () => {};
+  Object.assign(overlay.interaction, {
+    getLinuxOverlayInputShapeActive: spy('interaction.getLinuxInputShapeActive', () => false),
+    getMacOSVisibleOverlayForegroundProbeActive: spy('interaction.getMacProbe', () => false),
+    getVisibleOverlayInteractionActive: spy('interaction.getActive', () => false),
+    setVisibleOverlayInteractionActive: spy('interaction.setActive', noop),
+    setLinuxOverlayInteractiveHint: spy('interaction.setLinuxInteractiveHint', noop),
+    applyLinuxOverlayInputShapeFromLatestMeasurement: spy(
+      'interaction.applyLinuxShape',
+      () => false,
+    ),
+    tickLinuxOverlayPointerInteractionNow: spy('interaction.tickLinuxNow', noop),
+    tickWindowsOverlayPointerInteractionNow: spy('interaction.tickWindowsNow', noop),
+    getWindowsNativeWindowHandleNumber: spy('interaction.getWindowsHandle', () => 0),
+    primeLinuxOverlayPointerInteractionAfterFirstMeasurement: spy(
+      'interaction.primePointerAfterFirstMeasurement',
+      noop,
+    ),
+    requestLinuxOverlayZOrderFollow: spy('interaction.requestLinuxZOrderFollow', noop),
+    requestWindowsVisibleOverlayZOrderSync: spy('interaction.requestWindowsZOrderSync', noop),
+    resetLinuxVisibleOverlayStartupInputPrimer: spy('interaction.resetStartupPrimer', noop),
+    resetVisibleOverlayInputState: spy('interaction.resetInputState', noop),
+    restoreVisibleOverlayWindowShapeForShow: spy('interaction.restoreShapeForShow', noop),
+    scheduleVisibleOverlayBlurRefresh: spy('interaction.scheduleBlurRefresh', noop),
+    startLinuxVisibleOverlayStartupInputGrace: spy('interaction.startStartupGrace', noop),
+  } satisfies Partial<Overlay['interaction']>);
+  Object.assign(overlay.geometry, {
+    enforceOverlayLayerOrder: spy('geometry.enforceLayerOrder', noop),
+    ensureOverlayWindowLevel: spy('geometry.ensureWindowLevel', noop),
+    getCurrentOverlayGeometry: spy('geometry.getCurrentOverlayGeometry', () => ({
+      x: 0,
+      y: 0,
+      width: 1920,
+      height: 1080,
+    })),
+    getCurrentTrackedOverlayGeometry: spy(
+      'geometry.getCurrentTrackedOverlayGeometry',
+      () => state.trackedGeometry,
+    ),
+    syncPrimaryOverlayWindowLayer: spy('geometry.syncPrimaryLayer', noop),
+    updateVisibleOverlayBounds: spy('geometry.updateVisibleBounds', noop),
+  } satisfies Partial<Overlay['geometry']>);
 }
 
 /** Asserts each name was called, in this relative order. */
@@ -337,8 +358,13 @@ test('visible overlay content-ready flushes notifications and autoplay without t
 
 for (const trackedGeometry of [null, { x: 10, y: 20, width: 1280, height: 720 }]) {
   test(`Linux fullscreen recreation resets input first and ${trackedGeometry ? 'applies tracked mpv bounds' : 'keeps bounds without tracked geometry'}`, (t) => {
-    const { recorder, state, overlay } = setup(t, { platform: 'linux', visible: true });
+    const { recorder, state, overlay, deps } = setup(t, { platform: 'linux', visible: true });
     state.trackedGeometry = trackedGeometry;
+    deps.appState.mpvClient = {
+      connected: true,
+      requestProperty: async () => 'yes',
+      setSubVisibility: recorder.spy('mpv.setSubVisibility', () => {}),
+    } as unknown as typeof deps.appState.mpvClient;
     // An opaque token: the assembly only hands the created window to the overlay manager.
     state.window = {} as BrowserWindow;
 
@@ -349,7 +375,7 @@ for (const trackedGeometry of [null, { x: 10, y: 20, width: 1280, height: 720 }]
       'interaction.resetInputState',
       'createOverlayWindowCore',
       'geometry.getCurrentTrackedOverlayGeometry',
-      'ensureOverlayMpvSubtitlesHidden',
+      'mpv.setSubVisibility',
     ]);
     const boundsCalls = recorder.calls.filter(
       (call) => call.name === 'overlay.setOverlayWindowBounds',

@@ -1,4 +1,4 @@
-import { type BrowserWindow, screen } from 'electron';
+import type { BrowserWindow, Screen } from 'electron';
 import type { WindowGeometry } from '../../types';
 import { hasHyprlandWindowPlacementBoundsMismatch } from '../../core/services/hyprland-window-placement';
 import { normalizeOverlayWindowBoundsForPlatform } from '../../core/services/overlay-window-bounds';
@@ -7,7 +7,6 @@ import {
   ensureOverlayWindowLevel as ensureOverlayWindowLevelCore,
   syncOverlayWindowLayer,
 } from '../../core/services/overlay-window';
-import { promoteStatsOverlayAbovePlayback } from '../../core/services/stats-window.js';
 import { restoreLinuxOverlayWindowShape } from './linux-overlay-window-shape';
 import { shouldRunLinuxOverlayZOrderKeepAlive } from './linux-overlay-zorder-keepalive';
 import {
@@ -25,6 +24,9 @@ import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './settings-w
 const LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS = 1_200;
 
 export interface OverlayGeometryRuntimeDeps {
+  /** Injected so this module loads without Electron (and under `bun test`). */
+  screen: Pick<Screen, 'getCursorScreenPoint' | 'getDisplayNearestPoint' | 'getDisplayMatching'>;
+  promoteStatsOverlayAbovePlayback: () => void;
   overlayManager: {
     getMainWindow: () => BrowserWindow | null;
     getModalWindow: () => BrowserWindow | null;
@@ -60,8 +62,8 @@ export function createOverlayGeometryRuntime(deps: OverlayGeometryRuntimeDeps) {
   let lastOverlayWindowGeometry: WindowGeometry | null = null;
 
   function getOverlayGeometryFallback(): WindowGeometry {
-    const cursorPoint = screen.getCursorScreenPoint();
-    const display = screen.getDisplayNearestPoint(cursorPoint);
+    const cursorPoint = deps.screen.getCursorScreenPoint();
+    const display = deps.screen.getDisplayNearestPoint(cursorPoint);
     const bounds = display.workArea;
     return {
       x: bounds.x,
@@ -106,7 +108,7 @@ export function createOverlayGeometryRuntime(deps: OverlayGeometryRuntimeDeps) {
       return false;
     }
 
-    const displayBounds = screen.getDisplayMatching(geometry).bounds;
+    const displayBounds = deps.screen.getDisplayMatching(geometry).bounds;
     return shouldExitFullscreenOverrideForTrackedGeometry({
       currentMode: deps.getLinuxVisibleOverlayWindowMode(),
       trackedFullscreen: deps.getLinuxTrackedMpvFullscreen(),
@@ -137,7 +139,8 @@ export function createOverlayGeometryRuntime(deps: OverlayGeometryRuntimeDeps) {
       }
       return hasHyprlandWindowPlacementBoundsMismatch({
         title: window.getTitle(),
-        bounds: normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen, window),
+        // Linux bounds come from the window's content insets; the DIP converter is Windows-only.
+        bounds: normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, null, window),
       });
     });
   }
@@ -190,7 +193,7 @@ export function createOverlayGeometryRuntime(deps: OverlayGeometryRuntimeDeps) {
       if (mainWindow && !mainWindow.isDestroyed()) {
         moveVisibleOverlayAboveTrackedPlaybackWindow(mainWindow);
       }
-      promoteStatsOverlayAbovePlayback();
+      deps.promoteStatsOverlayAbovePlayback();
     },
   });
 

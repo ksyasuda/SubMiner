@@ -1,4 +1,4 @@
-import { type BrowserWindow, screen } from 'electron';
+import type { BrowserWindow, Screen } from 'electron';
 import { execFile } from 'node:child_process';
 import { startOverlayWindowTracker as startOverlayWindowTrackerCore } from '../../core/services';
 import { applyOverlayClickThrough } from '../../core/services/overlay-click-through';
@@ -36,6 +36,8 @@ import { hasLiveSeparateWindow } from './settings-window-z-order';
 import { tickWindowsOverlayPointerInteraction } from './windows-overlay-pointer-interaction';
 
 export interface VisibleOverlayInteractionRuntimeDeps {
+  /** Injected so this module loads without Electron (and under `bun test`). */
+  screen: Pick<Screen, 'getCursorScreenPoint' | 'screenToDipPoint'>;
   overlayManager: {
     getMainWindow: () => BrowserWindow | null;
     getVisibleOverlayVisible: () => boolean;
@@ -289,7 +291,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
       return null;
     }
     return createWindowTrackerCore(override, targetMpvSocketPath, (point) =>
-      screen.screenToDipPoint(point),
+      deps.screen.screenToDipPoint(point),
     );
   }
 
@@ -597,7 +599,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
   const windowsOverlayPointerInteractionDeps = {
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getMainWindow: () => overlayManager.getMainWindow(),
-    getCursorScreenPoint: () => screen.getCursorScreenPoint(),
+    getCursorScreenPoint: () => deps.screen.getCursorScreenPoint(),
     getSubtitleMeasurement: () => overlayContentMeasurementStore.getLatestByLayer('visible'),
     shouldSuspend: shouldSuspendWindowsOverlayPointerInteraction,
     getInteractionActive: () => windowsOverlayPointerInteractionActive,
@@ -617,7 +619,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
   ensureWindowsVisibleOverlayForegroundPollLoop();
 
   const linuxX11CursorPointReader = createLinuxX11CursorPointReader({
-    screenToDipPoint: (point) => screen.screenToDipPoint(point),
+    screenToDipPoint: (point) => deps.screen.screenToDipPoint(point),
   });
 
   function getLinuxOverlayPointerMeasurement() {
@@ -805,7 +807,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getMainWindow: () => overlayManager.getMainWindow(),
     getCursorScreenPoint: () =>
-      linuxX11CursorPointReader.getCursorScreenPoint(screen.getCursorScreenPoint()),
+      linuxX11CursorPointReader.getCursorScreenPoint(deps.screen.getCursorScreenPoint()),
     getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
     getRendererInteractiveHint: () =>
       linuxOverlayInteractiveHint || hasLinuxVisibleOverlayStartupInputGrace(),

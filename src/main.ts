@@ -131,7 +131,6 @@ import {
 import {
   SubtitleWebSocket,
   Texthooker,
-  broadcastRuntimeOptionsChangedRuntime,
   createDiscordPresenceService,
   createOverlayContentMeasurementStore,
   createOverlayManager,
@@ -147,13 +146,12 @@ import {
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   sendMpvCommandRuntime,
-  setMpvSubVisibilityRuntime,
-  setOverlayDebugVisualizationEnabledRuntime,
   showMpvOsdRuntime,
   toSubtitleClock,
 } from './core/services';
 import {
   destroyStatsWindow,
+  promoteStatsOverlayAbovePlayback,
   registerStatsOverlayToggle,
   toggleStatsOverlay as toggleStatsOverlayWindow,
   withStatsWindowLayerSuspendedForNativeDialog,
@@ -204,14 +202,9 @@ import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
 import { dispatchSessionAction as dispatchSessionActionCore } from './core/services/session-actions';
 import {
-  createEnsureOverlayMpvSubtitlesHiddenHandler,
-  createRestoreOverlayMpvSubtitlesHandler,
-} from './main/runtime/overlay-mpv-sub-visibility';
-import {
   composeCliStartupHandlers,
   composeHeadlessStartupHandlers,
   composeIpcRuntimeHandlers,
-  composeOverlayVisibilityRuntime,
   composeStartupLifecycleHandlers,
 } from './main/runtime/composers';
 import { createStartupBootstrapRuntimeDeps } from './main/startup';
@@ -254,8 +247,6 @@ import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
-import { createOverlayGeometryRuntime } from './main/runtime/overlay-geometry-runtime';
-import { createVisibleOverlayInteractionRuntime } from './main/runtime/visible-overlay-interaction-runtime';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
   INSTALL_UPDATE_ACTION_ID,
@@ -447,7 +438,7 @@ const bootServices = createMainBootServices({
         getMainWindow: () => overlayManager.getMainWindow(),
         getModalWindow: () => overlayManager.getModalWindow(),
         createModalWindow: () => createModalWindow(),
-        getModalGeometry: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
+        getModalGeometry: () => overlay.geometry.getCurrentOverlayGeometry(),
         setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
       },
       {
@@ -584,9 +575,9 @@ const stats = createStatsAssembly({
   getTokenizeSubtitle: () => getTokenizeSubtitleDeferred(),
   createMecabTokenizerAndCheck: () => createMecabTokenizerAndCheck(),
   getOverlayNotifications: () => overlayNotificationsRuntime,
-  getOverlayBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
+  getOverlayBounds: () => overlay.geometry.getCurrentOverlayGeometry(),
   onStatsOverlayVisibilityChanged: (visible) =>
-    visibleOverlayInteractionRuntime.handleStatsOverlayVisibilityChanged(visible),
+    overlay.interaction.handleStatsOverlayVisibilityChanged(visible),
   runAnilistPostWatchUpdate: () => anilist.maybeRunAnilistPostWatchUpdate({ force: true }),
   openExternal: (url) => shell.openExternal(url),
   requestAppQuit: () => requestAppQuit(),
@@ -630,7 +621,7 @@ const youtube = createYoutubeAssembly({
   getMainOverlayWindow: () => overlayManager.getMainWindow(),
   overlayModalRuntime,
   getOverlayNotifications: () => overlayNotificationsRuntime,
-  getOverlayGeometry: () => overlayGeometryRuntime,
+  getOverlayGeometry: () => overlay.geometry,
   showMpvOsd: (text) => showMpvOsd(text),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
   refreshCurrentSubtitle: (text: string) => {
@@ -886,48 +877,6 @@ async function initializeDiscordPresenceService(): Promise<void> {
   await appState.discordPresenceService.start();
   discordPresenceRuntime.publishDiscordPresence();
 }
-const ensureOverlayMpvSubtitlesHidden = createEnsureOverlayMpvSubtitlesHiddenHandler({
-  getMpvClient: () => appState.mpvClient,
-  getSavedSubVisibility: () => appState.overlaySavedMpvSubVisibility,
-  setSavedSubVisibility: (visible) => {
-    appState.overlaySavedMpvSubVisibility = visible;
-  },
-  getRevision: () => appState.overlayMpvSubVisibilityRevision,
-  setRevision: (revision) => {
-    appState.overlayMpvSubVisibilityRevision = revision;
-  },
-  setMpvSubVisibility: (visible) => {
-    setMpvSubVisibilityRuntime(appState.mpvClient, visible);
-  },
-  logWarn: (message, error) => {
-    logger.warn(message, error);
-  },
-});
-const restoreOverlayMpvSubtitles = createRestoreOverlayMpvSubtitlesHandler({
-  getSavedSubVisibility: () => appState.overlaySavedMpvSubVisibility,
-  setSavedSubVisibility: (visible) => {
-    appState.overlaySavedMpvSubVisibility = visible;
-  },
-  getRevision: () => appState.overlayMpvSubVisibilityRevision,
-  setRevision: (revision) => {
-    appState.overlayMpvSubVisibilityRevision = revision;
-  },
-  isMpvConnected: () => Boolean(appState.mpvClient?.connected),
-  shouldKeepSuppressedFromVisibleOverlayBinding: () => overlayManager.getVisibleOverlayVisible(),
-  setMpvSubVisibility: (visible) => {
-    setMpvSubVisibilityRuntime(appState.mpvClient, visible);
-  },
-});
-
-function syncOverlayMpvSubtitleSuppression(): void {
-  if (overlayManager.getVisibleOverlayVisible()) {
-    void ensureOverlayMpvSubtitlesHidden();
-    return;
-  }
-
-  restoreOverlayMpvSubtitles();
-}
-
 const configDerivedRuntime = createConfigDerivedRuntime({
   getResolvedConfig: () => configService.getConfig(),
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
@@ -1017,27 +966,28 @@ const overlay = createOverlayAssembly({
   screen: {
     getCursorScreenPoint: () => screen.getCursorScreenPoint(),
     getDisplayNearestPoint: (point) => screen.getDisplayNearestPoint(point),
+    getDisplayMatching: (rect) => screen.getDisplayMatching(rect),
+    screenToDipPoint: (point) => screen.screenToDipPoint(point),
   },
   isDev,
   createOverlayWindowCore,
   getYomitanSession: () => yomitan.getOverlaySession(),
-  getVisibleOverlayInteraction: () => visibleOverlayInteractionRuntime,
-  getOverlayGeometry: () => overlayGeometryRuntime,
   getOverlayShortcuts: () => shortcuts.overlayShortcutsRuntime,
   getOverlayNotifications: () => overlayNotificationsRuntime,
-  getOverlayVisibilityComposer: () => overlayVisibilityComposer,
+  getRuntimeOptionsState: () => getRuntimeOptionsStateHandler(),
+  getOverlayForegroundSeparateWindows: () => getOverlayForegroundSeparateWindows(),
+  promoteStatsOverlayAbovePlayback: () => {
+    promoteStatsOverlayAbovePlayback();
+  },
   getMediaTimingReviewRuntime: () => mining.mediaTimingReviewRuntime,
   getSubtitleProcessingController: () => subtitleProcessingController,
   getAutoplaySubtitlePriming: () => autoplaySubtitlePrimingRuntime,
-  ensureOverlayMpvSubtitlesHidden: () => ensureOverlayMpvSubtitlesHidden(),
-  syncOverlayMpvSubtitleSuppression: () => syncOverlayMpvSubtitleSuppression(),
   initializeOverlayRuntime: () => startup.initializeOverlayRuntime(),
   getPluginPanel: () => pluginPanelRuntime,
   setSubtitleSidebarRequestedOpen: (open) => playback.setSubtitleSidebarRequestedOpen(open),
   stealAppFocus: () => app.focus({ steal: true }),
 });
 const {
-  linuxOverlayModeRuntime,
   overlayVisibilityRuntime,
   createMainWindow,
   createModalWindow,
@@ -1047,6 +997,8 @@ const {
   setOverlayVisible,
   handleMpvFullscreenChange,
   clearLinuxFullscreenOverlayRefresh,
+  restoreOverlayMpvSubtitles,
+  syncOverlayMpvSubtitleSuppression,
 } = overlay;
 
 const shortcuts = createShortcutsAssembly({
@@ -1256,57 +1208,6 @@ const characterDictionary = createCharacterDictionaryAssembly({
   resetAnilistMediaGuessState: () => anilist.resetAnilistMediaGuessState(),
 });
 
-const visibleOverlayInteractionRuntime = createVisibleOverlayInteractionRuntime({
-  overlayManager: {
-    getMainWindow: () => overlayManager.getMainWindow(),
-    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  },
-  overlayContentMeasurementStore: {
-    clear: (layer) => overlayContentMeasurementStore.clear(layer),
-    getLatestByLayer: (layer) => overlayContentMeasurementStore.getLatestByLayer(layer),
-  },
-  logger: {
-    info: (message, ...args) => logger.info(message, ...args),
-    warn: (message, ...args) => logger.warn(message, ...args),
-    debug: (message, ...args) => logger.debug(message, ...args),
-  },
-  updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
-  getModalInputExclusive: () => overlayModalInputState.getModalInputExclusive(),
-  getStatsOverlayVisible: () => appState.statsOverlayVisible,
-  setStatsOverlayVisible: (visible) => {
-    appState.statsOverlayVisible = visible;
-  },
-  getWindowTracker: () => appState.windowTracker,
-  setWindowTracker: (tracker) => {
-    appState.windowTracker = tracker;
-  },
-  setTrackerNotReadyWarningShown: (shown) => {
-    appState.trackerNotReadyWarningShown = shown;
-  },
-  getMpvSocketPath: () => appState.mpvSocketPath,
-  getBackendOverride: () => appState.backendOverride,
-  getInitialArgs: () => appState.initialArgs,
-  getOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-  getLinuxVisibleOverlayWindowMode: () => linuxOverlayModeRuntime.mode,
-  setLinuxVisibleOverlayOwnerBindingKey: (key) => {
-    linuxOverlayModeRuntime.ownerBindingKey = key;
-  },
-  bindVisibleOverlayToTrackedX11Window: (window) =>
-    overlayGeometryRuntime.bindVisibleOverlayToTrackedX11Window(window),
-  updateVisibleOverlayBounds: (geometry) =>
-    overlayGeometryRuntime.updateVisibleOverlayBounds(geometry),
-  refreshCurrentSubtitle: () => {
-    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-  },
-  getOverlayWindows: () => overlayManager.getOverlayWindows(),
-  syncOverlayShortcuts: () => shortcuts.overlayShortcutsRuntime.syncOverlayShortcuts(),
-  resetLastOverlayWindowGeometry: () => overlayGeometryRuntime.resetLastOverlayWindowGeometry(),
-  enforceOverlayLayerOrder: () => {
-    overlayGeometryRuntime.enforceOverlayLayerOrder();
-  },
-  getOverlayForegroundSeparateWindows: () => getOverlayForegroundSeparateWindows(),
-});
-
 const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler({
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
 });
@@ -1330,33 +1231,6 @@ const {
   maybeStartOverlayLoadingOsd,
 } = overlayNotificationsRuntime;
 
-const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
-  overlayVisibilityRuntime,
-  restorePreviousSecondarySubVisibilityMainDeps: {
-    getMpvClient: () => appState.mpvClient,
-  },
-  broadcastRuntimeOptionsChangedMainDeps: {
-    broadcastRuntimeOptionsChangedRuntime,
-    getRuntimeOptionsState: () => getRuntimeOptionsStateHandler(),
-    broadcastToOverlayWindows: (channel, ...args) =>
-      overlayManager.broadcastToOverlayWindows(channel, ...args),
-  },
-  sendToActiveOverlayWindowMainDeps: {
-    sendToActiveOverlayWindowRuntime: (channel, payload, runtimeOptions) =>
-      overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
-  },
-  setOverlayDebugVisualizationEnabledMainDeps: {
-    setOverlayDebugVisualizationEnabledRuntime,
-    getCurrentEnabled: () => appState.overlayDebugVisualizationEnabled,
-    setCurrentEnabled: (next) => {
-      appState.overlayDebugVisualizationEnabled = next;
-    },
-  },
-  openRuntimeOptionsPaletteMainDeps: {
-    openRuntimeOptionsPaletteRuntime: () => overlayModalRuntime.openRuntimeOptionsPalette(),
-  },
-});
-
 const overlayModals = createOverlayModalsAssembly({
   appState,
   getConfig: () => configService.getConfig(),
@@ -1367,7 +1241,7 @@ const overlayModals = createOverlayModalsAssembly({
   ensureOverlayWindowsReadyForVisibilityActions: () =>
     ensureOverlayWindowsReadyForVisibilityActions(),
   sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
-    overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+    overlay.visibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
   showMpvOsd: (text) => showMpvOsd(text),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
@@ -1605,7 +1479,7 @@ const {
     destroyTray: () => tray.destroyTray(),
     stopConfigHotReload: () => settings.hotReload.stop(),
     restorePreviousSecondarySubVisibility: () =>
-      overlayVisibilityComposer.restorePreviousSecondarySubVisibility(),
+      overlay.visibilityComposer.restorePreviousSecondarySubVisibility(),
     restoreMpvSubVisibility: () => {
       restoreOverlayMpvSubtitles({ force: true });
     },
@@ -1621,7 +1495,7 @@ const {
       await sync.runtime.shutdown();
     },
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
-      visibleOverlayInteractionRuntime.clearWindowsVisibleOverlayForegroundPollLoop(),
+      overlay.interaction.clearWindowsVisibleOverlayForegroundPollLoop(),
     clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => clearLinuxFullscreenOverlayRefresh(),
     getMainOverlayWindow: () => overlayManager.getMainWindow(),
     clearMainOverlayWindow: () => overlayManager.setMainWindow(null),
@@ -1725,7 +1599,6 @@ const startup = createStartupAssembly({
   hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
   loadSubtitlePosition: () => loadSubtitlePosition(),
   setSecondarySubMode: (mode) => setSecondarySubMode(mode),
-  syncOverlayMpvSubtitleSuppression: () => syncOverlayMpvSubtitleSuppression(),
   yomitan,
   stats,
   firstRunSetup,
@@ -1739,9 +1612,6 @@ const startup = createStartupAssembly({
   getPlayback: () => playback,
   getPluginHost: () => pluginHost,
   getOverlayNotifications: () => overlayNotificationsRuntime,
-  getOverlayVisibilityComposer: () => overlayVisibilityComposer,
-  getVisibleOverlayInteraction: () => visibleOverlayInteractionRuntime,
-  getOverlayGeometry: () => overlayGeometryRuntime,
   handleInitialArgs: () => handleInitialArgs(),
 });
 
@@ -1801,43 +1671,6 @@ const {
   getLastObservedTimePos,
   getTokenizeSubtitleDeferred,
 } = playback;
-
-const overlayGeometryRuntime = createOverlayGeometryRuntime({
-  overlayManager: {
-    getMainWindow: () => overlayManager.getMainWindow(),
-    getModalWindow: () => overlayManager.getModalWindow(),
-    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    setOverlayWindowBounds: (geometry) => overlayManager.setOverlayWindowBounds(geometry),
-    setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
-  },
-  getTrackedWindowGeometry: () => appState.windowTracker?.getGeometry() ?? null,
-  getTrackedWindowMediaSourceId: () => appState.windowTracker?.getTargetWindowMediaSourceId?.(),
-  getTrackedWindowNativeId: () => appState.windowTracker?.getTargetWindowNativeId?.(),
-  getStatsOverlayVisible: () => appState.statsOverlayVisible,
-  getOverlayForegroundSeparateWindows: () => getOverlayForegroundSeparateWindows(),
-  getLinuxVisibleOverlayWindowMode: () => linuxOverlayModeRuntime.mode,
-  getLinuxTrackedMpvFullscreen: () => linuxOverlayModeRuntime.fullscreen,
-  getLinuxTrackedMpvFullscreenChangedAtMs: () => linuxOverlayModeRuntime.fullscreenChangedAtMs,
-  syncLinuxVisibleOverlayMpvFullscreenMode: (fullscreen) =>
-    linuxOverlayModeRuntime.sync(fullscreen),
-  getLinuxVisibleOverlayOwnerBindingKey: () => linuxOverlayModeRuntime.ownerBindingKey,
-  setLinuxVisibleOverlayOwnerBindingKey: (key) => {
-    linuxOverlayModeRuntime.ownerBindingKey = key;
-  },
-  clearVisibleOverlayX11OwnerBinding: (window) =>
-    visibleOverlayInteractionRuntime.clearVisibleOverlayX11OwnerBinding(window),
-  getNativeWindowHandleDecimal: (window) =>
-    visibleOverlayInteractionRuntime.getNativeWindowHandleDecimal(window),
-  enqueueVisibleOverlayX11OwnerBindingOperation: (window, args, onError) =>
-    visibleOverlayInteractionRuntime.enqueueVisibleOverlayX11OwnerBindingOperation(
-      window,
-      args,
-      onError,
-    ),
-  scheduleWindowsVisibleOverlayZOrderSyncBurst: () =>
-    visibleOverlayInteractionRuntime.scheduleWindowsVisibleOverlayZOrderSyncBurst(),
-  logDebug: (message, ...args) => logger.debug(message, ...args),
-});
 
 const { exportLogsFromTray } = createLogExportTrayRuntime({
   flushMpvLog: () => flushMpvLog(),
@@ -2132,7 +1965,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     appState,
     setLogLevel: (level) => setLogLevel(level, 'cli'),
     onMpvSocketPathChanged: (nextSocketPath, previousSocketPath) =>
-      visibleOverlayInteractionRuntime.retargetOverlayWindowTrackerForMpvSocket(
+      overlay.interaction.retargetOverlayWindowTrackerForMpvSocket(
         nextSocketPath,
         previousSocketPath,
       ),
