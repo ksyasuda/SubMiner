@@ -158,6 +158,7 @@ import { createTrayAssembly } from './main/assemblies/tray';
 import { createPluginsAssembly } from './main/assemblies/plugins';
 import { createSessionActionsAssembly } from './main/assemblies/session-actions';
 import { createSubtitleGenerationAssembly } from './main/assemblies/subtitle-generation';
+import { createAnnotationOptions } from './main/runtime/annotation-options';
 import { createStartupAssembly } from './main/assemblies/startup';
 import type { IpcHandlerDeps } from './main/assemblies/slices';
 import type { CliCommandContextMainDeps } from './main/runtime/cli-command-context-factory';
@@ -258,44 +259,12 @@ const DISCORD_PRESENCE_APP_ID = '1475264834730856619';
 let notifyAnilistTokenStoreWarning: (message: string) => void = () => {};
 
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
-const texthookerService = new Texthooker(() => {
-  const config = configService.getConfig();
-  const characterDictionaryEnabled =
-    config.subtitleStyle.nameMatchEnabled && yomitan.profilePolicy.isCharacterDictionaryEnabled();
-  const knownWordColoringEnabled = getRuntimeBooleanOption(
-    'subtitle.annotation.knownWords.highlightEnabled',
-    config.ankiConnect.knownWords.highlightEnabled,
-  );
-  const nPlusOneColoringEnabled = getRuntimeBooleanOption(
-    'subtitle.annotation.nPlusOne',
-    config.ankiConnect.nPlusOne.enabled,
-  );
-
-  return {
-    enableKnownWordColoring: knownWordColoringEnabled,
-    enableNPlusOneColoring: nPlusOneColoringEnabled,
-    enableNameMatchColoring: config.subtitleStyle.nameMatchEnabled && characterDictionaryEnabled,
-    enableFrequencyColoring: getRuntimeBooleanOption(
-      'subtitle.annotation.frequency',
-      config.subtitleStyle.frequencyDictionary.enabled,
-    ),
-    enableJlptColoring: getRuntimeBooleanOption(
-      'subtitle.annotation.jlpt',
-      config.subtitleStyle.enableJlpt,
-    ),
-    characterDictionaryEnabled,
-    knownWordColor: config.subtitleStyle.knownWordColor,
-    nPlusOneColor: config.subtitleStyle.nPlusOneColor,
-    nameMatchColor: config.subtitleStyle.nameMatchColor,
-    hoverTokenColor: config.subtitleStyle.hoverTokenColor,
-    hoverTokenBackgroundColor: config.subtitleStyle.hoverTokenBackgroundColor,
-    jlptColors: config.subtitleStyle.jlptColors,
-    frequencyDictionary: {
-      singleColor: config.subtitleStyle.frequencyDictionary.singleColor,
-      bandedColors: config.subtitleStyle.frequencyDictionary.bandedColors,
-    },
-  };
+const annotationOptions = createAnnotationOptions({
+  getConfig: () => configService.getConfig(),
+  getRuntimeOptionValue: (id) => appState.runtimeOptionsManager?.getOptionValue(id),
+  isCharacterDictionaryEnabled: () => yomitan.profilePolicy.isCharacterDictionaryEnabled(),
 });
+const texthookerService = new Texthooker(() => annotationOptions.getTexthookerBootstrapSettings());
 const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler({
   platform: process.platform,
 });
@@ -1137,39 +1106,6 @@ const plugins = createPluginsAssembly({
   dispatchSessionAction: (request) => sessionActions.dispatchSessionAction(request),
 });
 
-function getRuntimeBooleanOption(
-  id:
-    | 'subtitle.annotation.knownWords.highlightEnabled'
-    | 'subtitle.annotation.nPlusOne'
-    | 'subtitle.annotation.jlpt'
-    | 'subtitle.annotation.frequency',
-  fallback: boolean,
-): boolean {
-  const value = appState.runtimeOptionsManager?.getOptionValue(id);
-  return typeof value === 'boolean' ? value : fallback;
-}
-
-function shouldInitializeMecabForAnnotations(): boolean {
-  const config = configService.getConfig();
-  const knownWordsEnabled = getRuntimeBooleanOption(
-    'subtitle.annotation.knownWords.highlightEnabled',
-    config.ankiConnect.knownWords.highlightEnabled,
-  );
-  const nPlusOneEnabled = getRuntimeBooleanOption(
-    'subtitle.annotation.nPlusOne',
-    config.ankiConnect.nPlusOne.enabled,
-  );
-  const jlptEnabled = getRuntimeBooleanOption(
-    'subtitle.annotation.jlpt',
-    config.subtitleStyle.enableJlpt,
-  );
-  const frequencyEnabled = getRuntimeBooleanOption(
-    'subtitle.annotation.frequency',
-    config.subtitleStyle.frequencyDictionary.enabled,
-  );
-  return knownWordsEnabled || nPlusOneEnabled || jlptEnabled || frequencyEnabled;
-}
-
 const jellyfin = createJellyfinAssembly({
   appState,
   configService,
@@ -1439,8 +1375,10 @@ const playback = createPlaybackAssembly({
   syncOverlayMpvSubtitleSuppression: () => syncOverlayMpvSubtitleSuppression(),
   setOverlayVisible: (visible) => setOverlayVisible(visible),
   ensureYomitanExtensionLoaded: () => yomitan.ensureExtensionLoaded(),
-  shouldInitializeMecabForAnnotations: () => shouldInitializeMecabForAnnotations(),
-  getRuntimeBooleanOption: (id, fallback) => getRuntimeBooleanOption(id, fallback),
+  shouldInitializeMecabForAnnotations: () =>
+    annotationOptions.shouldInitializeMecabForAnnotations(),
+  getRuntimeBooleanOption: (id, fallback) =>
+    annotationOptions.getRuntimeBooleanOption(id, fallback),
   onFullscreenChange: (fullscreen) => handleMpvFullscreenChange(fullscreen),
   stealAppFocus: () => app.focus({ steal: true }),
 });

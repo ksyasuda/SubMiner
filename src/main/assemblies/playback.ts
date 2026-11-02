@@ -71,7 +71,7 @@ import type { createMediaTimingReviewRuntime } from '../runtime/media-timing-rev
 import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notifications-runtime';
 import type { createStartupOsdSequencer } from '../runtime/startup-osd-sequencer';
 import type { createSubtitleGenerationRuntime } from '../runtime/subtitle-generation-runtime';
-import type { RuntimeOptionId } from '../../types/runtime-options';
+import type { AnnotationRuntimeOptionId } from '../runtime/annotation-options';
 import type { OverlayModalRuntime } from '../overlay-runtime';
 import type { AppState } from '../state';
 import type { AnilistAssembly } from './anilist';
@@ -83,13 +83,6 @@ import type { YoutubeAssembly } from './youtube';
 
 type SubtitleWsBroadcaster = Pick<SubtitleWebSocket, 'broadcast'>;
 type OverlayNotificationsRuntime = ReturnType<typeof createOverlayNotificationsRuntime>;
-type AnnotationRuntimeOptionId = Extract<
-  RuntimeOptionId,
-  | 'subtitle.annotation.knownWords.highlightEnabled'
-  | 'subtitle.annotation.nPlusOne'
-  | 'subtitle.annotation.jlpt'
-  | 'subtitle.annotation.frequency'
->;
 
 /**
  * What the playback assembly needs from the rest of `main.ts`. Everything here except the
