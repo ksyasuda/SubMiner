@@ -38,7 +38,7 @@ const DEFAULT_WINDOW_HEIGHT = 720;
 export const PLUGIN_DEACTIVATE_TIMEOUT_MS = 2_000;
 export const PLUGIN_ACTIVATE_TIMEOUT_MS = 10_000;
 
-interface MpvClientEvents {
+export interface MpvClientEvents {
   currentVideoPath?: string;
   currentMediaTitle?: string | null;
   on: <E extends PluginMpvEventName>(
