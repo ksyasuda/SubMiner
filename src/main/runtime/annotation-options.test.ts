@@ -37,9 +37,10 @@ test('MeCab starts only when some annotation, from config or a runtime option, n
 });
 
 test('a runtime option overrides config only when it holds a boolean', () => {
-  const options = setup({ 'subtitle.annotation.nPlusOne': true });
+  const options = setup({ 'subtitle.annotation.nPlusOne': true, 'subtitle.annotation.jlpt': 'on' });
 
   assert.equal(options.getRuntimeBooleanOption('subtitle.annotation.nPlusOne', false), true);
+  assert.equal(options.getRuntimeBooleanOption('subtitle.annotation.jlpt', false), false);
   assert.equal(options.getRuntimeBooleanOption('subtitle.annotation.frequency', true), true);
 });
 
