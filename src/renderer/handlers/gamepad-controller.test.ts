@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { CORE_DEFAULT_CONFIG } from '../../config/definitions/defaults-core';
 import type { ControllerRuntimeSnapshot, ResolvedControllerConfig } from '../../types';
-import { createGamepadController } from './gamepad-controller.js';
+import { createGamepadController, type ControllerScreenLayout } from './gamepad-controller.js';
 
 type ControllerOptions = Parameters<typeof createGamepadController>[0];
 type Bindings = ResolvedControllerConfig['bindings'];
@@ -290,6 +290,8 @@ test('gamepad controller uses active controller profile bindings before global b
           label: 'Profile Pad',
           buttonIndices: globalConfig.buttonIndices,
           bindings: { ...globalConfig.bindings, toggleLookup: { kind: 'button', buttonIndex: 11 } },
+          reviewBindings: globalConfig.reviewBindings,
+          fieldGroupingBindings: globalConfig.fieldGroupingBindings,
         },
       },
     },
@@ -658,4 +660,127 @@ test('gamepad controller requires keyboard-only mode for popup entry navigation'
   harness.poll(0, 16);
 
   assert.deepEqual(harness.calls, []);
+});
+
+function createRecordingScreenLayout() {
+  const events: string[] = [];
+  const layout: ControllerScreenLayout = {
+    activate: (gamepad, _config, _now, { latchHeld }) => {
+      events.push(`activate:${gamepad.id}:${latchHeld ? 'latch' : 'fresh'}`);
+    },
+    poll: (_gamepad, _config, now) => {
+      events.push(`poll:${now}`);
+    },
+  };
+  return { layout, events };
+}
+
+test('gamepad controller hands every input to an open screen layout', () => {
+  let screenOpen = true;
+  const { layout, events } = createRecordingScreenLayout();
+  const harness = createHarness({
+    // A (lookup), Y (keyboard mode) and R2 (secondary hold) are all pressed.
+    gamepads: [createGamepad('pad-1', { buttons: { 0: PRESSED, 3: PRESSED, 7: PRESSED } })],
+    config: createControllerConfig({ bindings: HOLD_ON_R2 }),
+    deps: { getScreenLayout: () => (screenOpen ? layout : null) },
+  });
+
+  harness.poll(0, 16, 32);
+  assert.deepEqual(events, ['activate:pad-1:latch', 'poll:16', 'poll:32']);
+  assert.deepEqual(harness.calls, []);
+  assert.deepEqual(harness.secondarySubHeld, []);
+
+  // Buttons still held when the screen closes do not fire their normal actions...
+  screenOpen = false;
+  harness.poll(48);
+  assert.deepEqual(harness.calls, []);
+  // ...but a level-triggered hold resumes, since it reflects what is held right now.
+  assert.deepEqual(harness.secondarySubHeld, [true]);
+});
+
+test('gamepad controller re-activates the screen layout for each new session', () => {
+  let screenOpen = true;
+  const { layout, events } = createRecordingScreenLayout();
+  const harness = createHarness({
+    gamepads: [createGamepad('pad-1')],
+    deps: { getScreenLayout: () => (screenOpen ? layout : null) },
+  });
+
+  harness.poll(0, 16);
+  screenOpen = false;
+  harness.poll(32);
+  screenOpen = true;
+  harness.poll(48, 64);
+
+  assert.deepEqual(events, ['activate:pad-1:latch', 'poll:16', 'activate:pad-1:latch', 'poll:64']);
+});
+
+test('gamepad controller ignores the screen layout while controller support is disabled', () => {
+  const { layout, events } = createRecordingScreenLayout();
+  const harness = createHarness({
+    gamepads: [createGamepad('pad-1', { buttons: { 0: PRESSED } })],
+    config: createControllerConfig({ enabled: false }),
+    deps: { getScreenLayout: () => layout },
+  });
+
+  harness.poll(0, 16);
+
+  assert.deepEqual(events, []);
+});
+
+test('gamepad controller stands down entirely while another window owns the controller', () => {
+  let suspended = true;
+  let r2: TestButton = PRESSED;
+  const harness = createHarness({
+    gamepads: () => [createGamepad('pad-1', { buttons: { 0: PRESSED, 3: PRESSED, 7: r2 } })],
+    config: createControllerConfig({ bindings: HOLD_ON_R2 }),
+  });
+  harness.poll(0);
+  assert.deepEqual(harness.secondarySubHeld, [true]);
+
+  const suspendedHarness = createHarness({
+    gamepads: () => [createGamepad('pad-1', { buttons: { 0: PRESSED, 3: PRESSED, 7: r2 } })],
+    config: createControllerConfig({ bindings: HOLD_ON_R2 }),
+    deps: { getSuspended: () => suspended },
+  });
+  suspendedHarness.poll(0, 16);
+  // Not even the keyboard-mode toggle (Y) fires, and the hold stays released.
+  assert.deepEqual(suspendedHarness.calls, []);
+  assert.deepEqual(suspendedHarness.secondarySubHeld, []);
+
+  suspended = false;
+  r2 = RELEASED;
+  suspendedHarness.poll(32);
+  assert.deepEqual(suspendedHarness.calls, []);
+});
+
+test('gamepad controller counts the press that reveals a pad to an open screen', () => {
+  let visible = false;
+  const { layout, events } = createRecordingScreenLayout();
+  const harness = createHarness({
+    // Until a button is pressed in a fresh window, the browser reports no pads at all.
+    gamepads: () => (visible ? [createGamepad('pad-1', { buttons: { 0: PRESSED } })] : []),
+    deps: { getScreenLayout: () => layout },
+  });
+
+  harness.poll(0, 16);
+  visible = true;
+  harness.poll(32, 48);
+
+  assert.deepEqual(events, ['activate:pad-1:fresh', 'poll:48']);
+});
+
+test('gamepad controller still ignores a button held when the screen opened', () => {
+  let screenOpen = false;
+  const { layout, events } = createRecordingScreenLayout();
+  const harness = createHarness({
+    gamepads: [createGamepad('pad-1', { buttons: { 2: PRESSED } })],
+    deps: { getScreenLayout: () => (screenOpen ? layout : null) },
+  });
+
+  harness.poll(0);
+  screenOpen = true;
+  harness.poll(16);
+
+  assert.deepEqual(events, ['activate:pad-1:latch']);
 });

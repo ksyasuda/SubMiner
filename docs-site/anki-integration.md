@@ -160,6 +160,34 @@ The confirmed range is used as is, with no extra padding. Added lines go into th
 
 When you cancel, you can go back to editing, keep the original timing, create the card without media, or discard it. Discard deletes the Yomitan note or audio card, and skips creation for a sentence card.
 
+#### With a controller
+
+With [controller support](/usage#controller-support) on, the dialog has its own controller layout, and each button shows its controller shortcut. It works with or without keyboard-only mode, and the controller's usual actions pause until the dialog closes. Buttons that were already held when the dialog opened, such as the mine button, wait for a fresh press.
+
+`A`, `B`, `X` and `Y` mean the letters printed on your controller. If yours has A on the right and B at the bottom (Switch-style and many 8BitDo pads), set `controller.faceButtonLabels` to `"nintendo"`; PlayStation pads use the default (`A` is ✕, `B` ○, `X` □, `Y` △).
+
+Hold `L1` or `R1` and press the D-pad for the combos. `L1` covers the clip start and the lines before it, and `R1` the clip end and the lines after it. D-pad actions repeat while held.
+
+This is the default layout:
+
+| Controller              | Editing                          | After Cancel        |
+| ----------------------- | -------------------------------- | ------------------- |
+| `A`                     | Use this timing                  | Use original timing |
+| `B`                     | Cancel                           | Keep editing        |
+| `X`                     | Play selection                   | Without media       |
+| `Y`                     | Reset timing                     | Discard             |
+| D-pad left / right      | Earlier −2s / Later +2s          |                     |
+| D-pad up / down         | Previous / next screenshot frame |                     |
+| `L1` + D-pad left/right | Start −0.1s / +0.1s              |                     |
+| `L1` + D-pad up/down    | Add / remove a previous line     |                     |
+| `R1` + D-pad left/right | End −0.1s / +0.1s                |                     |
+| `R1` + D-pad up/down    | Add / remove a next line         |                     |
+| `L1` + `R1`             | Reset the screenshot frame       |                     |
+
+To change it, open `Alt+C` and expand **Review media timing**. Click an action's pencil, then press a button, or hold one button and press another to make a combo; the first button becomes the one you hold. Any button can be a hold button. Changes are saved per controller, and **Reset all** brings back the default layout.
+
+Nudges, Earlier/Later, lines and frames repeat while held whichever buttons they are on. A row warns you when two actions on the same step share an input, or when an action uses a button alone that other actions hold.
+
 ### Update behavior
 
 | Key                           | What it does                                         |
@@ -236,6 +264,21 @@ The manual dialog cancels itself after 90 seconds. Identical entries are not ded
 | `Enter`     | Confirm                               |
 | `Backspace` | Back from the merge preview           |
 | `Esc`       | Cancel and leave both cards unchanged |
+
+### With a controller {#field-grouping-with-a-controller}
+
+With [controller support](/usage#controller-support) on, the dialog has its own controller layout, and each control shows its controller shortcut. Like the [media timing review](#with-a-controller), it works with or without keyboard-only mode, `A`/`B`/`X`/`Y` are the printed letters (see `controller.faceButtonLabels`), and a button already held when the dialog opens waits for a fresh press.
+
+| Controller         | Choosing the card                 | Merge preview           |
+| ------------------ | --------------------------------- | ----------------------- |
+| D-pad left / right | Original card / New card          |                         |
+| D-pad up / down    |                                   | Scroll (repeats)        |
+| `A`                | Continue                          | Confirm merge           |
+| `B`                | Cancel                            | Back to the card choice |
+| `X`                | Turn "Delete duplicate" on or off |                         |
+| `Y`                |                                   | Compact / Full          |
+
+To cancel from the preview, press `B` twice, or bind the preview's **Cancel** row (unbound by default). Change any of it in the **Duplicate card (field grouping)** group of `Alt+C`, the same way as the review layout.
 
 ## Config validation
 

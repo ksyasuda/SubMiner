@@ -67,6 +67,8 @@ export type RendererState = {
   youtubePickerStatus: string;
 
   mediaTimingReviewModalOpen: boolean;
+  /** True while a modal in the separate modal window owns the controller. */
+  controllerSuspendedByModalWindow: boolean;
 
   kikuModalOpen: boolean;
   kikuSelectedCard: 1 | 2;
@@ -207,6 +209,7 @@ export function createRendererState(): RendererState {
     youtubePickerStatus: '',
 
     mediaTimingReviewModalOpen: false,
+    controllerSuspendedByModalWindow: false,
 
     kikuModalOpen: false,
     kikuSelectedCard: 1,

@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import { createRendererState } from '../state.js';
 import { createControllerSelectModal } from './controller-select.js';
+import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
+import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -128,6 +130,7 @@ function buildContext() {
     stickDeadzone: 0.2,
     triggerInputMode: 'auto',
     triggerDeadzone: 0.5,
+    faceButtonLabels: 'xbox',
     repeatDelayMs: 320,
     repeatIntervalMs: 120,
     buttonIndices: {
@@ -161,6 +164,8 @@ function buildContext() {
       rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
       rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
     },
+    reviewBindings: getDefaultControllerReviewBindings(),
+    fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
     profiles: {},
   };
   state.connectedGamepads = [
@@ -328,6 +333,8 @@ test('controller select modal reset control stores the default binding in the se
             ...state.controllerConfig.bindings,
             toggleLookup: { kind: 'button', buttonIndex: 11 },
           },
+          reviewBindings: state.controllerConfig.reviewBindings,
+          fieldGroupingBindings: state.controllerConfig.fieldGroupingBindings,
         },
       };
     }
@@ -442,6 +449,8 @@ test('controller select modal learn mode falls back to global bindings without a
   try {
     const { state, dom } = buildContext();
     state.connectedGamepads = [];
+    // No controller visible and none saved: edits go to the global bindings.
+    state.controllerConfig!.preferredGamepadId = '';
     state.activeGamepadId = null;
     const modal = createControllerSelectModal({ state, dom } as never, {
       modalStateReader: { isAnyModalOpen: () => false },
@@ -613,6 +622,277 @@ test('controller select modal uses unique picker values for duplicate controller
     dom.controllerSelectPicker.dispatch('change');
 
     assert.equal(state.controllerDeviceSelectedIndex, 1);
+  } finally {
+    domHandle.restore();
+  }
+});
+
+function findByClass(root: any, className: string, text?: string): any {
+  for (const child of root.children ?? []) {
+    const classes = String(child.className ?? '').split(' ');
+    if (classes.includes(className) && (text === undefined || child.textContent === text)) {
+      return child;
+    }
+    const nested = findByClass(child, className, text);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function findReviewRow(root: any, label: string): any {
+  for (const child of root.children ?? []) {
+    if (String(child.className).split(' ').includes('controller-config-row')) {
+      if (child.children[0]?.textContent === label) return child;
+    }
+  }
+  return null;
+}
+
+test('controller select modal learns a review combo and saves it to the controller profile', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const header = findByClass(dom.controllerConfigList, 'controller-config-group-toggle');
+    assert.ok(header, 'review group header');
+    header.dispatch('click');
+    const row = findReviewRow(dom.controllerConfigList, 'Start +0.1s');
+    assert.ok(row, 'Start +0.1s row');
+    row.children[1].children[0].dispatch('click');
+
+    const buttons = (pressed: number[]) =>
+      Array.from({ length: 17 }, (_, index) => ({
+        value: pressed.includes(index) ? 1 : 0,
+        pressed: pressed.includes(index),
+        touched: pressed.includes(index),
+      }));
+
+    // Hold L2, then press A.
+    state.controllerRawButtons = buttons([6]);
+    modal.updateDevices();
+    assert.equal(
+      findReviewRow(dom.controllerConfigList, 'Start +0.1s').children[1].children[0].textContent,
+      'L2 + …',
+    );
+    state.controllerRawButtons = buttons([6, 0]);
+    modal.updateDevices();
+
+    await Promise.resolve();
+
+    assert.deepEqual(saved.at(-1), {
+      profiles: {
+        'pad-1': {
+          reviewBindings: {
+            startForward: {
+              kind: 'combo',
+              press: { kind: 'button', buttonIndex: 0 },
+              hold: { kind: 'button', buttonIndex: 6 },
+            },
+          },
+        },
+      },
+    });
+    assert.deepEqual(state.controllerConfig?.profiles['pad-1']?.reviewBindings.startForward, {
+      kind: 'combo',
+      press: { kind: 'button', buttonIndex: 0 },
+      hold: { kind: 'button', buttonIndex: 6 },
+    });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+function findAllByClass(root: any, className: string, found: any[] = []): any[] {
+  for (const child of root.children ?? []) {
+    if (
+      String(child.className ?? '')
+        .split(' ')
+        .includes(className)
+    )
+      found.push(child);
+    findAllByClass(child, className, found);
+  }
+  return found;
+}
+
+test('controller select modal learns a duplicate card button and saves it to the profile', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const headers = findAllByClass(dom.controllerConfigList, 'controller-config-group-toggle');
+    assert.equal(headers.length, 2, 'review and duplicate card groups');
+    headers[1].dispatch('click');
+    const row = findReviewRow(dom.controllerConfigList, 'Back');
+    assert.ok(row, 'Back row');
+    row.children[1].children[0].dispatch('click');
+
+    const buttons = (pressed: number[]) =>
+      Array.from({ length: 17 }, (_, index) => ({
+        value: pressed.includes(index) ? 1 : 0,
+        pressed: pressed.includes(index),
+        touched: pressed.includes(index),
+      }));
+
+    // Press and release Select.
+    state.controllerRawButtons = buttons([8]);
+    modal.updateDevices();
+    state.controllerRawButtons = buttons([]);
+    modal.updateDevices();
+
+    await Promise.resolve();
+
+    const back = { kind: 'combo', press: { kind: 'button', buttonIndex: 8 }, hold: null };
+    assert.deepEqual(saved.at(-1), {
+      profiles: { 'pad-1': { fieldGroupingBindings: { back } } },
+    });
+    const profile = state.controllerConfig?.profiles['pad-1'];
+    assert.deepEqual(profile?.fieldGroupingBindings.back, back);
+    // Other dialogs keep their layout.
+    assert.deepEqual(profile?.reviewBindings, state.controllerConfig?.reviewBindings);
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal shows and edits the saved controller before this window sees it', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    // A fresh Alt+C window has not seen the pad yet (no button pressed in it).
+    state.connectedGamepads = [];
+    state.activeGamepadId = null;
+    const config = state.controllerConfig!;
+    config.profiles = {
+      'pad-1': {
+        label: 'pad-1',
+        buttonIndices: config.buttonIndices,
+        bindings: config.bindings,
+        fieldGroupingBindings: config.fieldGroupingBindings,
+        reviewBindings: {
+          ...config.reviewBindings,
+          startBack: {
+            kind: 'combo',
+            press: { kind: 'button', buttonIndex: 15 },
+            hold: { kind: 'button', buttonIndex: 6 },
+          },
+        },
+      },
+    };
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    findByClass(dom.controllerConfigList, 'controller-config-group-toggle').dispatch('click');
+    const row = findReviewRow(dom.controllerConfigList, 'Start \u22120.1s');
+    assert.equal(row.children[1].children[0].textContent, 'L2 + D-pad \u25b6');
+    const waiting = 'Press any button on your controller so this window can see it.';
+    assert.equal(dom.controllerSelectStatus.textContent, waiting);
+    // Controller polling keeps publishing snapshots while no pad is visible.
+    modal.updateDevices();
+    modal.updateDevices();
+    assert.equal(dom.controllerSelectStatus.textContent, waiting, 'the prompt stays');
+
+    // Reset goes to the saved controller's profile, not the global layout.
+    row.children[1].children[1].dispatch('click');
+    await Promise.resolve();
+    assert.deepEqual(saved.at(-1), {
+      profiles: {
+        'pad-1': {
+          reviewBindings: {
+            startBack: {
+              kind: 'combo',
+              press: { kind: 'dpad', direction: 'left' },
+              hold: { kind: 'button', buttonIndex: 4 },
+            },
+          },
+        },
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const afterReset = dom.controllerSelectStatus.textContent;
+    assert.equal(afterReset, 'Start \u22120.1s reset.');
+    modal.updateDevices();
+    assert.equal(dom.controllerSelectStatus.textContent, afterReset, 'the reset message stays');
+
+    // The pad appears, then disappears again.
+    state.connectedGamepads = [{ id: 'pad-1', index: 0, mapping: 'standard', connected: true }];
+    state.activeGamepadId = 'pad-1';
+    modal.updateDevices();
+    state.connectedGamepads = [];
+    state.activeGamepadId = null;
+    modal.updateDevices();
+    assert.equal(dom.controllerSelectStatus.textContent, waiting);
+    state.connectedGamepads = [{ id: 'pad-1', index: 0, mapping: 'standard', connected: true }];
+    state.activeGamepadId = 'pad-1';
+    modal.updateDevices();
+    assert.equal(
+      dom.controllerSelectStatus.textContent,
+      'Choose a controller or click Learn to remap an action.',
+    );
   } finally {
     domHandle.restore();
   }

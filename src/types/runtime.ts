@@ -176,6 +176,8 @@ export type ControllerButtonBinding =
 
 export type ControllerAxisBinding = 'leftStickX' | 'leftStickY' | 'rightStickX' | 'rightStickY';
 export type ControllerTriggerInputMode = 'auto' | 'digital' | 'analog';
+/** Letters printed on the face buttons: Xbox-style (A at the bottom) or Nintendo-style (A on the right). */
+export type ControllerFaceButtonLabels = 'xbox' | 'nintendo';
 export type ControllerAxisDirection = 'negative' | 'positive';
 export type ControllerDpadFallback = 'none' | 'horizontal' | 'vertical';
 
@@ -276,16 +278,97 @@ export interface ControllerButtonIndicesConfig {
   rightTrigger?: number;
 }
 
+/** Every button on the media timing review dialog, named by what it does. */
+export type ControllerReviewAction =
+  | 'confirm'
+  | 'cancel'
+  | 'play'
+  | 'resetTiming'
+  | 'showEarlier'
+  | 'showLater'
+  | 'framePrevious'
+  | 'frameNext'
+  | 'frameReset'
+  | 'startBack'
+  | 'startForward'
+  | 'previousLineAdd'
+  | 'previousLineRemove'
+  | 'endBack'
+  | 'endForward'
+  | 'nextLineAdd'
+  | 'nextLineRemove'
+  | 'useOriginal'
+  | 'keepEditing'
+  | 'skipMedia'
+  | 'discard';
+
+/** Every button on the duplicate-card field grouping dialog, named by what it does. */
+export type ControllerFieldGroupingAction =
+  | 'selectOriginal'
+  | 'selectNew'
+  | 'toggleDeleteDuplicate'
+  | 'continue'
+  | 'cancel'
+  | 'confirmMerge'
+  | 'back'
+  | 'cancelMerge'
+  | 'toggleView'
+  | 'scrollUp'
+  | 'scrollDown';
+
+export type ControllerFaceLetter = 'a' | 'b' | 'x' | 'y';
+export type ControllerDpadDirection = 'left' | 'right' | 'up' | 'down';
+
+/**
+ * One input in a review binding. `button` and `axis` are raw indices recorded by Learn;
+ * `face` (printed letter, via `faceButtonLabels`) and `dpad` (any D-pad report) keep the
+ * defaults working on every controller layout.
+ */
+export type ControllerReviewInput =
+  | { kind: 'button'; buttonIndex: number }
+  | { kind: 'axis'; axisIndex: number; direction: ControllerAxisDirection }
+  | { kind: 'face'; letter: ControllerFaceLetter }
+  | { kind: 'dpad'; direction: ControllerDpadDirection };
+
+/** Press `press`, optionally while holding `hold`. */
+export type ControllerReviewBindingConfig =
+  | { kind: 'none' }
+  | { kind?: 'combo'; press: ControllerReviewInput; hold?: ControllerReviewInput | null };
+
+export type ResolvedControllerReviewBinding =
+  | { kind: 'none' }
+  | { kind: 'combo'; press: ControllerReviewInput; hold: ControllerReviewInput | null };
+
+export type ControllerReviewBindingsConfig = Partial<
+  Record<ControllerReviewAction, ControllerReviewBindingConfig>
+>;
+export type ResolvedControllerReviewBindings = Record<
+  ControllerReviewAction,
+  ResolvedControllerReviewBinding
+>;
+
+export type ControllerFieldGroupingBindingsConfig = Partial<
+  Record<ControllerFieldGroupingAction, ControllerReviewBindingConfig>
+>;
+export type ResolvedControllerFieldGroupingBindings = Record<
+  ControllerFieldGroupingAction,
+  ResolvedControllerReviewBinding
+>;
+
 export interface ControllerProfileConfig {
   label?: string;
   buttonIndices?: ControllerButtonIndicesConfig;
   bindings?: ControllerBindingsConfig;
+  reviewBindings?: ControllerReviewBindingsConfig;
+  fieldGroupingBindings?: ControllerFieldGroupingBindingsConfig;
 }
 
 export interface ResolvedControllerProfileConfig {
   label: string;
   buttonIndices: Required<ControllerButtonIndicesConfig>;
   bindings: Required<ResolvedControllerBindingsConfig>;
+  reviewBindings: ResolvedControllerReviewBindings;
+  fieldGroupingBindings: ResolvedControllerFieldGroupingBindings;
 }
 
 export interface ControllerConfig {
@@ -297,11 +380,14 @@ export interface ControllerConfig {
   horizontalJumpPixels?: number;
   stickDeadzone?: number;
   triggerInputMode?: ControllerTriggerInputMode;
+  faceButtonLabels?: ControllerFaceButtonLabels;
   triggerDeadzone?: number;
   repeatDelayMs?: number;
   repeatIntervalMs?: number;
   buttonIndices?: ControllerButtonIndicesConfig;
   bindings?: ControllerBindingsConfig;
+  reviewBindings?: ControllerReviewBindingsConfig;
+  fieldGroupingBindings?: ControllerFieldGroupingBindingsConfig;
   profiles?: Record<string, ControllerProfileConfig>;
 }
 
@@ -586,6 +672,7 @@ export interface ElectronAPI {
     callback: (payload: SessionNumericSelectionStartPayload) => void,
   ) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
+  onControllerSuspendedChanged: (callback: (suspended: boolean) => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (path: string) => Promise<PlaylistBrowserMutationResult>;

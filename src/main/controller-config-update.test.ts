@@ -129,3 +129,60 @@ test('applyControllerConfigUpdate ignores reserved profile ids', () => {
   assert.equal(Object.hasOwn(next.profiles ?? {}, 'prototype'), false);
   assert.equal(next.profiles?.['pad-1']?.label, 'Pad 1');
 });
+
+test('applyControllerConfigUpdate merges review bindings per action inside a profile', () => {
+  const next = applyControllerConfigUpdate(
+    {
+      profiles: {
+        'pad-1': {
+          bindings: { toggleLookup: { kind: 'button', buttonIndex: 0 } },
+          reviewBindings: {
+            confirm: { press: { kind: 'button', buttonIndex: 1 } },
+            cancel: { kind: 'none' },
+          },
+        },
+      },
+    },
+    {
+      profiles: {
+        'pad-1': {
+          reviewBindings: {
+            cancel: {
+              kind: 'combo',
+              press: { kind: 'button', buttonIndex: 0 },
+              hold: { kind: 'button', buttonIndex: 4 },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(next.profiles?.['pad-1'], {
+    bindings: { toggleLookup: { kind: 'button', buttonIndex: 0 } },
+    reviewBindings: {
+      confirm: { press: { kind: 'button', buttonIndex: 1 } },
+      cancel: {
+        kind: 'combo',
+        press: { kind: 'button', buttonIndex: 0 },
+        hold: { kind: 'button', buttonIndex: 4 },
+      },
+    },
+  });
+});
+
+test('applyControllerConfigUpdate merges field grouping bindings next to review bindings', () => {
+  const next = applyControllerConfigUpdate(
+    {
+      reviewBindings: { confirm: { kind: 'none' } },
+      fieldGroupingBindings: { back: { kind: 'none' } },
+    },
+    { fieldGroupingBindings: { cancelMerge: { press: { kind: 'face', letter: 'b' } } } },
+  );
+
+  assert.deepEqual(next.reviewBindings, { confirm: { kind: 'none' } });
+  assert.deepEqual(next.fieldGroupingBindings, {
+    back: { kind: 'none' },
+    cancelMerge: { press: { kind: 'face', letter: 'b' } },
+  });
+});

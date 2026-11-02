@@ -103,6 +103,11 @@ export type RendererDom = {
   kikuCard2Sentence: HTMLDivElement;
   kikuCard1Meta: HTMLDivElement;
   kikuCard2Meta: HTMLDivElement;
+  kikuCard1Label: HTMLDivElement;
+  kikuCard2Label: HTMLDivElement;
+  kikuDeleteToggle: HTMLLabelElement;
+  kikuPreviewToggle: HTMLDivElement;
+  kikuPreviewScrollHint: HTMLSpanElement;
   kikuConfirmButton: HTMLButtonElement;
   kikuCancelButton: HTMLButtonElement;
   kikuDeleteDuplicateCheckbox: HTMLInputElement;
@@ -359,6 +364,11 @@ export function resolveRendererDom(): RendererDom {
     kikuCard2Sentence: getRequiredElement<HTMLDivElement>('kikuCard2Sentence'),
     kikuCard1Meta: getRequiredElement<HTMLDivElement>('kikuCard1Meta'),
     kikuCard2Meta: getRequiredElement<HTMLDivElement>('kikuCard2Meta'),
+    kikuCard1Label: getRequiredElement<HTMLDivElement>('kikuCard1Label'),
+    kikuCard2Label: getRequiredElement<HTMLDivElement>('kikuCard2Label'),
+    kikuDeleteToggle: getRequiredElement<HTMLLabelElement>('kikuDeleteToggle'),
+    kikuPreviewToggle: getRequiredElement<HTMLDivElement>('kikuPreviewToggle'),
+    kikuPreviewScrollHint: getRequiredElement<HTMLSpanElement>('kikuPreviewScrollHint'),
     kikuConfirmButton: getRequiredElement<HTMLButtonElement>('kikuConfirmButton'),
     kikuCancelButton: getRequiredElement<HTMLButtonElement>('kikuCancelButton'),
     kikuDeleteDuplicateCheckbox: getRequiredElement<HTMLInputElement>('kikuDeleteDuplicate'),

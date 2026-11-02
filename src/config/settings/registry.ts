@@ -58,6 +58,8 @@ export const LEGACY_HIDDEN_CONFIG_PATHS = [
   'ankiConnect.isLapis.sentenceCardAudioField',
   'ankiConnect.fields.translation',
   'controller.bindings',
+  'controller.reviewBindings',
+  'controller.fieldGroupingBindings',
   'controller.preferredGamepadId',
   'controller.preferredGamepadLabel',
   'controller.profiles',

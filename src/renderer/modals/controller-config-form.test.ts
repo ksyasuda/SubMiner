@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { CORE_DEFAULT_CONFIG } from '../../config/definitions/defaults-core';
+import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
+import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
+import { CONTROLLER_SCREENS } from '../../shared/controller-screens';
 import type { ResolvedControllerConfig } from '../../types';
+import type { ControllerScreenLearning } from './controller-config-form';
 import { createControllerConfigForm } from './controller-config-form.js';
 
 type ActionId = keyof ResolvedControllerConfig['bindings'];
@@ -91,7 +96,11 @@ function findOne(root: FakeElement, className: string, text?: string): FakeEleme
 /** Renders the form into a fake container with `document` stubbed for the duration. */
 function renderForm(
   learningActionId: ActionId | null,
-  options: { bindings?: typeof BINDINGS; mapping?: string } = {},
+  options: {
+    bindings?: typeof BINDINGS;
+    mapping?: string;
+    faceButtonLabels?: 'xbox' | 'nintendo';
+  } = {},
 ) {
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
@@ -106,6 +115,7 @@ function renderForm(
       container: container as unknown as HTMLElement,
       getBindings: () => options.bindings ?? BINDINGS,
       getControllerMapping: () => options.mapping,
+      getFaceButtonLabels: () => options.faceButtonLabels,
       getLearningActionId: () => learningActionId,
       getDpadLearningActionId: () => null,
       onLearn: (actionId, bindingType) => calls.push(`learn:${actionId}:${bindingType}`),
@@ -262,4 +272,214 @@ test('controller config form names buttons by the W3C standard layout for standa
   const raw = renderForm(null, { bindings, mapping: '' });
   assert.equal(badge(raw.row('Quit MPV')), 'Back / Select');
   assert.equal(badge(raw.row('Previous Entry')), 'L3 / LS');
+});
+
+test('controller config form names face buttons Nintendo-style when configured', () => {
+  const badge = (row: FakeElement) => findOne(row, 'controller-config-badge').textContent;
+  const bindings: typeof BINDINGS = {
+    ...BINDINGS,
+    toggleLookup: { kind: 'button', buttonIndex: 0 },
+    closeLookup: { kind: 'button', buttonIndex: 1 },
+    mineCard: { kind: 'button', buttonIndex: 2 },
+    toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+  };
+
+  const form = renderForm(null, { bindings, mapping: 'standard', faceButtonLabels: 'nintendo' });
+  assert.equal(badge(form.row('Toggle Lookup')), 'B');
+  assert.equal(badge(form.row('Close Lookup')), 'A');
+  assert.equal(badge(form.row('Mine Card')), 'Y');
+  assert.equal(badge(form.row('Toggle Keyboard-Only Mode')), 'X');
+  // Non-face buttons keep their names.
+  assert.equal(badge(form.row('Next Audio')), 'RB / R1');
+});
+
+type ReviewFormOptions = {
+  reviewBindings?: ResolvedControllerConfig['reviewBindings'];
+  fieldGroupingBindings?: ResolvedControllerConfig['fieldGroupingBindings'];
+  learning?: ControllerScreenLearning | null;
+};
+
+/** Renders the form with the dialog groups; `act` runs while `document` is still stubbed. */
+function withReviewForm(
+  options: ReviewFormOptions,
+  act: (env: {
+    calls: string[];
+    container: FakeElement;
+    reviewRow: (label: string) => FakeElement;
+  }) => void,
+): void {
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { createElement: () => new FakeElement() },
+  });
+  try {
+    const calls: string[] = [];
+    const container = new FakeElement();
+    createControllerConfigForm({
+      container: container as unknown as HTMLElement,
+      getBindings: () => BINDINGS,
+      getLearningActionId: () => null,
+      getDpadLearningActionId: () => null,
+      onLearn: () => {},
+      onClear: () => {},
+      onReset: () => {},
+      onDpadLearn: () => {},
+      onDpadClear: () => {},
+      onDpadReset: () => {},
+      getScreenGroups: () => {
+        const bindings = {
+          reviewBindings: options.reviewBindings ?? getDefaultControllerReviewBindings(),
+          fieldGroupingBindings:
+            options.fieldGroupingBindings ?? getDefaultControllerFieldGroupingBindings(),
+        };
+        return CONTROLLER_SCREENS.map((screen) => ({
+          screen,
+          bindings: bindings[screen.configKey],
+        }));
+      },
+      getScreenInputContext: () => ({
+        mapping: 'standard',
+        faceButtonLabels: 'xbox',
+        buttonIndices: CORE_DEFAULT_CONFIG.controller.buttonIndices,
+      }),
+      getScreenLearning: () => options.learning ?? null,
+      onScreenLearn: (screenId, actionId) => calls.push(`learn:${screenId}:${actionId}`),
+      onScreenClear: (screenId, actionId) => calls.push(`clear:${screenId}:${actionId}`),
+      onScreenReset: (screenId, actionId) => calls.push(`reset:${screenId}:${actionId}`),
+      onScreenResetAll: (screenId) => calls.push(`resetAll:${screenId}`),
+    }).render();
+    const reviewRow = (label: string) => {
+      const match = findAll(container, 'controller-config-row').find(
+        (el) => findOne(el, 'controller-config-label').textContent === label,
+      );
+      assert.ok(match, `missing row "${label}"`);
+      return match;
+    };
+    act({ calls, container, reviewRow });
+  } finally {
+    if (previousDocument) {
+      Object.defineProperty(globalThis, 'document', previousDocument);
+    } else {
+      Reflect.deleteProperty(globalThis, 'document');
+    }
+  }
+}
+
+const badgeOf = (row: FakeElement) => findOne(row, 'controller-config-badge').textContent;
+
+test('controller config form keeps the review group collapsed until opened', () => {
+  withReviewForm({}, ({ calls, container, reviewRow }) => {
+    const header = findOne(container, 'controller-config-group-toggle');
+    assert.match(header.textContent, /Review media timing/);
+    assert.equal(
+      findAll(container, 'controller-config-subgroup').length,
+      0,
+      'collapsed group shows no rows',
+    );
+
+    header.click();
+    assert.deepEqual(
+      findAll(container, 'controller-config-subgroup').map((el) => el.textContent),
+      ['While editing', 'After Cancel'],
+    );
+    assert.equal(badgeOf(reviewRow('Use this timing')), 'A');
+    assert.equal(badgeOf(reviewRow('Earlier −2s')), 'D-pad ◀');
+    assert.equal(badgeOf(reviewRow('Start +0.1s')), 'L1 + D-pad ▶');
+    assert.equal(badgeOf(reviewRow('Reset screenshot frame')), 'L1 + R1');
+    assert.equal(badgeOf(reviewRow('Keep editing')), 'B');
+
+    findOne(container, 'controller-config-group-action', 'Reset all').click();
+    findOne(reviewRow('Start +0.1s'), 'controller-config-edit-icon').click();
+    findOne(reviewRow('Start +0.1s'), 'controller-config-reset-icon').click();
+    assert.deepEqual(calls, [
+      'resetAll:review',
+      'learn:review:startForward',
+      'reset:review:startForward',
+    ]);
+  });
+});
+
+test('controller config form shows the hold button while a review combo is being learned', () => {
+  withReviewForm(
+    { learning: { screenId: 'review', actionId: 'startForward', holdLabel: 'L2' } },
+    ({ container, reviewRow }) => {
+      assert.equal(badgeOf(reviewRow('Start +0.1s')), 'L2 + …');
+      assert.match(
+        findOne(container, 'controller-config-edit-hint').textContent,
+        /Holding L2: press another button for a combo, or let go to use L2 alone/,
+      );
+    },
+  );
+});
+
+test('controller config form warns about review bindings that clash', () => {
+  const reviewBindings = {
+    ...getDefaultControllerReviewBindings(),
+    play: {
+      kind: 'combo' as const,
+      press: { kind: 'face' as const, letter: 'a' as const },
+      hold: null,
+    },
+  };
+  withReviewForm({ reviewBindings }, ({ container, reviewRow }) => {
+    findOne(container, 'controller-config-group-toggle').click();
+    const warnings = findAll(container, 'controller-config-warning').map((el) => el.textContent);
+    assert.deepEqual(warnings, ['⚠ Same as Play selection', '⚠ Same as Use this timing']);
+    assert.equal(reviewRow('Play selection').classList.contains('has-warning'), true);
+  });
+});
+
+/** The dialog group headers, in order. */
+const groupHeaders = (container: FakeElement) =>
+  findAll(container, 'controller-config-group-toggle');
+
+test('controller config form lists the duplicate card layout as its own group', () => {
+  withReviewForm({}, ({ calls, container, reviewRow }) => {
+    const headers = groupHeaders(container);
+    assert.deepEqual(
+      headers.map((el) => el.textContent.replace(/Reset all$/, '')),
+      ['▸ Review media timing', '▸ Duplicate card (field grouping)'],
+    );
+
+    headers[1]!.click();
+    assert.deepEqual(
+      findAll(container, 'controller-config-subgroup').map((el) => el.textContent),
+      ['Choosing the card', 'Merge preview'],
+      'only the opened group shows rows',
+    );
+    assert.equal(badgeOf(reviewRow('Original card')), 'D-pad ◀');
+    assert.equal(badgeOf(reviewRow('New card')), 'D-pad ▶');
+    assert.equal(badgeOf(reviewRow('Delete duplicate on/off')), 'X');
+    assert.equal(badgeOf(reviewRow('Continue')), 'A');
+    assert.equal(badgeOf(reviewRow('Confirm merge')), 'A');
+    assert.equal(badgeOf(reviewRow('Back')), 'B');
+    assert.equal(badgeOf(reviewRow('Compact / Full')), 'Y');
+    assert.equal(badgeOf(reviewRow('Scroll down')), 'D-pad ▼');
+    // Cancel on the preview is unbound by default (B goes back, B again cancels).
+    const cancels = findAll(container, 'controller-config-row').filter(
+      (el) => findOne(el, 'controller-config-label').textContent === 'Cancel',
+    );
+    assert.deepEqual(cancels.map(badgeOf), ['B', 'None']);
+    assert.equal(findAll(container, 'controller-config-warning').length, 0);
+
+    findOne(container, 'controller-config-group-action', 'Reset all').click();
+    findOne(reviewRow('Continue'), 'controller-config-edit-icon').click();
+    assert.deepEqual(calls, ['resetAll:fieldGrouping', 'learn:fieldGrouping:continue']);
+  });
+});
+
+test('learning a duplicate card action opens only that group', () => {
+  withReviewForm(
+    { learning: { screenId: 'fieldGrouping', actionId: 'back', holdLabel: null } },
+    ({ container }) => {
+      const headers = groupHeaders(container);
+      assert.equal(headers[0]!.getAttribute('aria-expanded'), 'false');
+      assert.equal(headers[1]!.getAttribute('aria-expanded'), 'true');
+      assert.match(
+        findOne(container, 'controller-config-edit-hint').textContent,
+        /Press a button, or hold one and press another for a combo/,
+      );
+    },
+  );
 });

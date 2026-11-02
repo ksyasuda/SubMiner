@@ -50,6 +50,20 @@ import { createSubsyncModal } from './modals/subsync.js';
 import { createSubtitleGenerationModal } from './modals/subtitle-generation.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
 import { createMediaTimingReviewModal } from './modals/media-timing-review.js';
+import {
+  createMediaTimingReviewControllerLayout,
+  formatMediaTimingReviewControllerHints,
+} from './handlers/media-timing-review-controller.js';
+import { resolveControllerConfigForGamepad } from './controller-profile-config.js';
+import { getDefaultControllerReviewBindings } from '../shared/controller-review';
+import {
+  CONTROLLER_FIELD_GROUPING_SCREEN,
+  getDefaultControllerFieldGroupingBindings,
+} from '../shared/controller-field-grouping';
+import {
+  createControllerComboScreenLayout,
+  formatControllerScreenHints,
+} from './handlers/controller-screen-layout.js';
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
@@ -311,6 +325,20 @@ const mediaTimingReviewModal = createMediaTimingReviewModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const mediaTimingReviewControllerLayout = createMediaTimingReviewControllerLayout({
+  getStep: () => mediaTimingReviewModal.getControllerStep(),
+  dispatch: (action) => {
+    mediaTimingReviewModal.handleControllerAction(action);
+  },
+});
+const fieldGroupingControllerLayout = createControllerComboScreenLayout({
+  screen: CONTROLLER_FIELD_GROUPING_SCREEN,
+  getBindings: (config) => config.fieldGroupingBindings,
+  getStep: () => kikuModal.getControllerStep(),
+  dispatch: (action) => {
+    kikuModal.handleControllerAction(action);
+  },
+});
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
@@ -389,16 +417,54 @@ function applyControllerSnapshot(snapshot: {
   rawAxes: number[];
   rawButtons: Array<{ value: number; pressed: boolean; touched?: boolean }>;
 }): void {
-  controllerStatusIndicator.update({
-    connectedGamepads: snapshot.connectedGamepads,
-    activeGamepadId: snapshot.activeGamepadId,
-  });
+  // Modal windows are fresh documents that only see the pad after a press; announcing
+  // that as "Controller detected" on every dialog reads like a reconnection.
+  if (!ctx.platform.isModalLayer) {
+    controllerStatusIndicator.update({
+      connectedGamepads: snapshot.connectedGamepads,
+      activeGamepadId: snapshot.activeGamepadId,
+    });
+  }
   ctx.state.connectedGamepads = snapshot.connectedGamepads;
   ctx.state.activeGamepadId = snapshot.activeGamepadId;
   ctx.state.controllerRawAxes = snapshot.rawAxes;
   ctx.state.controllerRawButtons = snapshot.rawButtons;
   controllerSelectModal.updateDevices();
   controllerDebugModal.updateSnapshot();
+  // Shown whenever controller support is on: a fresh dialog window cannot see the pad
+  // until its first press, so "connected" would hide the hints exactly when needed.
+  const controllerConfig = ctx.state.controllerConfig;
+  const hintsVisible = controllerConfig?.enabled === true;
+  mediaTimingReviewModal.setControllerHintsVisible(hintsVisible);
+  kikuModal.setControllerHintsVisible(hintsVisible);
+  if (
+    !controllerConfig ||
+    !hintsVisible ||
+    (!ctx.state.mediaTimingReviewModalOpen && !ctx.state.kikuModalOpen)
+  ) {
+    return;
+  }
+  // Before the dialog window has seen the pad, use the saved controller's bindings.
+  const gamepadId = snapshot.activeGamepadId ?? controllerConfig.preferredGamepadId;
+  const mapping =
+    snapshot.connectedGamepads.find((device) => device.id === snapshot.activeGamepadId)?.mapping ??
+    'standard';
+  const padConfig = resolveControllerConfigForGamepad(controllerConfig, gamepadId);
+  if (ctx.state.mediaTimingReviewModalOpen) {
+    mediaTimingReviewModal.setControllerHints(
+      formatMediaTimingReviewControllerHints(padConfig, mapping),
+    );
+  }
+  if (ctx.state.kikuModalOpen) {
+    kikuModal.setControllerHints(
+      formatControllerScreenHints(
+        CONTROLLER_FIELD_GROUPING_SCREEN,
+        padConfig.fieldGroupingBindings,
+        padConfig,
+        mapping,
+      ),
+    );
+  }
 }
 
 function showControllerDisabledNotice(): void {
@@ -436,6 +502,7 @@ function startControllerPolling(): void {
         stickDeadzone: 0.2,
         triggerInputMode: 'auto',
         triggerDeadzone: 0.5,
+        faceButtonLabels: 'xbox',
         repeatDelayMs: 320,
         repeatIntervalMs: 120,
         buttonIndices: {
@@ -469,6 +536,8 @@ function startControllerPolling(): void {
           rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
           rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
         },
+        reviewBindings: getDefaultControllerReviewBindings(),
+        fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
         profiles: {},
       },
     getKeyboardModeEnabled: () => ctx.state.keyboardDrivenModeEnabled,
@@ -519,6 +588,13 @@ function startControllerPolling(): void {
     onState: (snapshot) => {
       applyControllerSnapshot(snapshot);
     },
+    getScreenLayout: () =>
+      ctx.state.mediaTimingReviewModalOpen
+        ? mediaTimingReviewControllerLayout
+        : ctx.state.kikuModalOpen
+          ? fieldGroupingControllerLayout
+          : null,
+    getSuspended: () => ctx.state.controllerSuspendedByModalWindow,
   });
 
   const poll = (now: number): void => {
@@ -719,6 +795,10 @@ function registerKeyboardCommandHandlers(): void {
     runGuarded('session:numeric-selection-start', () => {
       keyboardHandlers.beginSessionNumericSelection(payload.actionId, payload.timeoutMs);
     });
+  });
+
+  window.electronAPI.onControllerSuspendedChanged((suspended: boolean) => {
+    ctx.state.controllerSuspendedByModalWindow = suspended;
   });
 
   window.electronAPI.onKeyboardModeToggleRequested(() => {

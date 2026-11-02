@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from './ipc';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import type { SessionActionDispatchRequest, SubtitleSidebarSnapshot } from '../../types';
+import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
+import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 
 interface FakeIpcRegistrar {
   on: Map<string, (event: unknown, ...args: unknown[]) => void>;
@@ -45,6 +47,7 @@ function createControllerConfigFixture() {
     stickDeadzone: 0.2,
     triggerInputMode: 'auto' as const,
     triggerDeadzone: 0.5,
+    faceButtonLabels: 'xbox' as const,
     repeatDelayMs: 220,
     repeatIntervalMs: 80,
     buttonIndices: {
@@ -82,6 +85,8 @@ function createControllerConfigFixture() {
       rightStickHorizontal: { kind: 'axis' as const, axisIndex: 3, dpadFallback: 'none' as const },
       rightStickVertical: { kind: 'axis' as const, axisIndex: 4, dpadFallback: 'none' as const },
     },
+    reviewBindings: getDefaultControllerReviewBindings(),
+    fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
     profiles: {},
   };
 }

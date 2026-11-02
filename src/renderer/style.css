@@ -2072,6 +2072,34 @@ body:focus-visible,
   text-align: center;
 }
 
+/* Controller hints: shown beside each control while controller support is on. */
+.media-timing-review-modal.controller-hints-visible button[data-controller-hint]::after,
+#kikuFieldGroupingModal.controller-hints-visible [data-controller-hint]::after {
+  content: attr(data-controller-hint);
+  text-transform: none;
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--ctp-surface1);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--ctp-mantle);
+  color: var(--ctp-subtext0);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.media-timing-review-modal.controller-hints-visible .media-timing-review-line-stepper button {
+  width: auto;
+  min-width: 24px;
+  padding: 0 5px;
+}
+
 .media-timing-review-cancel-step {
   min-height: 300px;
   padding: 44px 38px 34px;
@@ -2951,7 +2979,21 @@ iframe[id^='yomitan-popup'],
 
 .kiku-preview-toggle {
   display: inline-flex;
+  align-items: center;
   gap: 6px;
+}
+
+/* "Scroll ▲ ▼" tag in the preview header, only while controller hints show. */
+.kiku-preview-scroll-hint {
+  display: none;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ctp-subtext0);
+}
+
+#kikuFieldGroupingModal.controller-hints-visible .kiku-preview-scroll-hint[data-controller-hint] {
+  display: inline;
 }
 
 .kiku-preview-toggle button {
@@ -3474,6 +3516,40 @@ iframe[id^='yomitan-popup'],
 
 .controller-config-group:first-child {
   margin-top: 0;
+}
+
+.controller-config-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.controller-config-group-action {
+  padding: 2px 8px;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.controller-config-subgroup {
+  padding: 10px 10px 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--ctp-subtext0);
+}
+
+.controller-config-warning {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ctp-yellow);
+}
+
+.controller-config-row.has-warning .controller-config-badge {
+  border-color: var(--ctp-yellow);
 }
 
 .controller-config-row {

@@ -1,3 +1,26 @@
+import {
+  findControllerScreenBindingIssues,
+  formatControllerReviewBinding,
+  type ControllerReviewInputContext,
+  type ControllerScreenActionDefinition,
+  type ControllerScreenBindings,
+  type ControllerScreenDefinition,
+} from '../../shared/controller-review';
+import type { ControllerScreenId } from '../../shared/controller-screens';
+import type { ResolvedControllerReviewBinding } from '../../types';
+
+/** A dialog layout shown as a collapsible group in Alt+C. */
+export type ControllerScreenGroup = {
+  screen: ControllerScreenDefinition;
+  bindings: ControllerScreenBindings;
+};
+
+/** The dialog action being learned, and the hold button pressed so far, if any. */
+export type ControllerScreenLearning = {
+  screenId: ControllerScreenId;
+  actionId: string;
+  holdLabel: string | null;
+};
 import type {
   ControllerDpadFallback,
   ResolvedControllerAxisBinding,
@@ -215,6 +238,10 @@ const W3C_STANDARD_AXIS_NAMES: Record<number, string> = {
 };
 
 type ControllerMapping = string | null | undefined;
+type FaceButtonLabels = ResolvedControllerConfig['faceButtonLabels'] | undefined;
+
+/** Nintendo-style pads print B at the bottom and A on the right; positions 0-3 are the same. */
+const NINTENDO_FACE_BUTTON_NAMES: Record<number, string> = { 0: 'B', 1: 'A', 2: 'Y', 3: 'X' };
 
 const DPAD_FALLBACK_LABELS: Record<ControllerDpadFallback, string> = {
   none: 'None',
@@ -222,7 +249,14 @@ const DPAD_FALLBACK_LABELS: Record<ControllerDpadFallback, string> = {
   vertical: 'D-pad \u2195',
 };
 
-export function getFriendlyButtonName(buttonIndex: number, mapping?: ControllerMapping): string {
+export function getFriendlyButtonName(
+  buttonIndex: number,
+  mapping?: ControllerMapping,
+  faceButtonLabels?: FaceButtonLabels,
+): string {
+  const nintendoName =
+    faceButtonLabels === 'nintendo' ? NINTENDO_FACE_BUTTON_NAMES[buttonIndex] : undefined;
+  if (nintendoName) return nintendoName;
   const names = mapping === 'standard' ? W3C_STANDARD_BUTTON_NAMES : RAW_LAYOUT_BUTTON_NAMES;
   return names[buttonIndex] ?? `Button ${buttonIndex}`;
 }
@@ -261,13 +295,16 @@ function formatFriendlyStickLabel(
 function formatFriendlyBindingLabel(
   binding: ResolvedControllerDiscreteBinding | ResolvedControllerAxisBinding,
   mapping: ControllerMapping,
+  faceButtonLabels: FaceButtonLabels,
 ): string {
   if (binding.kind === 'none') return 'None';
   if ('direction' in binding) {
     const name = getFriendlyAxisName(binding.axisIndex, mapping);
     return `${name} ${binding.direction === 'positive' ? '+' : '\u2212'}`;
   }
-  if ('buttonIndex' in binding) return getFriendlyButtonName(binding.buttonIndex, mapping);
+  if ('buttonIndex' in binding) {
+    return getFriendlyButtonName(binding.buttonIndex, mapping, faceButtonLabels);
+  }
   return getFriendlyAxisName(binding.axisIndex, mapping);
 }
 
@@ -287,8 +324,20 @@ export function createControllerConfigForm(options: {
   onDpadReset: (actionId: ControllerBindingActionId) => void;
   /** Gamepad API `mapping` of the controller being configured; picks the button names. */
   getControllerMapping?: () => ControllerMapping;
+  /** `controller.faceButtonLabels`; names the face buttons as printed on the pad. */
+  getFaceButtonLabels?: () => FaceButtonLabels;
+  /** Dialog layouts (review, field grouping) of the controller being configured. */
+  getScreenGroups?: () => ControllerScreenGroup[];
+  getScreenInputContext?: () => ControllerReviewInputContext;
+  getScreenLearning?: () => ControllerScreenLearning | null;
+  onScreenLearn?: (screenId: ControllerScreenId, actionId: string) => void;
+  onScreenClear?: (screenId: ControllerScreenId, actionId: string) => void;
+  onScreenReset?: (screenId: ControllerScreenId, actionId: string) => void;
+  onScreenResetAll?: (screenId: ControllerScreenId) => void;
 }) {
   let expandedRowKey: ExpandedRowKey | null = null;
+  /** Dialog groups start collapsed; this holds the opened ones. */
+  const expandedScreens = new Set<ControllerScreenId>();
 
   function render(): void {
     options.container.innerHTML = '';
@@ -325,6 +374,127 @@ export function createControllerConfigForm(options: {
         renderDiscreteRow(definition, binding, learningActionId);
       }
     }
+
+    const context = options.getScreenInputContext?.();
+    if (context) {
+      for (const group of options.getScreenGroups?.() ?? []) {
+        renderScreenGroup(group, context);
+      }
+    }
+  }
+
+  function renderScreenGroup(
+    { screen, bindings }: ControllerScreenGroup,
+    context: ControllerReviewInputContext,
+  ): void {
+    const learning = options.getScreenLearning?.() ?? null;
+    const learningHere = learning?.screenId === screen.id ? learning : null;
+    if (learningHere) {
+      expandedScreens.add(screen.id);
+      expandedRowKey = `${screen.id}:${learningHere.actionId}`;
+    }
+    const expanded = expandedScreens.has(screen.id);
+
+    const header = document.createElement('div');
+    header.className = 'controller-config-group controller-config-group-toggle';
+    header.setAttribute('role', 'button');
+    header.setAttribute('aria-expanded', String(expanded));
+    header.textContent = `${expanded ? '\u25be' : '\u25b8'} ${screen.title}`;
+    header.addEventListener('click', () => {
+      if (expanded) expandedScreens.delete(screen.id);
+      else expandedScreens.add(screen.id);
+      render();
+    });
+    if (expanded) {
+      const resetAll = document.createElement('button');
+      resetAll.type = 'button';
+      resetAll.className = 'btn-secondary controller-config-group-action';
+      resetAll.textContent = 'Reset all';
+      resetAll.addEventListener('click', (e) => {
+        e.stopPropagation();
+        options.onScreenResetAll?.(screen.id);
+      });
+      header.appendChild(resetAll);
+    }
+    options.container.appendChild(header);
+    if (!expanded) return;
+
+    const issues = findControllerScreenBindingIssues(screen, bindings, context);
+    for (const step of screen.steps) {
+      const subgroup = document.createElement('div');
+      subgroup.className = 'controller-config-subgroup';
+      subgroup.textContent = step.label;
+      options.container.appendChild(subgroup);
+      for (const action of screen.actions) {
+        if (action.step !== step.id) continue;
+        renderScreenRow(
+          screen,
+          action,
+          bindings[action.id] ?? { kind: 'none' },
+          context,
+          issues[action.id],
+          learningHere,
+        );
+      }
+    }
+  }
+
+  function renderScreenRow(
+    screen: ControllerScreenDefinition,
+    action: ControllerScreenActionDefinition,
+    binding: ResolvedControllerReviewBinding,
+    context: ControllerReviewInputContext,
+    issue: string | undefined,
+    learning: ControllerScreenLearning | null,
+  ): void {
+    const rowKey = `${screen.id}:${action.id}`;
+    const isExpanded = expandedRowKey === rowKey;
+    const isLearning = learning?.actionId === action.id;
+    const holdLabel = isLearning ? learning.holdLabel : null;
+    const current = formatControllerReviewBinding(binding, context, { dpadPrefix: true });
+
+    const learn = (e: Event) => {
+      e.stopPropagation();
+      expandedRowKey = rowKey;
+      options.onScreenLearn?.(screen.id, action.id);
+    };
+    const reset = (e: Event) => {
+      e.stopPropagation();
+      options.onScreenReset?.(screen.id, action.id);
+    };
+    const row = createRow(
+      action.label,
+      holdLabel ? `${holdLabel} + \u2026` : current,
+      binding.kind === 'none',
+      isExpanded,
+      `Learn ${action.label}`,
+      learn,
+      `Reset ${action.label}`,
+      reset,
+      issue,
+    );
+    row.addEventListener('click', () => {
+      expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
+      render();
+    });
+    options.container.appendChild(row);
+
+    if (isExpanded) {
+      const hint = !isLearning
+        ? `Currently: ${current}`
+        : holdLabel
+          ? `Holding ${holdLabel}: press another button for a combo, or let go to use ${holdLabel} alone\u2026`
+          : 'Press a button, or hold one and press another for a combo\u2026';
+      const panel = createEditPanel(hint, isLearning, {
+        onLearn: learn,
+        onClear: (e) => {
+          e.stopPropagation();
+          options.onScreenClear?.(screen.id, action.id);
+        },
+        onReset: reset,
+      });
+      options.container.appendChild(panel);
+    }
   }
 
   function renderDiscreteRow(
@@ -338,7 +508,11 @@ export function createControllerConfigForm(options: {
 
     const row = createRow(
       definition.label,
-      formatFriendlyBindingLabel(binding, options.getControllerMapping?.()),
+      formatFriendlyBindingLabel(
+        binding,
+        options.getControllerMapping?.(),
+        options.getFaceButtonLabels?.(),
+      ),
       binding.kind === 'none',
       isExpanded,
       `Learn ${definition.label}`,
@@ -500,6 +674,7 @@ export function createControllerConfigForm(options: {
     onEdit: (e: Event) => void,
     resetLabel: string,
     onReset: (e: Event) => void,
+    warningText?: string,
   ): HTMLDivElement {
     const row = document.createElement('div');
     row.className = 'controller-config-row';
@@ -508,6 +683,13 @@ export function createControllerConfigForm(options: {
     const label = document.createElement('div');
     label.className = 'controller-config-label';
     label.textContent = labelText;
+    if (warningText) {
+      row.classList.add('has-warning');
+      const warning = document.createElement('div');
+      warning.className = 'controller-config-warning';
+      warning.textContent = `\u26a0 ${warningText}`;
+      label.appendChild(warning);
+    }
 
     const right = document.createElement('div');
     right.className = 'controller-config-right';

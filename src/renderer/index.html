@@ -569,20 +569,20 @@
               </div>
               <div class="kiku-cards-container">
                 <div id="kikuCard1" class="kiku-card active" tabindex="0">
-                  <div class="kiku-card-label">1 &mdash; Original Card</div>
+                  <div id="kikuCard1Label" class="kiku-card-label">1 &mdash; Original Card</div>
                   <div class="kiku-card-expression" id="kikuCard1Expression"></div>
                   <div class="kiku-card-sentence" id="kikuCard1Sentence"></div>
                   <div class="kiku-card-meta" id="kikuCard1Meta"></div>
                 </div>
                 <div id="kikuCard2" class="kiku-card" tabindex="0">
-                  <div class="kiku-card-label">2 &mdash; New Card</div>
+                  <div id="kikuCard2Label" class="kiku-card-label">2 &mdash; New Card</div>
                   <div class="kiku-card-expression" id="kikuCard2Expression"></div>
                   <div class="kiku-card-sentence" id="kikuCard2Sentence"></div>
                   <div class="kiku-card-meta" id="kikuCard2Meta"></div>
                 </div>
               </div>
               <div class="kiku-footer">
-                <label class="kiku-delete-toggle">
+                <label id="kikuDeleteToggle" class="kiku-delete-toggle">
                   <input id="kikuDeleteDuplicate" type="checkbox" checked />
                   Delete duplicate card after merge
                 </label>
@@ -597,8 +597,11 @@
 
             <div id="kikuPreviewStep" class="hidden">
               <div class="kiku-preview-header">
-                <div class="kiku-preview-title">Final Merge Preview</div>
-                <div class="kiku-preview-toggle">
+                <div class="kiku-preview-title">
+                  Final Merge Preview
+                  <span id="kikuPreviewScrollHint" class="kiku-preview-scroll-hint">Scroll</span>
+                </div>
+                <div id="kikuPreviewToggle" class="kiku-preview-toggle">
                   <button id="kikuPreviewCompact" type="button">Compact</button>
                   <button id="kikuPreviewFull" type="button">Full</button>
                 </div>

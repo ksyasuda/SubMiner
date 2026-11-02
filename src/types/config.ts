@@ -26,8 +26,11 @@ import type {
   ControllerConfig,
   ResolvedControllerProfileConfig,
   ControllerTriggerInputMode,
+  ControllerFaceButtonLabels,
   Keybinding,
   ResolvedControllerBindingsConfig,
+  ResolvedControllerFieldGroupingBindings,
+  ResolvedControllerReviewBindings,
 } from './runtime';
 import type {
   FrequencyDictionaryMatchMode,
@@ -221,11 +224,14 @@ export interface ResolvedConfig {
     horizontalJumpPixels: number;
     stickDeadzone: number;
     triggerInputMode: ControllerTriggerInputMode;
+    faceButtonLabels: ControllerFaceButtonLabels;
     triggerDeadzone: number;
     repeatDelayMs: number;
     repeatIntervalMs: number;
     buttonIndices: Required<ControllerButtonIndicesConfig>;
     bindings: Required<ResolvedControllerBindingsConfig>;
+    reviewBindings: ResolvedControllerReviewBindings;
+    fieldGroupingBindings: ResolvedControllerFieldGroupingBindings;
     profiles: Record<string, ResolvedControllerProfileConfig>;
   };
   ankiConnect: AnkiConnectConfig & {

@@ -8,6 +8,13 @@ import type {
   ResolvedControllerBindingsConfig,
   ResolvedControllerDiscreteBinding,
 } from '../../types/runtime';
+import {
+  isControllerScreenAction,
+  parseControllerReviewBinding,
+  type ControllerScreenBindings,
+  type ControllerScreenDefinition,
+} from '../../shared/controller-review';
+import { CONTROLLER_SCREENS } from '../../shared/controller-screens';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
 
@@ -268,6 +275,37 @@ function applyControllerBindings(
   }
 }
 
+function applyControllerScreenBindings(
+  screen: ControllerScreenDefinition,
+  source: unknown,
+  target: ControllerScreenBindings,
+  pathPrefix: string,
+  warn: ResolveContext['warn'],
+): void {
+  if (source === undefined) return;
+  if (!isObject(source)) {
+    warn(pathPrefix, source, target, `Expected an object keyed by ${screen.describe} action.`);
+    return;
+  }
+  for (const [action, value] of Object.entries(source)) {
+    if (!isControllerScreenAction(screen, action)) {
+      warn(`${pathPrefix}.${action}`, value, undefined, `Unknown ${screen.describe} action.`);
+      continue;
+    }
+    const parsed = parseControllerReviewBinding(value);
+    if (parsed) {
+      target[action] = parsed;
+    } else {
+      warn(
+        `${pathPrefix}.${action}`,
+        value,
+        target[action],
+        'Expected {"kind": "none"} or {"press": input, "hold"?: input} with button, axis, face or dpad inputs.',
+      );
+    }
+  }
+}
+
 export function applyControllerConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
   if (!isObject(src.controller)) return;
@@ -322,6 +360,18 @@ export function applyControllerConfig(context: ResolveContext): void {
     );
   }
 
+  const faceButtonLabels = asString(src.controller.faceButtonLabels);
+  if (faceButtonLabels === 'xbox' || faceButtonLabels === 'nintendo') {
+    resolved.controller.faceButtonLabels = faceButtonLabels;
+  } else if (src.controller.faceButtonLabels !== undefined) {
+    warn(
+      'controller.faceButtonLabels',
+      src.controller.faceButtonLabels,
+      resolved.controller.faceButtonLabels,
+      "Expected 'xbox' or 'nintendo'.",
+    );
+  }
+
   const boundedNumberKeys = [
     'scrollPixelsPerSecond',
     'horizontalJumpPixels',
@@ -370,6 +420,15 @@ export function applyControllerConfig(context: ResolveContext): void {
     'controller.bindings',
     warn,
   );
+  for (const screen of CONTROLLER_SCREENS) {
+    applyControllerScreenBindings(
+      screen,
+      src.controller[screen.configKey],
+      resolved.controller[screen.configKey],
+      `controller.${screen.configKey}`,
+      warn,
+    );
+  }
 
   if (isObject(src.controller.profiles)) {
     for (const [profileId, rawProfile] of Object.entries(src.controller.profiles)) {
@@ -406,6 +465,8 @@ export function applyControllerConfig(context: ResolveContext): void {
         label: label ?? profileId,
         buttonIndices: structuredClone(resolved.controller.buttonIndices),
         bindings: structuredClone(resolved.controller.bindings),
+        reviewBindings: structuredClone(resolved.controller.reviewBindings),
+        fieldGroupingBindings: structuredClone(resolved.controller.fieldGroupingBindings),
       };
       applyControllerButtonIndices(
         rawProfile.buttonIndices,
@@ -420,6 +481,15 @@ export function applyControllerConfig(context: ResolveContext): void {
         `controller.profiles.${profileId}.bindings`,
         warn,
       );
+      for (const screen of CONTROLLER_SCREENS) {
+        applyControllerScreenBindings(
+          screen,
+          rawProfile[screen.configKey],
+          profile[screen.configKey],
+          `controller.profiles.${profileId}.${screen.configKey}`,
+          warn,
+        );
+      }
       resolved.controller.profiles[profileId] = profile;
     }
   }

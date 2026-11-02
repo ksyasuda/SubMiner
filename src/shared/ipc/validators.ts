@@ -17,6 +17,7 @@ import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-op
 import type { SessionActionId, SessionActionPayload } from '../../types/session-bindings';
 import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
+import { CONTROLLER_SCREENS, parseControllerScreenBindingsPatch } from '../controller-screens';
 
 const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -242,6 +243,20 @@ function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindin
   return bindings;
 }
 
+/** Copies each screen's per-action patch (`reviewBindings`, `fieldGroupingBindings`). */
+function parseControllerScreenBindingPatches(
+  source: Record<string, unknown>,
+  target: Pick<ControllerConfigUpdate, 'reviewBindings' | 'fieldGroupingBindings'>,
+): boolean {
+  for (const screen of CONTROLLER_SCREENS) {
+    if (source[screen.configKey] === undefined) continue;
+    const parsed = parseControllerScreenBindingsPatch(screen, source[screen.configKey]);
+    if (!parsed) return false;
+    (target as Record<string, unknown>)[screen.configKey] = parsed;
+  }
+  return true;
+}
+
 export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpdate | null {
   if (!isObject(value)) return null;
   const update: ControllerConfigUpdate = {};
@@ -269,6 +284,7 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
     if (!parsed) return null;
     update.bindings = parsed;
   }
+  if (!parseControllerScreenBindingPatches(value, update)) return null;
 
   if (value.profiles !== undefined) {
     if (!isObject(value.profiles)) return null;
@@ -291,6 +307,7 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
         if (!parsed) return null;
         profile.bindings = parsed;
       }
+      if (!parseControllerScreenBindingPatches(rawProfile, profile)) return null;
       profiles[profileId] = profile;
     }
     update.profiles = profiles;
