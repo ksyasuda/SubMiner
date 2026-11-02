@@ -9,6 +9,10 @@ import {
   tokenizeSubtitle as tokenizeSubtitleCore,
 } from '../../core/services';
 import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
+import { resolveAniSkipMetadataForFile } from '../runtime/aniskip-metadata';
+import { createAniSkipRuntime } from '../runtime/aniskip-runtime';
+import { resolveCurrentSubtitleForRenderer } from '../runtime/current-subtitle-snapshot';
+import { resolveFreshPlaybackPaused } from '../runtime/playback-paused-state';
 import { createAutoplaySubtitlePrimingRuntime } from '../runtime/autoplay-subtitle-priming-runtime';
 import { createAutoplayTokenizationWarmRelease } from '../runtime/autoplay-tokenization-warm-release';
 import { composeMpvRuntimeHandlers } from '../runtime/composers';
@@ -28,8 +32,13 @@ import {
   createResolveActiveSubtitleSidebarSourceHandler,
 } from '../runtime/subtitle-prefetch-runtime';
 import { createPrefetchAwareSubtitleProcessingController } from '../runtime/subtitle-processing-runtime';
-import { isSameYoutubeMediaPath, isYoutubeMediaPath } from '../runtime/youtube-playback';
+import {
+  isSameYoutubeMediaPath,
+  isYoutubeMediaPath,
+  shouldUseCachedYoutubeParsedCues,
+} from '../runtime/youtube-playback';
 import { MecabTokenizer } from '../../mecab-tokenizer';
+import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import type {
   MpvSubtitleRenderMetrics,
   SubtitleCue,
@@ -56,11 +65,13 @@ import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notif
 import type { createStartupOsdSequencer } from '../runtime/startup-osd-sequencer';
 import type { createSubtitleGenerationRuntime } from '../runtime/subtitle-generation-runtime';
 import type { RuntimeOptionId } from '../../types/runtime-options';
+import type { OverlayModalRuntime } from '../overlay-runtime';
 import type { AppState } from '../state';
 import type { AnilistAssembly } from './anilist';
 import type { CharacterDictionaryAssembly } from './character-dictionary';
 import type { DictionariesAssembly } from './dictionaries';
 import type { JellyfinAssembly } from './jellyfin';
+import type { IpcSlice } from './slices';
 import type { YoutubeAssembly } from './youtube';
 
 type SubtitleWsBroadcaster = Pick<SubtitleWebSocket, 'broadcast'>;
@@ -128,17 +139,29 @@ export interface PlaybackAssemblyDeps {
   >;
   overlayNotificationsRuntime: Pick<
     OverlayNotificationsRuntime,
-    'showConfiguredStatusNotification' | 'getConfiguredStatusNotificationType'
+    | 'showConfiguredStatusNotification'
+    | 'showConfiguredPlaybackFeedback'
+    | 'getConfiguredStatusNotificationType'
   >;
-  youtube: Pick<YoutubeAssembly, 'isPlaybackActiveNow'> & {
+  overlayModalRuntime: Pick<OverlayModalRuntime, 'handleOverlayModalClosed'>;
+  youtube: Pick<YoutubeAssembly, 'isPlaybackActiveNow' | 'shouldQuitWhenMpvCloses'> & {
     playback: Pick<YoutubeAssembly['playback'], 'getQuitOnDisconnectArmed'>;
     primarySubtitleNotification: Pick<
       YoutubeAssembly['primarySubtitleNotification'],
       'handleMediaPathChange' | 'handleSubtitleTrackChange' | 'handleSubtitleTrackListChange'
     >;
     mediaCachePlayback: Pick<YoutubeAssembly['mediaCachePlayback'], 'handleMediaPathChange'>;
-    browserPlayback: Pick<YoutubeAssembly['browserPlayback'], 'handleMediaPathChange'>;
-    flow: Pick<YoutubeAssembly['flow'], 'handleMediaPathChange'>;
+    browserPlayback: Pick<
+      YoutubeAssembly['browserPlayback'],
+      'handleMediaPathChange' | 'handleMpvDisconnected'
+    >;
+    flow: Pick<
+      YoutubeAssembly['flow'],
+      | 'handleMediaPathChange'
+      | 'cancelWhisperGeneration'
+      | 'hasActiveSession'
+      | 'cancelActivePicker'
+    >;
   };
   jellyfin: Pick<
     JellyfinAssembly,
@@ -171,6 +194,8 @@ export interface PlaybackAssemblyDeps {
     ReturnType<typeof createSubtitleGenerationRuntime>,
     'handleMediaPathChange'
   >;
+  /** Plugins observe every mpv client the app creates. */
+  getPluginHost: () => { attachMpvClient: (client: MpvIpcClient) => void };
   isCharacterDictionaryEnabled: () => boolean;
   /** Whether the tray icon exists; mpv shutdown keeps the app alive when it does. */
   hasTray: () => boolean;
@@ -184,7 +209,6 @@ export interface PlaybackAssemblyDeps {
   refreshMpvSessionBindings: () => Promise<void>;
   ensureImmersionTrackerStarted: () => void;
   restoreOverlayMpvSubtitles: () => void;
-  resetSubtitleSidebarEmbeddedLayoutRuntime: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
   setOverlayVisible: (visible: boolean) => void;
   ensureYomitanExtensionLoaded: () => Promise<unknown>;
@@ -229,6 +253,13 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
   } = deps;
   let backgroundWarmupsStarted = false;
   let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null = null;
+  // Set from the renderer's modal open/close reports; replacement overlay windows restore it.
+  let subtitleSidebarRequestedOpen = false;
+
+  function resetSubtitleSidebarEmbeddedLayout(): void {
+    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-margin-ratio-right', 0]);
+    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-pan-x', 0]);
+  }
 
   function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
     const canonical = resolveCanonicalPrimarySubtitle({
@@ -664,7 +695,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
         deps.restoreOverlayMpvSubtitles();
       },
       resetSubtitleSidebarEmbeddedLayout: () => {
-        deps.resetSubtitleSidebarEmbeddedLayoutRuntime();
+        resetSubtitleSidebarEmbeddedLayout();
       },
       getCurrentAnilistMediaKey: () => anilist.getCurrentAnilistMediaKey(),
       resetAnilistMediaTracking: (mediaKey) => {
@@ -955,7 +986,171 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
   });
   tokenizeSubtitleDeferred = tokenizeSubtitle;
 
+  const aniSkipRuntime = createAniSkipRuntime({
+    getAniSkipConfig: () => ({
+      aniskipEnabled: configService.getConfig().mpv.aniskipEnabled,
+      aniskipButtonKey: configService.getConfig().mpv.aniskipButtonKey,
+    }),
+    resolveMetadataForFile: (mediaPath) => resolveAniSkipMetadataForFile(mediaPath),
+    sendMpvCommand: (command) => {
+      appState.mpvClient?.send({ command });
+    },
+    requestMpvProperty: (name) => {
+      if (!appState.mpvClient) {
+        return Promise.reject(new Error('MPV not connected'));
+      }
+      return appState.mpvClient.requestProperty(name);
+    },
+    isMpvConnected: () => appState.mpvClient?.connected === true,
+    getCurrentTimePos: () => appState.mpvClient?.currentTimePos ?? Number.NaN,
+    showMpvOsd: (text, durationMs) => {
+      appState.mpvClient?.send({ command: ['show-text', text, durationMs] });
+    },
+    showPlaybackFeedback: (text) =>
+      overlayNotificationsRuntime.showConfiguredPlaybackFeedback(text),
+    logInfo: (message) => logger.info(message),
+    logWarn: (message, error) => logger.warn(message, error),
+    logDebug: (message) => logger.debug(message),
+  });
+
+  /** Creates the app's mpv client with YouTube, AniSkip and plugin listeners attached. */
+  function createMpvClient(): MpvIpcClient {
+    const client = createMpvClientRuntimeServiceHandler() as MpvIpcClient;
+    client.on('connection-change', ({ connected }) => {
+      if (connected) {
+        return;
+      }
+      youtube.browserPlayback.handleMpvDisconnected();
+      youtube.flow.cancelWhisperGeneration();
+      deps.getSubtitleGenerationRuntime().handleMediaPathChange(null);
+      if (youtube.shouldQuitWhenMpvCloses()) {
+        deps.requestAppQuit();
+        return;
+      }
+      if (!youtube.flow.hasActiveSession()) {
+        return;
+      }
+      youtube.flow.cancelActivePicker();
+      overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.youtubePickerCancel, null);
+      deps.overlayModalRuntime.handleOverlayModalClosed('youtube-track-picker');
+    });
+    client.on('connection-change', aniSkipRuntime.handleConnectionChange);
+    client.on('media-path-change', aniSkipRuntime.handleMediaPathChange);
+    client.on('time-pos-change', aniSkipRuntime.handleTimePosChange);
+    client.on('client-message', aniSkipRuntime.handleClientMessage);
+    deps.getPluginHost().attachMpvClient(client);
+    return client;
+  }
+
+  const ipc: IpcSlice<
+    | 'tokenizeCurrentSubtitle'
+    | 'getCurrentSubtitleRaw'
+    | 'getSubtitleSidebarOpen'
+    | 'getSubtitleSidebarPlaybackState'
+    | 'getSubtitleSidebarSnapshot'
+    | 'getPlaybackPaused'
+    | 'getMpvClient'
+  > = {
+    tokenizeCurrentSubtitle: async () => {
+      const tokenizeSubtitleForCurrent = tokenizeSubtitleDeferred;
+      return resolveCurrentSubtitleForRenderer({
+        currentSubText: appState.currentSubText,
+        currentSubtitleData: appState.currentSubtitleData,
+        withCurrentSubtitleTiming: (payload) => withCurrentSubtitleTiming(payload),
+        tokenizeUncached: false,
+        tokenizeSubtitle: tokenizeSubtitleForCurrent
+          ? (text) => tokenizeSubtitleForCurrent(text)
+          : undefined,
+        onResolvedSubtitle: (payload) => {
+          appState.currentSubtitleData = payload;
+          autoplayReadyGate.maybeSignalPluginAutoplayReady(payload, { forceWhilePaused: true });
+        },
+      });
+    },
+    getCurrentSubtitleRaw: () => appState.currentSubText,
+    getSubtitleSidebarOpen: () => subtitleSidebarRequestedOpen,
+    getSubtitleSidebarPlaybackState: () => getSubtitleSidebarPlaybackState(),
+    // Full snapshot: resolves the active source over mpv IPC and re-parses it when it changed.
+    // The renderer fetches it on open, on source/cue changes, and on a slow fallback cadence.
+    getSubtitleSidebarSnapshot: async () => {
+      const config = configService.getConfig().subtitleSidebar;
+      const cachedSnapshot = () => ({
+        ...getSubtitleSidebarPlaybackState(),
+        cues: appState.activeParsedSubtitleCues,
+        config,
+      });
+      const client = appState.mpvClient;
+      if (!client?.connected) {
+        return cachedSnapshot();
+      }
+
+      try {
+        const [currentExternalFilenameRaw, currentTrackRaw, trackListRaw, sidRaw, videoPathRaw] =
+          await Promise.all([
+            client.requestProperty('current-tracks/sub/external-filename').catch(() => null),
+            client.requestProperty('current-tracks/sub').catch(() => null),
+            client.requestProperty('track-list'),
+            client.requestProperty('sid'),
+            client.requestProperty('path'),
+          ]);
+        const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
+        if (!videoPath) {
+          return cachedSnapshot();
+        }
+        if (
+          shouldUseCachedYoutubeParsedCues({
+            videoPath,
+            cachedMediaPath: appState.activeParsedSubtitleMediaPath,
+            cachedCueCount: appState.activeParsedSubtitleCues.length,
+          })
+        ) {
+          return cachedSnapshot();
+        }
+
+        const resolvedSource = await resolveActiveSubtitleSidebarSourceHandler({
+          currentExternalFilenameRaw,
+          currentTrackRaw,
+          trackListRaw,
+          sidRaw,
+          videoPath,
+        });
+        if (!resolvedSource) {
+          return cachedSnapshot();
+        }
+
+        try {
+          if (appState.activeParsedSubtitleSource === resolvedSource.sourceKey) {
+            return cachedSnapshot();
+          }
+
+          const content = await loadSubtitleSourceText(resolvedSource.path);
+          const cues = parseSubtitleCues(content, resolvedSource.path);
+          appState.activeParsedSubtitleCues = cues;
+          appState.activeParsedSubtitleSource = resolvedSource.sourceKey;
+          appState.activeParsedSubtitleMediaPath = videoPath || null;
+          return cachedSnapshot();
+        } finally {
+          await resolvedSource.cleanup?.();
+        }
+      } catch {
+        return cachedSnapshot();
+      }
+    },
+    getPlaybackPaused: () =>
+      resolveFreshPlaybackPaused({
+        getCachedPlaybackPaused: () => appState.playbackPaused,
+        getMpvClient: () => appState.mpvClient,
+      }),
+    getMpvClient: () => appState.mpvClient,
+  };
+
   return {
+    ipc,
+    createMpvClient,
+    aniSkipRuntime,
+    setSubtitleSidebarRequestedOpen: (open: boolean): void => {
+      subtitleSidebarRequestedOpen = open;
+    },
     subtitleProcessingController,
     autoplaySubtitlePrimingRuntime,
     secondarySubtitleTrackController,

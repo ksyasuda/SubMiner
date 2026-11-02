@@ -3,7 +3,7 @@
 # Layering Rules
 
 Status: active  
-Last verified: 2026-05-23  
+Last verified: 2026-10-31  
 Owner: Kyle Yasuda  
 Read when: deciding whether a dependency direction is acceptable
 
@@ -28,6 +28,14 @@ Renderer, launcher, plugin, and stats each keep their own local layering and sho
   object, and returns its runtimes; `main.ts` builds it once and calls through the result.
   Siblings built later in `main.ts` are passed as getters or callbacks, and construction must
   not call them.
+- An assembly that answers renderer IPC or CLI commands returns them as typed slices
+  (`IpcSlice<...>` / `CliSlice<...>` from `src/main/assemblies/slices.ts`). `main.ts`
+  spreads the slices into the registration and checks the result with
+  `satisfies Required<...>`, so a missing handler fails typecheck. Only app-level handlers
+  with no owning assembly stay inline in `main.ts`.
+- Electron modules that value-import named Electron APIs (`dialog`, `screen`, `shell`,
+  `clipboard`, `globalShortcut`, `Tray`, ...) cannot load under `bun test`. Pass those APIs
+  into an assembly as deps instead of importing them there.
 - Prefer injecting dependencies from `src/main/` instead of reaching outward from core services.
 - Keep side effects explicit and close to composition boundaries.
 - Put reusable business logic in focused services, not in top-level lifecycle files.

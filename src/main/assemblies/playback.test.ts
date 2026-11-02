@@ -88,10 +88,13 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
     },
     overlayNotificationsRuntime: {
       showConfiguredStatusNotification: spy('notifications.showStatus', noop),
+      showConfiguredPlaybackFeedback: spy('notifications.showPlaybackFeedback', noop),
       getConfiguredStatusNotificationType: spy('notifications.getType', () => 'osd' as const),
     },
+    overlayModalRuntime: { handleOverlayModalClosed: spy('overlayModal.handleClosed', noop) },
     youtube: {
       isPlaybackActiveNow: spy('youtube.isPlaybackActiveNow', () => false),
+      shouldQuitWhenMpvCloses: spy('youtube.shouldQuitWhenMpvCloses', () => false),
       playback: { getQuitOnDisconnectArmed: spy('youtube.getQuitOnDisconnectArmed', () => false) },
       primarySubtitleNotification: {
         handleMediaPathChange: spy('youtube.notification.handleMediaPathChange', noop),
@@ -99,8 +102,16 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
         handleSubtitleTrackListChange: spy('youtube.notification.handleTrackListChange', noop),
       },
       mediaCachePlayback: { handleMediaPathChange: spy('youtube.mediaCache', resolved) },
-      browserPlayback: { handleMediaPathChange: spy('youtube.browser', noop) },
-      flow: { handleMediaPathChange: spy('youtube.flow', noop) },
+      browserPlayback: {
+        handleMediaPathChange: spy('youtube.browser', noop),
+        handleMpvDisconnected: spy('youtube.browser.handleMpvDisconnected', noop),
+      },
+      flow: {
+        handleMediaPathChange: spy('youtube.flow', noop),
+        cancelWhisperGeneration: spy('youtube.flow.cancelWhisperGeneration', noop),
+        hasActiveSession: spy('youtube.flow.hasActiveSession', () => false),
+        cancelActivePicker: spy('youtube.flow.cancelActivePicker', () => false),
+      },
     },
     jellyfin: {
       getQuitOnDisconnectArmed: spy('jellyfin.getQuitOnDisconnectArmed', () => false),
@@ -133,6 +144,7 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
     getSubtitleGenerationRuntime: spy('getSubtitleGenerationRuntime', () => ({
       handleMediaPathChange: noop,
     })),
+    getPluginHost: spy('getPluginHost', () => ({ attachMpvClient: noop })),
     isCharacterDictionaryEnabled: spy('isCharacterDictionaryEnabled', () => false),
     hasTray: spy('hasTray', () => false),
     loadSubtitleSourceText: spy('loadSubtitleSourceText', async () => ''),
@@ -145,7 +157,6 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
     refreshMpvSessionBindings: spy('refreshMpvSessionBindings', resolved),
     ensureImmersionTrackerStarted: spy('ensureImmersionTrackerStarted', noop),
     restoreOverlayMpvSubtitles: spy('restoreOverlayMpvSubtitles', noop),
-    resetSubtitleSidebarEmbeddedLayoutRuntime: spy('resetSubtitleSidebarLayout', noop),
     syncOverlayMpvSubtitleSuppression: spy('syncOverlayMpvSubtitleSuppression', noop),
     setOverlayVisible: spy('setOverlayVisible', noop),
     ensureYomitanExtensionLoaded: spy('ensureYomitanExtensionLoaded', async () => null),
@@ -392,4 +403,43 @@ test('warm tokenization releases autoplay with the current subtitle when it is s
 
   const signals = recorder.calls.filter((call) => call.name === 'autoplay.maybeSignal');
   assert.deepEqual(signals.at(-1)?.args, [current, { forceWhilePaused: true }]);
+});
+
+/** An mpv client that answers the sidebar's property reads from a table. */
+function fakeSidebarMpvClient(properties: Record<string, unknown>) {
+  return {
+    connected: true,
+    requestProperty: async (name: string) => properties[name] ?? null,
+  } as unknown as NonNullable<ReturnType<typeof setup>['appState']['mpvClient']>;
+}
+
+test('sidebar snapshot keeps cached YouTube cues instead of re-resolving the subtitle source', async () => {
+  const { appState, playback, recorder } = setup();
+  const cues = [{ startTime: 1, endTime: 2, text: '字幕' }];
+  appState.activeParsedSubtitleCues = cues;
+  appState.activeParsedSubtitleMediaPath = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  appState.mpvClient = fakeSidebarMpvClient({
+    path: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30',
+    // Without the YouTube cache check this source would be re-read and re-parsed.
+    'current-tracks/sub/external-filename': '/tmp/youtube-subs/dQw4w9WgXcQ.ja.vtt',
+    'track-list': [],
+    sid: 1,
+  });
+
+  const snapshot = await playback.ipc.getSubtitleSidebarSnapshot();
+
+  assert.equal(snapshot.cues, cues);
+  assert.equal(recorder.names().includes('loadSubtitleSourceText'), false);
+});
+
+test('sidebar snapshot falls back to cached cues while mpv is disconnected', async () => {
+  const { appState, playback, recorder } = setup();
+  const cues = [{ startTime: 1, endTime: 2, text: '字幕' }];
+  appState.activeParsedSubtitleCues = cues;
+
+  const snapshot = await playback.ipc.getSubtitleSidebarSnapshot();
+
+  assert.equal(snapshot.cues, cues);
+  assert.equal(snapshot.config, DEFAULT_CONFIG.subtitleSidebar);
+  assert.equal(recorder.names().includes('loadSubtitleSourceText'), false);
 });

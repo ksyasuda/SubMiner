@@ -148,7 +148,8 @@ export interface AppReadyRuntimeDeps {
   handleFirstRunSetup: () => Promise<void>;
   prewarmSubtitleDictionaries?: () => Promise<void>;
   startBackgroundWarmups: () => void;
-  texthookerOnlyMode: boolean;
+  /** Read when app-ready reaches the overlay decision, after startup state is applied. */
+  isTexthookerOnlyMode: () => boolean;
   shouldAutoInitializeOverlayRuntimeFromConfig: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
   initializeOverlayRuntime: () => void;
@@ -351,7 +352,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
     deps.log('Runtime ready: immersion tracker dependency is missing.');
   }
 
-  if (deps.texthookerOnlyMode) {
+  if (deps.isTexthookerOnlyMode()) {
     deps.log('Texthooker-only mode enabled; skipping overlay window.');
     startBackgroundWarmupsOnce();
   } else if (deps.shouldAutoInitializeOverlayRuntimeFromConfig()) {

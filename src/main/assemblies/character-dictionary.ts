@@ -11,7 +11,14 @@ import type { ResolvedConfig } from '../../types';
 import { createCharacterDictionaryRuntimeService } from '../character-dictionary-runtime';
 import { createCharacterDictionaryImageLookup } from '../character-dictionary-runtime/image-lookup';
 import { createCharacterNameCandidateLookup } from '../character-dictionary-runtime/name-candidates';
-import { createCharacterDictionaryAutoSyncRuntimeService } from '../runtime/character-dictionary-auto-sync';
+import { applyCharacterDictionarySelection } from '../character-dictionary-selection';
+import {
+  createCharacterDictionaryAutoSyncRuntimeService,
+  getCharacterDictionaryManagerSnapshot,
+  moveCharacterDictionaryManagedEntry,
+  removeCharacterDictionaryManagedEntry,
+  replaceCharacterDictionaryManagedEntry,
+} from '../runtime/character-dictionary-auto-sync';
 import { handleCharacterDictionaryAutoSyncComplete } from '../runtime/character-dictionary-auto-sync-completion';
 import {
   notifyCharacterDictionaryAutoSyncStatus,
@@ -22,6 +29,7 @@ import { assertYomitanDictionaryMutationSafe } from '../runtime/yomitan-dictiona
 import type { createYomitanProfilePolicy } from '../runtime/yomitan-profile-policy';
 import { formatSkippedYomitanWriteAction } from '../runtime/yomitan-read-only-log';
 import type { AppState } from '../state';
+import type { CliSlice, IpcSlice } from './slices';
 
 type YomitanParserRuntimeDeps = Parameters<typeof getYomitanDictionaryInfo>[0];
 
@@ -46,7 +54,10 @@ export interface CharacterDictionaryAssemblyDeps {
   resolveMediaPathForJimaku: (mediaPath: string | null) => string | null;
   getYomitanProfilePolicy: () => Pick<
     ReturnType<typeof createYomitanProfilePolicy>,
-    'isCharacterDictionaryEnabled' | 'isExternalReadOnlyMode' | 'logSkippedWrite'
+    | 'isCharacterDictionaryEnabled'
+    | 'getCharacterDictionaryDisabledReason'
+    | 'isExternalReadOnlyMode'
+    | 'logSkippedWrite'
   >;
   isYoutubePlaybackActive: () => boolean;
   waitForMediaTokenizationReady: (mediaPath: string | null) => Promise<void>;
@@ -63,6 +74,8 @@ export interface CharacterDictionaryAssemblyDeps {
   /** Re-runs subtitle prefetch from the current playback position. */
   refreshSubtitlePrefetch: () => void;
   refreshCurrentSubtitleAnnotations: () => void;
+  /** A manual selection invalidates AniList's guess for the current media. */
+  resetAnilistMediaGuessState: () => void;
 }
 
 export type CharacterDictionaryAssembly = ReturnType<typeof createCharacterDictionaryAssembly>;
@@ -243,5 +256,94 @@ export function createCharacterDictionaryAssembly(deps: CharacterDictionaryAssem
     getCurrentMediaId: () => autoSync.getCurrentMediaId(),
   });
 
-  return { runtime, autoSync, imageLookup, nameCandidates };
+  const selectionDeps = {
+    setManualSelection: (request: Parameters<typeof runtime.setManualSelection>[0]) =>
+      runtime.setManualSelection(request),
+    resetAnilistMediaGuessState: () => deps.resetAnilistMediaGuessState(),
+    runSyncNow: () => autoSync.runSyncNow(),
+    warn: (message: string, error?: unknown) => logger.warn(message, error),
+  };
+
+  /** Manager edits that change the merged dictionary rebuild it; a failed rebuild is logged. */
+  async function rebuildAfterManagerChange<T extends { ok: boolean; rebuildRequired?: boolean }>(
+    result: T,
+    change: 'override' | 'removal' | 'reorder',
+  ): Promise<T> {
+    if (result.ok && result.rebuildRequired) {
+      try {
+        await autoSync.runSyncNow();
+      } catch (error) {
+        logger.warn(`Failed to rebuild character dictionary after manager ${change}:`, error);
+      }
+    }
+    return result;
+  }
+
+  const ipc: IpcSlice<
+    | 'getCharacterDictionarySelection'
+    | 'setCharacterDictionarySelection'
+    | 'getCharacterDictionaryManagerSnapshot'
+    | 'removeCharacterDictionaryManagedEntry'
+    | 'moveCharacterDictionaryManagedEntry'
+  > = {
+    getCharacterDictionarySelection: (searchTitle?: string) =>
+      runtime.getManualSelectionSnapshot(undefined, searchTitle),
+    setCharacterDictionarySelection: async (
+      mediaId: number,
+      replaceManagedMediaId?: number,
+      mediaTitle?: string,
+    ) => {
+      if (replaceManagedMediaId !== undefined && mediaTitle) {
+        return rebuildAfterManagerChange(
+          replaceCharacterDictionaryManagedEntry(deps.userDataPath, replaceManagedMediaId, {
+            mediaId,
+            mediaTitle,
+          }),
+          'override',
+        );
+      }
+      return await applyCharacterDictionarySelection({ mediaId }, selectionDeps);
+    },
+    getCharacterDictionaryManagerSnapshot: async () =>
+      getCharacterDictionaryManagerSnapshot(deps.userDataPath, autoSync.getCurrentMediaId()),
+    removeCharacterDictionaryManagedEntry: async (mediaId: number) =>
+      rebuildAfterManagerChange(
+        removeCharacterDictionaryManagedEntry(
+          deps.userDataPath,
+          mediaId,
+          autoSync.getCurrentMediaId(),
+        ),
+        'removal',
+      ),
+    moveCharacterDictionaryManagedEntry: async (mediaId: number, direction: 1 | -1) =>
+      rebuildAfterManagerChange(
+        moveCharacterDictionaryManagedEntry(
+          deps.userDataPath,
+          mediaId,
+          direction,
+          autoSync.getCurrentMediaId(),
+        ),
+        'reorder',
+      ),
+  };
+
+  const cli: CliSlice<
+    | 'generateCharacterDictionary'
+    | 'getCharacterDictionarySelection'
+    | 'setCharacterDictionarySelection'
+  > = {
+    generateCharacterDictionary: async (targetPath?: string) => {
+      const disabledReason = deps.getYomitanProfilePolicy().getCharacterDictionaryDisabledReason();
+      if (disabledReason) {
+        throw new Error(disabledReason);
+      }
+      return await runtime.generateForCurrentMedia(targetPath);
+    },
+    getCharacterDictionarySelection: async (targetPath?: string) =>
+      runtime.getManualSelectionSnapshot(targetPath),
+    setCharacterDictionarySelection: async (request) =>
+      applyCharacterDictionarySelection(request, selectionDeps),
+  };
+
+  return { runtime, autoSync, imageLookup, nameCandidates, ipc, cli };
 }

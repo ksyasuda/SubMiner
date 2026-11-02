@@ -21,7 +21,6 @@ export interface MainBootServicesParams<
   TAnilistUpdateQueue,
   TSubtitleWebSocket,
   TLogger,
-  TRuntimeRegistry,
   TOverlayManager,
   TOverlayModalInputState,
   TOverlayContentMeasurementStore,
@@ -71,7 +70,6 @@ export interface MainBootServicesParams<
     info: (message: string) => void;
     error: (message: string, details?: unknown) => void;
   };
-  createMainRuntimeRegistry: () => TRuntimeRegistry;
   createOverlayManager: () => TOverlayManager;
   createOverlayModalInputState: (params: {
     getModalWindow: () => BrowserWindow | null;
@@ -99,7 +97,6 @@ export interface MainBootServicesResult<
   TAnilistUpdateQueue,
   TSubtitleWebSocket,
   TLogger,
-  TRuntimeRegistry,
   TOverlayManager,
   TOverlayModalInputState,
   TOverlayContentMeasurementStore,
@@ -118,7 +115,6 @@ export interface MainBootServicesResult<
   subtitleWsService: TSubtitleWebSocket;
   annotationSubtitleWsService: TSubtitleWebSocket;
   logger: TLogger;
-  runtimeRegistry: TRuntimeRegistry;
   overlayManager: TOverlayManager;
   overlayModalInputState: TOverlayModalInputState;
   overlayContentMeasurementStore: TOverlayContentMeasurementStore;
@@ -134,7 +130,6 @@ export function createMainBootServices<
   TAnilistUpdateQueue,
   TSubtitleWebSocket,
   TLogger,
-  TRuntimeRegistry,
   TOverlayManager extends {
     getMainWindow: () => BrowserWindow | null;
     getModalWindow: () => BrowserWindow | null;
@@ -152,7 +147,6 @@ export function createMainBootServices<
     TAnilistUpdateQueue,
     TSubtitleWebSocket,
     TLogger,
-    TRuntimeRegistry,
     TOverlayManager,
     TOverlayModalInputState,
     TOverlayContentMeasurementStore,
@@ -167,7 +161,6 @@ export function createMainBootServices<
   TAnilistUpdateQueue,
   TSubtitleWebSocket,
   TLogger,
-  TRuntimeRegistry,
   TOverlayManager,
   TOverlayModalInputState,
   TOverlayContentMeasurementStore,
@@ -211,7 +204,6 @@ export function createMainBootServices<
   const subtitleWsService = params.createSubtitleWebSocket('plain');
   const annotationSubtitleWsService = params.createSubtitleWebSocket('annotated');
   const logger = params.createLogger('main');
-  const runtimeRegistry = params.createMainRuntimeRegistry();
   const overlayManager = params.createOverlayManager();
   const overlayModalInputState = params.createOverlayModalInputState({
     getModalWindow: () => overlayManager.getModalWindow(),
@@ -292,7 +284,6 @@ export function createMainBootServices<
     subtitleWsService,
     annotationSubtitleWsService,
     logger,
-    runtimeRegistry,
     overlayManager,
     overlayModalInputState,
     overlayContentMeasurementStore,
