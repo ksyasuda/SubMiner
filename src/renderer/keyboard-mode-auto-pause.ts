@@ -17,17 +17,21 @@ export function createKeyboardModeAutoPause(deps: {
   let awaitingOwnPause = false;
   /** Bumped on every mode change so a slow pause lookup cannot act on a stale mode. */
   let generation = 0;
+  /** Bumped on every pause change, so a lookup answered after one is known to be stale. */
+  let playbackChanges = 0;
 
   async function enterMode(current: number): Promise<void> {
     if (!deps.isEnabled()) return;
+    const changesBefore = playbackChanges;
     let paused: boolean | null = null;
     try {
       paused = await deps.getPlaybackPaused();
     } catch {
       return;
     }
-    // Left the mode again (or re-entered) while waiting: this request is stale.
-    if (current !== generation || paused !== false) return;
+    // Left the mode again (or re-entered) while waiting: this request is stale. So is the
+    // answer if the user paused or played meanwhile: that playback state is theirs.
+    if (current !== generation || playbackChanges !== changesBefore || paused !== false) return;
     pausedByMode = true;
     awaitingOwnPause = true;
     deps.sendMpvCommand(['set_property', 'pause', 'yes']);
@@ -51,6 +55,7 @@ export function createKeyboardModeAutoPause(deps: {
 
     /** mpv's pause property changed, from any source. */
     handlePlaybackPauseChanged(paused: boolean): void {
+      playbackChanges += 1;
       if (!pausedByMode) return;
       if (paused && awaitingOwnPause) {
         awaitingOwnPause = false;

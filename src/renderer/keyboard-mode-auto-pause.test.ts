@@ -97,6 +97,26 @@ test('leaving before the pause lookup returns does not pause afterwards', async 
   assert.equal(autoPause.isPausedByMode(), false);
 });
 
+test("a pause made while the pause lookup is pending stays the user's", async () => {
+  const commands: string[] = [];
+  let answer: (paused: boolean) => void = () => {};
+  const autoPause = createKeyboardModeAutoPause({
+    isEnabled: () => true,
+    getPlaybackPaused: () => new Promise((resolve) => (answer = resolve)),
+    sendMpvCommand: (command) => commands.push(command.join(' ')),
+  });
+
+  const entering = autoPause.handleModeChanged(true);
+  // The user pauses before the lookup answers; the answer still says "playing".
+  autoPause.handlePlaybackPauseChanged(true);
+  answer(false);
+  await entering;
+  await autoPause.handleModeChanged(false);
+
+  assert.deepEqual(commands, [], "leaving does not resume the user's pause");
+  assert.equal(autoPause.isPausedByMode(), false);
+});
+
 test('an unknown pause state is left alone', async () => {
   const { autoPause, commands } = setup({ paused: null });
 

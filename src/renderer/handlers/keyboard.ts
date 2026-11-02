@@ -763,6 +763,12 @@ export function createKeyboardHandlers(
   // released) and attention without a pane, so callers like the Kiku modal
   // opener leave nothing behind.
   function closeLookupWindow(): boolean {
+    // Also when no popup shows yet: a lookup that has not opened one must not open it
+    // later through its fallback scan (for example after leaving keyboard-only mode).
+    if (lookupScanFallbackTimer !== null) {
+      clearTimeout(lookupScanFallbackTimer);
+      lookupScanFallbackTimer = null;
+    }
     if (
       !ctx.state.yomitanPopupVisible &&
       !isYomitanPopupVisible(document) &&
@@ -771,10 +777,6 @@ export function createKeyboardHandlers(
       return false;
     }
 
-    if (lookupScanFallbackTimer !== null) {
-      clearTimeout(lookupScanFallbackTimer);
-      lookupScanFallbackTimer = null;
-    }
     dispatchYomitanPopupVisibility(false);
     dispatchYomitanFrontendClearActiveTextSource();
     clearNativeSubtitleSelection();
