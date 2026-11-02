@@ -79,7 +79,7 @@ export interface OverlayAssemblyDeps {
     ReturnType<typeof createOverlayContentMeasurementStore>,
     'report' | 'clear' | 'getLatestByLayer'
   >;
-  autoplayReadyGate: Pick<
+  getAutoplayReadyGate: () => Pick<
     ReturnType<typeof createAutoplayReadyGate>,
     'markCurrentMediaAutoplayReady' | 'flushPendingAutoplayReadySignal'
   >;
@@ -144,7 +144,7 @@ export type OverlayAssembly = ReturnType<typeof createOverlayAssembly>;
  * runtimes through the result; overlay bootstrap stays in the startup assembly.
  */
 export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
-  const { appState, logger, overlayManager, overlayModalInputState, autoplayReadyGate } = deps;
+  const { appState, logger, overlayManager, overlayModalInputState } = deps;
 
   let cancelLinuxMpvFullscreenOverlayRefreshBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null =
     null;
@@ -296,7 +296,7 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
           deps.getOverlayNotifications().flushQueuedOverlayNotifications();
           overlayVisibilityRuntime.updateVisibleOverlayVisibility();
           interaction.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
-          autoplayReadyGate.flushPendingAutoplayReadySignal();
+          deps.getAutoplayReadyGate().flushPendingAutoplayReadySignal();
         },
         onWindowClosed: (windowKind, window) => {
           if (windowKind === 'visible') {
@@ -343,7 +343,7 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     ensureOverlayWindowsReadyForVisibilityActions();
     if (!visible) {
       deps.getOverlayNotifications().dismissOverlayLoadingStatusNotification();
-      autoplayReadyGate.markCurrentMediaAutoplayReady();
+      deps.getAutoplayReadyGate().markCurrentMediaAutoplayReady();
       deps.getAutoplaySubtitlePriming().cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
       cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
       interaction.resetVisibleOverlayInputState();
@@ -366,7 +366,7 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     const nextVisible = !overlayManager.getVisibleOverlayVisible();
     if (!nextVisible) {
       deps.getOverlayNotifications().dismissOverlayLoadingStatusNotification();
-      autoplayReadyGate.markCurrentMediaAutoplayReady();
+      deps.getAutoplayReadyGate().markCurrentMediaAutoplayReady();
       deps.getAutoplaySubtitlePriming().cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
       cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
       interaction.resetVisibleOverlayInputState();
@@ -387,7 +387,7 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
       deps.getOverlayNotifications().dismissOverlayLoadingStatusNotification();
       deps.getAutoplaySubtitlePriming().cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
       interaction.resetVisibleOverlayInputState();
-      autoplayReadyGate.markCurrentMediaAutoplayReady();
+      deps.getAutoplayReadyGate().markCurrentMediaAutoplayReady();
       cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
     }
     if (visible) {
@@ -691,7 +691,7 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
         interaction.tickLinuxOverlayPointerInteractionNow();
         interaction.tickWindowsOverlayPointerInteractionNow();
         interaction.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
-        deps.autoplayReadyGate.flushPendingAutoplayReadySignal();
+        deps.getAutoplayReadyGate().flushPendingAutoplayReadySignal();
         deps.getAutoplaySubtitlePriming().scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
       }
     },

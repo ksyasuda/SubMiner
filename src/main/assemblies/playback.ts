@@ -2,6 +2,7 @@ import {
   MpvIpcClient,
   applyMpvSubtitleRenderMetricsPatch,
   createTokenizerDepsRuntime,
+  isOverlayWindowContentReady,
   isSubtitleAnnotationUpgrade,
   resolveSanitizedSubtitleSeekCommand,
   sendMpvCommandRuntime,
@@ -13,14 +14,18 @@ import { resolveAniSkipMetadataForFile } from '../runtime/aniskip-metadata';
 import { createAniSkipRuntime } from '../runtime/aniskip-runtime';
 import { resolveCurrentSubtitleForRenderer } from '../runtime/current-subtitle-snapshot';
 import { resolveFreshPlaybackPaused } from '../runtime/playback-paused-state';
+import { createAutoplayReadyGate, type AutoplayReadySignal } from '../runtime/autoplay-ready-gate';
 import { createAutoplaySubtitlePrimingRuntime } from '../runtime/autoplay-subtitle-priming-runtime';
 import { createAutoplayTokenizationWarmRelease } from '../runtime/autoplay-tokenization-warm-release';
 import { composeMpvRuntimeHandlers } from '../runtime/composers';
+import { createCurrentMediaTokenizationGate } from '../runtime/current-media-tokenization-gate';
 import { createCachedInternalSubtitleTrackExtractor } from '../runtime/internal-subtitle-extraction';
 import {
   markJellyfinRemotePlaybackLoaded as markJellyfinRemotePlaybackLoadedState,
   shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
 } from '../runtime/jellyfin-remote-playback';
+import { createManagedLocalSubtitleSelectionRuntime } from '../runtime/local-subtitle-selection';
+import { focusMacOSOverlayWindow } from '../runtime/macos-overlay-window-focus';
 import { buildSubtitleTrackDiagnostics } from '../runtime/mpv-track-diagnostics';
 import { createRemoteMediaPathDetector } from '../runtime/network-media-path';
 import { resolveCanonicalPrimarySubtitle } from '../runtime/primary-subtitle-text';
@@ -32,6 +37,7 @@ import {
   createResolveActiveSubtitleSidebarSourceHandler,
 } from '../runtime/subtitle-prefetch-runtime';
 import { createPrefetchAwareSubtitleProcessingController } from '../runtime/subtitle-processing-runtime';
+import { isVisibleOverlayAutoplayTargetReady } from '../runtime/visible-overlay-autoplay-readiness';
 import {
   isSameYoutubeMediaPath,
   isYoutubeMediaPath,
@@ -47,19 +53,20 @@ import type {
 } from '../../types';
 import type { BrowserWindow } from 'electron';
 import type { ConfigService } from '../../config/service';
-import type { createOverlayManager, SubtitleWebSocket } from '../../core/services';
+import type {
+  createOverlayContentMeasurementStore,
+  createOverlayManager,
+  SubtitleWebSocket,
+} from '../../core/services';
 import type {
   SubtitlePrefetchService,
   SubtitlePrefetchServiceDeps,
 } from '../../core/services/subtitle-prefetch';
 import type { Logger } from '../../logger';
 import type { createMediaRuntimeService } from '../media-runtime';
-import type { createAutoplayReadyGate } from '../runtime/autoplay-ready-gate';
-import type { createCurrentMediaTokenizationGate } from '../runtime/current-media-tokenization-gate';
 import type { createDiscordPresenceRuntime } from '../runtime/discord-presence-runtime';
 import type { createImmersionMediaRuntime } from '../runtime/domains/startup';
 import type { loadSubtitleSourceText } from '../runtime/internal-subtitle-extraction';
-import type { createManagedLocalSubtitleSelectionRuntime } from '../runtime/local-subtitle-selection';
 import type { createMediaTimingReviewRuntime } from '../runtime/media-timing-review';
 import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notifications-runtime';
 import type { createStartupOsdSequencer } from '../runtime/startup-osd-sequencer';
@@ -95,20 +102,14 @@ export interface PlaybackAssemblyDeps {
   logger: Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
   overlayManager: Pick<
     ReturnType<typeof createOverlayManager>,
-    'broadcastToOverlayWindows' | 'getVisibleOverlayVisible'
+    'broadcastToOverlayWindows' | 'getVisibleOverlayVisible' | 'getMainWindow'
+  >;
+  overlayContentMeasurementStore: Pick<
+    ReturnType<typeof createOverlayContentMeasurementStore>,
+    'getLatestByLayer'
   >;
   subtitleWsService: SubtitleWsBroadcaster;
   annotationSubtitleWsService: SubtitleWsBroadcaster;
-  autoplayReadyGate: Pick<
-    ReturnType<typeof createAutoplayReadyGate>,
-    | 'maybeSignalPluginAutoplayReady'
-    | 'flushPendingAutoplayReadySignal'
-    | 'invalidatePendingAutoplayReadyFallbacks'
-  >;
-  currentMediaTokenizationGate: Pick<
-    ReturnType<typeof createCurrentMediaTokenizationGate>,
-    'updateCurrentMediaPath' | 'markReady'
-  >;
   startupOsdSequencer: Pick<
     ReturnType<typeof createStartupOsdSequencer>,
     | 'reset'
@@ -116,10 +117,6 @@ export interface PlaybackAssemblyDeps {
     | 'showTokenizationLoading'
     | 'showAnnotationLoading'
     | 'markAnnotationLoadingComplete'
-  >;
-  managedLocalSubtitleSelectionRuntime: Pick<
-    ReturnType<typeof createManagedLocalSubtitleSelectionRuntime>,
-    'handleMediaPathChange' | 'handleSubtitleTrackListChange'
   >;
   mediaTimingReviewRuntime: Pick<
     ReturnType<typeof createMediaTimingReviewRuntime>,
@@ -148,7 +145,10 @@ export interface PlaybackAssemblyDeps {
     playback: Pick<YoutubeAssembly['playback'], 'getQuitOnDisconnectArmed'>;
     primarySubtitleNotification: Pick<
       YoutubeAssembly['primarySubtitleNotification'],
-      'handleMediaPathChange' | 'handleSubtitleTrackChange' | 'handleSubtitleTrackListChange'
+      | 'handleMediaPathChange'
+      | 'handleSubtitleTrackChange'
+      | 'handleSubtitleTrackListChange'
+      | 'isAppOwnedFlowInFlight'
     >;
     mediaCachePlayback: Pick<YoutubeAssembly['mediaCachePlayback'], 'handleMediaPathChange'>;
     browserPlayback: Pick<
@@ -216,6 +216,8 @@ export interface PlaybackAssemblyDeps {
   getRuntimeBooleanOption: (id: AnnotationRuntimeOptionId, fallback: boolean) => boolean;
   /** Linux fullscreen overlay refresh lives with the overlay window code in `main.ts`. */
   onFullscreenChange: (fullscreen: boolean) => void;
+  /** Brings SubMiner to the foreground (`app.focus({ steal: true })`). */
+  stealAppFocus: () => void;
 }
 
 export type PlaybackAssembly = ReturnType<typeof createPlaybackAssembly>;
@@ -223,7 +225,8 @@ export type PlaybackAssembly = ReturnType<typeof createPlaybackAssembly>;
 /**
  * Owns the subtitle pipeline around mpv playback: the mpv client runtime and its event
  * handlers, subtitle tokenization and warmups, subtitle prefetch, the subtitle sidebar's cached
- * playback state, secondary subtitles and autoplay subtitle priming. `main.ts` builds it once and
+ * playback state, secondary subtitles, managed local subtitle selection, and the autoplay-ready
+ * gate that releases mpv's startup pause with its subtitle priming. `main.ts` builds it once and
  * starts warmups and the mpv client from its startup code.
  */
 export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
@@ -234,10 +237,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
     overlayManager,
     subtitleWsService,
     annotationSubtitleWsService,
-    autoplayReadyGate,
-    currentMediaTokenizationGate,
     startupOsdSequencer,
-    managedLocalSubtitleSelectionRuntime,
     mediaTimingReviewRuntime,
     discordPresenceRuntime,
     immersionMediaRuntime,
@@ -260,6 +260,99 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
     sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-margin-ratio-right', 0]);
     sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-pan-x', 0]);
   }
+
+  const currentMediaTokenizationGate = createCurrentMediaTokenizationGate();
+  const managedLocalSubtitleSelectionRuntime = createManagedLocalSubtitleSelectionRuntime({
+    getCurrentMediaPath: () => appState.currentMediaPath,
+    getMpvClient: () => appState.mpvClient,
+    getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
+    getSecondarySubtitleLanguages: () =>
+      configService.getConfig().secondarySub.secondarySubLanguages,
+    sendMpvCommand: (command) => {
+      sendMpvCommandRuntime(appState.mpvClient, command);
+    },
+    schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+    clearScheduled: (timer) => clearTimeout(timer),
+  });
+
+  const POST_WARM_AUTOPLAY_SUBTITLE_PRIME_DELAYS_MS = [0, 75, 200, 500, 1_000] as const;
+
+  /** After a warm-tokenization release, re-primes the current line while the overlay shows it. */
+  function schedulePostWarmAutoplaySubtitlePrime(signal: AutoplayReadySignal): void {
+    if (signal.payload.text.trim() !== '__warm__') {
+      return;
+    }
+
+    const mediaPath = signal.mediaPath;
+    for (const delayMs of POST_WARM_AUTOPLAY_SUBTITLE_PRIME_DELAYS_MS) {
+      const timer = setTimeout(() => {
+        const currentMediaPath =
+          appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null;
+        if (currentMediaPath !== mediaPath || !overlayManager.getVisibleOverlayVisible()) {
+          return;
+        }
+        void autoplaySubtitlePrimingRuntime
+          .primeCurrentSubtitleForAutoplay(mediaPath)
+          .catch((error) => {
+            logger.debug(
+              `[autoplay-subtitle-prime] failed to prime current subtitle after warm readiness: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          });
+      }, delayMs);
+      timer.unref?.();
+    }
+  }
+
+  const autoplayReadyGate = createAutoplayReadyGate({
+    isAppOwnedFlowInFlight: () => youtube.primarySubtitleNotification.isAppOwnedFlowInFlight(),
+    getCurrentMediaPath: () => appState.currentMediaPath,
+    getCurrentVideoPath: () => appState.mpvClient?.currentVideoPath ?? null,
+    getPlaybackPaused: () => appState.playbackPaused,
+    getMpvClient: () => appState.mpvClient,
+    signalPluginAutoplayReady: () => {
+      sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
+    },
+    // Untokenized signals wait for warmup here; the target-readiness predicate below must stay
+    // warmup-free so warm and tokenized releases are never deferred behind the warmup flag.
+    isTokenizationReady: () => isTokenizationWarmupReady(),
+    requestOverlayPointerRecovery: () => {
+      if (process.platform !== 'darwin' || !overlayManager.getVisibleOverlayVisible()) {
+        return;
+      }
+      // Renderer-side recovery alone cannot wake subtitle hover on macOS: the overlay only
+      // receives mouse-moved events while it is the key window of the frontmost app, and mpv
+      // is frontmost once playback starts. Activate the overlay window first so the broadcast's
+      // setIgnoreMouseEvents toggling actually takes effect, mirroring a manual subtitle click.
+      focusMacOSOverlayWindow({
+        platform: process.platform,
+        getOverlayWindow: () => overlayManager.getMainWindow(),
+        stealAppFocus: () => deps.stealAppFocus(),
+        warn: (message, details) => logger.warn(message, details),
+      });
+      overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.overlayPointerRecoveryRequest);
+    },
+    onAutoplayReadyReleased: (signal) => {
+      schedulePostWarmAutoplaySubtitlePrime(signal);
+    },
+    // Hold the release until the visible overlay has painted and measured its content.
+    isSignalTargetReady: (signal) =>
+      isVisibleOverlayAutoplayTargetReady(
+        {
+          getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+          isOverlayWindowReady: () => {
+            const overlayWindow = overlayManager.getMainWindow();
+            return Boolean(overlayWindow && isOverlayWindowContentReady(overlayWindow));
+          },
+          getLatestVisibleMeasurement: () =>
+            deps.overlayContentMeasurementStore.getLatestByLayer('visible'),
+        },
+        signal,
+      ),
+    schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+    logDebug: (message) => logger.debug(message),
+  });
 
   function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
     const canonical = resolveCanonicalPrimarySubtitle({
@@ -1146,6 +1239,8 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
 
   return {
     ipc,
+    autoplayReadyGate,
+    currentMediaTokenizationGate,
     createMpvClient,
     aniSkipRuntime,
     setSubtitleSidebarRequestedOpen: (open: boolean): void => {

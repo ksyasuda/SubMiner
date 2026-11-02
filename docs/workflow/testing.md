@@ -44,6 +44,5 @@ good test looks like here.
 
 ## Known Debt
 
-- `src/main/main-wiring.test.ts` and `src/renderer/renderer-init-order.test.ts` still
-  regex `main.ts` / `renderer.ts` to guard startup ordering. Replace each test with a
-  behavioral one as the logic moves out of `main.ts` closures.
+- `src/renderer/renderer-init-order.test.ts` still regexes `renderer.ts` to guard startup
+  ordering. Replace it with a behavioral test as that logic moves out of `renderer.ts`.

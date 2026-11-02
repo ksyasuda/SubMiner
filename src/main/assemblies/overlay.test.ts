@@ -91,10 +91,10 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
       clear: spy('measurement.clear', noop),
       getLatestByLayer: spy('measurement.getLatest', () => null),
     },
-    autoplayReadyGate: {
+    getAutoplayReadyGate: spy('getAutoplayReadyGate', () => ({
       markCurrentMediaAutoplayReady: spy('autoplay.markCurrentMediaReady', noop),
       flushPendingAutoplayReadySignal: spy('autoplay.flushPending', noop),
-    },
+    })),
     screen: {
       getCursorScreenPoint: spy('screen.getCursorScreenPoint', () => ({ x: 0, y: 0 })),
       getDisplayNearestPoint: spy('screen.getDisplayNearestPoint', (): never => {
