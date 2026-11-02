@@ -66,7 +66,6 @@ import type {
   SubtitlePosition,
 } from './types';
 import { OPEN_ANKI_CARD_ACTION_ID } from './types';
-import { AnkiConnectClient } from './anki-connect';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
 import {
   createLogger,
@@ -120,7 +119,6 @@ import {
   createMpvOsdRuntimeHandlers,
   createCycleSecondarySubModeRuntimeHandler,
 } from './main/runtime/domains/mpv';
-import { resolvePrimarySubtitle } from './main/runtime/primary-subtitle-text';
 import {
   enforceUnsupportedWaylandMode,
   forceX11Backend,
@@ -145,7 +143,6 @@ import {
   saveSubtitlePosition as saveSubtitlePositionCore,
   sendMpvCommandRuntime,
   showMpvOsdRuntime,
-  toSubtitleClock,
 } from './core/services';
 import {
   destroyStatsWindow,
@@ -169,6 +166,7 @@ import { createStatsAssembly } from './main/assemblies/stats';
 import { createMiningAssembly } from './main/assemblies/mining';
 import { createShortcutsAssembly } from './main/assemblies/shortcuts';
 import { createTrayAssembly } from './main/assemblies/tray';
+import { createPluginsAssembly } from './main/assemblies/plugins';
 import { createStartupAssembly } from './main/assemblies/startup';
 import type { IpcHandlerDeps } from './main/assemblies/slices';
 import type { CliCommandContextMainDeps } from './main/runtime/cli-command-context-factory';
@@ -224,17 +222,7 @@ import { createOverlayModalInputState } from './main/runtime/overlay-modal-input
 import { getSharedRemoteMediaWindowCache } from './core/services/remote-media-window-cache';
 import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
 import { createChangelogRuntime } from './main/runtime/changelog/changelog-runtime';
-import {
-  createPluginHost,
-  PLUGIN_DEACTIVATE_TIMEOUT_MS,
-} from './core/services/plugins/plugin-host';
-import { buildPluginSubtitleContext } from './core/services/plugins/subtitle-context';
-import type { PluginSubtitleLine } from './core/services/plugins/types';
-import {
-  createPluginPanelRuntime,
-  openPluginPanelModal,
-} from './main/runtime/plugin-panel-runtime';
-import { createPluginWindowRuntime } from './main/runtime/plugin-window-runtime';
+import { PLUGIN_DEACTIVATE_TIMEOUT_MS } from './core/services/plugins/plugin-host';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
@@ -886,7 +874,7 @@ const overlay = createOverlayAssembly({
   getSubtitleProcessingController: () => subtitleProcessingController,
   getAutoplaySubtitlePriming: () => autoplaySubtitlePrimingRuntime,
   initializeOverlayRuntime: () => startup.initializeOverlayRuntime(),
-  getPluginPanel: () => pluginPanelRuntime,
+  getPluginPanel: () => plugins.panel,
   setSubtitleSidebarRequestedOpen: (open) => playback.setSubtitleSidebarRequestedOpen(open),
   stealAppFocus: () => app.focus({ steal: true }),
 });
@@ -1050,10 +1038,10 @@ const mining = createMiningAssembly({
     recordCardsMined: (count, noteIds) => stats.recordCardsMined(count, noteIds),
     getMiningProvenance: () => ({
       minedAt: Date.now(),
-      media: pluginHost.getMediaSnapshot(),
-      subtitle: getPluginCurrentSubtitle(),
+      media: plugins.host.getMediaSnapshot(),
+      subtitle: plugins.getCurrentSubtitle(),
     }),
-    onCardsReady: (noteIds, notes) => pluginHost.emitAnkiEvent('card-mined', { noteIds, notes }),
+    onCardsReady: (noteIds, notes) => plugins.host.emitAnkiEvent('card-mined', { noteIds, notes }),
     onKnownWordCacheUpdated: () => refreshCurrentSubtitleAnnotations(),
     generateSentenceFurigana: (text, highlightedText) =>
       yomitan.generateSentenceFurigana(text, highlightedText),
@@ -1149,106 +1137,21 @@ const overlayModals = createOverlayModalsAssembly({
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
 
-const pluginPanelRuntime = createPluginPanelRuntime({
-  openModal: (getSnapshot, signal) =>
-    openPluginPanelModal(overlayModals.createOverlayHostedModalOpenDeps(), getSnapshot, signal),
-  closeModal: () => overlayModalRuntime.handleOverlayModalClosed('plugin-panel'),
-  // The panel may live in either window; broadcastToOverlayWindows only reaches the main one.
-  broadcast: (channel, payload) => {
-    for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
-      if (window && !window.isDestroyed()) window.webContents.send(channel, payload);
-    }
-  },
-  onOpenFailed: () =>
-    overlayNotificationsRuntime.showConfiguredStatusNotification('Plugin panel unavailable.', {
-      variant: 'warning',
-    }),
-});
-
-function getPluginCurrentSubtitle(): PluginSubtitleLine | null {
-  const text = appState.currentSubText.trim();
-  if (!text) return null;
-  // Same view as mining: the parsed line with its cue timings on the subtitle file's timeline.
-  const resolved = resolvePrimarySubtitle({
-    liveText: appState.mpvClient?.currentSubText ?? '',
-    currentTimeSec: toSubtitleClock(
-      Number(appState.mpvClient?.currentTimePos),
-      appState.mpvClient?.currentSubDelay ?? 0,
-    ),
-    cues: appState.activeParsedSubtitleCues,
-  });
-  const resolvedText = resolved?.text.replace(/\n{2,}/g, '\n').trim();
-  if (
-    resolved &&
-    resolvedText &&
-    Number.isFinite(resolved.startTime) &&
-    Number.isFinite(resolved.endTime) &&
-    resolved.endTime > resolved.startTime
-  ) {
-    return { text: resolvedText, startTime: resolved.startTime, endTime: resolved.endTime };
-  }
-  const client = appState.mpvClient;
-  // The client reports a cleared sub-start as zero, so only trust timing for a live line.
-  const hasTiming = client !== null && client.currentSubEnd > client.currentSubStart;
-  return {
-    text,
-    startTime: hasTiming ? client.currentSubStart : null,
-    endTime: hasTiming ? client.currentSubEnd : null,
-  };
-}
-
-const pluginWindowRuntime = createPluginWindowRuntime({
+const plugins = createPluginsAssembly({
+  appState,
+  configService,
+  overlayManager,
+  logger,
+  createLogger,
+  configDir: CONFIG_DIR,
+  userDataPath: USER_DATA_PATH,
+  overlayModalRuntime,
+  overlayModals,
+  getOverlayNotifications: () => overlayNotificationsRuntime,
   createBrowserWindow: (options) => new BrowserWindow(options),
   promoteAboveOverlay: (window) => promoteSettingsWindowAboveOverlay(window),
-  logError: (message) => logger.error(message),
-});
-
-const pluginHost = createPluginHost({
-  pluginsDir: path.join(CONFIG_DIR, 'plugins'),
-  pluginDataDir: path.join(USER_DATA_PATH, 'plugin-data'),
-  getPluginConfig: () => configService.getConfig().plugins,
-  createLogger,
-  isMpvConnected: () => appState.mpvClient?.connected === true,
-  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
-  requestMpvProperty: async (name) => {
-    if (!appState.mpvClient) throw new Error('mpv is not connected.');
-    return await appState.mpvClient.requestProperty(name);
-  },
-  requestMpvCommand: async (command) => {
-    if (!appState.mpvClient) throw new Error('mpv is not connected.');
-    return await appState.mpvClient.requestCommand(command);
-  },
   ensureMpvRunning: () => jellyfin.ensureMpvConnectedForPlayback(),
-  invokeAnkiConnect: (action, params, options) => {
-    const ankiConfig = configService.getConfig().ankiConnect;
-    const url = (
-      appState.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(ankiConfig) ?? ankiConfig
-    ).url;
-    if (!url) return Promise.reject(new Error('ankiConnect.url is not configured.'));
-    // No retries: a retried `sync` or `addNote` could run twice.
-    return new AnkiConnectClient(url).invoke(action, params, {
-      timeout: options.timeoutMs,
-      maxRetries: 0,
-    });
-  },
   dispatchSessionAction: (request) => dispatchSessionAction(request),
-  getCurrentSubtitle: () => getPluginCurrentSubtitle(),
-  getSubtitleContext: (options) =>
-    buildPluginSubtitleContext({
-      cues: appState.activeParsedSubtitleCues,
-      current: getPluginCurrentSubtitle(),
-      recentLines: (appState.subtitleTimingTracker?.getRecentEntries(40) ?? []).map((entry) => ({
-        text: entry.displayText,
-        startTime: entry.startTime,
-        endTime: entry.endTime,
-      })),
-      ...options,
-    }),
-  notify: (message, variant) =>
-    overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant }),
-  openPanel: (content) => pluginPanelRuntime.open(content),
-  openWindow: (request) => pluginWindowRuntime.open(request),
-  unstable: { appState, configService, overlayManager },
 });
 
 function getRuntimeBooleanOption(
@@ -1457,7 +1360,7 @@ const {
       void appState.discordPresenceService?.stop();
       appState.discordPresenceService = null;
     },
-    unloadPlugins: () => pluginHost.unloadAll(),
+    unloadPlugins: () => plugins.host.unloadAll(),
   },
   shouldRestoreWindowsOnActivateMainDeps: {
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
@@ -1513,7 +1416,7 @@ const startup = createStartupAssembly({
   getAnilist: () => anilist,
   getJellyfin: () => jellyfin,
   getPlayback: () => playback,
-  getPluginHost: () => pluginHost,
+  getPluginHost: () => plugins.host,
   getOverlayNotifications: () => overlayNotificationsRuntime,
   handleInitialArgs: () => handleInitialArgs(),
 });
@@ -1538,7 +1441,7 @@ const playback = createPlaybackAssembly({
   anilist,
   characterDictionary,
   dictionaries,
-  getPluginHost: () => pluginHost,
+  getPluginHost: () => plugins.host,
   getSubtitleGenerationRuntime: () => subtitleGenerationRuntime,
   isCharacterDictionaryEnabled: () => yomitan.profilePolicy.isCharacterDictionaryEnabled(),
   hasTray: () => tray.hasTray(),
@@ -1714,7 +1617,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     playNextPlaylistItem: () =>
       sendMpvCommandRuntime(appState.mpvClient, ['playlist-next', 'force']),
     runPluginAction: async (pluginActionId) => {
-      const ran = await pluginHost.runAction(pluginActionId);
+      const ran = await plugins.host.runAction(pluginActionId);
       if (!ran) logger.warn(`Plugin action is not registered: ${pluginActionId}`);
       return ran;
     },
