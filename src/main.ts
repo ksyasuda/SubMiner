@@ -129,7 +129,6 @@ import {
   hasMpvWebsocketPlugin,
   loadSubtitlePosition as loadSubtitlePositionCore,
   promoteSettingsWindowAboveOverlay,
-  toJellyfinOriginalStreamUrl,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   showMpvOsdRuntime,
@@ -158,6 +157,7 @@ import { createShortcutsAssembly } from './main/assemblies/shortcuts';
 import { createTrayAssembly } from './main/assemblies/tray';
 import { createPluginsAssembly } from './main/assemblies/plugins';
 import { createSessionActionsAssembly } from './main/assemblies/session-actions';
+import { createSubtitleGenerationAssembly } from './main/assemblies/subtitle-generation';
 import { createStartupAssembly } from './main/assemblies/startup';
 import type { IpcHandlerDeps } from './main/assemblies/slices';
 import type { CliCommandContextMainDeps } from './main/runtime/cli-command-context-factory';
@@ -195,13 +195,10 @@ import {
 } from './main/early-single-instance';
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
-import { createSubtitleGenerationRuntime } from './main/runtime/subtitle-generation-runtime';
-import { registerSubtitleGenerationIpc } from './main/runtime/subtitle-generation-ipc';
 import {
   createSubtitleSelectionRuntime,
   registerSubtitleSelectionIpc,
 } from './main/runtime/subtitle-selection';
-import { openSubtitleGenerationModal } from './main/runtime/subtitle-generation-open';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { createMainBootServices, type MainBootServicesResult } from './main/boot/services';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
@@ -603,9 +600,8 @@ const youtube = createYoutubeAssembly({
   waitForMediaTokenizationReady: (mediaPath) =>
     playback.currentMediaTokenizationGate.waitUntilReady(mediaPath),
   generateYoutubeSubtitles: (request) =>
-    subtitleGenerationRuntime.generateYoutubeSubtitles(request),
-  openSubtitleGenerationModal: () =>
-    openSubtitleGenerationModal(overlayModals.createOverlayHostedModalOpenDeps()),
+    subtitleGeneration.runtime.generateYoutubeSubtitles(request),
+  openSubtitleGenerationModal: () => subtitleGeneration.openModal(),
   invalidatePendingAutoplayReadyFallbacks: () =>
     playback.autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks(),
   ensurePlaybackRuntimeReady: () => startup.ensureYoutubePlaybackRuntimeReady(),
@@ -1429,7 +1425,7 @@ const playback = createPlaybackAssembly({
   characterDictionary,
   dictionaries,
   getPluginHost: () => plugins.host,
-  getSubtitleGenerationRuntime: () => subtitleGenerationRuntime,
+  getSubtitleGenerationRuntime: () => subtitleGeneration.runtime,
   isCharacterDictionaryEnabled: () => yomitan.profilePolicy.isCharacterDictionaryEnabled(),
   hasTray: () => tray.hasTray(),
   loadSubtitleSourceText,
@@ -1883,44 +1879,15 @@ registerSubtitleSelectionIpc({
     getMpvClient: () => appState.mpvClient,
   }),
 });
-const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
-  getConfig: () => configService.getConfig().subtitleGeneration,
+const subtitleGeneration = createSubtitleGenerationAssembly({
+  appState,
+  getConfig: () => configService.getConfig(),
   getModelDirectory: getSubtitleGenerationModelDirectory,
-  generateYoutube: async ({ url, config, signal, onProgress }) =>
-    youtube.whisperSubtitles.generate({
-      url,
-      config,
-      signal,
-      onProgress,
-      outputPath: path.join(await youtube.flow.createSubtitleTempDir(), 'youtube-whisper.ja.srt'),
-    }),
-  resolveYoutubeSourceUrl: (mediaPath) => youtube.playback.getYoutubeSourceUrlForStream(mediaPath),
-  resolveJellyfinMedia: (mediaPath) => {
-    const playback = jellyfin.getActivePlayback();
-    const sourceUrl = playback && toJellyfinOriginalStreamUrl(mediaPath, playback.itemId);
-    return sourceUrl
-      ? {
-          sourceUrl,
-          transcoded: playback.playMethod === 'Transcode',
-          audioStreamIndex: playback.audioStreamIndex ?? null,
-        }
-      : null;
-  },
-  getMpvClient: () => appState.mpvClient,
-  onProgress: (progress) => {
-    for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
-      if (window && !window.isDestroyed())
-        window.webContents.send(IPC_CHANNELS.event.subtitleGenerationProgress, progress);
-    }
-  },
+  overlayManager,
+  overlayModals,
+  youtube,
+  jellyfin,
+  ipcMain,
 });
-registerSubtitleGenerationIpc({
-  ipc: ipcMain,
-  isAllowedSender: (sender) =>
-    [overlayManager.getMainWindow(), overlayManager.getModalWindow()].some(
-      (window) => window && !window.isDestroyed() && window.webContents === sender,
-    ),
-  runtime: subtitleGenerationRuntime,
-  openModal: () => openSubtitleGenerationModal(overlayModals.createOverlayHostedModalOpenDeps()),
-});
-app.on('before-quit', () => subtitleGenerationRuntime.cancel());
+subtitleGeneration.registerIpc();
+app.on('before-quit', () => subtitleGeneration.runtime.cancel());
