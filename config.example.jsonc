@@ -842,6 +842,22 @@
   }, // Parsed-subtitle sidebar cue list styling, behavior, and toggle key.
 
   // ==========================================
+  // Subtitle Filters
+  // Remove unwanted text from primary subtitles, such as speaker names, readings and sound descriptions.
+  // Applies to the overlay, sidebar, mined sentences and stats.
+  // Hot-reload: filter changes apply to the current subtitle file immediately.
+  // ==========================================
+  "subtitleFilter": {
+    "presets": {
+      "parentheses": false, // Remove text in （） and (), such as speaker names, readings and notes. A line wrapped entirely in parentheses, usually inner thoughts, is kept. Values: true | false
+      "brackets": false, // Remove text in ［］, [], 【】 and 〔〕, such as sound effects and music cues. Values: true | false
+      "speakerPrefix": false, // Remove a short name followed by a colon at the start of a line, as in 山田：元気？ Values: true | false
+      "musicSymbols": false // Remove ♪, ♫ and ♬. A line left with only symbols such as ～ is removed. Values: true | false
+    }, // Built-in filters. Each removes its matches and is off by default.
+    "customRules": [] // Your own regex rules, applied in order after the presets. Each rule is { name, pattern, replacement, enabled }; patterns use the gmu flags, so ^ and $ match per line. Leave replacement empty to remove the match.
+  }, // Remove unwanted text from primary subtitles, such as speaker names, readings and sound descriptions.
+
+  // ==========================================
   // Shared AI Provider
   // Canonical OpenAI-compatible provider transport settings shared by Anki and YouTube subtitle fixing.
   // ==========================================

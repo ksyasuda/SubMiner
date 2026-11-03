@@ -52,7 +52,7 @@ SubMiner watches the config file while running. When it changes, live settings a
 
 These apply live:
 
-- `subtitleStyle`, `subtitleSidebar`, `subtitleSelection`, `keybindings`, `shortcuts`
+- `subtitleStyle`, `subtitleSidebar`, `subtitleSelection`, `subtitleFilter`, `keybindings`, `shortcuts`
 - `logging.level`, `logging.rotation`, `logging.files`
 - `secondarySub.defaultMode`, `youtube.primarySubLanguages`, `youtube.subtitleSource`
 - `mpv.aniskipEnabled`, `mpv.aniskipButtonKey`, `stats.toggleKey`, `stats.markWatchedKey`
@@ -219,6 +219,29 @@ A scrollable cue list for the current subtitle file. It only works when SubMiner
 Sidebar custom properties: `--subtitle-sidebar-max-width` (`420px`), `--subtitle-sidebar-timestamp-color`, `--subtitle-sidebar-active-line-color`, `--subtitle-sidebar-active-background-color`, `--subtitle-sidebar-hover-background-color`. Their defaults are in the example config.
 
 If `embedded` layout places the video oddly on your system, switch back to `overlay`.
+
+### Subtitle filters {#subtitle-filters}
+
+Removes unwanted text from primary subtitles, such as speaker names, readings and sound descriptions. Filtering happens as the line arrives, so the overlay, sidebar, mined sentences and stats all see the filtered text. A line left with no words is hidden. In the settings window, find it under **Behavior → Subtitle Filters**.
+
+| Key                                    | Default | What it does                                                                                                 |
+| -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `subtitleFilter.presets.parentheses`   | `false` | Remove `（…）` and `(…)` anywhere in a line. A line wrapped entirely in parentheses (inner thoughts) is kept |
+| `subtitleFilter.presets.brackets`      | `false` | Remove `［…］`, `[…]`, `【…】` and `〔…〕`, such as sound effects                                            |
+| `subtitleFilter.presets.speakerPrefix` | `false` | Remove a short name before a colon at the start of a line, as in `山田：`                                    |
+| `subtitleFilter.presets.musicSymbols`  | `false` | Remove `♪`, `♫` and `♬`                                                                                      |
+| `subtitleFilter.customRules`           | `[]`    | Your own regex rules, applied in order after the presets                                                     |
+
+Each custom rule is `{ "name", "pattern", "replacement", "enabled" }`. Patterns are JavaScript regular expressions compiled with the `gmu` flags, so `^` and `$` match each line. An empty `replacement` removes the match.
+
+```jsonc
+{
+  "subtitleFilter": {
+    "presets": { "parentheses": true },
+    "customRules": [{ "name": "Join lines", "pattern": "\\n", "replacement": "", "enabled": true }],
+  },
+}
+```
 
 ### Subtitle position
 

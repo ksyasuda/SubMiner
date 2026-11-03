@@ -11,6 +11,8 @@ export interface SubtitlePrefetchInitControllerDeps {
   setCurrentService: (service: SubtitlePrefetchService | null) => void;
   loadSubtitleSourceText: (source: string) => Promise<string>;
   parseSubtitleCues: (content: string, filename: string) => SubtitleCue[];
+  /** Changes whenever parseSubtitleCues would produce different cues for the same content. */
+  getParseKey?: () => string;
   createSubtitlePrefetchService: (deps: SubtitlePrefetchServiceDeps) => SubtitlePrefetchService;
   tokenizeSubtitle: (text: string) => Promise<SubtitleData | null>;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
@@ -37,7 +39,12 @@ export function createSubtitlePrefetchInitController(
   // What the running service was built from. Startup fires several inits for one source
   // (Jellyfin preload seed, sid change, each track-list update); restarting on each would
   // discard the in-flight tokenization and re-queue the priority window behind it.
-  let activeSource: { key: string; content: string; cues: SubtitleCue[] } | null = null;
+  let activeSource: {
+    key: string;
+    content: string;
+    parseKey: string;
+    cues: SubtitleCue[];
+  } | null = null;
 
   const stopCurrentService = (): void => {
     deps.getCurrentService()?.stop();
@@ -67,9 +74,11 @@ export function createSubtitlePrefetchInitController(
       if (revision !== initRevision) {
         return;
       }
+      const parseKey = deps.getParseKey?.() ?? '';
       if (
         activeSource?.key === sourceKey &&
         activeSource.content === content &&
+        activeSource.parseKey === parseKey &&
         deps.getCurrentService()
       ) {
         // A track change clears the published cues synchronously, so republish them.
@@ -106,7 +115,7 @@ export function createSubtitlePrefetchInitController(
       }
 
       deps.setCurrentService(nextService);
-      activeSource = { key: sourceKey, content, cues };
+      activeSource = { key: sourceKey, content, parseKey, cues };
       deps.onParsedSubtitleCuesChanged?.(cues, sourceKey);
       nextService.start(currentTimePos);
       deps.logInfo(

@@ -9,6 +9,7 @@ import {
   tokenizeSubtitle as tokenizeSubtitleCore,
 } from '../../core/services';
 import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
+import { filterSubtitleCues } from '../../shared/subtitle-text-filter';
 import { resolveAniSkipMetadataForFile } from '../runtime/aniskip-metadata';
 import { createAniSkipRuntime } from '../runtime/aniskip-runtime';
 import { resolveCurrentSubtitleForRenderer } from '../runtime/current-subtitle-snapshot';
@@ -451,13 +452,21 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
     },
   });
 
+  // Primary cues get the same subtitleFilter pass as live mpv text, so the two still match.
+  const parsePrimarySubtitleCues = (content: string, filename: string) =>
+    filterSubtitleCues(
+      parseSubtitleCues(content, filename),
+      configService.getConfig().subtitleFilter,
+    );
+
   const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     getCurrentService: () => subtitlePrefetchService,
     setCurrentService: (service) => {
       subtitlePrefetchService = service;
     },
     loadSubtitleSourceText,
-    parseSubtitleCues: (content, filename) => parseSubtitleCues(content, filename),
+    parseSubtitleCues: parsePrimarySubtitleCues,
+    getParseKey: () => JSON.stringify(configService.getConfig().subtitleFilter),
     createSubtitlePrefetchService: (serviceDeps) => createSubtitlePrefetchService(serviceDeps),
     tokenizeSubtitle: async (text) =>
       tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
@@ -1124,7 +1133,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
           }
 
           const content = await loadSubtitleSourceText(resolvedSource.path);
-          const cues = parseSubtitleCues(content, resolvedSource.path);
+          const cues = parsePrimarySubtitleCues(content, resolvedSource.path);
           appState.activeParsedSubtitleCues = cues;
           appState.activeParsedSubtitleSource = resolvedSource.sourceKey;
           appState.activeParsedSubtitleMediaPath = videoPath || null;

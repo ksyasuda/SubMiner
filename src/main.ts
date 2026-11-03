@@ -1110,6 +1110,10 @@ const settings = createSettingsAssembly({
     refreshCurrentSubtitle: () => {
       subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
     },
+    refreshSubtitleFilter: () => {
+      appState.mpvClient?.refreshSubtitleText();
+      void subtitlePrefetchRuntime.refreshSubtitlePrefetchFromActiveTrack();
+    },
     setLogLevel: (level) => {
       setLogLevel(level, 'config');
     },
