@@ -219,10 +219,6 @@ export function getDefaultDpadFallback(
 // Names for pads that do not report the W3C "standard" mapping. Raw layouts
 // vary by driver, so these are a best guess.
 const RAW_LAYOUT_BUTTON_NAMES: Record<number, string> = {
-  0: 'A / Cross',
-  1: 'B / Circle',
-  2: 'X / Square',
-  3: 'Y / Triangle',
   4: 'LB / L1',
   5: 'RB / R1',
   6: 'Back / Select',
@@ -251,10 +247,6 @@ const RAW_LAYOUT_AXIS_NAMES: Record<number, string> = {
 // Switch and 8BitDo pads). Index meanings are fixed by the W3C Gamepad spec:
 // https://w3c.github.io/gamepad/#remapping
 const W3C_STANDARD_BUTTON_NAMES: Record<number, string> = {
-  0: 'A / Cross',
-  1: 'B / Circle',
-  2: 'X / Square',
-  3: 'Y / Triangle',
   4: 'LB / L1',
   5: 'RB / R1',
   6: 'LT / L2',
@@ -291,13 +283,10 @@ export function getFriendlyButtonName(
   mapping?: ControllerMapping,
   faceButtonLabels?: FaceButtonLabels,
 ): string {
-  // The default Xbox style keeps the shared "A / Cross" names; the others print their own.
-  // Face positions 0-3 are the same on raw and standard layouts.
-  const styledName =
-    faceButtonLabels && faceButtonLabels !== 'xbox'
-      ? getControllerFaceButtonName(buttonIndex, faceButtonLabels)
-      : null;
-  if (styledName) return styledName;
+  // Face buttons print as on the pad's Button Style (Xbox when none is set): A, not
+  // "A / Cross". Face positions 0-3 are the same on raw and standard layouts.
+  const faceName = getControllerFaceButtonName(buttonIndex, faceButtonLabels ?? 'xbox');
+  if (faceName) return faceName;
   const names = mapping === 'standard' ? W3C_STANDARD_BUTTON_NAMES : RAW_LAYOUT_BUTTON_NAMES;
   return names[buttonIndex] ?? `Button ${buttonIndex}`;
 }
