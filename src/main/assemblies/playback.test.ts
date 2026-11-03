@@ -153,6 +153,7 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
     ),
     requestAppQuit: spy('requestAppQuit', noop),
     maybeStartOverlayLoadingOsd: spy('maybeStartOverlayLoadingOsd', noop),
+    reportOverlayContentReadyToPlugin: spy('reportOverlayContentReadyToPlugin', noop),
     flushQueuedMpvOsdNotifications: spy('flushQueuedMpvOsdNotifications', noop),
     refreshMpvSessionBindings: spy('refreshMpvSessionBindings', resolved),
     ensureImmersionTrackerStarted: spy('ensureImmersionTrackerStarted', noop),
@@ -212,7 +213,7 @@ test('createPlaybackAssembly does not call its deps while constructing', () => {
   assert.deepEqual(recorder.names(), []);
 });
 
-test('mpv connection starts the loading OSD and flushes queued OSD notifications before session work', () => {
+test('mpv connection starts the loading OSD, resends overlay readiness, and flushes queued OSD notifications before session work', () => {
   const { recorder, emit } = setup();
 
   emit('connection-change', { connected: true });
@@ -221,7 +222,11 @@ test('mpv connection starts the loading OSD and flushes queued OSD notifications
   const osdIndex = names.indexOf('maybeStartOverlayLoadingOsd');
   assert.ok(osdIndex >= 0);
   assert.deepEqual(recorder.calls[osdIndex]?.args, []);
-  assert.ok(osdIndex < names.indexOf('flushQueuedMpvOsdNotifications'));
+  assert.ok(osdIndex < names.indexOf('reportOverlayContentReadyToPlugin'));
+  assert.ok(
+    names.indexOf('reportOverlayContentReadyToPlugin') <
+      names.indexOf('flushQueuedMpvOsdNotifications'),
+  );
   assert.ok(
     names.indexOf('flushQueuedMpvOsdNotifications') < names.indexOf('refreshMpvSessionBindings'),
   );

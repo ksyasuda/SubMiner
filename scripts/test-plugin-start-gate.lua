@@ -1817,6 +1817,47 @@ do
 end
 
 do
+	-- A dismissal after readiness means the app's overlay window was replaced and has no content yet,
+	-- so the plugin must forget the old readiness and show the spinner on the next file.
+	local scenario = {
+		process_list = "",
+		defer_timeouts = true,
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/replaced-overlay-01.mkv",
+		playlist_count = 2,
+		playlist_pos = 0,
+		media_title = "Replaced Overlay 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for replaced overlay loading OSD scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	fire_short_timeouts(recorded)
+	recorded.script_messages["subminer-overlay-loading-ready"]()
+	recorded.script_messages["subminer-overlay-loading-dismissed"]()
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/replaced-overlay-02.mkv"
+	scenario.media_title = "Replaced Overlay 2"
+	scenario.playlist_pos = 1
+	recorded.osd = {}
+	fire_event(recorded, "start-file")
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"a dismissal after readiness should make the next playlist file show the loading OSD again"
+	)
+end
+
+do
 	local recorded, err = run_plugin_scenario({
 		defer_timeouts = true,
 		process_list = "",

@@ -205,6 +205,7 @@ export interface PlaybackAssemblyDeps {
   ) => SubtitlePrefetchService;
   requestAppQuit: () => void;
   maybeStartOverlayLoadingOsd: OverlayNotificationsRuntime['maybeStartOverlayLoadingOsd'];
+  reportOverlayContentReadyToPlugin: OverlayNotificationsRuntime['reportOverlayContentReadyToPlugin'];
   flushQueuedMpvOsdNotifications: OverlayNotificationsRuntime['flushQueuedMpvOsdNotifications'];
   refreshMpvSessionBindings: () => Promise<void>;
   ensureImmersionTrackerStarted: () => void;
@@ -589,6 +590,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
       },
       onMpvConnected: () => {
         deps.maybeStartOverlayLoadingOsd();
+        deps.reportOverlayContentReadyToPlugin();
         deps.flushQueuedMpvOsdNotifications();
         secondarySubtitleTrackController.scheduleRefresh(0);
         void deps.refreshMpvSessionBindings();

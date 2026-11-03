@@ -48,3 +48,13 @@ test('dismissing the loading OSD once overlay content is ready reports readiness
 
   assert.deepEqual(scriptMessages(), ['subminer-overlay-loading-ready']);
 });
+
+test('reporting overlay readiness after an mpv connect resends ready only for loaded content', () => {
+  const ready = createRuntimeHarness(true);
+  ready.runtime.reportOverlayContentReadyToPlugin();
+  assert.deepEqual(ready.scriptMessages(), ['subminer-overlay-loading-ready']);
+
+  const loading = createRuntimeHarness(false);
+  loading.runtime.reportOverlayContentReadyToPlugin();
+  assert.deepEqual(loading.scriptMessages(), []);
+});

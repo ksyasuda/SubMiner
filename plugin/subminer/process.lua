@@ -288,6 +288,13 @@ function M.create(ctx)
 		stop_overlay_loading_osd()
 	end
 
+	-- Handles subminer-overlay-loading-dismissed: the app's current overlay window has no content
+	-- (hidden mid-load, or a replaced window), so earlier readiness no longer applies.
+	local function mark_overlay_content_not_ready()
+		state.overlay_content_ready_seen = false
+		stop_overlay_loading_osd()
+	end
+
 	local function start_overlay_loading_osd()
 		if state.overlay_loading_osd_active then
 			return
@@ -1046,6 +1053,7 @@ function M.create(ctx)
 		start_overlay_loading_osd = start_overlay_loading_osd,
 		stop_overlay_loading_osd = stop_overlay_loading_osd,
 		mark_overlay_content_ready = mark_overlay_content_ready,
+		mark_overlay_content_not_ready = mark_overlay_content_not_ready,
 	}
 end
 

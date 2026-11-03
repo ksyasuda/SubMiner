@@ -1328,6 +1328,7 @@ const {
   toggleNotificationHistoryPanel,
   showConfiguredPlaybackFeedback,
   maybeStartOverlayLoadingOsd,
+  reportOverlayContentReadyToPlugin,
 } = overlayNotificationsRuntime;
 
 const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
@@ -1775,6 +1776,7 @@ const playback = createPlaybackAssembly({
   createSubtitlePrefetchService,
   requestAppQuit: () => requestAppQuit(),
   maybeStartOverlayLoadingOsd: (mediaPath) => maybeStartOverlayLoadingOsd(mediaPath),
+  reportOverlayContentReadyToPlugin: () => reportOverlayContentReadyToPlugin(),
   flushQueuedMpvOsdNotifications: () => flushQueuedMpvOsdNotifications(),
   refreshMpvSessionBindings: () => shortcuts.refreshMpvSessionBindings(),
   ensureImmersionTrackerStarted: () => stats.ensureImmersionTrackerStarted(),
