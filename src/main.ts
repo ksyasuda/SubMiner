@@ -735,6 +735,8 @@ const autoplayReadyGate = createAutoplayReadyGate({
   },
   // Deferred: isTokenizationWarmupReady is assigned during composeMpvRuntimeHandlers below.
   isTokenizationReady: () => isTokenizationWarmupReady(),
+  // Deferred: jimakuAutoOpenRuntime is created right after this gate.
+  isPlaybackHeld: () => jimakuAutoOpenRuntime.isHoldingPlayback(),
   requestOverlayPointerRecovery: () => {
     if (process.platform !== 'darwin' || !overlayManager.getVisibleOverlayVisible()) {
       return;
@@ -1044,6 +1046,7 @@ const overlay = createOverlayAssembly({
   getOverlayNotifications: () => overlayNotificationsRuntime,
   getOverlayVisibilityComposer: () => overlayVisibilityComposer,
   getMediaTimingReviewRuntime: () => mining.mediaTimingReviewRuntime,
+  getJimakuAutoOpenRuntime: () => jimakuAutoOpenRuntime,
   getSubtitleProcessingController: () => subtitleProcessingController,
   getAutoplaySubtitlePriming: () => autoplaySubtitlePrimingRuntime,
   ensureOverlayMpvSubtitlesHidden: () => ensureOverlayMpvSubtitlesHidden(),

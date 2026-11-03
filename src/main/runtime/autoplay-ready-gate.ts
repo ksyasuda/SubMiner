@@ -27,6 +27,8 @@ export type AutoplayReadyGateDeps = {
   getMpvClient: () => MpvClientLike | null;
   signalPluginAutoplayReady: () => void;
   isTokenizationReady?: () => boolean;
+  /** True while another feature keeps playback paused on purpose; readiness must not resume it. */
+  isPlaybackHeld?: () => boolean;
   requestOverlayPointerRecovery?: () => void;
   onAutoplayReadyReleased?: (signal: AutoplayReadySignal) => void;
   isSignalTargetReady?: (signal: AutoplayReadySignal) => boolean;
@@ -158,6 +160,13 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
           return;
         }
 
+        if (deps.isPlaybackHeld?.()) {
+          deps.logDebug(
+            `[autoplay-ready] stopped release retries while playback is held for media ${mediaPath}`,
+          );
+          return;
+        }
+
         if (releaseUnpauseSent && deps.getPlaybackPaused() === true) {
           deps.logDebug(
             `[autoplay-ready] stopped release retries after playback paused again for media ${mediaPath}`,
@@ -189,6 +198,14 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
   };
 
   const maybeReleaseAutoplayReadySignal = (signal: AutoplayReadySignal): void => {
+    if (deps.isPlaybackHeld?.()) {
+      // Dropped, not deferred: the next subtitle after the hold ends releases normally.
+      pendingAutoplayReadySignal = null;
+      deps.logDebug(
+        `[autoplay-ready] ignored signal while playback is held for media ${signal.mediaPath}`,
+      );
+      return;
+    }
     if (autoPlayReadySignalMediaPath === signal.mediaPath) {
       pendingAutoplayReadySignal = null;
       return;

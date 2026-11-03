@@ -260,3 +260,41 @@ test('autoplay ready gate releases tokenized signals while tokenization warmup i
 
   assert.deepEqual(h.pluginSignals(), [PLUGIN_READY]);
 });
+
+test('autoplay ready gate does not resume playback while it is held, then releases normally', async () => {
+  let held = true;
+  const h = createGate({ isPlaybackHeld: () => held });
+
+  await h.signal('字幕');
+  await h.runScheduled();
+  assert.deepEqual(h.pluginSignals(), []);
+  assert.equal(h.unpauseCount(), 0);
+
+  held = false;
+  await h.signal('次の字幕');
+  assert.deepEqual(h.pluginSignals(), [PLUGIN_READY]);
+  assert.equal(h.mpv.paused, false);
+});
+
+test('autoplay ready gate stops pending release retries once playback becomes held', async () => {
+  let held = false;
+  let connected = false;
+  const commands: MpvCommand[] = [];
+  const h = createGate({
+    isPlaybackHeld: () => held,
+    getMpvClient: () => ({
+      connected,
+      requestProperty: async () => true,
+      send: ({ command }) => {
+        commands.push(command);
+      },
+    }),
+  });
+
+  await h.signal('字幕');
+  held = true;
+  connected = true;
+  await h.runScheduled();
+
+  assert.equal(commands.filter(isUnpause).length, 0);
+});

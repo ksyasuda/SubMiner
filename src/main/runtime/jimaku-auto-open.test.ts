@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import { createJimakuAutoOpenRuntime } from './jimaku-auto-open';
 
+const videoTrack = { type: 'video', id: 1, selected: true };
 const englishOnlyTrackList = [
+  videoTrack,
   { type: 'sub', id: 1, lang: 'eng', title: 'English', external: false, selected: true },
 ];
 const japaneseTrackList = [
@@ -27,7 +29,7 @@ function makeHarness(
   const state = {
     enabled: overrides.enabled ?? true,
     mediaPath: overrides.mediaPath === undefined ? '/videos/episode-01.mkv' : overrides.mediaPath,
-    trackList: overrides.trackList ?? englishOnlyTrackList,
+    trackList: 'trackList' in overrides ? overrides.trackList : englishOnlyTrackList,
   };
   const events: string[] = [];
   const scheduled: Array<() => void> = [];
@@ -106,6 +108,16 @@ for (const c of [
     path: 'https://example.com/episode-01.mkv',
   },
   { name: 'the track list cannot be read', overrides: { trackListError: true } },
+  { name: 'mpv returns no track list', overrides: { trackList: null } },
+  {
+    name: 'the file is audio with cover art',
+    overrides: {
+      trackList: [
+        { type: 'audio', id: 1, selected: true },
+        { type: 'video', id: 1, albumart: true },
+      ],
+    },
+  },
 ]) {
   test(`jimaku auto-open does nothing when ${c.name}`, async () => {
     const harness = makeHarness(c.overrides);
@@ -132,4 +144,24 @@ test('jimaku auto-open checks each media load once and skips media that changed 
   await harness.runScheduled();
 
   assert.deepEqual(harness.events, ['hold', 'open']);
+});
+
+test('jimaku auto-open holds playback until the modal closes or the media changes', async () => {
+  const harness = makeHarness();
+  assert.equal(harness.runtime.isHoldingPlayback(), false);
+
+  harness.runtime.handleMediaPathChange('/videos/episode-01.mkv');
+  await harness.runScheduled();
+  assert.equal(harness.runtime.isHoldingPlayback(), true);
+
+  harness.runtime.handleJimakuModalClosed();
+  assert.equal(harness.runtime.isHoldingPlayback(), false);
+
+  harness.state.mediaPath = '/videos/episode-02.mkv';
+  harness.runtime.handleMediaPathChange('/videos/episode-02.mkv');
+  await harness.runScheduled();
+  assert.equal(harness.runtime.isHoldingPlayback(), true);
+
+  harness.runtime.handleMediaPathChange('/videos/episode-03.mkv');
+  assert.equal(harness.runtime.isHoldingPlayback(), false);
 });
