@@ -17,11 +17,12 @@ Trend charts now consume one chart-oriented backend payload from `/api/stats/tre
 - rollup-backed:
   - activity charts
   - cumulative watch/cards/tokens/sessions trends
-  - per-anime watch/cards/tokens/episodes series
+  - per-anime watch/cards/tokens/episodes series (`animeDaily`: sparse per-title values for active days only; `TrendsTab` builds the running totals with `buildAnimeCumulative`, because a dense title x day payload grew to several MB)
 - session-metric-backed:
   - lookup trends
   - lookup rate trends
   - watch-time by day-of-week/hour
+- rollup word counts and session metrics share one session query per request (`getTrendSessionRows`), so the per-session display-word count runs once instead of once per rollup query
 - vocabulary-backed:
   - new-words trend reads permanent daily lexical rollups
   - rollup rows count only vocabulary-visible tokens and normalize mixed legacy timestamp units
@@ -39,6 +40,6 @@ Stats data crosses the process boundary over HTTP only. Shared JSON models live 
 
 The stats preload bridge remains limited to native window behavior such as confirmation-dialog layering. Do not add stats data request channels back to Electron IPC.
 
-The stats UI should treat the trends payload as chart-ready data. Presentation-only work in the client is fine, but rebuilding the main trend datasets from raw sessions should stay out of the render path.
+The stats UI should treat the trends payload as chart-ready data. Presentation-only work in the client is fine (including the per-anime running totals, memoized per payload), but rebuilding the main trend datasets from raw sessions should stay out of the render path.
 
 For session detail timelines, omitting `limit` now means "return the full retained session telemetry/history". Explicit `limit` remains available for bounded callers, but the default stats UI path should not trim long sessions to the newest 200 samples.

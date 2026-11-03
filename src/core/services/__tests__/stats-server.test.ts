@@ -189,7 +189,7 @@ const TRENDS_DASHBOARD = {
       lastWatched: 20_000,
     },
   ],
-  animeCumulative: {
+  animeDaily: {
     watchTime: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 25 }],
     episodes: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 1 }],
     cards: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 5 }],
