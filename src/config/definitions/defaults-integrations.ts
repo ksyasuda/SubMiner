@@ -108,6 +108,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     apiKeyCommand: '',
     languagePreference: 'ja',
     maxEntryResults: 10,
+    autoOpenWhenPrimarySubtitleMissing: false,
   },
   tsukihime: {
     apiBaseUrl: 'https://api.tsukihime.org/v1',

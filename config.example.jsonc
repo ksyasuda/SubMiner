@@ -992,7 +992,8 @@
     "apiKey": "", // Jimaku API key. Optional but recommended for higher rate limits. Get one for free at https://jimaku.cc.
     "apiKeyCommand": "", // Shell command that prints the Jimaku API key to stdout. Used instead of apiKey to avoid storing the key in plain text.
     "languagePreference": "ja", // Preferred language used in Jimaku search. Values: ja | en | none
-    "maxEntryResults": 10 // Maximum Jimaku search results returned.
+    "maxEntryResults": 10, // Maximum Jimaku search results returned.
+    "autoOpenWhenPrimarySubtitleMissing": false // Pause playback and open the Jimaku modal when a local video has no subtitle track in youtube.primarySubLanguages (Japanese by default). Values: true | false
   }, // Jimaku API configuration and defaults.
 
   // ==========================================

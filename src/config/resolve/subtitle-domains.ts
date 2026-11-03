@@ -90,6 +90,18 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         'Expected positive number.',
       );
     }
+
+    const autoOpen = asBoolean(src.jimaku.autoOpenWhenPrimarySubtitleMissing);
+    if (autoOpen !== undefined) {
+      resolved.jimaku.autoOpenWhenPrimarySubtitleMissing = autoOpen;
+    } else if (src.jimaku.autoOpenWhenPrimarySubtitleMissing !== undefined) {
+      warn(
+        'jimaku.autoOpenWhenPrimarySubtitleMissing',
+        src.jimaku.autoOpenWhenPrimarySubtitleMissing,
+        resolved.jimaku.autoOpenWhenPrimarySubtitleMissing,
+        'Expected boolean.',
+      );
+    }
   }
 
   const currentTsukihimeSource = isObject(src.tsukihime) ? src.tsukihime : null;

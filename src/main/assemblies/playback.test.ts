@@ -76,6 +76,9 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
       handleMediaPathChange: spy('localSubtitles.handleMediaPathChange', noop),
       handleSubtitleTrackListChange: spy('localSubtitles.handleSubtitleTrackListChange', noop),
     },
+    jimakuAutoOpenRuntime: {
+      handleMediaPathChange: spy('jimakuAutoOpen.handleMediaPathChange', noop),
+    },
     mediaTimingReviewRuntime: {
       deferPlaybackResume: spy('timingReview.deferPlaybackResume', () => false),
       cancelPlaybackResume: spy('timingReview.cancelPlaybackResume', noop),

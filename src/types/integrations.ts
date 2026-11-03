@@ -48,6 +48,7 @@ export interface JimakuConfig {
   apiBaseUrl?: string;
   languagePreference?: JimakuLanguagePreference;
   maxEntryResults?: number;
+  autoOpenWhenPrimarySubtitleMissing?: boolean;
 }
 
 export type AnilistCharacterDictionaryProfileScope = 'all' | 'active';

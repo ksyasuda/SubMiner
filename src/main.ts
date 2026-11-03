@@ -183,6 +183,7 @@ import {
 } from './main/runtime/autoplay-ready-gate';
 import { isVisibleOverlayAutoplayTargetReady } from './main/runtime/visible-overlay-autoplay-readiness';
 import { createManagedLocalSubtitleSelectionRuntime } from './main/runtime/local-subtitle-selection';
+import { createJimakuAutoOpenRuntime } from './main/runtime/jimaku-auto-open';
 import { createWindowsMpvPluginDetectionRuntime } from './main/runtime/windows-mpv-plugin-detection';
 import { refreshManagedCommandLineLauncher } from './main/runtime/command-line-launcher';
 import { applyLoginShellPath } from './main/runtime/login-shell-path';
@@ -777,6 +778,20 @@ const managedLocalSubtitleSelectionRuntime = createManagedLocalSubtitleSelection
   sendMpvCommand: (command) => {
     sendMpvCommandRuntime(appState.mpvClient, command);
   },
+  schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearScheduled: (timer) => clearTimeout(timer),
+});
+const jimakuAutoOpenRuntime = createJimakuAutoOpenRuntime({
+  isEnabled: () => configService.getConfig().jimaku.autoOpenWhenPrimarySubtitleMissing,
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getMpvClient: () => appState.mpvClient,
+  getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
+  holdPlayback: () => {
+    // Keep the plugin's pause-until-ready timeout from resuming playback while the user searches.
+    sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-hold']);
+    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'yes']);
+  },
+  openJimaku: () => overlayModals.openJimakuOverlay(),
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   clearScheduled: (timer) => clearTimeout(timer),
 });
@@ -1763,6 +1778,7 @@ const playback = createPlaybackAssembly({
   currentMediaTokenizationGate,
   startupOsdSequencer,
   managedLocalSubtitleSelectionRuntime,
+  jimakuAutoOpenRuntime,
   mediaTimingReviewRuntime: mining.mediaTimingReviewRuntime,
   discordPresenceRuntime,
   immersionMediaRuntime: stats.immersionMediaRuntime,

@@ -353,6 +353,7 @@ export interface ResolvedConfig {
     apiBaseUrl: string;
     languagePreference: JimakuLanguagePreference;
     maxEntryResults: number;
+    autoOpenWhenPrimarySubtitleMissing: boolean;
   };
   tsukihime: TsukihimeConfig & {
     apiBaseUrl: string;
