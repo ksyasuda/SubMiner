@@ -573,3 +573,91 @@ test('media info arriving after the modal closed does not fill inputs or search'
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
   }
 });
+
+for (const c of [
+  {
+    name: 'reloads media info when the video changed',
+    next: { filename: '02.mkv', season: 1, episode: 2 },
+    reloads: true,
+  },
+  {
+    name: 'reloads media info for the same file name in another season',
+    next: { filename: '01.mkv', season: 2, episode: 1 },
+    reloads: true,
+  },
+  {
+    name: 'keeps the current search for the same video',
+    next: { filename: '01.mkv', season: 1, episode: 1 },
+    reloads: false,
+  },
+]) {
+  test(`re-opening the open Jimaku modal ${c.name}`, async () => {
+    const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+    const previousWindow = globals.window;
+    const previousDocument = globals.document;
+
+    const mediaInfo = (info: { filename: string; season: number; episode: number }) => ({
+      ...info,
+      title: 'Show',
+      confidence: 'medium',
+      rawTitle: info.filename,
+    });
+    let currentInfo = mediaInfo({ filename: '01.mkv', season: 1, episode: 1 });
+    const electronAPI = {
+      getJimakuMediaInfo: async () => currentInfo,
+      notifyOverlayModalClosed: () => {},
+    } as unknown as ElectronAPI;
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: { electronAPI } });
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: { activeElement: null, createElement: () => createElementStub() },
+    });
+
+    try {
+      const episodeInput = { value: '' };
+      const ctx = {
+        dom: {
+          overlay: { classList: createClassList() },
+          jimakuModal: { classList: createClassList(['hidden']), setAttribute: () => {} },
+          jimakuTitleInput: { value: '' },
+          jimakuSeasonInput: { value: '' },
+          jimakuEpisodeInput: episodeInput,
+          jimakuSearchButton: { addEventListener: () => {} },
+          jimakuCloseButton: { addEventListener: () => {} },
+          jimakuStatus: { textContent: '', style: { color: '' } },
+          jimakuEntriesSection: { classList: createClassList(['hidden']) },
+          jimakuEntriesList: createListStub(),
+          jimakuFilesSection: { classList: createClassList(['hidden']) },
+          jimakuFilesList: createListStub(),
+          jimakuBroadenButton: {
+            classList: createClassList(['hidden']),
+            addEventListener: () => {},
+          },
+          jimakuTabAnimeButton: { classList: createClassList(['active']), setAttribute: () => {} },
+          jimakuTabLiveActionButton: { classList: createClassList(), setAttribute: () => {} },
+        },
+        state: createRendererState(),
+      };
+      const jimakuModal = createJimakuModal(ctx as never, {
+        modalStateReader: { isAnyModalOpen: () => false },
+        syncSettingsModalSubtitleSuppression: () => {},
+      });
+
+      jimakuModal.openJimakuModal();
+      await flushAsyncWork();
+      episodeInput.value = '7'; // the user's own edit
+      currentInfo = mediaInfo(c.next);
+      jimakuModal.openJimakuModal();
+      await flushAsyncWork();
+      await flushAsyncWork();
+
+      assert.equal(episodeInput.value, c.reloads ? String(c.next.episode) : '7');
+    } finally {
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: previousDocument,
+      });
+    }
+  });
+}

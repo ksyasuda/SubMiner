@@ -39,9 +39,9 @@ You can also open the modal with `subminer app --open-jimaku`, or change the sho
 
 ### Open automatically when a video has no Japanese subtitles
 
-Set `jimaku.autoOpenWhenPrimarySubtitleMissing` to `true` to skip the shortcut. When a local video loads without a subtitle track in `youtube.primarySubLanguages` (Japanese by default), SubMiner pauses playback and opens the Jimaku modal so you can pick a subtitle before the episode starts. If you close the modal without picking one, unpause playback yourself.
+Set `jimaku.autoOpenWhenPrimarySubtitleMissing` to `true` to skip the shortcut. When a local video loads without a subtitle track in `youtube.primarySubLanguages` (Japanese by default), SubMiner pauses playback about a second after the video loads and opens the Jimaku modal, so you can pick a subtitle before watching. Playback stays paused while the modal is open and resumes when it closes, whether or not you picked a subtitle. On a cold start it resumes once subtitle processing is ready, as usual, and a pause you made yourself before the modal opened is kept.
 
-A single unlabeled sidecar file (such as `episode.srt` next to the video) counts as a Japanese track, matching how SubMiner auto-selects local subtitles. Audio files, streams, YouTube, and Jellyfin playback are not checked.
+A single unlabeled sidecar file (such as `episode.srt` next to the video) counts as a Japanese track, matching how SubMiner auto-selects local subtitles. An embedded track with no language tag does not, so the modal still opens for it. Audio files, streams, YouTube, and Jellyfin playback are not checked.
 
 ```jsonc
 {

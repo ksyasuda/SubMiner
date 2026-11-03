@@ -128,7 +128,7 @@ export interface OverlayAssemblyDeps {
   >;
   getJimakuAutoOpenRuntime: () => Pick<
     ReturnType<typeof createJimakuAutoOpenRuntime>,
-    'handleJimakuModalClosed'
+    'handleJimakuModalOpened' | 'handleJimakuModalClosed'
   >;
   getSubtitleProcessingController: () => Pick<
     PlaybackAssembly['subtitleProcessingController'],
@@ -336,6 +336,8 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
               return;
             }
             void deps.getMediaTimingReviewRuntime().dispose();
+            // A destroyed modal window never reports its modals closed.
+            deps.getJimakuAutoOpenRuntime().handleJimakuModalClosed();
             overlayManager.setModalWindow(null);
           }
         },
@@ -532,6 +534,9 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     onOverlayModalOpened: (modal, senderWindow) => {
       if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
         deps.setSubtitleSidebarRequestedOpen(true);
+      }
+      if (modal === 'jimaku') {
+        deps.getJimakuAutoOpenRuntime().handleJimakuModalOpened();
       }
       deps.overlayModalRuntime.notifyOverlayModalOpened(modal);
     },

@@ -788,10 +788,19 @@ const jimakuAutoOpenRuntime = createJimakuAutoOpenRuntime({
   getCurrentMediaPath: () => appState.currentMediaPath,
   getMpvClient: () => appState.mpvClient,
   getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
-  holdPlayback: () => {
-    // Keep the plugin's pause-until-ready timeout from resuming playback while the user searches.
-    sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-hold']);
+  isPlaybackPaused: () => appState.playbackPaused,
+  pausePlayback: () => {
     sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'yes']);
+  },
+  holdPluginAutoplayGate: () => {
+    sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-hold']);
+  },
+  endHold: ({ undoPause }) => {
+    // Readiness deferred during the hold goes through the normal release (plugin + unpause).
+    autoplayReadyGate.flushPendingAutoplayReadySignal();
+    if (undoPause) {
+      sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'no']);
+    }
   },
   openJimaku: () => overlayModals.openJimakuOverlay(),
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),

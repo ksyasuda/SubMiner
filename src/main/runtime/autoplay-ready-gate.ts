@@ -160,13 +160,6 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
           return;
         }
 
-        if (deps.isPlaybackHeld?.()) {
-          deps.logDebug(
-            `[autoplay-ready] stopped release retries while playback is held for media ${mediaPath}`,
-          );
-          return;
-        }
-
         if (releaseUnpauseSent && deps.getPlaybackPaused() === true) {
           deps.logDebug(
             `[autoplay-ready] stopped release retries after playback paused again for media ${mediaPath}`,
@@ -176,6 +169,13 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
 
         const shouldUnpause = await isPlaybackPaused(mpvClient);
         if (!shouldUnpause) {
+          return;
+        }
+        // Checked after the pause read: a hold can start while that request is in flight.
+        if (deps.isPlaybackHeld?.()) {
+          deps.logDebug(
+            `[autoplay-ready] stopped release retries while playback is held for media ${mediaPath}`,
+          );
           return;
         }
 
@@ -198,16 +198,18 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
   };
 
   const maybeReleaseAutoplayReadySignal = (signal: AutoplayReadySignal): void => {
-    if (deps.isPlaybackHeld?.()) {
-      // Dropped, not deferred: the next subtitle after the hold ends releases normally.
-      pendingAutoplayReadySignal = null;
-      deps.logDebug(
-        `[autoplay-ready] ignored signal while playback is held for media ${signal.mediaPath}`,
-      );
-      return;
-    }
     if (autoPlayReadySignalMediaPath === signal.mediaPath) {
       pendingAutoplayReadySignal = null;
+      return;
+    }
+    if (deps.isPlaybackHeld?.()) {
+      // Deferred, not dropped: readiness may never be signalled again (the warm release fires
+      // once, and a video without subtitles emits nothing), so the hold's owner flushes it after.
+      if (setPendingAutoplayReadySignal(signal)) {
+        deps.logDebug(
+          `[autoplay-ready] deferred while playback is held for media ${signal.mediaPath}`,
+        );
+      }
       return;
     }
     if (!isSignalTargetReady(signal)) {

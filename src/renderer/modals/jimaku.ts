@@ -294,15 +294,41 @@ export function createJimakuModal(
     return tag === 'input' || tag === 'textarea';
   }
 
+  // Identity of the video this modal session was opened for, so a re-open can tell whether the
+  // video changed. The file name alone repeats across seasons (`Season 2/01.mkv`).
+  let loadedMediaKey: string | null = null;
+  const mediaKey = (info: JimakuMediaInfo): string =>
+    JSON.stringify([info.filename, info.title, info.season, info.episode]);
+
   function openJimakuModal(): void {
-    if (ctx.state.jimakuModalOpen) return;
+    if (ctx.state.jimakuModalOpen) {
+      refreshMediaInfoIfChanged();
+      return;
+    }
 
     ctx.state.jimakuModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.overlay.classList.add('interactive');
     ctx.dom.jimakuModal.classList.remove('hidden');
     ctx.dom.jimakuModal.setAttribute('aria-hidden', 'false');
+    loadMediaInfo();
+  }
 
+  // An open request while already open (e.g. the next episode auto-opening Jimaku) must not
+  // leave the previous episode's search on screen. The same video keeps the user's search.
+  function refreshMediaInfoIfChanged(): void {
+    const generation = searchGeneration;
+    window.electronAPI
+      .getJimakuMediaInfo()
+      .then((info: JimakuMediaInfo) => {
+        if (generation !== searchGeneration || !ctx.state.jimakuModalOpen) return;
+        if (mediaKey(info) === loadedMediaKey) return;
+        loadMediaInfo();
+      })
+      .catch(() => {});
+  }
+
+  function loadMediaInfo(): void {
     setJimakuStatus('Loading media info...');
     resetJimakuLists();
     renderTabs();
@@ -313,6 +339,8 @@ export function createJimakuModal(
     window.electronAPI
       .getJimakuMediaInfo()
       .then((info: JimakuMediaInfo) => {
+        // Recorded even when the user already started their own search, which skips the fill.
+        loadedMediaKey = mediaKey(info);
         if (generation !== searchGeneration) return;
         ctx.dom.jimakuTitleInput.value = info.title || '';
         ctx.dom.jimakuSeasonInput.value = info.season ? String(info.season) : '';

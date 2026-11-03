@@ -6,6 +6,8 @@ import {
 // mpv lists sidecar and embedded subtitle tracks right after the file loads; the delay lets that
 // track list settle before deciding nothing matches.
 const DEFAULT_CHECK_DELAY_MS = 1000;
+// How long after a failed open a late modal ack still counts as the auto-open showing up.
+const LATE_OPEN_ACK_WINDOW_MS = 10_000;
 
 // Audio files report cover art as a video track; only real video means there is something to watch.
 function hasVideoTrack(trackList: unknown[]): boolean {
@@ -18,11 +20,17 @@ function hasVideoTrack(trackList: unknown[]): boolean {
   });
 }
 
+type PlaybackHold = { pausedByHold: boolean };
+
 /**
  * Opens the Jimaku modal for local media that has no subtitle track in the primary subtitle
- * languages (Japanese by default). Checks once per media load and pauses playback first, so the
- * episode does not start without subtitles. Playback stays held until the modal closes or the
- * media changes.
+ * languages (Japanese by default), checking once per media load.
+ *
+ * While the auto-opened modal is up, playback is held: paused, and autoplay readiness is deferred
+ * instead of resuming it (`isHoldingPlayback`). Closing the modal, or failing to open it, ends the
+ * hold: deferred readiness is released and a pause this runtime added is undone, so playback
+ * resumes whether or not a subtitle was picked, but a pause made by someone else is kept. A modal
+ * that acknowledges shortly after a failed open re-applies the hold.
  */
 export function createJimakuAutoOpenRuntime(deps: {
   isEnabled: () => boolean;
@@ -32,8 +40,14 @@ export function createJimakuAutoOpenRuntime(deps: {
     requestProperty?: (name: string) => Promise<unknown>;
   } | null;
   getPrimarySubtitleLanguages: () => string[];
-  holdPlayback: () => void;
-  openJimaku: () => void;
+  isPlaybackPaused: () => boolean | null;
+  pausePlayback: () => void;
+  /** Releases readiness deferred during the hold, and unpauses when `undoPause` is set. */
+  endHold: (options: { undoPause: boolean }) => void;
+  /** Keeps the mpv plugin's pause-until-ready timeout from resuming playback. */
+  holdPluginAutoplayGate: () => void;
+  /** Resolves to whether the modal acknowledged opening. */
+  openJimaku: () => Promise<boolean>;
   schedule: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   clearScheduled: (timer: ReturnType<typeof setTimeout>) => void;
   delayMs?: number;
@@ -41,7 +55,11 @@ export function createJimakuAutoOpenRuntime(deps: {
   const delayMs = deps.delayMs ?? DEFAULT_CHECK_DELAY_MS;
   let currentMediaPath: string | null = null;
   let pendingTimer: ReturnType<typeof setTimeout> | null = null;
-  let holdingPlayback = false;
+  // Media whose auto-opened modal has not closed yet; a late modal ack only counts for it.
+  let autoOpenedMediaPath: string | null = null;
+  // A fresh object per hold, so a late open failure only ends the hold it started.
+  let activeHold: PlaybackHold | null = null;
+  let lateAckTimer: ReturnType<typeof setTimeout> | null = null;
 
   const clearPendingTimer = (): void => {
     if (!pendingTimer) {
@@ -49,6 +67,50 @@ export function createJimakuAutoOpenRuntime(deps: {
     }
     deps.clearScheduled(pendingTimer);
     pendingTimer = null;
+  };
+
+  const clearLateAckTimer = (): void => {
+    if (!lateAckTimer) {
+      return;
+    }
+    deps.clearScheduled(lateAckTimer);
+    lateAckTimer = null;
+  };
+
+  const endHold = (hold: PlaybackHold): void => {
+    activeHold = null;
+    deps.endHold({ undoPause: hold.pausedByHold });
+  };
+
+  const startHold = (): PlaybackHold => {
+    const hold = { pausedByHold: deps.isPlaybackPaused() !== true };
+    activeHold = hold;
+    if (hold.pausedByHold) {
+      deps.pausePlayback();
+    }
+    return hold;
+  };
+
+  const openForMedia = async (mediaPath: string): Promise<void> => {
+    autoOpenedMediaPath = mediaPath;
+    const hold = startHold();
+    const opened = await deps.openJimaku().catch(() => false);
+    if (activeHold !== hold) {
+      return;
+    }
+    if (opened) {
+      // Only once the modal is up: if opening fails, the plugin's own timeout must still resume.
+      deps.holdPluginAutoplayGate();
+      return;
+    }
+    endHold(hold);
+    // A modal that loads slowly can still show up; past this window an open is the user's own.
+    lateAckTimer = deps.schedule(() => {
+      lateAckTimer = null;
+      if (!activeHold) {
+        autoOpenedMediaPath = null;
+      }
+    }, LATE_OPEN_ACK_WINDOW_MS);
   };
 
   const checkMediaPath = async (mediaPath: string): Promise<void> => {
@@ -77,12 +139,9 @@ export function createJimakuAutoOpenRuntime(deps: {
       primaryLanguages: deps.getPrimarySubtitleLanguages(),
       secondaryLanguages: [],
     });
-    if (hasPrimaryMatch) {
-      return;
+    if (!hasPrimaryMatch) {
+      await openForMedia(mediaPath);
     }
-    holdingPlayback = true;
-    deps.holdPlayback();
-    deps.openJimaku();
   };
 
   return {
@@ -92,7 +151,10 @@ export function createJimakuAutoOpenRuntime(deps: {
         return;
       }
       clearPendingTimer();
-      holdingPlayback = false;
+      clearLateAckTimer();
+      // The gate drops readiness for the old media on its own; the new media is not paused by us.
+      activeHold = null;
+      autoOpenedMediaPath = null;
       currentMediaPath = normalizedPath;
       if (!normalizedPath || !deps.isEnabled()) {
         return;
@@ -102,9 +164,23 @@ export function createJimakuAutoOpenRuntime(deps: {
         void checkMediaPath(normalizedPath);
       }, delayMs);
     },
-    handleJimakuModalClosed: (): void => {
-      holdingPlayback = false;
+    /** The renderer acknowledged the Jimaku modal; re-holds when a timed-out auto-open shows up late. */
+    handleJimakuModalOpened: (): void => {
+      if (activeHold || !autoOpenedMediaPath || autoOpenedMediaPath !== currentMediaPath) {
+        return;
+      }
+      clearLateAckTimer();
+      startHold();
+      deps.holdPluginAutoplayGate();
     },
-    isHoldingPlayback: (): boolean => holdingPlayback,
+    /** The Jimaku modal closed, or the window hosting it went away. */
+    handleJimakuModalClosed: (): void => {
+      clearLateAckTimer();
+      autoOpenedMediaPath = null;
+      if (activeHold) {
+        endHold(activeHold);
+      }
+    },
+    isHoldingPlayback: (): boolean => activeHold !== null,
   };
 }
