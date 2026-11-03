@@ -74,6 +74,10 @@ See [Launcher script](/launcher-script#video-picker) for picker and history deta
 
 Hovering subtitle text pauses mpv, and moving away resumes it. An open dictionary popup also keeps playback paused. Turn these off with `subtitleStyle.autoPauseVideoOnHover` and `subtitleStyle.autoPauseVideoOnYomitanPopup`.
 
+**Pause Video In Keyboard-Only Mode** (`subtitleStyle.autoPauseVideoOnKeyboardMode`, off by default) pauses mpv when keyboard-only mode turns on, from the keyboard or a controller, and resumes it when the mode turns off. It only resumes a pause it made: if the video was already paused, or you played or paused it yourself in the meantime, leaving the mode leaves playback as it is.
+
+Turning keyboard-only mode off also closes the dictionary popup, whether or not this setting is on.
+
 You can drop files onto the overlay:
 
 - A video replaces what is playing. Hold `Shift` to add it to the playlist instead.
@@ -160,7 +164,7 @@ You can drive the overlay with a gamepad.
 3. Press `Y` on the controller to turn on keyboard-only mode. Most controller actions only work in this mode.
 4. Move between words with the left stick, press `A` to look one up, and `X` to mine it.
 
-Press `Alt+C` to choose a controller and remap buttons. Click an action's **Learn** button, then press the button you want. `Alt+Shift+C` shows raw input values for unusual pads.
+Press `Alt+C` to choose a controller and remap buttons. Click an action's **Learn** button, then press the button you want. Set **Button Style** to Xbox, Nintendo or PlayStation so buttons are named as printed on your controller; it is saved per controller. Changes apply right away. When two actions share an input, both fire, so their rows show a ⚠ warning naming the other action; this includes a button on the D-pad while a **(D-pad)** row under **Navigation** is still on, and a stick direction used by a stick action. The window only sees a controller after you press one of its buttons; until then it shows the bindings of the controller in use as a preview, and editing stays locked. With several controllers connected, it selects the one you pressed last. `Alt+Shift+C` shows raw input values for unusual pads.
 
 | Button                | Action                                 |
 | --------------------- | -------------------------------------- |
@@ -170,15 +174,20 @@ Press `Alt+C` to choose a controller and remap buttons. Click an action's **Lear
 | `Y` (North)           | Toggle keyboard-only mode              |
 | `L1`                  | Play the current Yomitan audio         |
 | `R1`                  | Next Yomitan audio source              |
-| `L3`                  | Pause or resume mpv                    |
+| `L3`                  | Pause or resume mpv (any mode)         |
 | `Select` / `Minus`    | Quit mpv                               |
 | Left stick            | Move between words, scroll the popup   |
 | Right stick (up/down) | Jump through the popup                 |
 | Unbound by default    | Show the secondary subtitle while held |
 | Unbound by default    | Previous word entry in the popup       |
 | Unbound by default    | Next word entry in the popup           |
+| Unbound by default    | Previous / next subtitle line          |
+| Unbound by default    | Replay the current line, then pause    |
+| Unbound by default    | Play the next line, then pause         |
 
 The secondary subtitle hold works with or without keyboard-only mode. Assign it with **Learn** on the **Show Secondary Subtitle (Hold)** row in `Alt+C`. While held, the secondary subtitle shows as if its mode were `visible`; releasing the button returns it to your chosen mode.
+
+The **Subtitles** rows in `Alt+C` do the same as the keyboard shortcuts: **Previous Subtitle** and **Next Subtitle** jump a line like `Shift+H` / `Shift+L` (a paused video stays paused), **Replay Subtitle** is `Ctrl+Shift+H` and **Play Next Subtitle** is `Ctrl+Shift+L`. Like the secondary subtitle hold and pause, they work with or without keyboard-only mode. If you put them on the D-pad, click **Clear** on the matching **(D-pad)** row under **Navigation** too (both rows warn until you do), or in keyboard-only mode the D-pad will also move between words or scroll the popup.
 
 **Previous Entry** and **Next Entry** move one word entry at a time in the open popup, and Mine Card then mines the selected entry. They send Yomitan's default `Alt+Up` / `Alt+Down` entry shortcuts, so they stop working if you rebind those in Yomitan's keyboard settings. If you assign them to the D-pad, click **Clear** on the **Popup Scroll (D-pad)** row too, or the D-pad will also scroll the popup.
 

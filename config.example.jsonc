@@ -108,7 +108,7 @@
     "stickDeadzone": 0.2, // Deadzone applied to controller stick axes.
     "triggerInputMode": "auto", // How controller triggers are interpreted: auto, pressed-only, or thresholded analog. Values: auto | digital | analog
     "triggerDeadzone": 0.5, // Minimum analog trigger value required when trigger input uses auto or analog mode.
-    "faceButtonLabels": "xbox", // Letters printed on your controller's face buttons: xbox (A at the bottom; also PlayStation) or nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads). Used by fixed controller layouts and button names in Alt+C. Values: xbox | nintendo
+    "faceButtonLabels": "xbox", // Face button style of your controller: xbox (A at the bottom), nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads) or playstation (╳ ○ □ △, laid out like xbox). Places the A/B/X/Y of the dialog layouts and names buttons in Alt+C and the dialog hints. Alt+C sets it per controller (controller.profiles.<id>.faceButtonLabels); this is the default for the others. Values: xbox | nintendo | playstation
     "repeatDelayMs": 320, // Delay before repeating held controller actions.
     "repeatIntervalMs": 120, // Repeat interval for held controller actions.
     "buttonIndices": {
@@ -159,7 +159,7 @@
       "toggleMpvPause": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 9 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for toggling mpv play/pause. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for toggling mpv play/pause. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "holdSecondarySub": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
       }, // Controller binding descriptor that shows the secondary subtitle only while held. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
@@ -169,6 +169,18 @@
       "nextEntry": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
       }, // Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "previousSubtitle": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that jumps to the previous subtitle line, like Shift+H. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "nextSubtitle": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that jumps to the next subtitle line, like Shift+L. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "replaySubtitle": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that replays the current subtitle line, then pauses, like Ctrl+Shift+H. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "playNextSubtitle": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that plays the next subtitle line, then pauses, like Ctrl+Shift+L. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "leftStickHorizontal": {
         "kind": "axis", // Analog binding input source kind. Values: none | axis
         "axisIndex": 0, // Raw axis index captured for this analog controller action.
@@ -762,6 +774,7 @@
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
     "autoPauseVideoOnYomitanPopup": true, // Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes. Values: true | false
+    "autoPauseVideoOnKeyboardMode": false, // Pause mpv when keyboard-only mode turns on (from the keyboard or a controller) and resume when it turns off. Leaving the mode resumes only a pause it made: a video that was already paused, or that you played or paused yourself meanwhile, is left as it is. Values: true | false
     "primaryVisibleOnYomitanPopup": true, // Keep the primary subtitle bar visible while a Yomitan popup is open when primary subtitles are in hover mode. Values: true | false
     "nameMatchEnabled": false, // Enable character dictionary sync and subtitle token coloring for character-name matches. Values: true | false
     "nameMatchImagesEnabled": false, // Show small character portraits beside subtitle tokens matched from the SubMiner character dictionary. Values: true | false

@@ -100,6 +100,8 @@ export type RendererState = {
   controllerDebugModalOpen: boolean;
   subtitleSidebarModalOpen: boolean;
   controllerDeviceSelectedIndex: number;
+  /** While Alt+C is open, the controller selected in it; that window then reads this pad. */
+  controllerSelectGamepadId: string | null;
   controllerConfig: ResolvedControllerConfig | null;
   connectedGamepads: ControllerDeviceInfo[];
   activeGamepadId: string | null;
@@ -141,6 +143,7 @@ export type RendererState = {
   jlptN5Color: string;
   preserveSubtitleLineBreaks: boolean;
   autoPauseVideoOnSubtitleHover: boolean;
+  autoPauseVideoOnKeyboardMode: boolean;
   autoPauseVideoOnYomitanPopup: boolean;
   primaryVisibleOnYomitanPopup: boolean;
   frequencyDictionaryEnabled: boolean;
@@ -241,6 +244,7 @@ export function createRendererState(): RendererState {
     controllerDebugModalOpen: false,
     subtitleSidebarModalOpen: false,
     controllerDeviceSelectedIndex: 0,
+    controllerSelectGamepadId: null,
     controllerConfig: null,
     connectedGamepads: [],
     activeGamepadId: null,
@@ -282,6 +286,7 @@ export function createRendererState(): RendererState {
     jlptN5Color: '#8aadf4',
     preserveSubtitleLineBreaks: false,
     autoPauseVideoOnSubtitleHover: false,
+    autoPauseVideoOnKeyboardMode: false,
     autoPauseVideoOnYomitanPopup: false,
     primaryVisibleOnYomitanPopup: true,
     frequencyDictionaryEnabled: false,

@@ -61,7 +61,8 @@ export function buildCoreConfigOptionRegistry(
     {
       id: 'toggleMpvPause',
       defaultValue: defaultConfig.controller.bindings.toggleMpvPause,
-      description: 'Controller binding descriptor for toggling mpv play/pause.',
+      description:
+        'Controller binding descriptor for toggling mpv play/pause. Works with or without keyboard-only mode.',
     },
     {
       id: 'holdSecondarySub',
@@ -80,6 +81,30 @@ export function buildCoreConfigOptionRegistry(
       defaultValue: defaultConfig.controller.bindings.nextEntry,
       description:
         'Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry.',
+    },
+    {
+      id: 'previousSubtitle',
+      defaultValue: defaultConfig.controller.bindings.previousSubtitle,
+      description:
+        'Controller binding descriptor that jumps to the previous subtitle line, like Shift+H. Works with or without keyboard-only mode.',
+    },
+    {
+      id: 'nextSubtitle',
+      defaultValue: defaultConfig.controller.bindings.nextSubtitle,
+      description:
+        'Controller binding descriptor that jumps to the next subtitle line, like Shift+L. Works with or without keyboard-only mode.',
+    },
+    {
+      id: 'replaySubtitle',
+      defaultValue: defaultConfig.controller.bindings.replaySubtitle,
+      description:
+        'Controller binding descriptor that replays the current subtitle line, then pauses, like Ctrl+Shift+H. Works with or without keyboard-only mode.',
+    },
+    {
+      id: 'playNextSubtitle',
+      defaultValue: defaultConfig.controller.bindings.playNextSubtitle,
+      description:
+        'Controller binding descriptor that plays the next subtitle line, then pauses, like Ctrl+Shift+L. Works with or without keyboard-only mode.',
     },
   ] as const;
 
@@ -235,10 +260,10 @@ export function buildCoreConfigOptionRegistry(
     {
       path: 'controller.faceButtonLabels',
       kind: 'enum',
-      enumValues: ['xbox', 'nintendo'],
+      enumValues: ['xbox', 'nintendo', 'playstation'],
       defaultValue: defaultConfig.controller.faceButtonLabels,
       description:
-        "Letters printed on your controller's face buttons: xbox (A at the bottom; also PlayStation) or nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads). Used by fixed controller layouts and button names in Alt+C.",
+        'Face button style of your controller: xbox (A at the bottom), nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads) or playstation (╳ ○ □ △, laid out like xbox). Places the A/B/X/Y of the dialog layouts and names buttons in Alt+C and the dialog hints. Alt+C sets it per controller (controller.profiles.<id>.faceButtonLabels); this is the default for the others.',
     },
     {
       path: 'controller.triggerDeadzone',

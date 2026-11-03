@@ -41,6 +41,8 @@ export function createKeyboardHandlers(
     openControllerSelectModal?: () => void;
     openControllerDebugModal?: () => void;
     getPlaybackPaused: () => Promise<boolean | null>;
+    /** Keyboard-only mode turned on or off (keyboard shortcut or controller). */
+    onKeyboardDrivenModeChanged?: (enabled: boolean) => void;
     toggleSubtitleSidebarModal?: () => void;
   },
 ) {
@@ -550,6 +552,7 @@ export function createKeyboardHandlers(
   }
 
   function setKeyboardDrivenModeEnabled(enabled: boolean): void {
+    const changed = ctx.state.keyboardDrivenModeEnabled !== enabled;
     ctx.state.keyboardDrivenModeEnabled = enabled;
     ctx.state.keyboardSelectionVisible = enabled;
     if (!enabled) {
@@ -560,6 +563,10 @@ export function createKeyboardHandlers(
       clearNativeSubtitleSelection();
     }
     syncKeyboardTokenSelection();
+    // Leaving the mode means going back to watching: close the popup it was used for.
+    // Done after the mode is off, so focus is not pulled back to the overlay.
+    if (changed && !enabled) closeLookupWindow();
+    if (changed) options.onKeyboardDrivenModeChanged?.(enabled);
   }
 
   function toggleKeyboardDrivenMode(): void {
@@ -756,6 +763,12 @@ export function createKeyboardHandlers(
   // released) and attention without a pane, so callers like the Kiku modal
   // opener leave nothing behind.
   function closeLookupWindow(): boolean {
+    // Also when no popup shows yet: a lookup that has not opened one must not open it
+    // later through its fallback scan (for example after leaving keyboard-only mode).
+    if (lookupScanFallbackTimer !== null) {
+      clearTimeout(lookupScanFallbackTimer);
+      lookupScanFallbackTimer = null;
+    }
     if (
       !ctx.state.yomitanPopupVisible &&
       !isYomitanPopupVisible(document) &&
@@ -764,10 +777,6 @@ export function createKeyboardHandlers(
       return false;
     }
 
-    if (lookupScanFallbackTimer !== null) {
-      clearTimeout(lookupScanFallbackTimer);
-      lookupScanFallbackTimer = null;
-    }
     dispatchYomitanPopupVisibility(false);
     dispatchYomitanFrontendClearActiveTextSource();
     clearNativeSubtitleSelection();

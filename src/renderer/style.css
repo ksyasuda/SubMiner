@@ -2077,6 +2077,10 @@ body:focus-visible,
 #kikuFieldGroupingModal.controller-hints-visible [data-controller-hint]::after {
   content: attr(data-controller-hint);
   text-transform: none;
+  /* Buttons use the system UI font, where ○ □ △ are small; Japanese fonts draw them (and
+     the ╳ used for the PlayStation cross) at full size, and SubMiner already expects one. */
+  font-family:
+    'M PLUS 1', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', 'DejaVu Sans', sans-serif;
   display: inline-block;
   margin-left: 6px;
   padding: 1px 5px;
@@ -2085,7 +2089,6 @@ body:focus-visible,
   border-radius: 5px;
   background: var(--ctp-mantle);
   color: var(--ctp-subtext0);
-  font-family: inherit;
   font-size: 9px;
   font-weight: 750;
   letter-spacing: 0.02em;
@@ -3485,6 +3488,8 @@ iframe[id^='yomitan-popup'],
   border-radius: 8px;
   background: rgba(24, 25, 38, 0.9);
   color: var(--ctp-text);
+  /* Selects default to the system UI font, where the PlayStation ○ is small. */
+  font-family: inherit;
 }
 
 .controller-select-summary {
@@ -3595,6 +3600,7 @@ iframe[id^='yomitan-popup'],
   padding: 2px 8px;
   border: 0;
   border-radius: 4px;
+  font-family: inherit; /* the overlay's Japanese-first fonts draw ○ □ △ at full size */
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -3630,11 +3636,28 @@ iframe[id^='yomitan-popup'],
   color: var(--ctp-overlay2);
 }
 
+/* Before Alt+C sees a controller the rows are a preview: actions look unavailable. */
+.controller-config-locked .controller-config-reset-icon,
+.controller-config-locked .controller-config-edit-icon,
+.controller-config-locked .controller-config-group-action,
+.controller-config-locked .controller-config-edit-panel button {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .controller-config-edit-panel {
+  /* The list is a height-capped flex column: without this the panel (overflow hidden, so no
+     minimum height) is squeezed to its border once the rows overflow. */
+  flex-shrink: 0;
   overflow: hidden;
   animation: configEditSlideIn 180ms ease-out;
   border-bottom: 1px solid rgba(138, 173, 244, 0.15);
   background: rgba(138, 173, 244, 0.04);
+}
+
+/* Redrawn while it stays open (after Learn, Reset, …): no slide-in again. */
+.controller-config-edit-panel-kept {
+  animation: none;
 }
 
 @keyframes configEditSlideIn {

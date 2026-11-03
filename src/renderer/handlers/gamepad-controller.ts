@@ -18,6 +18,8 @@ export type GamepadLike = {
   index: number;
   connected: boolean;
   mapping: string;
+  /** When the pad last reported new input (Gamepad API). */
+  timestamp?: number;
   axes: readonly number[];
   buttons: readonly ControllerButtonState[];
 };
@@ -56,6 +58,10 @@ type GamepadControllerOptions = {
   previousEntry: () => void;
   nextEntry: () => void;
   toggleMpvPause: () => void;
+  previousSubtitle: () => void;
+  nextSubtitle: () => void;
+  replaySubtitle: () => void;
+  playNextSubtitle: () => void;
   setSecondarySubHeld: (held: boolean) => void;
   scrollPopup: (deltaPixels: number) => void;
   jumpPopup: (deltaPixels: number) => void;
@@ -73,14 +79,16 @@ export type HoldState = {
   initialFired: boolean;
 };
 
-const DPAD_BUTTON_INDEX = {
+/** Buttons read as the D-pad on every pad, whatever its reported mapping. */
+export const DPAD_BUTTON_INDEX = {
   up: 12,
   down: 13,
   left: 14,
   right: 15,
 } as const;
 
-const DPAD_AXIS_INDEX = {
+/** Axes some raw (non-standard) pads use for the D-pad. */
+export const DPAD_AXIS_INDEX = {
   horizontal: 6,
   vertical: 7,
 } as const;
@@ -276,6 +284,15 @@ const POPUP_ONLY_ACTIONS = [
   'nextEntry',
 ] as const;
 
+/** Playback and subtitle actions; like the secondary hold, they do not need keyboard-only mode. */
+const WATCHING_ACTIONS = [
+  'toggleMpvPause',
+  'previousSubtitle',
+  'nextSubtitle',
+  'replaySubtitle',
+  'playNextSubtitle',
+] as const;
+
 export function createGamepadController(options: GamepadControllerOptions) {
   let previousActions = new Map<string, boolean>();
   let selectionHold = createHoldState();
@@ -312,6 +329,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
         index: gamepad.index,
         mapping: gamepad.mapping,
         connected: gamepad.connected,
+        timestamp: gamepad.timestamp,
       })) satisfies ControllerDeviceInfo[],
       activeGamepadId,
       rawAxes: activeGamepad?.axes ? [...activeGamepad.axes] : [],
@@ -401,7 +419,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
       ['playCurrentAudio', config.bindings.playCurrentAudio],
       ['previousEntry', config.bindings.previousEntry],
       ['nextEntry', config.bindings.nextEntry],
-      ['toggleMpvPause', config.bindings.toggleMpvPause],
+      ...WATCHING_ACTIONS.map((actionKey) => [actionKey, config.bindings[actionKey]] as const),
     ] as const;
 
     for (const [actionKey, binding] of discreteActions) {
@@ -502,6 +520,19 @@ export function createGamepadController(options: GamepadControllerOptions) {
           activeConfig,
         ),
     );
+
+    // Pause and subtitle navigation also work while simply watching; a blocking modal pauses them.
+    if (activeConfig.enabled && !options.getInteractionBlocked()) {
+      for (const actionKey of WATCHING_ACTIONS) {
+        handleActionEdge(
+          actionKey,
+          activeConfig.bindings[actionKey],
+          activeGamepad,
+          activeConfig,
+          options[actionKey],
+        );
+      }
+    }
 
     if (activeConfig.enabled) {
       handleActionEdge(
@@ -627,14 +658,6 @@ export function createGamepadController(options: GamepadControllerOptions) {
         );
       }
     }
-
-    handleActionEdge(
-      'toggleMpvPause',
-      activeConfig.bindings.toggleMpvPause,
-      activeGamepad,
-      activeConfig,
-      options.toggleMpvPause,
-    );
 
     handleSelectionAxis(
       resolveAxisBindingValue(

@@ -190,6 +190,13 @@ const onControllerSuspendedChangedEvent = createQueuedIpcListenerWithPayload<boo
   IPC_CHANNELS.event.controllerSuspendedChanged,
   (payload) => payload === true,
 );
+const onPlaybackPauseChangedEvent = createQueuedIpcListenerWithPayload<boolean>(
+  IPC_CHANNELS.event.playbackPauseChanged,
+  (payload) => payload === true,
+);
+const onControllerConfigChangedEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.controllerConfigChanged,
+);
 const onKeyboardModeToggleRequestedEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.keyboardModeToggleRequested,
 );
@@ -346,6 +353,11 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getControllerConfig),
   saveControllerConfig: (update: ControllerConfigUpdate): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.command.saveControllerConfig, update),
+  reportActiveController: (gamepadId: string | null): void => {
+    ipcRenderer.send(IPC_CHANNELS.command.reportActiveController, gamepadId);
+  },
+  getActiveControllerId: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getActiveControllerId),
 
   getJimakuMediaInfo: (): Promise<JimakuMediaInfo> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.jimakuGetMediaInfo),
@@ -496,6 +508,8 @@ const electronAPI: ElectronAPI = {
   onSessionNumericSelectionStart: onSessionNumericSelectionStartEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
   onControllerSuspendedChanged: onControllerSuspendedChangedEvent,
+  onControllerConfigChanged: onControllerConfigChangedEvent,
+  onPlaybackPauseChanged: onPlaybackPauseChangedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
   getPlaylistBrowserSnapshot: (): Promise<PlaylistBrowserSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getPlaylistBrowserSnapshot),

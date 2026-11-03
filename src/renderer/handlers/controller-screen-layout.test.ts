@@ -15,6 +15,7 @@ import {
   getControllerReviewInputContext,
 } from './controller-screen-layout.js';
 import type { GamepadLike } from './gamepad-controller.js';
+import { resolveControllerConfigForGamepad } from '../controller-profile-config.js';
 
 const CONFIG: ResolvedControllerConfig = { ...CORE_DEFAULT_CONFIG.controller, enabled: true };
 const { repeatDelayMs, repeatIntervalMs } = CONFIG;
@@ -154,4 +155,34 @@ test('remapped duplicate card bindings replace the defaults', () => {
   layout.poll(pad(['B']), config, 10);
 
   assert.deepEqual(actions, ['cancelMerge']);
+});
+
+test('dialog hints follow the button style of the controller in use', () => {
+  const config: ResolvedControllerConfig = {
+    ...CONFIG,
+    profiles: {
+      'pad-ps': {
+        label: 'DualSense',
+        faceButtonLabels: 'playstation',
+        buttonIndices: CONFIG.buttonIndices,
+        bindings: CONFIG.bindings,
+        reviewBindings: CONFIG.reviewBindings,
+        fieldGroupingBindings: CONFIG.fieldGroupingBindings,
+      },
+    },
+  };
+  const hintsFor = (gamepadId: string) => {
+    const padConfig = resolveControllerConfigForGamepad(config, gamepadId);
+    return formatControllerScreenHints(
+      CONTROLLER_FIELD_GROUPING_SCREEN,
+      padConfig.fieldGroupingBindings,
+      padConfig,
+      'standard',
+    );
+  };
+
+  assert.equal(hintsFor('pad-ps').continue, '╳');
+  assert.equal(hintsFor('pad-ps').toggleView, '△');
+  // Controllers without their own style use controller.faceButtonLabels.
+  assert.equal(hintsFor('other-pad').continue, 'A');
 });

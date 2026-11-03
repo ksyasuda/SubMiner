@@ -5,7 +5,7 @@ import { CORE_DEFAULT_CONFIG } from '../../config/definitions/defaults-core';
 import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
 import { CONTROLLER_SCREENS } from '../../shared/controller-screens';
-import type { ResolvedControllerConfig } from '../../types';
+import type { ControllerFaceButtonLabels, ResolvedControllerConfig } from '../../types';
 import type { ControllerScreenLearning } from './controller-config-form';
 import { createControllerConfigForm } from './controller-config-form.js';
 
@@ -24,6 +24,10 @@ const BINDINGS: ResolvedControllerConfig['bindings'] = {
   holdSecondarySub: { kind: 'none' },
   previousEntry: { kind: 'none' },
   nextEntry: { kind: 'none' },
+  previousSubtitle: { kind: 'none' },
+  nextSubtitle: { kind: 'none' },
+  replaySubtitle: { kind: 'none' },
+  playNextSubtitle: { kind: 'none' },
   leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
   leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
   rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
@@ -45,6 +49,12 @@ class FakeElement {
       this.className = [...new Set([...this.classes(), ...tokens])].join(' ');
     },
     contains: (token: string) => this.classes().includes(token),
+    toggle: (token: string, force?: boolean) => {
+      const on = force ?? !this.classes().includes(token);
+      const rest = this.classes().filter((existing) => existing !== token);
+      this.className = (on ? [...rest, token] : rest).join(' ');
+      return on;
+    },
   };
 
   set innerHTML(value: string) {
@@ -99,7 +109,7 @@ function renderForm(
   options: {
     bindings?: typeof BINDINGS;
     mapping?: string;
-    faceButtonLabels?: 'xbox' | 'nintendo';
+    faceButtonLabels?: ControllerFaceButtonLabels;
   } = {},
 ) {
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
@@ -148,7 +158,7 @@ test('controller config form renders grouped rows with friendly binding labels',
 
   assert.deepEqual(
     findAll(container, 'controller-config-group').map((el) => el.textContent),
-    ['Lookup', 'Playback', 'Popup Audio', 'Navigation'],
+    ['Lookup', 'Playback', 'Subtitles', 'Popup Audio', 'Navigation'],
   );
   assert.deepEqual(
     findAll(container, 'controller-config-row').map((row) => [
@@ -165,6 +175,10 @@ test('controller config form renders grouped rows with friendly binding labels',
       ['Toggle MPV Pause', 'R3 / RS'],
       ['Show Secondary Subtitle (Hold)', 'None'],
       ['Quit MPV', 'Back / Select'],
+      ['Previous Subtitle', 'None'],
+      ['Next Subtitle', 'None'],
+      ['Replay Subtitle', 'None'],
+      ['Play Next Subtitle', 'None'],
       ['Previous Audio', 'None'],
       ['Next Audio', 'RB / R1'],
       ['Play Current Audio', 'LB / L1'],
@@ -180,7 +194,7 @@ test('controller config form renders grouped rows with friendly binding labels',
   );
   assert.deepEqual(
     findAll(container, 'disabled').map((badge) => badge.textContent),
-    ['None', 'None', 'None', 'None', 'None', 'None'],
+    ['None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None'],
   );
   assert.deepEqual(findAll(container, 'expanded'), []);
   assert.deepEqual(findAll(container, 'controller-config-edit-panel'), []);
@@ -297,6 +311,7 @@ type ReviewFormOptions = {
   reviewBindings?: ResolvedControllerConfig['reviewBindings'];
   fieldGroupingBindings?: ResolvedControllerConfig['fieldGroupingBindings'];
   learning?: ControllerScreenLearning | null;
+  faceButtonLabels?: ControllerFaceButtonLabels;
 };
 
 /** Renders the form with the dialog groups; `act` runs while `document` is still stubbed. */
@@ -340,7 +355,7 @@ function withReviewForm(
       },
       getScreenInputContext: () => ({
         mapping: 'standard',
-        faceButtonLabels: 'xbox',
+        faceButtonLabels: options.faceButtonLabels ?? 'xbox',
         buttonIndices: CORE_DEFAULT_CONFIG.controller.buttonIndices,
       }),
       getScreenLearning: () => options.learning ?? null,
@@ -430,6 +445,43 @@ test('controller config form warns about review bindings that clash', () => {
   });
 });
 
+test('controller config form warns when main actions share an input', () => {
+  const { container, row } = renderForm(null, {
+    bindings: { ...BINDINGS, nextSubtitle: { kind: 'button', buttonIndex: 15 } },
+    mapping: 'standard',
+  });
+
+  assert.deepEqual(
+    findAll(container, 'controller-config-warning').map((el) => el.textContent),
+    ['\u26a0 Same as Token Move (D-pad)', '\u26a0 Same as Next Subtitle'],
+  );
+  assert.equal(row('Next Subtitle').classList.contains('has-warning'), true);
+  assert.equal(row('Token Move (D-pad)').classList.contains('has-warning'), true);
+  assert.equal(row('Next Audio').classList.contains('has-warning'), false);
+});
+
+test('an edit panel slides in when it opens, not each time the list is redrawn', () => {
+  withReviewForm({}, ({ container, reviewRow }) => {
+    const panel = () => findOne(container, 'controller-config-edit-panel');
+    const kept = () => panel().classList.contains('controller-config-edit-panel-kept');
+
+    reviewRow('Toggle Lookup').click();
+    assert.equal(kept(), false, 'opening animates');
+
+    // Any other click redraws the whole list; the open panel is recreated as it was.
+    findOne(container, 'controller-config-group-toggle').click();
+    assert.equal(kept(), true);
+
+    reviewRow('Toggle Lookup').click();
+    assert.deepEqual(findAll(container, 'controller-config-edit-panel'), []);
+    reviewRow('Toggle Lookup').click();
+    assert.equal(kept(), false, 'reopening animates again');
+
+    reviewRow('Close Lookup').click();
+    assert.equal(kept(), false, 'another row opening animates');
+  });
+});
+
 /** The dialog group headers, in order. */
 const groupHeaders = (container: FakeElement) =>
   findAll(container, 'controller-config-group-toggle');
@@ -482,4 +534,31 @@ test('learning a duplicate card action opens only that group', () => {
       );
     },
   );
+});
+
+test('controller config form names face buttons with PlayStation symbols when configured', () => {
+  const badge = (row: FakeElement) => findOne(row, 'controller-config-badge').textContent;
+  const bindings: typeof BINDINGS = {
+    ...BINDINGS,
+    toggleLookup: { kind: 'button', buttonIndex: 0 },
+    closeLookup: { kind: 'button', buttonIndex: 1 },
+    mineCard: { kind: 'button', buttonIndex: 2 },
+    toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+  };
+
+  const form = renderForm(null, { bindings, mapping: 'standard', faceButtonLabels: 'playstation' });
+  assert.equal(badge(form.row('Toggle Lookup')), '╳');
+  assert.equal(badge(form.row('Close Lookup')), '○');
+  assert.equal(badge(form.row('Mine Card')), '□');
+  assert.equal(badge(form.row('Toggle Keyboard-Only Mode')), '△');
+  assert.equal(badge(form.row('Next Audio')), 'RB / R1');
+
+  // The dialog groups print the same symbols.
+  withReviewForm({ faceButtonLabels: 'playstation' }, ({ container, reviewRow }) => {
+    findOne(container, 'controller-config-group-toggle').click();
+    assert.equal(badgeOf(reviewRow('Use this timing')), '╳');
+    assert.equal(badgeOf(reviewRow('Keep editing')), '○');
+    assert.equal(badgeOf(reviewRow('Play selection')), '□');
+    assert.equal(badgeOf(reviewRow('Reset timing')), '△');
+  });
 });

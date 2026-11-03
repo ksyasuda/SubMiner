@@ -9,6 +9,7 @@ import type {
   ResolvedControllerDiscreteBinding,
 } from '../../types/runtime';
 import {
+  isControllerFaceButtonLabels,
   isControllerScreenAction,
   parseControllerReviewBinding,
   type ControllerScreenBindings,
@@ -17,6 +18,8 @@ import {
 import { CONTROLLER_SCREENS } from '../../shared/controller-screens';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
+
+const FACE_BUTTON_LABELS_EXPECTED = "Expected 'xbox', 'nintendo', or 'playstation'.";
 
 const CONTROLLER_BUTTON_BINDINGS = [
   'none',
@@ -98,6 +101,10 @@ const CONTROLLER_DISCRETE_BINDING_KEYS = [
   'holdSecondarySub',
   'previousEntry',
   'nextEntry',
+  'previousSubtitle',
+  'nextSubtitle',
+  'replaySubtitle',
+  'playNextSubtitle',
 ] as const;
 
 const CONTROLLER_AXIS_BINDING_KEYS = [
@@ -360,15 +367,15 @@ export function applyControllerConfig(context: ResolveContext): void {
     );
   }
 
-  const faceButtonLabels = asString(src.controller.faceButtonLabels);
-  if (faceButtonLabels === 'xbox' || faceButtonLabels === 'nintendo') {
+  const faceButtonLabels = src.controller.faceButtonLabels;
+  if (isControllerFaceButtonLabels(faceButtonLabels)) {
     resolved.controller.faceButtonLabels = faceButtonLabels;
-  } else if (src.controller.faceButtonLabels !== undefined) {
+  } else if (faceButtonLabels !== undefined) {
     warn(
       'controller.faceButtonLabels',
-      src.controller.faceButtonLabels,
+      faceButtonLabels,
       resolved.controller.faceButtonLabels,
-      "Expected 'xbox' or 'nintendo'.",
+      FACE_BUTTON_LABELS_EXPECTED,
     );
   }
 
@@ -465,9 +472,21 @@ export function applyControllerConfig(context: ResolveContext): void {
         label: label ?? profileId,
         buttonIndices: structuredClone(resolved.controller.buttonIndices),
         bindings: structuredClone(resolved.controller.bindings),
+        faceButtonLabels: resolved.controller.faceButtonLabels,
         reviewBindings: structuredClone(resolved.controller.reviewBindings),
         fieldGroupingBindings: structuredClone(resolved.controller.fieldGroupingBindings),
       };
+      // Set per controller from Alt+C; falls back to controller.faceButtonLabels.
+      if (isControllerFaceButtonLabels(rawProfile.faceButtonLabels)) {
+        profile.faceButtonLabels = rawProfile.faceButtonLabels;
+      } else if (rawProfile.faceButtonLabels !== undefined) {
+        warn(
+          `controller.profiles.${profileId}.faceButtonLabels`,
+          rawProfile.faceButtonLabels,
+          profile.faceButtonLabels,
+          FACE_BUTTON_LABELS_EXPECTED,
+        );
+      }
       applyControllerButtonIndices(
         rawProfile.buttonIndices,
         profile.buttonIndices,

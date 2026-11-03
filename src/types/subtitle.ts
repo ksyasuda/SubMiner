@@ -94,6 +94,7 @@ export interface SubtitleStyleConfig {
   preserveLineBreaks?: boolean;
   autoPauseVideoOnHover?: boolean;
   autoPauseVideoOnYomitanPopup?: boolean;
+  autoPauseVideoOnKeyboardMode?: boolean;
   primaryVisibleOnYomitanPopup?: boolean;
   hoverTokenColor?: string;
   hoverTokenBackgroundColor?: string;

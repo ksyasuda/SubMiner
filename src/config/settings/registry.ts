@@ -233,6 +233,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'subtitleSidebar.pauseVideoOnHover': 'Pause Video On Hover - Sidebar',
   'subtitleStyle.autoPauseVideoOnHover': 'Pause Video On Hover - Subtitles',
   'subtitleStyle.autoPauseVideoOnYomitanPopup': 'Pause Video On Dictionary Popup',
+  'subtitleStyle.autoPauseVideoOnKeyboardMode': 'Pause Video In Keyboard-Only Mode',
   'subtitleStyle.primaryVisibleOnYomitanPopup': 'Keep Primary Visible On Dictionary Popup',
   'subtitleStyle.primaryDefaultMode': 'Primary Subtitle Visibility Mode',
   'subtitleStyle.frequencyDictionary.mode': 'Frequency Mode',
@@ -344,6 +345,7 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (
     path === 'subtitleStyle.autoPauseVideoOnHover' ||
     path === 'subtitleStyle.autoPauseVideoOnYomitanPopup' ||
+    path === 'subtitleStyle.autoPauseVideoOnKeyboardMode' ||
     path === 'subtitleSidebar.pauseVideoOnHover'
   ) {
     return { category: 'behavior', section: 'Playback Behavior' };

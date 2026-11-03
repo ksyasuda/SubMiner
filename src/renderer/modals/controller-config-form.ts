@@ -1,5 +1,6 @@
 import {
   findControllerScreenBindingIssues,
+  getControllerFaceButtonName,
   formatControllerReviewBinding,
   type ControllerReviewInputContext,
   type ControllerScreenActionDefinition,
@@ -7,6 +8,10 @@ import {
   type ControllerScreenDefinition,
 } from '../../shared/controller-review';
 import type { ControllerScreenId } from '../../shared/controller-screens';
+import {
+  findControllerBindingIssues,
+  getControllerDpadRowKey,
+} from './controller-binding-issues.js';
 import type { ResolvedControllerReviewBinding } from '../../types';
 
 /** A dialog layout shown as a collapsible group in Alt+C. */
@@ -101,6 +106,34 @@ export const CONTROLLER_BINDING_DEFINITIONS: ControllerBindingDefinition[] = [
     group: 'Playback',
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 6 },
+  },
+  {
+    id: 'previousSubtitle',
+    label: 'Previous Subtitle',
+    group: 'Subtitles',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
+  },
+  {
+    id: 'nextSubtitle',
+    label: 'Next Subtitle',
+    group: 'Subtitles',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
+  },
+  {
+    id: 'replaySubtitle',
+    label: 'Replay Subtitle',
+    group: 'Subtitles',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
+  },
+  {
+    id: 'playNextSubtitle',
+    label: 'Play Next Subtitle',
+    group: 'Subtitles',
+    bindingType: 'discrete',
+    defaultBinding: { kind: 'none' },
   },
   {
     id: 'previousAudio',
@@ -240,9 +273,6 @@ const W3C_STANDARD_AXIS_NAMES: Record<number, string> = {
 type ControllerMapping = string | null | undefined;
 type FaceButtonLabels = ResolvedControllerConfig['faceButtonLabels'] | undefined;
 
-/** Nintendo-style pads print B at the bottom and A on the right; positions 0-3 are the same. */
-const NINTENDO_FACE_BUTTON_NAMES: Record<number, string> = { 0: 'B', 1: 'A', 2: 'Y', 3: 'X' };
-
 const DPAD_FALLBACK_LABELS: Record<ControllerDpadFallback, string> = {
   none: 'None',
   horizontal: 'D-pad \u2194',
@@ -254,9 +284,13 @@ export function getFriendlyButtonName(
   mapping?: ControllerMapping,
   faceButtonLabels?: FaceButtonLabels,
 ): string {
-  const nintendoName =
-    faceButtonLabels === 'nintendo' ? NINTENDO_FACE_BUTTON_NAMES[buttonIndex] : undefined;
-  if (nintendoName) return nintendoName;
+  // The default Xbox style keeps the shared "A / Cross" names; the others print their own.
+  // Face positions 0-3 are the same on raw and standard layouts.
+  const styledName =
+    faceButtonLabels && faceButtonLabels !== 'xbox'
+      ? getControllerFaceButtonName(buttonIndex, faceButtonLabels)
+      : null;
+  if (styledName) return styledName;
   const names = mapping === 'standard' ? W3C_STANDARD_BUTTON_NAMES : RAW_LAYOUT_BUTTON_NAMES;
   return names[buttonIndex] ?? `Button ${buttonIndex}`;
 }
@@ -326,6 +360,8 @@ export function createControllerConfigForm(options: {
   getControllerMapping?: () => ControllerMapping;
   /** `controller.faceButtonLabels`; names the face buttons as printed on the pad. */
   getFaceButtonLabels?: () => FaceButtonLabels;
+  /** True until the window sees a controller: rows are a preview and actions are dimmed. */
+  isEditingLocked?: () => boolean;
   /** Dialog layouts (review, field grouping) of the controller being configured. */
   getScreenGroups?: () => ControllerScreenGroup[];
   getScreenInputContext?: () => ControllerReviewInputContext;
@@ -336,14 +372,35 @@ export function createControllerConfigForm(options: {
   onScreenResetAll?: (screenId: ControllerScreenId) => void;
 }) {
   let expandedRowKey: ExpandedRowKey | null = null;
+  /**
+   * Row whose edit panel the previous render showed. Every change rebuilds the list, so a
+   * panel that stays open is recreated; it only slides in when it was not open before.
+   */
+  let previousPanelRowKey: ExpandedRowKey | null = null;
+  let panelRowKey: ExpandedRowKey | null = null;
   /** Dialog groups start collapsed; this holds the opened ones. */
   const expandedScreens = new Set<ControllerScreenId>();
 
   function render(): void {
+    panelRowKey = null;
+    try {
+      renderRows();
+    } finally {
+      previousPanelRowKey = panelRowKey;
+    }
+  }
+
+  function renderRows(): void {
     options.container.innerHTML = '';
+    options.container.classList?.toggle(
+      'controller-config-locked',
+      options.isEditingLocked?.() ?? false,
+    );
     let lastGroup = '';
     const learningActionId = options.getLearningActionId();
     const dpadLearningActionId = options.getDpadLearningActionId();
+    const bindings = options.getBindings();
+    const issues = findControllerBindingIssues(CONTROLLER_BINDING_DEFINITIONS, bindings);
 
     // Auto-expand when learning starts
     if (learningActionId) {
@@ -361,17 +418,23 @@ export function createControllerConfigForm(options: {
         lastGroup = definition.group;
       }
 
-      const binding = options.getBindings()[definition.id];
+      const binding = bindings[definition.id];
 
       if (definition.bindingType === 'axis') {
-        renderAxisStickRow(definition, binding as ResolvedControllerAxisBinding, learningActionId);
+        renderAxisStickRow(
+          definition,
+          binding as ResolvedControllerAxisBinding,
+          learningActionId,
+          issues[definition.id],
+        );
         renderAxisDpadRow(
           definition,
           binding as ResolvedControllerAxisBinding,
           dpadLearningActionId,
+          issues[getControllerDpadRowKey(definition.id)],
         );
       } else {
-        renderDiscreteRow(definition, binding, learningActionId);
+        renderDiscreteRow(definition, binding, learningActionId, issues[definition.id]);
       }
     }
 
@@ -485,7 +548,7 @@ export function createControllerConfigForm(options: {
         : holdLabel
           ? `Holding ${holdLabel}: press another button for a combo, or let go to use ${holdLabel} alone\u2026`
           : 'Press a button, or hold one and press another for a combo\u2026';
-      const panel = createEditPanel(hint, isLearning, {
+      const panel = createEditPanel(rowKey, hint, isLearning, {
         onLearn: learn,
         onClear: (e) => {
           e.stopPropagation();
@@ -501,6 +564,7 @@ export function createControllerConfigForm(options: {
     definition: ControllerBindingDefinition,
     binding: ResolvedControllerConfig['bindings'][ControllerBindingActionId],
     learningActionId: ControllerBindingActionId | null,
+    issue: string | undefined,
   ): void {
     const rowKey = definition.id as string;
     const isExpanded = expandedRowKey === rowKey;
@@ -526,6 +590,7 @@ export function createControllerConfigForm(options: {
         e.stopPropagation();
         options.onReset(definition.id);
       },
+      issue,
     );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
@@ -537,7 +602,7 @@ export function createControllerConfigForm(options: {
       const hint = isLearning
         ? 'Press a button, trigger, or move a stick\u2026'
         : `Currently: ${formatControllerBindingSummary(binding)}`;
-      const panel = createEditPanel(hint, isLearning, {
+      const panel = createEditPanel(rowKey, hint, isLearning, {
         onLearn: (e) => {
           e.stopPropagation();
           options.onLearn(definition.id, definition.bindingType);
@@ -559,6 +624,7 @@ export function createControllerConfigForm(options: {
     definition: ControllerBindingDefinition,
     binding: ResolvedControllerAxisBinding,
     learningActionId: ControllerBindingActionId | null,
+    issue: string | undefined,
   ): void {
     const rowKey = definition.id as string;
     const isExpanded = expandedRowKey === rowKey;
@@ -580,6 +646,7 @@ export function createControllerConfigForm(options: {
         e.stopPropagation();
         options.onReset(definition.id);
       },
+      issue,
     );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
@@ -590,7 +657,7 @@ export function createControllerConfigForm(options: {
     if (isExpanded) {
       const summary = binding.kind === 'none' ? 'Disabled' : `Axis ${binding.axisIndex}`;
       const hint = isLearning ? 'Move a stick or trigger\u2026' : `Currently: ${summary}`;
-      const panel = createEditPanel(hint, isLearning, {
+      const panel = createEditPanel(rowKey, hint, isLearning, {
         onLearn: (e) => {
           e.stopPropagation();
           options.onLearn(definition.id, 'axis');
@@ -612,8 +679,9 @@ export function createControllerConfigForm(options: {
     definition: ControllerBindingDefinition,
     binding: ResolvedControllerAxisBinding,
     dpadLearningActionId: ControllerBindingActionId | null,
+    issue: string | undefined,
   ): void {
-    const rowKey = `${definition.id as string}:dpad`;
+    const rowKey = getControllerDpadRowKey(definition.id);
     const isExpanded = expandedRowKey === rowKey;
     const isLearning = dpadLearningActionId === definition.id;
 
@@ -636,6 +704,7 @@ export function createControllerConfigForm(options: {
         e.stopPropagation();
         options.onDpadReset(definition.id);
       },
+      issue,
     );
     row.addEventListener('click', () => {
       expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
@@ -647,7 +716,7 @@ export function createControllerConfigForm(options: {
       const hint = isLearning
         ? 'Press a D-pad direction\u2026'
         : `Currently: ${DPAD_FALLBACK_LABELS[dpadFallback]}`;
-      const panel = createEditPanel(hint, isLearning, {
+      const panel = createEditPanel(rowKey, hint, isLearning, {
         onLearn: (e) => {
           e.stopPropagation();
           options.onDpadLearn(definition.id);
@@ -729,6 +798,7 @@ export function createControllerConfigForm(options: {
   }
 
   function createEditPanel(
+    rowKey: ExpandedRowKey,
     hintText: string,
     isLearning: boolean,
     callbacks: {
@@ -739,6 +809,8 @@ export function createControllerConfigForm(options: {
   ): HTMLDivElement {
     const panel = document.createElement('div');
     panel.className = 'controller-config-edit-panel';
+    if (rowKey === previousPanelRowKey) panel.classList.add('controller-config-edit-panel-kept');
+    panelRowKey = rowKey;
 
     const inner = document.createElement('div');
     inner.className = 'controller-config-edit-inner';
