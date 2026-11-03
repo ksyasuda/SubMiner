@@ -1,6 +1,8 @@
 import { MpvSubtitleRenderMetrics } from '../../types';
 import { sanitizeMediaTitle } from '../../shared/media-identity';
 import { widenHalfwidthKana } from '../utils/halfwidth-kana';
+import { filterSubtitleText } from '../../shared/subtitle-text-filter';
+import type { SubtitleFilterConfig } from '../../types/subtitle';
 import type { PluginMpvEventMap } from '../../plugin-api';
 import { toVideoClock } from './subtitle-clock';
 
@@ -68,6 +70,7 @@ export interface MpvProtocolParseResult {
 export interface MpvProtocolHandleMessageDeps {
   getResolvedConfig: () => {
     secondarySub?: { secondarySubLanguages?: Array<string> };
+    subtitleFilter?: SubtitleFilterConfig;
   };
   getSubtitleMetrics: () => MpvSubtitleRenderMetrics;
   isVisibleOverlayVisible: () => boolean;
@@ -263,13 +266,19 @@ export function splitMpvMessagesFromBuffer(
   };
 }
 
+// Primary text enters the app here, so every consumer sees it widened and filtered.
+function toPrimarySubText(data: unknown, deps: MpvProtocolHandleMessageDeps): string {
+  const text = widenHalfwidthKana(typeof data === 'string' ? data : '');
+  return filterSubtitleText(text, deps.getResolvedConfig().subtitleFilter);
+}
+
 export async function dispatchMpvProtocolMessage(
   msg: MpvMessage,
   deps: MpvProtocolHandleMessageDeps,
 ): Promise<void> {
   if (msg.event === 'property-change') {
     if (msg.name === 'sub-text') {
-      const nextSubText = widenHalfwidthKana((msg.data as string) || '');
+      const nextSubText = toPrimarySubText(msg.data, deps);
       const overlayVisible = deps.isVisibleOverlayVisible();
       deps.emitSubtitleChange({
         text: nextSubText,
@@ -498,7 +507,7 @@ export async function dispatchMpvProtocolMessage(
         }>,
       );
     } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT) {
-      const nextSubText = widenHalfwidthKana((msg.data as string) || '');
+      const nextSubText = toPrimarySubText(msg.data, deps);
       deps.setCurrentSubText(nextSubText);
       deps.emitSubtitleChange({
         text: nextSubText,

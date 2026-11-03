@@ -36,9 +36,11 @@ import type {
   FrequencyDictionaryMatchMode,
   FrequencyDictionaryMode,
   NPlusOneMatchMode,
+  ResolvedSubtitleFilterConfig,
   ResolvedSubtitleSidebarConfig,
   SecondarySubConfig,
   SubtitlePosition,
+  SubtitleFilterConfig,
   SubtitleSidebarConfig,
   SubtitleStyleConfig,
 } from './subtitle';
@@ -170,6 +172,7 @@ export interface Config {
   startupWarmups?: StartupWarmupsConfig;
   subtitleStyle?: SubtitleStyleConfig;
   subtitleSidebar?: SubtitleSidebarConfig;
+  subtitleFilter?: SubtitleFilterConfig;
   auto_start_overlay?: boolean;
   jimaku?: JimakuConfig;
   /** @deprecated Use tsukihime. */
@@ -344,6 +347,7 @@ export interface ResolvedConfig {
     };
   };
   subtitleSidebar: ResolvedSubtitleSidebarConfig;
+  subtitleFilter: ResolvedSubtitleFilterConfig;
   auto_start_overlay: boolean;
   jimaku: JimakuConfig & {
     apiBaseUrl: string;

@@ -18,6 +18,10 @@ import {
   renderMpvKeybindingsInput,
 } from './settings-keybinding-controls';
 import {
+  configureSubtitleFilterControls,
+  renderSubtitleFilterRulesInput,
+} from './settings-subtitle-filter-controls';
+import {
   getSubtitleCssManagedConfigPaths,
   getSubtitleCssScopeForPath,
   parseSubtitleCssDeclarations,
@@ -29,6 +33,7 @@ export { renderNoteFieldModelPicker };
 export function configureSettingsControls(options: { requestRender: () => void }): void {
   configureAnkiControls(options);
   configureKeybindingControls(options);
+  configureSubtitleFilterControls(options);
 }
 
 export function initializeSettingsControls(
@@ -177,6 +182,10 @@ export function renderControl(
 
   if (field.control === 'mpv-keybindings') {
     return renderMpvKeybindingsInput(context, field);
+  }
+
+  if (field.control === 'subtitle-filter-rules') {
+    return renderSubtitleFilterRulesInput(context, field);
   }
 
   if (field.control === 'boolean') {

@@ -1,6 +1,10 @@
 import { ResolvedConfig } from '../../types/config';
 import { ConfigOptionRegistryEntry } from './shared';
 import { SUBTITLE_GENERATION_MODELS } from '../../shared/subtitle-generation-model-catalog';
+import {
+  SUBTITLE_FILTER_PRESET_IDS,
+  SUBTITLE_FILTER_PRESETS,
+} from '../../shared/subtitle-text-filter';
 
 export function buildSubtitleConfigOptionRegistry(
   defaultConfig: ResolvedConfig,
@@ -339,6 +343,25 @@ export function buildSubtitleConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.subtitleSidebar.hoverLineBackgroundColor,
       description: 'Background color for hovered subtitle cues.',
+    },
+    {
+      path: 'subtitleFilter.presets',
+      kind: 'object',
+      defaultValue: defaultConfig.subtitleFilter.presets,
+      description: 'Built-in filters. Each removes its matches and is off by default.',
+    },
+    ...SUBTITLE_FILTER_PRESET_IDS.map((id) => ({
+      path: `subtitleFilter.presets.${id}`,
+      kind: 'boolean' as const,
+      defaultValue: defaultConfig.subtitleFilter.presets[id],
+      description: SUBTITLE_FILTER_PRESETS[id].description,
+    })),
+    {
+      path: 'subtitleFilter.customRules',
+      kind: 'array',
+      defaultValue: defaultConfig.subtitleFilter.customRules,
+      description:
+        'Your own regex rules, applied in order after the presets. Each rule is { name, pattern, replacement, enabled }; patterns use the gmu flags, so ^ and $ match per line. Leave replacement empty to remove the match.',
     },
   ];
 }

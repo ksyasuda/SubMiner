@@ -7,12 +7,14 @@ import { applyIntegrationConfig } from './resolve/integrations';
 import { applyPluginsConfig } from './resolve/plugins';
 import { applyStatsConfig } from './resolve/stats';
 import { applySubtitleDomainConfig } from './resolve/subtitle-domains';
+import { applySubtitleFilterConfig } from './resolve/subtitle-filter';
 import { applyTopLevelConfig } from './resolve/top-level';
 
 const APPLY_RESOLVE_STEPS = [
   applyTopLevelConfig,
   applyCoreDomainConfig,
   applySubtitleDomainConfig,
+  applySubtitleFilterConfig,
   applyIntegrationConfig,
   applyImmersionTrackingConfig,
   applyStatsConfig,

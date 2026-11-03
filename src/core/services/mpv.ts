@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { Config, MpvClient, MpvSubtitleRenderMetrics } from '../../types';
 import {
   dispatchMpvProtocolMessage,
+  MPV_REQUEST_ID_SUBTEXT,
   MPV_REQUEST_ID_TRACK_LIST_AUDIO,
   MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
   MpvMessage,
@@ -583,6 +584,11 @@ export class MpvIpcClient implements MpvClient {
         }
       }, 4000);
     });
+  }
+
+  /** Re-reads `sub-text` so the current line passes through the protocol handler again. */
+  refreshSubtitleText(): void {
+    this.send({ command: ['get_property', 'sub-text'], request_id: MPV_REQUEST_ID_SUBTEXT });
   }
 
   async requestProperty(name: string): Promise<unknown> {

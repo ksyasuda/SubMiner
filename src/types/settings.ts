@@ -28,7 +28,8 @@ export type ConfigSettingsControl =
   | 'anki-field'
   | 'mpv-keybindings'
   | 'color-list'
-  | 'css-declarations';
+  | 'css-declarations'
+  | 'subtitle-filter-rules';
 
 export type ConfigSettingsRestartBehavior = 'hot-reload' | 'restart';
 

@@ -153,6 +153,15 @@ const SUBTITLE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     notes: ['Hot-reload: subtitle sidebar changes apply live without restarting SubMiner.'],
     key: 'subtitleSidebar',
   },
+  {
+    title: 'Subtitle Filters',
+    description: [
+      'Remove unwanted text from primary subtitles, such as speaker names, readings and sound descriptions.',
+      'Applies to the overlay, sidebar, mined sentences and stats.',
+    ],
+    notes: ['Hot-reload: filter changes apply to the current subtitle file immediately.'],
+    key: 'subtitleFilter',
+  },
 ];
 
 const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
