@@ -48,6 +48,10 @@ function M.create(ctx)
 		mp.register_script_message("subminer-overlay-loading-ready", function()
 			process.mark_overlay_content_ready()
 		end)
+		-- Sent when the app dismisses loading before the overlay has content (e.g. it was hidden).
+		mp.register_script_message("subminer-overlay-loading-dismissed", function()
+			process.stop_overlay_loading_osd()
+		end)
 		mp.register_script_message("subminer-stats-toggle", function()
 			if opts.osd_messages then
 				mp.osd_message("Stats: press ` (backtick) in overlay", 3)

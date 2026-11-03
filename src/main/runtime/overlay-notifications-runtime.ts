@@ -229,11 +229,16 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
     getOverlayLoadingOsdController().start();
   }
 
+  // Hide paths also dismiss, often before the overlay has content. Only a content-ready window
+  // reports `subminer-overlay-loading-ready`: the plugin remembers it and skips the spinner on
+  // later playlist files, so a hide must send the stop-only message instead.
   function dismissOverlayLoadingStatusNotification(): void {
     getOverlayLoadingOsdController().stop();
+    const overlayWindow = deps.getMainOverlayWindow();
+    const contentReady = Boolean(overlayWindow && isOverlayWindowContentReady(overlayWindow));
     sendMpvCommandRuntime(deps.getMpvClient(), [
       'script-message',
-      'subminer-overlay-loading-ready',
+      contentReady ? 'subminer-overlay-loading-ready' : 'subminer-overlay-loading-dismissed',
     ]);
     dismissOverlayNotification('overlay-loading-status');
   }

@@ -1765,7 +1765,8 @@ do
 end
 
 do
-	-- Until the running overlay has reported content ready, the next file keeps the spinner.
+	-- A stop-only dismissal (overlay hidden before content loaded) clears the spinner without marking
+	-- the overlay ready, so the next file still shows the spinner.
 	local scenario = {
 		process_list = "",
 		defer_timeouts = true,
@@ -1773,6 +1774,7 @@ do
 			binary_path = binary_path,
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "no",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -1789,6 +1791,19 @@ do
 	fire_event(recorded, "start-file")
 	fire_event(recorded, "file-loaded")
 	fire_short_timeouts(recorded)
+	assert_true(
+		count_live_periodic_timers(recorded) == 1 and count_live_timeouts(recorded, 30) == 1,
+		"overlay loading OSD should still be running before the app dismisses it"
+	)
+	assert_true(
+		recorded.script_messages["subminer-overlay-loading-dismissed"] ~= nil,
+		"overlay loading dismissed script message should be registered"
+	)
+	recorded.script_messages["subminer-overlay-loading-dismissed"]()
+	assert_true(
+		count_live_periodic_timers(recorded) == 0 and count_live_timeouts(recorded, 30) == 0,
+		"overlay loading dismissed should stop the spinner and its deadline"
+	)
 	fire_event(recorded, "end-file", { reason = "eof" })
 	scenario.path = "/media/slow-overlay-02.mkv"
 	scenario.media_title = "Slow Overlay 2"
@@ -1797,7 +1812,7 @@ do
 	fire_event(recorded, "start-file")
 	assert_true(
 		has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
-		"playlist advance should keep the overlay loading OSD while the overlay has not reported ready"
+		"a stop-only dismissal should not mark the overlay ready for the next playlist file"
 	)
 end
 
