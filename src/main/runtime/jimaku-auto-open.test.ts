@@ -258,3 +258,25 @@ test('jimaku auto-open ignores a late open result for media that already changed
   assert.equal(h.runtime.isHoldingPlayback(), true);
   assert.equal(h.count('resume'), resumesBefore);
 });
+
+test('a close reported before the auto-open is acknowledged belongs to the previous modal', async () => {
+  const pendingOpens: Array<(opened: boolean) => void> = [];
+  const h = makeHarness({
+    openJimaku: () =>
+      new Promise<boolean>((resolve) => {
+        pendingOpens.push(resolve);
+      }),
+  });
+  await h.load(); // open sent, not yet acknowledged
+
+  h.runtime.handleJimakuModalClosed();
+  assert.equal(h.runtime.isHoldingPlayback(), true);
+  assert.equal(h.count('end-hold'), 0);
+
+  h.runtime.handleJimakuModalOpened();
+  pendingOpens[0]?.(true);
+  await settle();
+  h.runtime.handleJimakuModalClosed();
+  assert.equal(h.runtime.isHoldingPlayback(), false);
+  assert.equal(h.state.paused, false);
+});

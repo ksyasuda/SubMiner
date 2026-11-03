@@ -20,7 +20,12 @@ function hasVideoTrack(trackList: unknown[]): boolean {
   });
 }
 
-type PlaybackHold = { pausedByHold: boolean };
+type PlaybackHold = {
+  pausedByHold: boolean;
+  // Set once the renderer acknowledges this hold's open. The renderer reports closes and opens in
+  // order, so a close arriving before that acknowledgement belongs to an earlier modal session.
+  acknowledged: boolean;
+};
 
 /**
  * Opens the Jimaku modal for local media that has no subtitle track in the primary subtitle
@@ -83,7 +88,7 @@ export function createJimakuAutoOpenRuntime(deps: {
   };
 
   const startHold = (): PlaybackHold => {
-    const hold = { pausedByHold: deps.isPlaybackPaused() !== true };
+    const hold = { pausedByHold: deps.isPlaybackPaused() !== true, acknowledged: false };
     activeHold = hold;
     if (hold.pausedByHold) {
       deps.pausePlayback();
@@ -99,6 +104,7 @@ export function createJimakuAutoOpenRuntime(deps: {
       return;
     }
     if (opened) {
+      hold.acknowledged = true;
       // Only once the modal is up: if opening fails, the plugin's own timeout must still resume.
       deps.holdPluginAutoplayGate();
       return;
@@ -166,15 +172,24 @@ export function createJimakuAutoOpenRuntime(deps: {
     },
     /** The renderer acknowledged the Jimaku modal; re-holds when a timed-out auto-open shows up late. */
     handleJimakuModalOpened: (): void => {
-      if (activeHold || !autoOpenedMediaPath || autoOpenedMediaPath !== currentMediaPath) {
+      if (activeHold) {
+        activeHold.acknowledged = true;
+        return;
+      }
+      if (!autoOpenedMediaPath || autoOpenedMediaPath !== currentMediaPath) {
         return;
       }
       clearLateAckTimer();
-      startHold();
+      startHold().acknowledged = true;
       deps.holdPluginAutoplayGate();
     },
     /** The Jimaku modal closed, or the window hosting it went away. */
     handleJimakuModalClosed: (): void => {
+      if (activeHold && !activeHold.acknowledged) {
+        // A previous modal's close (e.g. the last episode's, reported just as this one opens).
+        // If this open never lands, its failure path ends the hold.
+        return;
+      }
       clearLateAckTimer();
       autoOpenedMediaPath = null;
       if (activeHold) {
