@@ -1687,6 +1687,120 @@ do
 	)
 end
 
+local function count_live_timeouts(recorded, seconds)
+	local count = 0
+	for _, timeout in ipairs(recorded.timeout_handles) do
+		if timeout.seconds == seconds and not timeout.killed then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+-- Fire only the short plugin timers (socket retries, deferred hides), leaving the 30 s loading deadline armed.
+local function fire_short_timeouts(recorded)
+	for _, timeout in ipairs(recorded.timeout_handles) do
+		if not timeout.killed and timeout.callback and timeout.seconds < 5 then
+			timeout.killed = true
+			timeout.callback()
+		end
+	end
+end
+
+local function count_live_periodic_timers(recorded)
+	local count = 0
+	for _, timer in ipairs(recorded.periodic_timers) do
+		if not timer.killed then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+do
+	-- Issue #315: a warm playlist advance reuses an overlay whose content is already ready, so the
+	-- app never sends another overlay-loading-ready and a restarted spinner would hit its deadline.
+	local scenario = {
+		process_list = "",
+		defer_timeouts = true,
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/warm-episode-01.mkv",
+		playlist_count = 2,
+		playlist_pos = 0,
+		media_title = "Warm Episode 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for warm playlist loading OSD scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	fire_short_timeouts(recorded)
+	recorded.script_messages["subminer-overlay-loading-ready"]()
+	recorded.script_messages["subminer-autoplay-ready"]()
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/warm-episode-02.mkv"
+	scenario.media_title = "Warm Episode 2"
+	scenario.playlist_pos = 1
+	recorded.osd = {}
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	fire_short_timeouts(recorded)
+	assert_true(
+		not has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"warm playlist advance should not restart the overlay loading OSD for an already-ready overlay"
+	)
+	assert_true(
+		count_live_periodic_timers(recorded) == 0 and count_live_timeouts(recorded, 30) == 0,
+		"warm playlist advance should not leave an overlay loading spinner or deadline running"
+	)
+end
+
+do
+	-- Until the running overlay has reported content ready, the next file keeps the spinner.
+	local scenario = {
+		process_list = "",
+		defer_timeouts = true,
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/slow-overlay-01.mkv",
+		playlist_count = 2,
+		playlist_pos = 0,
+		media_title = "Slow Overlay 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for not-ready playlist loading OSD scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	fire_short_timeouts(recorded)
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/slow-overlay-02.mkv"
+	scenario.media_title = "Slow Overlay 2"
+	scenario.playlist_pos = 1
+	recorded.osd = {}
+	fire_event(recorded, "start-file")
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"playlist advance should keep the overlay loading OSD while the overlay has not reported ready"
+	)
+end
+
 do
 	local recorded, err = run_plugin_scenario({
 		defer_timeouts = true,

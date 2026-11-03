@@ -14,6 +14,9 @@ function M.new()
 		auto_play_ready_osd_timer = nil,
 		auto_play_ready_signal_seen = false,
 		auto_play_ready_initial_pause_ownership_consumed = false,
+		-- The running overlay has reported its content ready at least once; warm playlist advances
+		-- reuse that window, so they must not restart the loading spinner (#315).
+		overlay_content_ready_seen = false,
 		overlay_loading_osd_active = false,
 		overlay_loading_osd_timer = nil,
 		overlay_loading_osd_deadline = nil,

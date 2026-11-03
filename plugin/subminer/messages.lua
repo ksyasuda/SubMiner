@@ -46,7 +46,7 @@ function M.create(ctx)
 			process.hold_auto_play_ready_gate()
 		end)
 		mp.register_script_message("subminer-overlay-loading-ready", function()
-			process.stop_overlay_loading_osd()
+			process.mark_overlay_content_ready()
 		end)
 		mp.register_script_message("subminer-stats-toggle", function()
 			if opts.osd_messages then

@@ -162,12 +162,15 @@ function M.create(ctx)
 			and not (state.overlay_running and state.auto_play_ready_signal_seen == true)
 	end
 
+	-- A warm playlist advance keeps the already-ready overlay window, and the app only reports
+	-- readiness when content first loads, so a restarted spinner would never clear (#315).
 	local function should_show_overlay_loading_osd()
 		return (
 				resolve_overlay_loading_osd_enabled()
 				or (resolve_auto_start_enabled() and resolve_auto_start_visible_overlay_enabled())
 			)
 			and not state.suppress_ready_overlay_restore
+			and not (state.overlay_running and state.overlay_content_ready_seen == true)
 	end
 
 	local function start_overlay_when_socket_ready(generation, media_identity, same_media_loaded, attempt)
@@ -311,6 +314,7 @@ function M.create(ctx)
 		process.stop_overlay_loading_osd()
 		clear_pending_visible_overlay_hide()
 		state.auto_play_ready_signal_seen = false
+		state.overlay_content_ready_seen = false
 		state.current_media_identity = nil
 		state.current_media_title = nil
 		state.pending_reload_media_identity = nil
