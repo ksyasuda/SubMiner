@@ -510,15 +510,16 @@ export function searchSubtitleSentences(
       narrowFullwidthKana(widenedTerm),
     ]).map((variant) => `%${escapeLikeTerm(variant)}%`);
     const headwords = getHeadwordCandidatesForSentenceSearchTerm(term, options);
+    // Uncorrelated on purpose: SQLite resolves the headword's lines once through
+    // the word indexes. A per-line EXISTS probed every subtitle line (~0.2 s).
     const headwordClause =
       headwords.length > 0
         ? `
-        OR EXISTS (
-          SELECT 1
-          FROM imm_word_line_occurrences o
-          JOIN imm_words w ON w.id = o.word_id
-          WHERE o.line_id = l.line_id
-            AND w.headword IN (${headwords.map(() => '?').join(', ')})
+        OR l.line_id IN (
+          SELECT o.line_id
+          FROM imm_words w
+          JOIN imm_word_line_occurrences o ON o.word_id = w.id
+          WHERE w.headword IN (${headwords.map(() => '?').join(', ')})
         )
       `
         : '';

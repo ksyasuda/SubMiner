@@ -1524,6 +1524,8 @@ test('word-count read models use filtered persisted occurrences with raw fallbac
     const startedAtMs = 1_700_000_000_000;
     const withOccurrences = startSessionRecord(db, videoId, startedAtMs);
     const fallbackOnly = startSessionRecord(db, videoId, startedAtMs + 60_000);
+    // Still running, so its words stay out of the all-time total.
+    const stillActive = startSessionRecord(db, videoId, startedAtMs + 120_000);
 
     db.prepare(
       `
@@ -1545,6 +1547,14 @@ test('word-count read models use filtered persisted occurrences with raw fallbac
       videoId,
       occurrenceCount: 2,
       startedAtMs,
+    });
+    insertFilteredWordOccurrence(db, {
+      sessionId: stillActive.sessionId,
+      videoId,
+      lineIndex: 3,
+      occurrenceCount: 4,
+      startedAtMs: startedAtMs + 120_000,
+      headword: '犬',
     });
     insertFilteredWordOccurrence(db, {
       sessionId: withOccurrences.sessionId,

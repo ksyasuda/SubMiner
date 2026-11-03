@@ -7,6 +7,7 @@ import type {
 import {
   ACTIVE_SESSION_METRICS_CTE,
   currentDbTimestamp,
+  ENDED_SESSIONS_DISPLAY_WORDS_SQL,
   fromDbTimestamp,
   getLocalEpochDay,
   getShiftedLocalDaySec,
@@ -299,7 +300,7 @@ export function getQueryHints(db: DatabaseSync): {
     .prepare(
       `
     SELECT
-      COALESCE(SUM(${sessionDisplayWordsExpr('s')}), 0) AS totalTokensSeen,
+      ${ENDED_SESSIONS_DISPLAY_WORDS_SQL} AS totalTokensSeen,
       COALESCE(SUM(COALESCE(s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(s.lookup_hits, 0)), 0) AS totalLookupHits,
       COALESCE(SUM(COALESCE(s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount

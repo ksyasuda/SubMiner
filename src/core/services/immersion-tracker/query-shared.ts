@@ -72,6 +72,44 @@ export function sessionDisplayWordsExpr(
   END`;
 }
 
+/**
+ * `SUM(sessionDisplayWordsExpr(s))` over every ended session, as one scalar
+ * expression that avoids walking each session's lines: all visible
+ * occurrences, minus those on lines outside ended sessions, plus the raw token
+ * counter of ended sessions without persisted lines. Relies on occurrences
+ * cascading with their line (foreign keys are on for every connection), so
+ * every occurrence belongs to an existing line.
+ */
+export const ENDED_SESSIONS_DISPLAY_WORDS_SQL = `(
+  (SELECT COALESCE(SUM(occurrence_count), 0) FROM imm_word_line_occurrences)
+  - (
+    SELECT COALESCE(SUM(hidden_occurrence.occurrence_count), 0)
+    FROM imm_word_line_occurrences hidden_occurrence
+    WHERE hidden_occurrence.word_id IN (${HIDDEN_WORD_IDS_SQL})
+  )
+  - (
+    SELECT COALESCE(SUM(open_occurrence.occurrence_count), 0)
+    FROM imm_subtitle_lines open_line
+    JOIN imm_word_line_occurrences open_occurrence ON open_occurrence.line_id = open_line.line_id
+    WHERE (
+        open_line.session_id IS NULL
+        OR open_line.session_id NOT IN (
+          SELECT ended.session_id FROM imm_sessions ended WHERE ended.ended_at_ms IS NOT NULL
+        )
+      )
+      AND open_occurrence.word_id NOT IN (${HIDDEN_WORD_IDS_SQL})
+  )
+  + (
+    SELECT COALESCE(SUM(COALESCE(lineless.tokens_seen, 0)), 0)
+    FROM imm_sessions lineless
+    WHERE lineless.ended_at_ms IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM imm_subtitle_lines lineless_line
+        WHERE lineless_line.session_id = lineless.session_id
+      )
+  )
+)`;
+
 export function makePlaceholders(values: number[]): string {
   return values.map(() => '?').join(',');
 }
