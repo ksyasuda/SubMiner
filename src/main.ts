@@ -1776,7 +1776,7 @@ const playback = createPlaybackAssembly({
   createSubtitlePrefetchService,
   requestAppQuit: () => requestAppQuit(),
   maybeStartOverlayLoadingOsd: (mediaPath) => maybeStartOverlayLoadingOsd(mediaPath),
-  reportOverlayContentReadyToPlugin: () => reportOverlayContentReadyToPlugin(),
+  reportOverlayContentReadyToPlugin,
   flushQueuedMpvOsdNotifications: () => flushQueuedMpvOsdNotifications(),
   refreshMpvSessionBindings: () => shortcuts.refreshMpvSessionBindings(),
   ensureImmersionTrackerStarted: () => stats.ensureImmersionTrackerStarted(),
