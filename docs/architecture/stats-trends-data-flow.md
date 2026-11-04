@@ -36,6 +36,10 @@ Trend charts now consume one chart-oriented backend payload from `/api/stats/tre
   - Trends new-word metrics exclude names; the Vocabulary tab offers both
   - `imm_lexical_daily_rollups` is no longer read for new-word counts (it counts surface forms). Its version state still gates the `vocabulary_visible` backfill.
 
+## Vocabulary Word List
+
+`/api/stats/vocabulary/words` (`query-vocabulary-words.ts`) folds `imm_words` into dictionary words on the server and filters, sorts, and pages there, because a client-side list can only hold a slice of the table. The fold is cached per connection until a write, the same way as the new-word aggregate. `titles` is computed for the returned rows; sorting or filtering by it needs every word's count (about 900ms), so that map tolerates five minutes of staleness. Names are detected with `isProperNounPos2`, since merged tokens store tags like `固有名詞|一般`.
+
 ## Rates
 
 Rates are `null` when the underlying data is under 30 active minutes or 2,000 words, and charts draw that as a gap. Daily views rate a trailing 7 calendar days, volume-weighted, which is why the query loads days before the range. Week and month views rate each bucket.

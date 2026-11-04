@@ -51,8 +51,13 @@ import {
   getSessionWordsByLine,
 } from './immersion-tracker/query-sessions';
 import { getTrendsDashboard } from './immersion-tracker/query-trends';
+import {
+  getDictionaryWordPage,
+  getVocabularyCoverage,
+} from './immersion-tracker/query-vocabulary-words';
 import type {
   StatsDayRange,
+  StatsDictionaryWordQuery,
   StatsTrendGroupBy,
   StatsTrendRange,
 } from '../../types/stats-http-contract';
@@ -712,6 +717,17 @@ export class ImmersionTrackerService {
     return getVocabularyChartData(this.db);
   }
 
+  async getDictionaryWords(
+    knownWords: ReadonlySet<string> | null,
+    query: StatsDictionaryWordQuery,
+  ) {
+    return getDictionaryWordPage(this.db, knownWords, query);
+  }
+
+  async getVocabularyCoverage(knownWords: ReadonlySet<string>) {
+    return getVocabularyCoverage(this.db, knownWords);
+  }
+
   async getStatsExcludedWords(): Promise<StatsExcludedWordRow[]> {
     return getStatsExcludedWords(this.db);
   }
@@ -763,8 +779,9 @@ export class ImmersionTrackerService {
     reading: string,
     limit = 100,
     offset = 0,
+    allForms = false,
   ): Promise<WordOccurrenceRow[]> {
-    return getWordOccurrences(this.db, headword, word, reading, limit, offset);
+    return getWordOccurrences(this.db, headword, word, reading, limit, offset, allForms);
   }
 
   async getKanjiOccurrences(kanji: string, limit = 100, offset = 0): Promise<KanjiOccurrenceRow[]> {

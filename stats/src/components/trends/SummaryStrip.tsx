@@ -1,5 +1,6 @@
 import type { TrendSummaryTotals, TrendsDashboardData } from '../../types/stats';
 import { formatCompactNumber, formatHours, formatNumber } from '../../lib/formatters';
+import { SummaryTile } from '../layout/SummaryTile';
 
 interface SummaryStripProps {
   summary: TrendsDashboardData['summary'];
@@ -30,16 +31,6 @@ export function describePeriodChange(
   return `${percent > 0 ? '+' : '\u2212'}${Math.abs(percent)}% vs ${period}`;
 }
 
-function Tile({ label, value, detail }: { label: string; value: string; detail: string | null }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] text-ctp-subtext0">{label}</div>
-      <div className="text-2xl font-semibold leading-tight text-ctp-text">{value}</div>
-      {detail ? <div className="text-[11px] text-ctp-overlay2">{detail}</div> : null}
-    </div>
-  );
-}
-
 export function SummaryStrip({ summary, days }: SummaryStripProps) {
   const { current, previous } = summary;
   return (
@@ -52,7 +43,7 @@ export function SummaryStrip({ summary, days }: SummaryStripProps) {
         if (value === null) return null;
         const previousValue = previous?.[key] ?? null;
         return (
-          <Tile
+          <SummaryTile
             key={key}
             label={label}
             value={format(value)}
@@ -62,7 +53,7 @@ export function SummaryStrip({ summary, days }: SummaryStripProps) {
           />
         );
       })}
-      <Tile
+      <SummaryTile
         label="Active days"
         value={formatNumber(current.activeDays)}
         detail={previous ? `${formatNumber(previous.activeDays)} in previous ${days}` : null}

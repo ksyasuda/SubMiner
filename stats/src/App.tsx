@@ -263,7 +263,7 @@ export function App() {
                     onNavigateToAnime={navigateToAnime}
                     onOpenWordDetail={openWordDetail}
                     excluded={excluded}
-                    isExcluded={isExcluded}
+                    onToggleExclusion={toggleExclusion}
                     onRemoveExclusion={removeExclusion}
                     onClearExclusions={clearAll}
                   />

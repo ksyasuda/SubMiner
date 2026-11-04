@@ -3,6 +3,7 @@ import type {
   AnimeLibraryItem,
   AnimeWord,
   DailyRollup,
+  DictionaryWordPage,
   EpisodeDetailData,
   EpisodesPerDay,
   KanjiDetailData,
@@ -22,6 +23,7 @@ import type {
   StatsExcludedWord,
   StreakCalendarDay,
   TrendsDashboardData,
+  VocabularyCoverageBand,
   VocabularyEntry,
   VocabularyOccurrenceEntry,
   WatchTimePerAnime,
@@ -69,10 +71,35 @@ export interface StatsVocabularySummary {
 
 export interface StatsVocabularyCharts {
   ready: boolean;
-  topWords: Array<{ wordId: number; headword: string; frequency: number }>;
-  topWordsWithoutNames: Array<{ wordId: number; headword: string; frequency: number }>;
   newWordsTimeline: Array<{ epochDay: number; wordCount: number }>;
   newWordsTimelineWithoutNames: Array<{ epochDay: number; wordCount: number }>;
+}
+
+export type StatsDictionaryWordSort =
+  | 'seen'
+  | 'rank'
+  | 'titles'
+  | 'firstSeen'
+  | 'lastSeen'
+  | 'headword';
+export type StatsDictionaryWordPos = 'noun' | 'verb' | 'adjective';
+
+/** Query for `GET /api/stats/vocabulary/words`. */
+export interface StatsDictionaryWordQuery {
+  /** Matches any form or reading, treating katakana and hiragana alike. */
+  search?: string;
+  sort: StatsDictionaryWordSort;
+  descending: boolean;
+  hideKnown: boolean;
+  hideNames: boolean;
+  hideKana: boolean;
+  partOfSpeech?: StatsDictionaryWordPos;
+  /** Keep only ranked words at or better than this frequency rank. */
+  maxRank?: number;
+  /** Keep only words seen in at least this many titles. */
+  minTitles?: number;
+  limit: number;
+  offset: number;
 }
 
 export interface StatsAnilistSearchResult {
@@ -210,6 +237,8 @@ export interface StatsJsonResponseMap {
   vocabulary: VocabularyEntry[];
   vocabularySummary: StatsVocabularySummary;
   vocabularyCharts: StatsVocabularyCharts;
+  dictionaryWords: DictionaryWordPage;
+  vocabularyCoverage: VocabularyCoverageBand[];
   excludedWords: StatsExcludedWord[];
   setExcludedWords: StatsOkResponse;
   duplicateLineCleanup: StatsDuplicateLineCleanupResult;
@@ -272,6 +301,8 @@ export interface StatsHttpClient {
   getVocabulary: (limit?: number) => Promise<VocabularyEntry[]>;
   getVocabularySummary: () => Promise<StatsVocabularySummary>;
   getVocabularyCharts: () => Promise<StatsVocabularyCharts>;
+  getDictionaryWords: (query: StatsDictionaryWordQuery) => Promise<DictionaryWordPage>;
+  getVocabularyCoverage: () => Promise<VocabularyCoverageBand[]>;
   getExcludedWords: () => Promise<StatsExcludedWord[]>;
   setExcludedWords: (words: StatsExcludedWord[]) => Promise<void>;
   cleanupDuplicateLines: (
@@ -283,6 +314,7 @@ export interface StatsHttpClient {
     reading: string,
     limit?: number,
     offset?: number,
+    allForms?: boolean,
   ) => Promise<VocabularyOccurrenceEntry[]>;
   searchSentences: (
     query: string,

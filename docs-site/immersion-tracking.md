@@ -86,10 +86,15 @@ Session history. Expand a session for its pace, lines, known-word rate, lookups,
 
 ### Vocabulary
 
-Unique words and kanji you have seen, new words per day (a word's conjugations count once), frequency rank tables with Hide Known and Hide Kana filters, and a kanji breakdown. Click a word to see every line it appeared in.
+Words are counted as dictionary words, so a word's conjugations count once. Names are left out unless you turn off **Hide names**.
 
-- **Exclusions** hides words from every vocabulary view. You can restore them from the same dialog.
-- **Duplicates** cleans up lines repeated by karaoke openings and animated signs (see [Repeated lines](#repeated-lines)).
+- **Summary**: words seen, how many are in Anki, new words this week, and kanji seen.
+- **Known Words by Frequency**: how much of each frequency band you already know.
+- **Vocabulary Growth**: your running total of words seen.
+- **Words**: one table for every word you have seen. **Worth mining** lists common words you haven't mined, most seen first. **All words**, **Across titles**, and **Newest** are the other views. Sort by any column, or filter by known words, names, kana, and part of speech. Searching looks through everything, including conjugated forms and readings. Click a word for its forms, where it appeared, and example lines you can mine from. **Hide** excludes a word.
+- **Kanji**: every kanji you have seen, shaded by how often. Dashed kanji are not in any word you know.
+
+**Exclusions** at the bottom of the page lists hidden words so you can restore them. **Clean up duplicates** removes lines repeated by karaoke openings and animated signs (see [Repeated lines](#repeated-lines)).
 
 ![Stats Vocabulary](/screenshots/stats-vocabulary.png)
 
@@ -113,7 +118,7 @@ Dashboard cards also get the `SubMiner::Stats` tag. With the Anki proxy off, Sub
 
 Karaoke openings and animated signs repeat the same text once per frame. SubMiner collapses these as it records, so one lyric is stored once. Stats recorded before that can hold hundreds of copies and skew Top Repeated Words.
 
-To clean them, use **Duplicates** in the Vocabulary tab: pick a time window, **Scan** to preview, then **Clean Up**. Or from the terminal:
+To clean them, use **Clean up duplicates** in the Vocabulary tab: pick a time window, **Scan** to preview, then **Clean Up**. Or from the terminal:
 
 ```bash
 subminer stats cleanup --duplicate-lines --dry-run --lookback-days 30

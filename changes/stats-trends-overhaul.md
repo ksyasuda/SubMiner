@@ -8,3 +8,6 @@ area: stats
 - New word counts across Trends and Vocabulary now count dictionary words, so a word's conjugations count once. Totals are lower than before.
 - Rate charts no longer plot idle days as zero or spike on very short days: they show gaps when there is too little data, and daily views use a rolling 7 days.
 - Fixed clipped chart axis labels and month labels that read like dates, and the All range ignoring Show empty days.
+- Rebuilt the Vocabulary tab: one word table with Worth mining, All words, Across titles, and Newest views, search across every word, form, and reading, sortable columns, and inline Hide. It replaces three lists that could only see your 500 most seen word forms. Also added known words by frequency band, a vocabulary growth chart, and a kanji view covering every kanji, with a filter for kanji outside your known words.
+- Fixed word counts and readings: lists and the word detail panel now total every form of a word and show the dictionary form's reading, so 見る no longer shows みてる. The detail panel loads example lines straight away and lists a word's forms.
+- Fixed names slipping past Hide Names and the Trends new-word counts when tagged with more than one part of speech.

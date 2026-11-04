@@ -107,6 +107,36 @@ test('getTrendsDashboard encodes a custom range and title filter', async () => {
   );
 });
 
+test('getDictionaryWords sends only the filters in use', async () => {
+  await withFetchStub(
+    () => jsonResponse({ rows: [], total: 0, maxSeen: 0 }),
+    async (requests) => {
+      await apiClient.getDictionaryWords({
+        search: '猫',
+        sort: 'rank',
+        descending: false,
+        hideKnown: true,
+        hideNames: false,
+        hideKana: false,
+        maxRank: 10_000,
+        limit: 25,
+        offset: 50,
+      });
+      const url = new URL(requests[0]!.url, 'http://stats.local');
+      assert.equal(url.pathname, '/api/stats/vocabulary/words');
+      assert.deepEqual(Object.fromEntries(url.searchParams), {
+        sort: 'rank',
+        order: 'asc',
+        limit: '25',
+        offset: '50',
+        search: '猫',
+        hideKnown: 'true',
+        maxRank: '10000',
+      });
+    },
+  );
+});
+
 test('getSessions narrows to a span of days when given one', async () => {
   await withFetchStub(
     () => jsonResponse([]),

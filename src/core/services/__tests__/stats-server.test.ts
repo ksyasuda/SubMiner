@@ -231,6 +231,10 @@ const WORD_DETAIL = {
   pos2: '一般',
   pos3: null,
   frequency: 42,
+  frequencyRank: 100,
+  dictionaryReading: 'ねこ',
+  formCount: 1,
+  forms: [{ wordId: 1, word: '猫', reading: 'ねこ', seen: 42 }],
   firstSeen: Date.now() - 100_000,
   lastSeen: Date.now(),
 };
@@ -317,11 +321,11 @@ function createMockTracker(
     }),
     getVocabularyChartData: async () => ({
       ready: true,
-      topWords: [{ wordId: 1, headword: 'する', frequency: 50 }],
-      topWordsWithoutNames: [{ wordId: 1, headword: 'する', frequency: 50 }],
       newWordsTimeline: [{ epochDay: 20_000, wordCount: 3 }],
       newWordsTimelineWithoutNames: [{ epochDay: 20_000, wordCount: 3 }],
     }),
+    getDictionaryWords: async () => ({ rows: [], total: 0, maxSeen: 0 }),
+    getVocabularyCoverage: async () => [],
     getStatsExcludedWords: async () => [],
     replaceStatsExcludedWords: async () => {},
     getKanjiStats: async () => KANJI_STATS,
@@ -1019,6 +1023,52 @@ describe('stats server API routes', () => {
     });
   }
 
+  it('GET /api/stats/vocabulary/words passes a parsed query and ignores unknown values', async () => {
+    const seenQueries: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getDictionaryWords: async (_knownWords: unknown, query: unknown) => {
+          seenQueries.push(query);
+          return { rows: [], total: 0, maxSeen: 0 };
+        },
+      }),
+    );
+
+    await app.request(
+      '/api/stats/vocabulary/words?search=%20%E7%8C%AB%20&sort=rank&order=asc&hideKnown=true&hideNames=true&pos=verb&maxRank=10000&minTitles=2&limit=25&offset=50',
+    );
+    await app.request('/api/stats/vocabulary/words?sort=bogus&pos=bogus&maxRank=-1&limit=99999');
+
+    assert.deepEqual(seenQueries, [
+      {
+        search: '猫',
+        sort: 'rank',
+        descending: false,
+        hideKnown: true,
+        hideNames: true,
+        hideKana: false,
+        partOfSpeech: 'verb',
+        maxRank: 10000,
+        minTitles: 2,
+        limit: 25,
+        offset: 50,
+      },
+      {
+        search: undefined,
+        sort: 'seen',
+        descending: true,
+        hideKnown: false,
+        hideNames: false,
+        hideKana: false,
+        partOfSpeech: undefined,
+        maxRank: undefined,
+        minTitles: undefined,
+        limit: 200,
+        offset: 0,
+      },
+    ]);
+  });
+
   it('GET /api/stats/sessions narrows to a valid day range and ignores a reversed one', async () => {
     const seenRanges: unknown[] = [];
     const app = createStatsApp(
@@ -1054,7 +1104,7 @@ describe('stats server API routes', () => {
     const body = await res.json();
     assert.ok(Array.isArray(body));
     assert.equal(body[0].animeTitle, 'Little Witch Academia');
-    assert.deepEqual(seenArgs, ['猫', '猫', 'ねこ', 500, 25]);
+    assert.deepEqual(seenArgs, ['猫', '猫', 'ねこ', 500, 25, false]);
   });
 
   it('GET /api/stats/kanji/occurrences returns recent occurrence rows for a kanji', async () => {

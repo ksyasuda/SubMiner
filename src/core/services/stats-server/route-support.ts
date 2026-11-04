@@ -14,6 +14,8 @@ import { createLogger } from '../../../logger.js';
 import type { AnkiConnectConfig } from '../../../types.js';
 import type {
   StatsDayRange,
+  StatsDictionaryWordQuery,
+  StatsDictionaryWordSort,
   StatsTrendGroupBy,
   StatsTrendRange,
 } from '../../../types/stats-http-contract.js';
@@ -86,6 +88,38 @@ export function parseTrendRange(
 
 export function parseTrendGroupBy(raw: string | undefined): StatsTrendGroupBy {
   return raw === 'month' || raw === 'week' ? raw : 'day';
+}
+
+const DICTIONARY_WORD_SORTS: readonly StatsDictionaryWordSort[] = [
+  'seen',
+  'rank',
+  'titles',
+  'firstSeen',
+  'lastSeen',
+  'headword',
+];
+const DICTIONARY_WORD_PAGE_LIMIT = 200;
+
+/** Reads the word list query string. Anything unrecognized falls back to the default. */
+export function parseDictionaryWordQuery(
+  read: (name: string) => string | undefined,
+): StatsDictionaryWordQuery {
+  const sort = DICTIONARY_WORD_SORTS.find((value) => value === read('sort')) ?? 'seen';
+  const pos = read('pos');
+  const flag = (name: string): boolean => read(name) === 'true';
+  return {
+    search: read('search')?.trim() || undefined,
+    sort,
+    descending: read('order') !== 'asc',
+    hideKnown: flag('hideKnown'),
+    hideNames: flag('hideNames'),
+    hideKana: flag('hideKana'),
+    partOfSpeech: pos === 'noun' || pos === 'verb' || pos === 'adjective' ? pos : undefined,
+    maxRank: parsePositiveId(read('maxRank')) ?? undefined,
+    minTitles: parsePositiveId(read('minTitles')) ?? undefined,
+    limit: parseIntQuery(read('limit'), 25, DICTIONARY_WORD_PAGE_LIMIT),
+    offset: parseIntQuery(read('offset'), 0),
+  };
 }
 
 export function parseTrendFillEmpty(raw: string | undefined): boolean {

@@ -78,6 +78,53 @@ export interface VocabularyEntry {
   lastSeen: number;
 }
 
+/** One written form of a dictionary word, such as 見て for 見る. */
+export interface DictionaryWordForm {
+  wordId: number;
+  word: string;
+  reading: string;
+  seen: number;
+}
+
+/** A dictionary word with every form it was seen in folded together. */
+export interface DictionaryWordRow {
+  /** The form to open: the dictionary form when it was seen, otherwise the most seen one. */
+  wordId: number;
+  headword: string;
+  /** Reading of the dictionary form, or empty when only conjugated forms were seen. */
+  reading: string;
+  partOfSpeech: string | null;
+  rank: number | null;
+  seen: number;
+  /** Titles it appeared in. Computed for the returned rows. */
+  titles: number;
+  firstSeen: number;
+  lastSeen: number;
+  known: boolean;
+  isName: boolean;
+  formCount: number;
+  /** The most seen forms, capped so a word with hundreds of forms stays small. */
+  forms: DictionaryWordForm[];
+}
+
+export interface DictionaryWordPage {
+  rows: DictionaryWordRow[];
+  /** Words matching the query across all pages. */
+  total: number;
+  /** Highest `seen` across all pages, for scaling inline bars. */
+  maxSeen: number;
+}
+
+export const VOCABULARY_COVERAGE_BANDS = ['top1k', 'top5k', 'top10k', 'top20k'] as const;
+export type VocabularyCoverageBandId = (typeof VOCABULARY_COVERAGE_BANDS)[number];
+
+/** Words seen in a frequency band, and how many of those are known. Names are left out. */
+export interface VocabularyCoverageBand {
+  band: VocabularyCoverageBandId;
+  seen: number;
+  known: number;
+}
+
 export interface StatsExcludedWord {
   headword: string;
   word: string;
@@ -458,7 +505,13 @@ export interface WordDetailData {
     pos1: string | null;
     pos2: string | null;
     pos3: string | null;
+    /** Times seen across every form of this dictionary word. */
     frequency: number;
+    frequencyRank: number | null;
+    /** Reading of the dictionary form, or empty when only conjugated forms were seen. */
+    dictionaryReading: string;
+    formCount: number;
+    forms: DictionaryWordForm[];
     firstSeen: number;
     lastSeen: number;
   };

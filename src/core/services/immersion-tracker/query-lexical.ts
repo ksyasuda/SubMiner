@@ -23,6 +23,14 @@ import { narrowFullwidthKana, widenHalfwidthKana } from '../../utils/halfwidth-k
 import { areLexicalDailyRollupsReady, localEpochDaySql } from './lexical-rollups';
 import { isVocabularyStatsRowVisible } from './vocabulary-visibility';
 
+// Merged tokens join MeCab tags, so a name can be stored as 固有名詞|一般 or 固有名詞|接尾.
+const PROPER_NOUN_TAG = '固有名詞';
+const NOT_A_NAME_SQL = `COALESCE(pos2, '') NOT LIKE '%${PROPER_NOUN_TAG}%'`;
+
+export function isProperNounPos2(pos2: string | null | undefined): boolean {
+  return pos2?.includes(PROPER_NOUN_TAG) ?? false;
+}
+
 export interface NewWordFirstSeenRow {
   firstSeenDay: number;
   firstSeenDayWithoutNames: number | null;
@@ -32,8 +40,6 @@ export interface NewWordFirstSeenRow {
 
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
-const VOCABULARY_CHART_LIMIT = 12;
-const VOCABULARY_CHART_PAGE_SIZE = 100;
 const EXCLUSION_ALIAS_BATCH_SIZE = 300;
 const VOCABULARY_SUMMARY_SCAN_BATCH_SIZE = 5_000;
 const SENTENCE_SEARCH_DEFAULT_LIMIT = 50;
@@ -42,8 +48,6 @@ const KANJI_PATTERN = /\p{Script=Han}/gu;
 
 export interface VocabularyChartData {
   ready: boolean;
-  topWords: Array<{ wordId: number; headword: string; frequency: number }>;
-  topWordsWithoutNames: Array<{ wordId: number; headword: string; frequency: number }>;
   newWordsTimeline: Array<{ epochDay: number; wordCount: number }>;
   newWordsTimelineWithoutNames: Array<{ epochDay: number; wordCount: number }>;
 }
@@ -165,18 +169,11 @@ function getWordAnimeCounts(db: DatabaseSync, wordIds: number[]): Map<number, nu
 }
 
 /**
- * Chart data is intentionally independent of the paginated vocabulary tables.
- * Top words use the frequency index; new-word history is a SQL aggregate over
- * first-seen dates rather than loading every vocabulary row into the dashboard.
+ * New-word history is a SQL aggregate over first-seen dates rather than loading
+ * every vocabulary row into the dashboard.
  */
 export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
   const ready = areLexicalDailyRollupsReady(db);
-  const excludedAliases = new Set(
-    getStatsExcludedWords(db).flatMap((word) => excludedVocabularyAliases(word)),
-  );
-  const isExcluded = (word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>): boolean =>
-    excludedVocabularyAliases(word).some((alias) => excludedAliases.has(alias));
-  const topWords = getTopVocabularyChartWords(db, isExcluded);
   const firstSeenRows = ready ? getNewWordFirstSeenRows(db) : [];
   const timeline = new Map<number, number>();
   const timelineWithoutNames = new Map<number, number>();
@@ -191,16 +188,6 @@ export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
   }
   return {
     ready,
-    topWords: topWords.all.map((word) => ({
-      wordId: word.wordId,
-      headword: vocabularyDisplayHeadword(word),
-      frequency: word.frequency,
-    })),
-    topWordsWithoutNames: topWords.withoutNames.map((word) => ({
-      wordId: word.wordId,
-      headword: vocabularyDisplayHeadword(word),
-      frequency: word.frequency,
-    })),
     newWordsTimeline: toNewWordTimeline(timeline),
     newWordsTimelineWithoutNames: toNewWordTimeline(timelineWithoutNames),
   };
@@ -213,7 +200,7 @@ function toNewWordTimeline(byDay: Map<number, number>): VocabularyChartData['new
 }
 
 /** Word rows matching the user's stats exclusions, using the same aliases as the summary. */
-function getExcludedWordIds(db: DatabaseSync): number[] {
+export function getExcludedWordIds(db: DatabaseSync): number[] {
   const excludedAliases = new Set(
     getStatsExcludedWords(db).flatMap((word) => excludedVocabularyAliases(word)),
   );
@@ -251,7 +238,7 @@ const newWordFirstSeenCache = new WeakMap<
   { version: string; rows: NewWordFirstSeenRow[] }
 >();
 
-function databaseWriteVersion(db: DatabaseSync): string {
+export function databaseWriteVersion(db: DatabaseSync): string {
   const { changes } = db.prepare('SELECT total_changes() AS changes').get() as { changes: number };
   const { data_version: dataVersion } = db.prepare('PRAGMA data_version').get() as {
     data_version: number;
@@ -285,8 +272,8 @@ export function getNewWordFirstSeenRows(db: DatabaseSync): NewWordFirstSeenRow[]
         WITH dictionary_words AS (
           SELECT
             MIN(${seconds}) AS firstSeen,
-            MIN(CASE WHEN pos2 IS NOT '固有名詞' THEN ${seconds} END) AS firstSeenWithoutNames,
-            MIN(CASE WHEN pos2 IS NOT '固有名詞' THEN frequency_rank END) AS rank
+            MIN(CASE WHEN ${NOT_A_NAME_SQL} THEN ${seconds} END) AS firstSeenWithoutNames,
+            MIN(CASE WHEN ${NOT_A_NAME_SQL} THEN frequency_rank END) AS rank
           FROM imm_words
           WHERE vocabulary_visible = 1 AND first_seen IS NOT NULL ${exclusion}
           GROUP BY COALESCE(NULLIF(TRIM(headword), ''), NULLIF(TRIM(word), ''), TRIM(reading))
@@ -313,40 +300,6 @@ export function getNewWordFirstSeenRows(db: DatabaseSync): NewWordFirstSeenRow[]
     .all(...excludedIds) as unknown as NewWordFirstSeenRow[];
   newWordFirstSeenCache.set(db, { version, rows });
   return rows;
-}
-
-function getTopVocabularyChartWords(
-  db: DatabaseSync,
-  isExcluded: (word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>) => boolean,
-): { all: VocabularyStatsRow[]; withoutNames: VocabularyStatsRow[] } {
-  const stmt = db.prepare(`
-    SELECT id AS wordId, headword, word, reading,
-      part_of_speech AS partOfSpeech, pos1, pos2, pos3,
-      frequency, frequency_rank AS frequencyRank,
-      first_seen AS firstSeen, last_seen AS lastSeen,
-      0 AS animeCount
-    FROM imm_words
-    ORDER BY frequency DESC, id
-    LIMIT ? OFFSET ?
-  `);
-  const all: VocabularyStatsRow[] = [];
-  const withoutNames: VocabularyStatsRow[] = [];
-  let offset = 0;
-
-  while (all.length < VOCABULARY_CHART_LIMIT || withoutNames.length < VOCABULARY_CHART_LIMIT) {
-    const page = stmt.all(VOCABULARY_CHART_PAGE_SIZE, offset) as VocabularyStatsRow[];
-    if (page.length === 0) break;
-    for (const word of page) {
-      if (!isVocabularyStatsRowVisible(word) || isExcluded(word)) continue;
-      if (all.length < VOCABULARY_CHART_LIMIT) all.push(word);
-      if (word.pos2 !== '固有名詞' && withoutNames.length < VOCABULARY_CHART_LIMIT) {
-        withoutNames.push(word);
-      }
-    }
-    offset += page.length;
-  }
-
-  return { all, withoutNames };
 }
 
 function excludedVocabularyAliases(
@@ -409,7 +362,7 @@ export function getVocabularySummary(
   // this week only if no form of it was seen earlier.
   const dictionaryWords = new Map<
     string,
-    { firstSeenSec: number; firstSeenSecWithoutNames: number | null }
+    { firstSeenSec: number; firstSeenSecWithoutNames: number | null; known: boolean }
   >();
 
   let lastId = Number.MIN_SAFE_INTEGER;
@@ -429,9 +382,11 @@ export function getVocabularySummary(
       const entry = dictionaryWords.get(key) ?? {
         firstSeenSec,
         firstSeenSecWithoutNames: null,
+        known: false,
       };
+      entry.known ||= (knownWords?.has(key) ?? false) || (knownWords?.has(word.word) ?? false);
       entry.firstSeenSec = Math.min(entry.firstSeenSec, firstSeenSec);
-      if (word.pos2 !== '固有名詞') {
+      if (!isProperNounPos2(word.pos2)) {
         entry.firstSeenSecWithoutNames = Math.min(
           entry.firstSeenSecWithoutNames ?? firstSeenSec,
           firstSeenSec,
@@ -442,16 +397,15 @@ export function getVocabularySummary(
     if (words.length < scanBatchSize) break;
   }
 
-  for (const [key, { firstSeenSec, firstSeenSecWithoutNames }] of dictionaryWords) {
+  for (const { firstSeenSec, firstSeenSecWithoutNames, known } of dictionaryWords.values()) {
     const hasNonNameForm = firstSeenSecWithoutNames !== null;
-    const isKnown = knownWords?.has(key) ?? false;
     summary.uniqueWords += 1;
     if (hasNonNameForm) summary.uniqueWordsWithoutNames += 1;
     if (firstSeenSec >= weekAgoSec) summary.newThisWeek += 1;
     if (hasNonNameForm && firstSeenSecWithoutNames >= weekAgoSec) {
       summary.newThisWeekWithoutNames += 1;
     }
-    if (isKnown) {
+    if (known) {
       summary.knownWordCount! += 1;
       if (hasNonNameForm) summary.knownWordCountWithoutNames! += 1;
     }
@@ -521,7 +475,12 @@ export function getWordOccurrences(
   reading: string,
   limit = 100,
   offset = 0,
+  allForms = false,
 ): WordOccurrenceRow[] {
+  const wordFilter = allForms
+    ? 'w.headword = ?'
+    : 'w.headword = ? AND w.word = ? AND w.reading = ?';
+  const wordParams = allForms ? [headword] : [headword, word, reading];
   const rows = db
     .prepare(
       `
@@ -543,13 +502,13 @@ export function getWordOccurrences(
         JOIN imm_subtitle_lines l ON l.line_id = o.line_id
         JOIN imm_videos v ON v.video_id = l.video_id
         LEFT JOIN imm_anime a ON a.anime_id = l.anime_id
-        WHERE w.headword = ? AND w.word = ? AND w.reading = ?
+        WHERE ${wordFilter}
         ORDER BY l.CREATED_DATE DESC, l.line_id DESC
         LIMIT ?
         OFFSET ?
       `,
     )
-    .all(headword, word, reading, limit, offset) as unknown as WordOccurrenceRow[];
+    .all(...wordParams, limit, offset) as unknown as WordOccurrenceRow[];
   return rows.map(widenLineText);
 }
 
@@ -701,17 +660,82 @@ export function getSessionEvents(
   }));
 }
 
+const WORD_DETAIL_FORM_LIMIT = 30;
+
+/**
+ * One entry per written form. A form can be stored more than once when its reading
+ * was recorded differently, as 見て is under both みて and み. Returns most seen first.
+ */
+export function mergeFormsByWord<T extends { word: string; seen: number }>(forms: T[]): T[] {
+  const byWord = new Map<string, T>();
+  for (const form of forms) {
+    const existing = byWord.get(form.word);
+    if (existing) {
+      existing.seen += form.seen;
+    } else {
+      byWord.set(form.word, { ...form });
+    }
+  }
+  return [...byWord.values()].sort((left, right) => right.seen - left.seen);
+}
+
+/** A word's form plus totals across every form of its dictionary word. */
 export function getWordDetail(db: DatabaseSync, wordId: number): WordDetailRow | null {
-  return db
+  const word = db
     .prepare(
       `
     SELECT id AS wordId, headword, word, reading,
-           part_of_speech AS partOfSpeech, pos1, pos2, pos3,
-           frequency, first_seen AS firstSeen, last_seen AS lastSeen
+           part_of_speech AS partOfSpeech, pos1, pos2, pos3
     FROM imm_words WHERE id = ?
   `,
     )
-    .get(wordId) as WordDetailRow | null;
+    .get(wordId) as Pick<
+    WordDetailRow,
+    'wordId' | 'headword' | 'word' | 'reading' | 'partOfSpeech' | 'pos1' | 'pos2' | 'pos3'
+  > | null;
+  if (!word) return null;
+
+  const hasHeadword = word.headword.trim() !== '';
+  const forms = db
+    .prepare(
+      `
+    SELECT id AS wordId, word, reading, frequency AS seen, frequency_rank AS rank,
+           first_seen AS firstSeen, last_seen AS lastSeen
+    FROM imm_words
+    WHERE ${hasHeadword ? '(headword = ? AND vocabulary_visible = 1) OR id = ?' : 'id = ?'}
+    ORDER BY frequency DESC, id
+  `,
+    )
+    .all(...(hasHeadword ? [word.headword, wordId] : [wordId])) as Array<{
+    wordId: number;
+    word: string;
+    reading: string;
+    seen: number | null;
+    rank: number | null;
+    firstSeen: number;
+    lastSeen: number;
+  }>;
+
+  const merged = mergeFormsByWord(forms.map((form) => ({ ...form, seen: form.seen ?? 0 })));
+  const toSeconds = (value: number): number => timestampSeconds(fromDbTimestamp(value) ?? 0);
+  const ranks = forms.map((form) => form.rank).filter((rank): rank is number => (rank ?? 0) > 0);
+  return {
+    ...word,
+    frequency: forms.reduce((sum, form) => sum + (form.seen ?? 0), 0),
+    frequencyRank: ranks.length > 0 ? Math.min(...ranks) : null,
+    dictionaryReading:
+      forms.find((form) => form.word === word.headword && form.reading.trim() !== '')?.reading ??
+      '',
+    formCount: merged.length,
+    forms: merged.slice(0, WORD_DETAIL_FORM_LIMIT).map((form) => ({
+      wordId: form.wordId,
+      word: form.word,
+      reading: form.reading,
+      seen: form.seen,
+    })),
+    firstSeen: Math.min(...forms.map((form) => toSeconds(form.firstSeen))),
+    lastSeen: Math.max(...forms.map((form) => toSeconds(form.lastSeen))),
+  };
 }
 
 export function getWordAnimeAppearances(
@@ -724,9 +748,10 @@ export function getWordAnimeAppearances(
     SELECT a.anime_id AS animeId, a.canonical_title AS animeTitle,
            SUM(o.occurrence_count) AS occurrenceCount
     FROM imm_word_line_occurrences o
+    JOIN imm_words w ON w.id = o.word_id
     JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
     JOIN imm_anime a ON a.anime_id = sl.anime_id
-    WHERE o.word_id = ? AND sl.anime_id IS NOT NULL
+    WHERE w.headword = (SELECT headword FROM imm_words WHERE id = ?) AND sl.anime_id IS NOT NULL
     GROUP BY a.anime_id
     ORDER BY occurrenceCount DESC
   `,
@@ -734,6 +759,7 @@ export function getWordAnimeAppearances(
     .all(wordId) as WordAnimeAppearanceRow[];
 }
 
+/** Other dictionary words sharing a reading or kanji; a word's own forms don't count. */
 export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): SimilarWordRow[] {
   const word = db.prepare('SELECT headword, reading FROM imm_words WHERE id = ?').get(wordId) as {
     headword: string;
@@ -757,21 +783,36 @@ export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): S
   if (clauses.length === 0) return [];
 
   const orderBy =
-    reading !== '' ? 'CASE WHEN reading = ? THEN 0 ELSE 1 END, frequency DESC' : 'frequency DESC';
+    reading !== ''
+      ? 'MAX(CASE WHEN reading = ? THEN 1 ELSE 0 END) DESC, totalSeen DESC'
+      : 'totalSeen DESC';
   const orderParams = reading !== '' ? [word.reading] : [];
 
+  // MAX(frequency) makes SQLite take the bare columns from each word's most seen form.
   return db
     .prepare(
       `
-    SELECT id AS wordId, headword, word, reading, frequency
+    SELECT id AS wordId, headword, word, reading, MAX(frequency) AS topFormSeen,
+           SUM(frequency) AS totalSeen
     FROM imm_words
-    WHERE id != ?
+    WHERE headword != ? AND vocabulary_visible = 1
     AND (${clauses.join(' OR ')})
+    GROUP BY headword
     ORDER BY ${orderBy}
     LIMIT ?
   `,
     )
-    .all(wordId, ...params, ...orderParams, limit) as SimilarWordRow[];
+    .all(word.headword, ...params, ...orderParams, limit)
+    .map((row) => {
+      const similar = row as SimilarWordRow & { totalSeen: number };
+      return {
+        wordId: similar.wordId,
+        headword: similar.headword,
+        word: similar.word,
+        reading: similar.reading,
+        frequency: similar.totalSeen,
+      };
+    });
 }
 
 export function getKanjiDetail(db: DatabaseSync, kanjiId: number): KanjiDetailRow | null {

@@ -435,6 +435,23 @@ test('vocabulary charts and summary count dictionary words, not surface forms', 
   });
 });
 
+test('names tagged with merged parts of speech count as names', () => {
+  withDashboardDb((db) => {
+    markLexicalDailyRollupsReady(db);
+    addWord(db, { headword: '美琴', day: TODAY, pos2: '固有名詞|一般' });
+    addWord(db, { headword: '谷君', day: TODAY, pos2: '固有名詞|接尾' });
+    addWord(db, { headword: '海', day: TODAY, pos2: '一般' });
+
+    assert.equal(getTrendsDashboard(db, '7d', 'day').summary.current.newWords, 1);
+    const summary = getVocabularySummary(db, null, Number(NOW_MS));
+    assert.equal(summary.uniqueWords, 3);
+    assert.equal(summary.uniqueWordsWithoutNames, 1);
+    assert.deepEqual(getVocabularyChartData(db).newWordsTimelineWithoutNames, [
+      { epochDay: TODAY, wordCount: 1 },
+    ]);
+  });
+});
+
 test('new word counts pick up writes from this and other connections', () => {
   withDashboardDb((db) => {
     addWord(db, { headword: '海', day: TODAY });

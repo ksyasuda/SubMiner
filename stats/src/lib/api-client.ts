@@ -17,6 +17,7 @@ import type {
   StatsMoveVideoResponse,
   StatsTmdbAssignment,
   StatsDayRange,
+  StatsDictionaryWordQuery,
   StatsTrendGroupBy,
   StatsTrendRange,
   StatsVideoWatchedRequest,
@@ -94,6 +95,23 @@ export const apiClient = {
   getVocabulary: (limit = 100) => fetchJson('vocabulary', `/api/stats/vocabulary?limit=${limit}`),
   getVocabularySummary: () => fetchJson('vocabularySummary', '/api/stats/vocabulary/summary'),
   getVocabularyCharts: () => fetchJson('vocabularyCharts', '/api/stats/vocabulary/charts'),
+  getDictionaryWords: (query: StatsDictionaryWordQuery) => {
+    const params = new URLSearchParams({
+      sort: query.sort,
+      order: query.descending ? 'desc' : 'asc',
+      limit: String(query.limit),
+      offset: String(query.offset),
+    });
+    if (query.search) params.set('search', query.search);
+    if (query.hideKnown) params.set('hideKnown', 'true');
+    if (query.hideNames) params.set('hideNames', 'true');
+    if (query.hideKana) params.set('hideKana', 'true');
+    if (query.partOfSpeech) params.set('pos', query.partOfSpeech);
+    if (query.maxRank !== undefined) params.set('maxRank', String(query.maxRank));
+    if (query.minTitles !== undefined) params.set('minTitles', String(query.minTitles));
+    return fetchJson('dictionaryWords', `/api/stats/vocabulary/words?${params.toString()}`);
+  },
+  getVocabularyCoverage: () => fetchJson('vocabularyCoverage', '/api/stats/vocabulary/coverage'),
   getExcludedWords: () => fetchJson('excludedWords', '/api/stats/excluded-words'),
   setExcludedWords: async (words: StatsExcludedWord[]): Promise<void> => {
     await fetchResponse('/api/stats/excluded-words', {
@@ -115,10 +133,17 @@ export const apiClient = {
     });
     return res.json() as Promise<StatsDuplicateLineCleanupResult>;
   },
-  getWordOccurrences: (headword: string, word: string, reading: string, limit = 50, offset = 0) =>
+  getWordOccurrences: (
+    headword: string,
+    word: string,
+    reading: string,
+    limit = 50,
+    offset = 0,
+    allForms = false,
+  ) =>
     fetchJson(
       'wordOccurrences',
-      `/api/stats/vocabulary/occurrences?headword=${encodeURIComponent(headword)}&word=${encodeURIComponent(word)}&reading=${encodeURIComponent(reading)}&limit=${limit}&offset=${offset}`,
+      `/api/stats/vocabulary/occurrences?headword=${encodeURIComponent(headword)}&word=${encodeURIComponent(word)}&reading=${encodeURIComponent(reading)}&limit=${limit}&offset=${offset}${allForms ? '&allForms=true' : ''}`,
     ),
   searchSentences: (query: string, limit = 50, searchByHeadword = true) =>
     fetchJson(

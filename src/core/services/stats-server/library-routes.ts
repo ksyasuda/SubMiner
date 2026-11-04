@@ -14,6 +14,7 @@ import {
   parseBooleanQuery,
   parseDuplicateLineCleanupBody,
   parseExcludedWordsBody,
+  parseDictionaryWordQuery,
   parseIntQuery,
   parsePositiveId,
   parsePositiveIdList,
@@ -47,6 +48,20 @@ export function registerStatsLibraryRoutes(
 
   app.get('/api/stats/vocabulary/charts', async (c) => {
     return c.json(statsJson('vocabularyCharts', await tracker.getVocabularyChartData()));
+  });
+
+  app.get('/api/stats/vocabulary/words', async (c) => {
+    const page = await tracker.getDictionaryWords(
+      loadKnownWordsSet(options?.knownWordCachePath),
+      parseDictionaryWordQuery((name) => c.req.query(name)),
+    );
+    return c.json(statsJson('dictionaryWords', page));
+  });
+
+  app.get('/api/stats/vocabulary/coverage', async (c) => {
+    const knownWords = loadKnownWordsSet(options?.knownWordCachePath);
+    const coverage = knownWords ? await tracker.getVocabularyCoverage(knownWords) : [];
+    return c.json(statsJson('vocabularyCoverage', coverage));
   });
 
   app.get('/api/stats/excluded-words', async (c) => {
@@ -83,7 +98,15 @@ export function registerStatsLibraryRoutes(
     }
     const limit = parseIntQuery(c.req.query('limit'), 50, 500);
     const offset = parseIntQuery(c.req.query('offset'), 0, 10_000);
-    const occurrences = await tracker.getWordOccurrences(headword, word, reading, limit, offset);
+    const allForms = c.req.query('allForms') === 'true';
+    const occurrences = await tracker.getWordOccurrences(
+      headword,
+      word,
+      reading,
+      limit,
+      offset,
+      allForms,
+    );
     return c.json(statsJson('wordOccurrences', occurrences));
   });
 
@@ -102,7 +125,7 @@ export function registerStatsLibraryRoutes(
   });
 
   app.get('/api/stats/kanji', async (c) => {
-    const limit = parseIntQuery(c.req.query('limit'), 100, 500);
+    const limit = parseIntQuery(c.req.query('limit'), 100, 10_000);
     const kanji = await tracker.getKanjiStats(limit);
     return c.json(statsJson('kanji', kanji));
   });
