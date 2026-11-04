@@ -20,12 +20,39 @@ function pad(pressed: number[] = [], mapping = 'standard'): GamepadLike {
 const pressedIndices = (gamepad: GamepadLike | null | undefined): number[] =>
   gamepad?.buttons.flatMap((button, index) => (button.pressed ? [index] : [])) ?? [];
 
-test('a queued press reads as pressed for exactly one poll', () => {
+test('a queued press the pad never reports is released after the window', () => {
   const replay = createControllerPressReplay();
   replay.queue(0, 1000);
 
   assert.deepEqual(pressedIndices(replay.apply([pad()], 1010)[0]), [0]);
-  assert.deepEqual(pressedIndices(replay.apply([pad()], 1026)[0]), []);
+  assert.deepEqual(pressedIndices(replay.apply([pad()], 1026)[0]), [0]);
+  assert.deepEqual(pressedIndices(replay.apply([pad()], 1499)[0]), [0]);
+  assert.deepEqual(pressedIndices(replay.apply([pad()], 1500)[0]), []);
+});
+
+// The helper's IPC beats Chromium, which only starts reading the pad once the overlay has focus.
+// Going unpressed before the late report would give the controller a second press edge.
+test('a press the pad reports late reads as one continuous press', () => {
+  const replay = createControllerPressReplay();
+  replay.queue(11, 1000);
+
+  const pressedAt = (real: number[], now: number) =>
+    pressedIndices(replay.apply([pad(real)], now)[0]);
+  assert.deepEqual(pressedAt([], 1016), [11]);
+  assert.deepEqual(pressedAt([], 1032), [11]);
+  assert.deepEqual(pressedAt([11], 1048), [11]);
+  assert.deepEqual(pressedAt([11], 1064), [11]);
+  assert.deepEqual(pressedAt([], 1080), []);
+});
+
+test('a fresh press after the replayed one was released reads as a new press', () => {
+  const replay = createControllerPressReplay();
+  replay.queue(11, 1000);
+
+  assert.deepEqual(pressedIndices(replay.apply([pad([11])], 1016)[0]), [11]);
+  assert.deepEqual(pressedIndices(replay.apply([pad()], 1032)[0]), []);
+  assert.deepEqual(pressedIndices(replay.apply([pad([11])], 1048)[0]), [11]);
+  assert.deepEqual(pressedIndices(replay.apply([pad()], 1064)[0]), []);
 });
 
 test('a press the Gamepad API already reported is not replayed', () => {

@@ -1,16 +1,18 @@
 import type { GamepadLike } from './gamepad-controller.js';
 
 /**
- * How far back a press the Gamepad API reported itself still counts as the same press the
- * main process is replaying. Covers the helper -> main -> renderer IPC hop.
+ * How far apart the helper's report and the Gamepad API's report of one physical press can be.
+ * The Gamepad API can lead (the helper -> main -> renderer IPC hop) or lag (Chromium only reads
+ * the pad once the overlay has focus).
  */
 const SAME_PRESS_WINDOW_MS = 500;
 
 /**
  * Replays macOS background presses (see `src/main/runtime/macos-controller-watch.ts`) into the
- * controller poll. A queued button reads as pressed for one poll, so the controller sees a
- * normal press edge; the next poll reads the real pad again, so a button still held does not
- * fire twice. A press the Gamepad API already reported is dropped.
+ * controller poll. A queued button reads as pressed until the Gamepad API has reported that
+ * press and its release, or until the window passes if it never does. Holding it across the gap
+ * before a late report keeps one physical press to one press edge. A press the Gamepad API
+ * already reported is dropped.
  *
  * Only a lone standard-mapping pad gets the replay: the press carries no pad identity, so with
  * several visible it could run an action on the wrong one. With none visible yet, or a pad
@@ -18,6 +20,7 @@ const SAME_PRESS_WINDOW_MS = 500;
  */
 export function createControllerPressReplay() {
   const pendingPresses: Array<{ buttonIndex: number; queuedAt: number }> = [];
+  const heldPresses = new Map<number, { releaseAt: number; realPressSeen: boolean }>();
   const lastRealPressAt = new Map<number, number>();
 
   function recordRealPresses(gamepads: GamepadLike[], now: number): void {
@@ -55,20 +58,37 @@ export function createControllerPressReplay() {
         Boolean(gamepad?.connected),
       );
       recordRealPresses(connected, now);
-      if (pendingPresses.length === 0) return gamepads;
+      if (pendingPresses.length === 0 && heldPresses.size === 0) return gamepads;
 
-      const replayed = pendingPresses
-        .filter(({ buttonIndex, queuedAt }) => {
-          const seenAt = lastRealPressAt.get(buttonIndex);
-          return seenAt === undefined || seenAt < queuedAt - SAME_PRESS_WINDOW_MS;
-        })
-        .map(({ buttonIndex }) => buttonIndex);
+      for (const { buttonIndex, queuedAt } of pendingPresses) {
+        const seenAt = lastRealPressAt.get(buttonIndex);
+        if (seenAt === undefined || seenAt < queuedAt - SAME_PRESS_WINDOW_MS) {
+          heldPresses.set(buttonIndex, {
+            releaseAt: queuedAt + SAME_PRESS_WINDOW_MS,
+            realPressSeen: false,
+          });
+        }
+      }
       pendingPresses.length = 0;
-      const onlyPad = connected.length === 1 ? connected[0] : undefined;
-      if (replayed.length === 0 || onlyPad?.mapping !== 'standard') return gamepads;
 
+      const onlyPad = connected.length === 1 ? connected[0] : undefined;
+      if (onlyPad?.mapping !== 'standard') {
+        heldPresses.clear();
+        return gamepads;
+      }
+
+      for (const [buttonIndex, hold] of heldPresses) {
+        if (onlyPad.buttons[buttonIndex]?.pressed) {
+          hold.realPressSeen = true;
+        } else if (hold.realPressSeen || now >= hold.releaseAt) {
+          heldPresses.delete(buttonIndex);
+        }
+      }
+      if (heldPresses.size === 0) return gamepads;
+
+      const held = [...heldPresses.keys()];
       return gamepads.map((gamepad) =>
-        gamepad === onlyPad ? withPressed(onlyPad, replayed) : gamepad,
+        gamepad === onlyPad ? withPressed(onlyPad, held) : gamepad,
       );
     },
   };
