@@ -146,6 +146,7 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     saveControllerConfig: async () => {},
     reportActiveController: () => {},
     getActiveControllerId: () => null,
+    notifyControllerStatus: () => {},
     getSecondarySubMode: () => 'hover',
     getCurrentSecondarySub: () => '',
     focusMainWindow: () => {},
@@ -257,6 +258,26 @@ test('registerIpcHandlers stores the controller the overlay reports for Alt+C to
   assert.equal(await handlers.handle.get(IPC_CHANNELS.request.getActiveControllerId)?.({}), null);
 });
 
+test('registerIpcHandlers forwards controller status messages and drops invalid ones', () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const messages: string[] = [];
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      notifyControllerStatus: (message) => {
+        messages.push(message);
+      },
+    }),
+    registrar,
+  );
+
+  const notify = handlers.on.get(IPC_CHANNELS.command.notifyControllerStatus);
+  notify?.({}, 'Controller connected: pad-1');
+  notify?.({}, 42);
+  notify?.({}, '   ');
+  assert.deepEqual(messages, ['Controller connected: pad-1']);
+});
+
 test('registerIpcHandlers runs AniList update after manual mark watched succeeds', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const calls: string[] = [];
@@ -361,6 +382,7 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       saveControllerConfig: () => {},
       reportActiveController: () => {},
       getActiveControllerId: () => null,
+      notifyControllerStatus: () => {},
       getSecondarySubMode: () => 'hover',
       getCurrentSecondarySub: () => '',
       focusMainWindow: () => {},
@@ -644,6 +666,7 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       saveControllerConfig: () => {},
       reportActiveController: () => {},
       getActiveControllerId: () => null,
+      notifyControllerStatus: () => {},
       getSecondarySubMode: () => 'hover',
       getCurrentSecondarySub: () => '',
       focusMainWindow: () => {},

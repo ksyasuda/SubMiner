@@ -2102,6 +2102,11 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         activeControllerIdFromOverlay = gamepadId;
       },
       getActiveControllerId: () => activeControllerIdFromOverlay,
+      notifyControllerStatus: (message) => {
+        overlayNotificationsRuntime.showConfiguredStatusNotification(message, {
+          id: 'controller-status',
+        });
+      },
       saveControllerConfig: (update) => {
         const currentRawConfig = configService.getRawConfig();
         configService.patchRawConfig({

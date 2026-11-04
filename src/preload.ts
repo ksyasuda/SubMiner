@@ -360,6 +360,9 @@ const electronAPI: ElectronAPI = {
   reportActiveController: (gamepadId: string | null): void => {
     ipcRenderer.send(IPC_CHANNELS.command.reportActiveController, gamepadId);
   },
+  notifyControllerStatus: (message: string): void => {
+    ipcRenderer.send(IPC_CHANNELS.command.notifyControllerStatus, message);
+  },
   getActiveControllerId: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getActiveControllerId),
 

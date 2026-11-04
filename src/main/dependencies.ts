@@ -80,6 +80,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   saveControllerConfig: IpcDepsRuntimeOptions['saveControllerConfig'];
   reportActiveController: IpcDepsRuntimeOptions['reportActiveController'];
   getActiveControllerId: IpcDepsRuntimeOptions['getActiveControllerId'];
+  notifyControllerStatus: IpcDepsRuntimeOptions['notifyControllerStatus'];
   getSecondarySubMode: IpcDepsRuntimeOptions['getSecondarySubMode'];
   getMpvClient: IpcDepsRuntimeOptions['getMpvClient'];
   runSubsyncManual: IpcDepsRuntimeOptions['runSubsyncManual'];
@@ -260,6 +261,7 @@ export function createMainIpcRuntimeServiceDeps(
     saveControllerConfig: params.saveControllerConfig,
     reportActiveController: params.reportActiveController,
     getActiveControllerId: params.getActiveControllerId,
+    notifyControllerStatus: params.notifyControllerStatus,
     focusMainWindow: params.focusMainWindow ?? (() => {}),
     activatePlaybackWindowForOverlayInteraction: params.activatePlaybackWindowForOverlayInteraction,
     getSecondarySubMode: params.getSecondarySubMode,

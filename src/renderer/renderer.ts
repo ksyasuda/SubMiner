@@ -269,7 +269,9 @@ const controllerDebugModal = createControllerDebugModal(ctx, {
   syncSettingsModalSubtitleSuppression,
   notifyControllerDisabled: showControllerDisabledNotice,
 });
-const controllerStatusIndicator = createControllerStatusIndicator(ctx.dom);
+const controllerStatusIndicator = createControllerStatusIndicator((message) => {
+  window.electronAPI.notifyControllerStatus(message);
+});
 const sessionHelpModal = createSessionHelpModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -431,8 +433,9 @@ function applyControllerSnapshot(snapshot: {
   rawButtons: Array<{ value: number; pressed: boolean; touched?: boolean }>;
 }): void {
   // Modal windows are fresh documents that only see the pad after a press; announcing
-  // that as "Controller detected" on every dialog reads like a reconnection.
-  if (!ctx.platform.isModalLayer) {
+  // that as "Controller connected" on every dialog reads like a reconnection. Polling also
+  // runs with controller support off, where a system notification would just be noise.
+  if (!ctx.platform.isModalLayer && ctx.state.controllerConfig?.enabled === true) {
     controllerStatusIndicator.update({
       connectedGamepads: snapshot.connectedGamepads,
       activeGamepadId: snapshot.activeGamepadId,
@@ -500,7 +503,7 @@ function withAltCSelectedController(config: ResolvedControllerConfig): ResolvedC
 let reportedActiveControllerId: string | null | undefined;
 
 function showControllerDisabledNotice(): void {
-  controllerStatusIndicator.show(
+  window.electronAPI.notifyControllerStatus(
     'Controller support disabled. Set controller.enabled to true in config to use controller tools.',
   );
 }

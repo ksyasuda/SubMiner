@@ -611,6 +611,8 @@ export interface ElectronAPI {
   saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;
   /** The overlay reports which controller it is reading (null when none). */
   reportActiveController: (gamepadId: string | null) => void;
+  /** Announces a controller status message through the configured notification surfaces. */
+  notifyControllerStatus: (message: string) => void;
   /** The controller the overlay last reported, for Alt+C before it sees a pad itself. */
   getActiveControllerId: () => Promise<string | null>;
   getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;

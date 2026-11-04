@@ -160,7 +160,7 @@ On Wayland, the tray icon only appears if your panel provides a StatusNotifier (
 You can drive the overlay with a gamepad.
 
 1. Set `controller.enabled` to `true` in your config.
-2. Connect a controller. SubMiner uses the first one it sees.
+2. Connect a controller and press a button. SubMiner uses the first one it sees and announces it through [`ankiConnect.behavior.notificationType`](/configuration#ankiconnect).
 3. Press `Y` on the controller to turn on keyboard-only mode. Most controller actions only work in this mode.
 4. Move between words with the left stick, press `A` to look one up, and `X` to mine it.
 

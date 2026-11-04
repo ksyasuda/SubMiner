@@ -4,7 +4,6 @@ export type RendererDom = {
   overlay: HTMLElement;
   overlayNotificationStack: HTMLDivElement;
   overlayNotificationHistory: HTMLElement;
-  controllerStatusToast: HTMLDivElement;
   overlayErrorToast: HTMLDivElement;
   secondarySubContainer: HTMLElement;
   secondarySubRoot: HTMLElement;
@@ -222,7 +221,6 @@ export function resolveRendererDom(): RendererDom {
     overlay: getRequiredElement<HTMLElement>('overlay'),
     overlayNotificationStack: getRequiredElement<HTMLDivElement>('overlayNotificationStack'),
     overlayNotificationHistory: getRequiredElement<HTMLElement>('overlayNotificationHistory'),
-    controllerStatusToast: getRequiredElement<HTMLDivElement>('controllerStatusToast'),
     overlayErrorToast: getRequiredElement<HTMLDivElement>('overlayErrorToast'),
     secondarySubContainer: getRequiredElement<HTMLElement>('secondarySubContainer'),
     secondarySubRoot: getRequiredElement<HTMLElement>('secondarySubRoot'),

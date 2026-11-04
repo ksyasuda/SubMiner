@@ -93,33 +93,6 @@ body:focus-visible,
   pointer-events: auto;
 }
 
-.controller-status-toast {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  max-width: min(360px, calc(100vw - 32px));
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(138, 213, 202, 0.45);
-  background: linear-gradient(135deg, rgba(10, 44, 40, 0.94), rgba(8, 28, 33, 0.94));
-  color: rgba(228, 255, 251, 0.98);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(-6px);
-  transition:
-    opacity 160ms ease,
-    transform 160ms ease;
-  z-index: 1300;
-}
-
-.controller-status-toast:not(.hidden) {
-  opacity: 1;
-  transform: translateY(0);
-}
-
 .overlay-error-toast {
   position: absolute;
   top: 16px;

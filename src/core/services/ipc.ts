@@ -92,6 +92,7 @@ export interface IpcServiceDeps {
   /** The overlay reports the controller it is reading (null when none). */
   reportActiveController: (gamepadId: string | null) => void;
   getActiveControllerId: () => string | null;
+  notifyControllerStatus: (message: string) => void;
   getSecondarySubMode: () => unknown;
   getCurrentSecondarySub: () => string;
   focusMainWindow: () => void;
@@ -362,6 +363,7 @@ export interface IpcDepsRuntimeOptions {
   /** The overlay reports the controller it is reading (null when none). */
   reportActiveController: (gamepadId: string | null) => void;
   getActiveControllerId: () => string | null;
+  notifyControllerStatus: (message: string) => void;
   getSecondarySubMode: () => unknown;
   getMpvClient: () => MpvClientLike | null;
   focusMainWindow: () => void;
@@ -440,6 +442,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     saveControllerConfig: options.saveControllerConfig,
     reportActiveController: options.reportActiveController,
     getActiveControllerId: options.getActiveControllerId,
+    notifyControllerStatus: options.notifyControllerStatus,
     getSecondarySubMode: options.getSecondarySubMode,
     getCurrentSecondarySub: () => options.getMpvClient()?.currentSecondarySubText || '',
     focusMainWindow: () => {
@@ -775,6 +778,11 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.getActiveControllerId, () => {
     return deps.getActiveControllerId();
+  });
+
+  ipc.on(IPC_CHANNELS.command.notifyControllerStatus, (_event: unknown, message: unknown) => {
+    if (typeof message !== 'string' || message.trim().length === 0) return;
+    deps.notifyControllerStatus(message);
   });
 
   ipc.handle(IPC_CHANNELS.request.getSecondarySubMode, () => {

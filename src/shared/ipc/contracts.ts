@@ -35,6 +35,7 @@ export const IPC_CHANNELS = {
     statsNativeDialogClosed: 'stats:native-dialog-closed',
     saveControllerConfig: 'save-controller-config',
     reportActiveController: 'controller:report-active',
+    notifyControllerStatus: 'controller:notify-status',
     mpvCommand: 'mpv-command',
     refreshKnownWords: 'anki:refresh-known-words',
     kikuFieldGroupingRespond: 'kiku:field-grouping-respond',
