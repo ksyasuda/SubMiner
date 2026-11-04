@@ -275,7 +275,11 @@ test(
 
 // macOS and Windows keep a hidden modal renderer alive, and hidden windows keep polling because
 // background throttling is off. A fake pad goes to every renderer, as a real pad would.
-test(
+// Linux has no such window, and under Xvfb without a window manager the overlay reports hidden,
+// so requestAnimationFrame and with it the controller poll never run. Bun's node:test ignores the
+// `skip` option, so this picks `test.skip` instead.
+const testOutsideLinux = process.platform === 'linux' ? test.skip : test;
+testOutsideLinux(
   'one controller press toggles mpv pause once across every window',
   { timeout: TEST_TIMEOUT_MS },
   async () => {
