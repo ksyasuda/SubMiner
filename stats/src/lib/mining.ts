@@ -7,11 +7,27 @@ import type {
 
 export type { StatsMineCardParams, StatsMineCardResponse, StatsMineMode } from '../types/stats';
 
+// Cards cut their audio and image from the video file. Only streamed videos have no
+// local path, so a missing path means the line came from a stream.
+const STREAMED_LINE_REASON =
+  "Can't mine: from a stream, so there's no video file to cut clips from.";
+
+/** Explains how a word's lines affect mining, or null when every line can be mined. */
+export function describeStreamedLines(lineCount: number, streamLineCount: number): string | null {
+  if (streamLineCount === 0) return null;
+  if (streamLineCount >= lineCount) {
+    return lineCount === 1
+      ? "This word's only line came from a stream, so it can't be mined yet."
+      : `All ${lineCount.toLocaleString()} lines with this word came from streams, so it can't be mined yet.`;
+  }
+  return `${streamLineCount.toLocaleString()} of ${lineCount.toLocaleString()} lines with this word came from streams and can't be mined.`;
+}
+
 export function getStatsMineCardUnavailableReason(
   result: Pick<SentenceSearchResult, 'sourcePath' | 'segmentStartMs' | 'segmentEndMs'>,
 ): string | null {
   if (!result.sourcePath) {
-    return 'This source has no local file path.';
+    return STREAMED_LINE_REASON;
   }
   if (result.segmentStartMs == null || result.segmentEndMs == null) {
     return 'This line is missing segment timing.';

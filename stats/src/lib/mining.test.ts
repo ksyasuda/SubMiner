@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildStatsMineCardParams,
+  describeStreamedLines,
   getStatsMineCardError,
   getStatsMineCardUnavailableReason,
 } from './mining';
@@ -66,6 +67,24 @@ test('buildStatsMineCardParams returns null when stored timing has no positive d
     'This line has invalid segment timing.',
   );
 });
+
+test('getStatsMineCardUnavailableReason says a line without a file came from a stream', () => {
+  assert.match(getStatsMineCardUnavailableReason(makeResult({ sourcePath: null })) ?? '', /stream/);
+  assert.equal(getStatsMineCardUnavailableReason(makeResult()), null);
+});
+
+for (const c of [
+  { name: 'no streamed lines', lines: 10, streamed: 0, expected: null },
+  { name: 'some streamed lines', lines: 2_863, streamed: 935, match: /935 of 2,863 lines/ },
+  { name: 'only streamed lines', lines: 4, streamed: 4, match: /All 4 lines.*can't be mined yet/ },
+  { name: 'a single streamed line', lines: 1, streamed: 1, match: /only line came from a stream/ },
+]) {
+  test(`describeStreamedLines handles ${c.name}`, () => {
+    const text = describeStreamedLines(c.lines, c.streamed);
+    if (c.match) assert.match(text ?? '', c.match);
+    else assert.equal(text, null);
+  });
+}
 
 test('getStatsMineCardError surfaces partial media failures', () => {
   assert.equal(

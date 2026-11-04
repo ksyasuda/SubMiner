@@ -630,6 +630,8 @@ export interface WordDetailRow {
   dictionaryReading: string;
   formCount: number;
   forms: Array<{ wordId: number; word: string; reading: string; seen: number }>;
+  lineCount: number;
+  streamLineCount: number;
   firstSeen: number;
   lastSeen: number;
 }

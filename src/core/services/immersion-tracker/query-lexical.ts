@@ -27,6 +27,21 @@ import { isVocabularyStatsRowVisible } from './vocabulary-visibility';
 const PROPER_NOUN_TAG = '固有名詞';
 const NOT_A_NAME_SQL = `COALESCE(pos2, '') NOT LIKE '%${PROPER_NOUN_TAG}%'`;
 
+/** True for lines from a stream: only local videos have a path to cut clips from. */
+export const NO_LOCAL_FILE_SQL = `TRIM(COALESCE(v.source_path, '')) = ''`;
+
+// Sorts lines that can be mined ahead of those that can't, because newest-first alone
+// lets a run of recent streams bury every line with a usable clip.
+// Mirrors getStatsMineCardUnavailableReason in the stats client.
+const MINEABLE_LINES_FIRST_SQL = `
+  CASE
+    WHEN NOT (${NO_LOCAL_FILE_SQL})
+      AND l.segment_start_ms IS NOT NULL
+      AND l.segment_end_ms > l.segment_start_ms
+    THEN 0
+    ELSE 1
+  END`;
+
 export function isProperNounPos2(pos2: string | null | undefined): boolean {
   return pos2?.includes(PROPER_NOUN_TAG) ?? false;
 }
@@ -503,7 +518,7 @@ export function getWordOccurrences(
         JOIN imm_videos v ON v.video_id = l.video_id
         LEFT JOIN imm_anime a ON a.anime_id = l.anime_id
         WHERE ${wordFilter}
-        ORDER BY l.CREATED_DATE DESC, l.line_id DESC
+        ORDER BY ${MINEABLE_LINES_FIRST_SQL}, l.CREATED_DATE DESC, l.line_id DESC
         LIMIT ?
         OFFSET ?
       `,
@@ -615,7 +630,7 @@ export function searchSubtitleSentences(
         JOIN imm_videos v ON v.video_id = l.video_id
         LEFT JOIN imm_anime a ON a.anime_id = l.anime_id
         WHERE ${clauses.join(' AND ')}
-        ORDER BY l.CREATED_DATE DESC, l.line_id DESC
+        ORDER BY ${MINEABLE_LINES_FIRST_SQL}, l.CREATED_DATE DESC, l.line_id DESC
         LIMIT ?
       `,
     )
@@ -716,6 +731,19 @@ export function getWordDetail(db: DatabaseSync, wordId: number): WordDetailRow |
     lastSeen: number;
   }>;
 
+  const lines = db
+    .prepare(
+      `
+    SELECT COUNT(DISTINCT l.line_id) AS lineCount,
+           COUNT(DISTINCT CASE WHEN ${NO_LOCAL_FILE_SQL} THEN l.line_id END) AS streamLineCount
+    FROM imm_word_line_occurrences o
+    JOIN imm_words w ON w.id = o.word_id
+    JOIN imm_subtitle_lines l ON l.line_id = o.line_id
+    JOIN imm_videos v ON v.video_id = l.video_id
+    WHERE ${hasHeadword ? 'w.headword = ?' : 'w.id = ?'}
+  `,
+    )
+    .get(hasHeadword ? word.headword : wordId) as { lineCount: number; streamLineCount: number };
   const merged = mergeFormsByWord(forms.map((form) => ({ ...form, seen: form.seen ?? 0 })));
   const toSeconds = (value: number): number => timestampSeconds(fromDbTimestamp(value) ?? 0);
   const ranks = forms.map((form) => form.rank).filter((rank): rank is number => (rank ?? 0) > 0);
@@ -733,6 +761,8 @@ export function getWordDetail(db: DatabaseSync, wordId: number): WordDetailRow |
       reading: form.reading,
       seen: form.seen,
     })),
+    lineCount: lines.lineCount,
+    streamLineCount: lines.streamLineCount,
     firstSeen: Math.min(...forms.map((form) => toSeconds(form.firstSeen))),
     lastSeen: Math.max(...forms.map((form) => toSeconds(form.lastSeen))),
   };

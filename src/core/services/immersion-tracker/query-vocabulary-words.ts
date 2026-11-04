@@ -15,6 +15,7 @@ import {
   getExcludedWordIds,
   isProperNounPos2,
   mergeFormsByWord,
+  NO_LOCAL_FILE_SQL,
 } from './query-lexical';
 import { forEachIdChunk, makePlaceholders } from './query-shared';
 import { nowMs } from './time';
@@ -218,6 +219,37 @@ function getTitleCountsForWords(db: DatabaseSync, words: DictionaryWord[]): Map<
   return new Map([...animeByKey].map(([key, anime]) => [key, anime.size]));
 }
 
+/** Words whose every stored line came from a stream. Words with no lines don't count. */
+function getStreamOnlyWords(db: DatabaseSync, words: DictionaryWord[]): Set<string> {
+  const keyByWordId = new Map<number, string>();
+  for (const word of words) {
+    for (const form of word.forms) keyByWordId.set(form.id, word.key);
+  }
+  const withLines = new Set<string>();
+  const withFile = new Set<string>();
+  forEachIdChunk([...keyByWordId.keys()], (chunk) => {
+    const rows = db
+      .prepare(
+        `
+          SELECT o.word_id AS wordId, MIN(${NO_LOCAL_FILE_SQL}) AS allStreamed
+          FROM imm_word_line_occurrences o
+          JOIN imm_subtitle_lines l ON l.line_id = o.line_id
+          JOIN imm_videos v ON v.video_id = l.video_id
+          WHERE o.word_id IN (${makePlaceholders(chunk)})
+          GROUP BY o.word_id
+        `,
+      )
+      .all(...chunk) as Array<{ wordId: number; allStreamed: number }>;
+    for (const row of rows) {
+      const key = keyByWordId.get(row.wordId);
+      if (key === undefined) continue;
+      withLines.add(key);
+      if (row.allStreamed === 0) withFile.add(key);
+    }
+  });
+  return new Set([...withLines].filter((key) => !withFile.has(key)));
+}
+
 function compareWords(
   left: DictionaryWord,
   right: DictionaryWord,
@@ -254,6 +286,7 @@ function toRow(
   word: DictionaryWord,
   knownWords: ReadonlySet<string> | null,
   titleCounts: Map<string, number>,
+  streamOnlyWords: ReadonlySet<string>,
 ): DictionaryWordRow {
   const dictionary = dictionaryForm(word);
   const topForm = word.forms[0]!;
@@ -280,6 +313,7 @@ function toRow(
     lastSeen: word.lastSeen,
     known: isKnown(word, knownWords),
     isName: word.isName,
+    streamOnly: streamOnlyWords.has(word.key),
     formCount: forms.length,
     forms: forms.slice(0, MAX_FORMS_PER_ROW),
   };
@@ -313,8 +347,9 @@ export function getDictionaryWordPage(
   matches.sort((left, right) => compareWords(left, right, query, allTitleCounts));
   const pageWords = matches.slice(query.offset, query.offset + query.limit);
   const titleCounts = allTitleCounts ?? getTitleCountsForWords(db, pageWords);
+  const streamOnlyWords = getStreamOnlyWords(db, pageWords);
   return {
-    rows: pageWords.map((word) => toRow(word, knownWords, titleCounts)),
+    rows: pageWords.map((word) => toRow(word, knownWords, titleCounts, streamOnlyWords)),
     total: matches.length,
     maxSeen: matches.reduce((max, word) => Math.max(max, word.seen), 0),
   };

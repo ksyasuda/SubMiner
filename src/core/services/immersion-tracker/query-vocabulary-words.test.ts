@@ -9,14 +9,16 @@ import {
   getWordAnimeAppearances,
   getVocabularySummary,
   getWordDetail,
+  getWordOccurrences,
   replaceStatsExcludedWords,
+  searchSubtitleSentences,
 } from './query-lexical';
 import { markLexicalDailyRollupsReady } from './lexical-rollups';
 import { getDictionaryWordPage, getVocabularyCoverage } from './query-vocabulary-words';
 import { startSessionRecord } from './session';
 import { Database, type DatabaseSync } from './sqlite';
 import { ensureSchema, getOrCreateAnimeRecord, getOrCreateVideoRecord } from './storage';
-import { SOURCE_TYPE_LOCAL } from './types';
+import { SOURCE_TYPE_LOCAL, SOURCE_TYPE_REMOTE } from './types';
 
 function withDb(run: (db: DatabaseSync) => void): void {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-vocabulary-'));
@@ -64,7 +66,14 @@ function addWord(db: DatabaseSync, word: WordFixture): number {
   return Number(result.lastInsertRowid);
 }
 
-function addOccurrence(db: DatabaseSync, wordId: number, animeTitle: string, count = 1): void {
+function addOccurrence(
+  db: DatabaseSync,
+  wordId: number,
+  animeTitle: string,
+  count = 1,
+  source: 'file' | 'stream' = 'file',
+  timing: { startMs: number | null; endMs: number | null } = { startMs: 1_000, endMs: 2_000 },
+): void {
   const animeId = getOrCreateAnimeRecord(db, {
     parsedTitle: animeTitle,
     canonicalTitle: animeTitle,
@@ -74,20 +83,26 @@ function addOccurrence(db: DatabaseSync, wordId: number, animeTitle: string, cou
     titleNative: null,
     metadataJson: null,
   });
-  const videoId = getOrCreateVideoRecord(db, `local:/tmp/${animeTitle}.mkv`, {
-    canonicalTitle: animeTitle,
-    sourcePath: `/tmp/${animeTitle}.mkv`,
-    sourceUrl: null,
-    sourceType: SOURCE_TYPE_LOCAL,
-  });
+  const videoId = getOrCreateVideoRecord(
+    db,
+    source === 'file' ? `local:/tmp/${animeTitle}.mkv` : `remote:jellyfin://${animeTitle}`,
+    {
+      canonicalTitle: animeTitle,
+      sourcePath: source === 'file' ? `/tmp/${animeTitle}.mkv` : null,
+      sourceUrl: source === 'file' ? null : `jellyfin://${animeTitle}`,
+      sourceType: source === 'file' ? SOURCE_TYPE_LOCAL : SOURCE_TYPE_REMOTE,
+    },
+  );
   const { sessionId } = startSessionRecord(db, videoId, 1_700_000_000_000);
   const lineId = Number(
     db
       .prepare(
-        `INSERT INTO imm_subtitle_lines (session_id, video_id, anime_id, line_index, text)
-         VALUES (?, ?, ?, 0, 'line')`,
+        `INSERT INTO imm_subtitle_lines (
+           session_id, video_id, anime_id, line_index, segment_start_ms, segment_end_ms, text
+         ) VALUES (?, ?, ?, 0, ?, ?, ?)`,
       )
-      .run(sessionId, videoId, animeId).lastInsertRowid,
+      .run(sessionId, videoId, animeId, timing.startMs, timing.endMs, `line ${animeTitle}`)
+      .lastInsertRowid,
   );
   db.prepare(
     `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count) VALUES (?, ?, ?)`,
@@ -262,6 +277,58 @@ test('titles count distinct titles across every form and can filter and sort', (
     assert.deepEqual(
       across.rows.map((row) => [row.headword, row.titles]),
       [['見る', 2]],
+    );
+  });
+});
+
+test('a word is stream only when every line, across its forms, came from a stream', () => {
+  withDb((db) => {
+    const streamed = addWord(db, { headword: '流', word: '流れ', seen: 30 });
+    addOccurrence(db, streamed, 'Stream A', 1, 'stream');
+    const mixed = addWord(db, { headword: '混', word: '混ぜ', seen: 20 });
+    const mixedFile = addWord(db, { headword: '混', word: '混ぜた', seen: 10 });
+    addOccurrence(db, mixed, 'Stream B', 1, 'stream');
+    addOccurrence(db, mixedFile, 'File A', 1, 'file');
+    addWord(db, { headword: '無', seen: 1 });
+
+    const streamOnly = Object.fromEntries(
+      getDictionaryWordPage(db, null, query()).rows.map((row) => [row.headword, row.streamOnly]),
+    );
+    // A word with no stored lines isn't blocked by streams.
+    assert.deepEqual(streamOnly, { 流: true, 混: false, 無: false });
+  });
+});
+
+test('word detail counts lines from streams across every form', () => {
+  withDb((db) => {
+    const streamed = addWord(db, { headword: '混', word: '混ぜ' });
+    const file = addWord(db, { headword: '混', word: '混ぜた' });
+    addOccurrence(db, streamed, 'Stream A', 3, 'stream');
+    addOccurrence(db, streamed, 'Stream B', 1, 'stream');
+    addOccurrence(db, file, 'File A', 2, 'file');
+
+    const detail = getWordDetail(db, file);
+    assert.equal(detail?.lineCount, 3);
+    assert.equal(detail?.streamLineCount, 2);
+  });
+});
+
+test('lines that can be mined come first in examples and search, newest first within each', () => {
+  withDb((db) => {
+    const wordId = addWord(db, { headword: '言う', word: '言った', reading: 'いった' });
+    addOccurrence(db, wordId, 'File old', 1, 'file');
+    addOccurrence(db, wordId, 'File new', 1, 'file');
+    addOccurrence(db, wordId, 'File untimed', 1, 'file', { startMs: null, endMs: null });
+    addOccurrence(db, wordId, 'Stream newest', 1, 'stream');
+
+    const expected = ['File new', 'File old', 'Stream newest', 'File untimed'];
+    assert.deepEqual(
+      getWordOccurrences(db, '言う', '言った', 'いった', 10, 0, true).map((row) => row.videoTitle),
+      expected,
+    );
+    assert.deepEqual(
+      searchSubtitleSentences(db, 'line').map((row) => row.videoTitle),
+      expected,
     );
   });
 });

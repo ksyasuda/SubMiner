@@ -351,6 +351,14 @@ export function WordExplorer({
                         {row.isName ? (
                           <span className="text-[11px] text-ctp-overlay1">Name</span>
                         ) : null}
+                        {row.streamOnly ? (
+                          <span
+                            title="Every line with this word came from a stream, so it can't be mined yet."
+                            className="text-[11px] whitespace-nowrap text-ctp-peach"
+                          >
+                            Stream only
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="py-1.5 pl-3 text-right tabular-nums text-ctp-subtext0">

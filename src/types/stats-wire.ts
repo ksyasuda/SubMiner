@@ -102,6 +102,8 @@ export interface DictionaryWordRow {
   lastSeen: number;
   known: boolean;
   isName: boolean;
+  /** Every line with this word came from a stream, so it can't be mined. */
+  streamOnly: boolean;
   formCount: number;
   /** The most seen forms, capped so a word with hundreds of forms stays small. */
   forms: DictionaryWordForm[];
@@ -512,6 +514,10 @@ export interface WordDetailData {
     dictionaryReading: string;
     formCount: number;
     forms: DictionaryWordForm[];
+    /** Stored subtitle lines with this word, across every form. */
+    lineCount: number;
+    /** Those lines that came from a stream, which can't be mined. */
+    streamLineCount: number;
     firstSeen: number;
     lastSeen: number;
   };

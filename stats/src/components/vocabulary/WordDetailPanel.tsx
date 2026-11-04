@@ -4,11 +4,13 @@ import { apiClient } from '../../lib/api-client';
 import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../lib/formatters';
 import {
   buildStatsMineCardParams,
+  describeStreamedLines,
   getStatsMineCardError,
   getStatsMineCardUnavailableReason,
 } from '../../lib/mining';
 import { fullReading } from '../../lib/reading-utils';
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
+import { MineUnavailableNote } from '../common/MineUnavailableNote';
 import { SummaryTile } from '../layout/SummaryTile';
 import { PosBadge } from './pos-helpers';
 
@@ -194,6 +196,9 @@ export function WordDetailPanel({
   };
 
   const dictionaryReading = data ? displayReading(data.detail) : '';
+  const streamedLinesNotice = data
+    ? describeStreamedLines(data.detail.lineCount, data.detail.streamLineCount)
+    : null;
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
@@ -386,6 +391,11 @@ export function WordDetailPanel({
                     <div className="text-sm text-ctp-overlay2">Loading occurrences...</div>
                   )}
                   {occError && <div className="text-sm text-ctp-red">Error: {occError}</div>}
+                  {streamedLinesNotice && (
+                    <p className="mb-2 text-xs text-ctp-peach" role="note">
+                      {streamedLinesNotice}
+                    </p>
+                  )}
                   {occLoaded && !occLoading && occurrences.length === 0 && (
                     <div className="text-sm text-ctp-overlay2">
                       No example lines tracked yet. Lines are stored for sessions recorded after the
@@ -423,54 +433,49 @@ export function WordDetailPanel({
                               const wordStatus = mineStatus[`${baseKey}-word`];
                               const sentenceStatus = mineStatus[`${baseKey}-sentence`];
                               const audioStatus = mineStatus[`${baseKey}-audio`];
+                              if (unavailableReason) {
+                                return <MineUnavailableNote reason={unavailableReason} />;
+                              }
                               return (
                                 <>
                                   <button
                                     type="button"
-                                    title={unavailableReason ?? 'Mine this word from video clip'}
+                                    title="Mine this word from video clip"
                                     className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-mauve hover:text-ctp-mauve disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={wordStatus?.loading || !!unavailableReason}
+                                    disabled={wordStatus?.loading}
                                     onClick={() => void handleMine(occ, 'word')}
                                   >
                                     {wordStatus?.loading
                                       ? 'Mining...'
                                       : wordStatus?.success
                                         ? 'Mined!'
-                                        : unavailableReason
-                                          ? 'Unavailable'
-                                          : 'Mine Word'}
+                                        : 'Mine Word'}
                                   </button>
                                   <button
                                     type="button"
-                                    title={
-                                      unavailableReason ?? 'Mine this sentence from video clip'
-                                    }
+                                    title="Mine this sentence from video clip"
                                     className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-green hover:text-ctp-green disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={sentenceStatus?.loading || !!unavailableReason}
+                                    disabled={sentenceStatus?.loading}
                                     onClick={() => void handleMine(occ, 'sentence')}
                                   >
                                     {sentenceStatus?.loading
                                       ? 'Mining...'
                                       : sentenceStatus?.success
                                         ? 'Mined!'
-                                        : unavailableReason
-                                          ? 'Unavailable'
-                                          : 'Mine Sentence'}
+                                        : 'Mine Sentence'}
                                   </button>
                                   <button
                                     type="button"
-                                    title={unavailableReason ?? 'Mine this line as audio-only card'}
+                                    title="Mine this line as audio-only card"
                                     className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={audioStatus?.loading || !!unavailableReason}
+                                    disabled={audioStatus?.loading}
                                     onClick={() => void handleMine(occ, 'audio')}
                                   >
                                     {audioStatus?.loading
                                       ? 'Mining...'
                                       : audioStatus?.success
                                         ? 'Mined!'
-                                        : unavailableReason
-                                          ? 'Unavailable'
-                                          : 'Mine Audio'}
+                                        : 'Mine Audio'}
                                   </button>
                                 </>
                               );

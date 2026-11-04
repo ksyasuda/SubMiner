@@ -235,6 +235,8 @@ const WORD_DETAIL = {
   dictionaryReading: 'ねこ',
   formCount: 1,
   forms: [{ wordId: 1, word: '猫', reading: 'ねこ', seen: 42 }],
+  lineCount: 40,
+  streamLineCount: 0,
   firstSeen: Date.now() - 100_000,
   lastSeen: Date.now(),
 };

@@ -104,7 +104,7 @@ Searches the primary subtitle lines and titles in your history. **Search by head
 
 ## Mining from the dashboard
 
-Search results and the Vocabulary word panel can create cards from past lines, as long as the source video file is still available:
+Search results and the Vocabulary word panel can create cards from past lines, as long as the source video file is still available. Lines from a stream, such as Jellyfin or YouTube, have no file to cut clips from, so they say so instead of offering mining. Lines you can mine are listed first. The word panel counts how many of a word's lines this affects, and the word table marks words with only streamed lines as **Stream only**.
 
 - **Mine Word**: looks up the word with the selected dictionary backend (Yomitan or Hachidori), plus sentence, audio, and image. The history line you picked is the card's sentence, even while mpv plays another line. Hachidori uses its own Anki template, dictionary aliases, and frequency data.
 - **Mine Sentence**: a sentence card with `IsSentenceCard` set, for Lapis and Kiku note types.
