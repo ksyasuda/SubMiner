@@ -657,7 +657,12 @@ function startControllerPolling(): void {
         : ctx.state.kikuModalOpen
           ? fieldGroupingControllerLayout
           : null,
-    getSuspended: () => ctx.state.controllerSuspendedByModalWindow,
+    // macOS and Windows keep the modal window's renderer alive while hidden, and it keeps
+    // polling. It only owns the controller with a modal open; otherwise every press would run
+    // here and in the main overlay.
+    getSuspended: () =>
+      ctx.state.controllerSuspendedByModalWindow ||
+      (ctx.platform.isModalLayer && !isAnyModalOpen()),
   });
 
   const poll = (now: number): void => {
