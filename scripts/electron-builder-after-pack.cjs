@@ -4,6 +4,8 @@ const path = require('node:path');
 
 const LINUX_FFMPEG_LIBRARY = 'libffmpeg.so';
 const MACOS_WINDOW_HELPER = 'get-mpv-window-macos';
+const MACOS_CONTROLLER_HELPER = 'macos-controller-watch';
+const MACOS_HELPERS = [MACOS_WINDOW_HELPER, MACOS_CONTROLLER_HELPER];
 const DEFAULT_MACOS_APP_BUNDLE = 'SubMiner.app';
 
 function resolveMacOSAppBundlePath(context) {
@@ -52,7 +54,7 @@ async function stageLinuxAppImageSharedLibrary(
   return true;
 }
 
-async function verifyMacOSWindowHelper(
+async function verifyMacOSHelpers(
   context,
   deps = {
     access: (filePath, mode) => fs.access(filePath, mode),
@@ -60,27 +62,28 @@ async function verifyMacOSWindowHelper(
 ) {
   if (context.electronPlatformName !== 'darwin') return false;
 
-  const appBundlePath = resolveMacOSAppBundlePath(context);
-  const helperPath = path.join(
-    appBundlePath,
+  const scriptsDir = path.join(
+    resolveMacOSAppBundlePath(context),
     'Contents',
     'Resources',
     'scripts',
-    MACOS_WINDOW_HELPER,
   );
 
-  try {
-    await deps.access(helperPath, fsSync.constants.X_OK);
-  } catch (error) {
-    if (error && typeof error === 'object' && error.code === 'ENOENT') {
-      throw new Error(
-        `macOS packaging requires ${MACOS_WINDOW_HELPER} at ${helperPath}. Run bun run build:assets on macOS with swiftc available before packaging.`,
-      );
+  for (const helperName of MACOS_HELPERS) {
+    const helperPath = path.join(scriptsDir, helperName);
+    try {
+      await deps.access(helperPath, fsSync.constants.X_OK);
+    } catch (error) {
+      if (error && typeof error === 'object' && error.code === 'ENOENT') {
+        throw new Error(
+          `macOS packaging requires ${helperName} at ${helperPath}. Run bun run build:assets on macOS with swiftc available before packaging.`,
+        );
+      }
+      if (error && typeof error === 'object' && error.code === 'EACCES') {
+        throw new Error(`macOS helper is not executable: ${helperPath}`);
+      }
+      throw error;
     }
-    if (error && typeof error === 'object' && error.code === 'EACCES') {
-      throw new Error(`macOS window helper is not executable: ${helperPath}`);
-    }
-    throw error;
   }
 
   return true;
@@ -103,17 +106,17 @@ async function stageBundledBunRuntime(context, deps = {}) {
 
 async function afterPack(context, deps = {}) {
   await stageLinuxAppImageSharedLibrary(context);
-  await verifyMacOSWindowHelper(context);
+  await verifyMacOSHelpers(context);
   await stageBundledBunRuntime(context, deps);
   await (deps.auditPackage ?? require('./package-audit.cjs').auditPackage)(context);
 }
 
 module.exports = {
   LINUX_FFMPEG_LIBRARY,
-  MACOS_WINDOW_HELPER,
+  MACOS_HELPERS,
   resolveMacOSAppBundlePath,
   stageBundledBunRuntime,
   stageLinuxAppImageSharedLibrary,
-  verifyMacOSWindowHelper,
+  verifyMacOSHelpers,
   default: afterPack,
 };

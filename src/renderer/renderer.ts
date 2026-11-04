@@ -29,6 +29,7 @@ import type {
 import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import { createKeyboardHandlers } from './handlers/keyboard.js';
 import { createGamepadController } from './handlers/gamepad-controller.js';
+import { createControllerPressReplay } from './handlers/controller-press-replay.js';
 import { createMouseHandlers } from './handlers/mouse.js';
 import { createControllerStatusIndicator } from './controller-status-indicator.js';
 import { createControllerDebugModal } from './modals/controller-debug.js';
@@ -394,6 +395,7 @@ let lastSubtitlePreview = '';
 let lastSecondarySubtitlePreview = '';
 let overlayErrorToastTimeout: ReturnType<typeof setTimeout> | null = null;
 let controllerAnimationFrameId: number | null = null;
+const controllerPressReplay = createControllerPressReplay();
 
 function truncateForErrorLog(text: string): string {
   const normalized = text.replace(/\s+/g, ' ').trim();
@@ -528,7 +530,8 @@ function startControllerPolling(): void {
   }
 
   const gamepadController = createGamepadController({
-    getGamepads: () => Array.from(navigator.getGamepads?.() ?? []),
+    getGamepads: () =>
+      controllerPressReplay.apply(Array.from(navigator.getGamepads?.() ?? []), performance.now()),
     getConfig: () =>
       withAltCSelectedController(
         ctx.state.controllerConfig ?? {
@@ -860,6 +863,11 @@ function registerKeyboardCommandHandlers(): void {
 
   window.electronAPI.onPlaybackPauseChanged((paused: boolean) => {
     keyboardModeAutoPause.handlePlaybackPauseChanged(paused);
+  });
+
+  // macOS: replay a press made while mpv was in front; main has just focused this window.
+  window.electronAPI.onControllerBackgroundPress((buttonIndex) => {
+    if (buttonIndex >= 0) controllerPressReplay.queue(buttonIndex, performance.now());
   });
 
   // Alt+C saves in its own window; pick up remaps and the button style without a restart.

@@ -6,13 +6,13 @@ import test from 'node:test';
 
 const {
   LINUX_FFMPEG_LIBRARY,
-  MACOS_WINDOW_HELPER,
+  MACOS_HELPERS,
   default: afterPack,
   stageLinuxAppImageSharedLibrary,
-  verifyMacOSWindowHelper,
+  verifyMacOSHelpers,
 } = require('./electron-builder-after-pack.cjs') as {
   LINUX_FFMPEG_LIBRARY: string;
-  MACOS_WINDOW_HELPER: string;
+  MACOS_HELPERS: string[];
   default: (
     context: {
       appOutDir: string;
@@ -34,7 +34,7 @@ const {
     appOutDir: string;
     electronPlatformName: string;
   }) => Promise<boolean>;
-  verifyMacOSWindowHelper: (context: {
+  verifyMacOSHelpers: (context: {
     appOutDir: string;
     electronPlatformName: string;
   }) => Promise<boolean>;
@@ -88,24 +88,19 @@ test('stageLinuxAppImageSharedLibrary skips non-Linux packaging contexts', async
   }
 });
 
-test('verifyMacOSWindowHelper accepts packaged macOS helper binary', async () => {
+test('verifyMacOSHelpers accepts packaged macOS helper binaries', async () => {
   const workspace = createWorkspace('subminer-after-pack-macos-helper');
   const appOutDir = path.join(workspace, 'SubMiner-darwin-arm64');
-  const helperPath = path.join(
-    appOutDir,
-    'SubMiner.app',
-    'Contents',
-    'Resources',
-    'scripts',
-    MACOS_WINDOW_HELPER,
-  );
+  const scriptsDir = path.join(appOutDir, 'SubMiner.app', 'Contents', 'Resources', 'scripts');
 
-  fs.mkdirSync(path.dirname(helperPath), { recursive: true });
-  fs.writeFileSync(helperPath, 'compiled helper', 'utf8');
-  fs.chmodSync(helperPath, 0o755);
+  fs.mkdirSync(scriptsDir, { recursive: true });
+  for (const helperName of MACOS_HELPERS) {
+    fs.writeFileSync(path.join(scriptsDir, helperName), 'compiled helper', 'utf8');
+    fs.chmodSync(path.join(scriptsDir, helperName), 0o755);
+  }
 
   try {
-    const verified = await verifyMacOSWindowHelper({
+    const verified = await verifyMacOSHelpers({
       appOutDir,
       electronPlatformName: 'darwin',
     });
@@ -116,19 +111,22 @@ test('verifyMacOSWindowHelper accepts packaged macOS helper binary', async () =>
   }
 });
 
-test('verifyMacOSWindowHelper throws when macOS helper binary is missing', async () => {
+test('verifyMacOSHelpers throws when a macOS helper binary is missing', async () => {
   const workspace = createWorkspace('subminer-after-pack-macos-helper-missing');
   const appOutDir = path.join(workspace, 'SubMiner-darwin-arm64');
+  const scriptsDir = path.join(appOutDir, 'SubMiner.app', 'Contents', 'Resources', 'scripts');
 
-  fs.mkdirSync(path.join(appOutDir, 'SubMiner.app', 'Contents', 'Resources'), { recursive: true });
+  fs.mkdirSync(scriptsDir, { recursive: true });
+  fs.writeFileSync(path.join(scriptsDir, 'get-mpv-window-macos'), 'compiled helper', 'utf8');
+  fs.chmodSync(path.join(scriptsDir, 'get-mpv-window-macos'), 0o755);
 
   try {
     await assert.rejects(
-      verifyMacOSWindowHelper({
+      verifyMacOSHelpers({
         appOutDir,
         electronPlatformName: 'darwin',
       }),
-      /macOS packaging requires get-mpv-window-macos/,
+      /macOS packaging requires macos-controller-watch/,
     );
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });

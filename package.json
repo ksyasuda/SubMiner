@@ -185,6 +185,10 @@
         {
           "from": "dist/scripts/get-mpv-window-macos",
           "to": "scripts/get-mpv-window-macos"
+        },
+        {
+          "from": "dist/scripts/macos-controller-watch",
+          "to": "scripts/macos-controller-watch"
         }
       ],
       "files": [

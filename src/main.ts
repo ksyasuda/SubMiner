@@ -35,6 +35,11 @@ import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
 import { getAppControlSocketPath } from './shared/app-control';
 import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-focus';
+import {
+  handleBackgroundControllerPress,
+  resolveMacOSControllerWatchCommand,
+  startMacOSControllerWatch,
+} from './main/runtime/macos-controller-watch';
 import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
 import {
   getDefaultPasswordStore,
@@ -2417,3 +2422,37 @@ registerSubtitleGenerationIpc({
   openModal: () => openSubtitleGenerationModal(overlayModals.createOverlayHostedModalOpenDeps()),
 });
 app.on('before-quit', () => subtitleGenerationRuntime.cancel());
+
+if (process.platform === 'darwin') {
+  void app.whenReady().then(() => {
+    const command = resolveMacOSControllerWatchCommand({
+      resourcesPath: process.resourcesPath,
+      mainDirname: __dirname,
+    });
+    if (!command) {
+      logger.warn('macOS controller watch helper not found; controller needs overlay focus');
+      return;
+    }
+    const controllerWatch = startMacOSControllerWatch({
+      command,
+      logger,
+      onPress: (buttonIndex) =>
+        handleBackgroundControllerPress(buttonIndex, {
+          isControllerEnabled: () => configService.getConfig().controller.enabled,
+          isMpvFocused: () => appState.windowTracker?.isTargetWindowFocused() ?? false,
+          getModalWindow: () => overlayManager.getModalWindow(),
+          getMainWindow: () => overlayManager.getMainWindow(),
+          focusWindow: (window) =>
+            focusMacOSOverlayWindow({
+              platform: process.platform,
+              getOverlayWindow: () => window,
+              stealAppFocus: () => app.focus({ steal: true }),
+              warn: (message, details) => logger.warn(message, details),
+            }),
+          replayPress: (window, index) =>
+            window.webContents.send(IPC_CHANNELS.event.controllerBackgroundPress, index),
+        }),
+    });
+    app.on('will-quit', () => controllerWatch.stop());
+  });
+}
