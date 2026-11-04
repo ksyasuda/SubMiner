@@ -57,3 +57,18 @@ test('resolveConfig warns for invalid mpv launch mode', () => {
     message: "Expected one of: 'normal', 'maximized', 'fullscreen'.",
   });
 });
+
+test('resolveConfig parses the Jimaku auto-open toggle and warns on non-boolean values', () => {
+  const enabled = resolveConfig({ jimaku: { autoOpenWhenPrimarySubtitleMissing: true } });
+  assert.equal(enabled.resolved.jimaku.autoOpenWhenPrimarySubtitleMissing, true);
+  assert.deepEqual(enabled.warnings, []);
+
+  const invalid = resolveConfig({
+    jimaku: { autoOpenWhenPrimarySubtitleMissing: 'sometimes' as never },
+  });
+  assert.equal(invalid.resolved.jimaku.autoOpenWhenPrimarySubtitleMissing, false);
+  assert.deepEqual(
+    invalid.warnings.map((warning) => warning.path),
+    ['jimaku.autoOpenWhenPrimarySubtitleMissing'],
+  );
+});

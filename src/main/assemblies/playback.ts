@@ -61,6 +61,7 @@ import type { createDiscordPresenceRuntime } from '../runtime/discord-presence-r
 import type { createImmersionMediaRuntime } from '../runtime/domains/startup';
 import type { loadSubtitleSourceText } from '../runtime/internal-subtitle-extraction';
 import type { createManagedLocalSubtitleSelectionRuntime } from '../runtime/local-subtitle-selection';
+import type { createJimakuAutoOpenRuntime } from '../runtime/jimaku-auto-open';
 import type { createMediaTimingReviewRuntime } from '../runtime/media-timing-review';
 import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notifications-runtime';
 import type { createStartupOsdSequencer } from '../runtime/startup-osd-sequencer';
@@ -121,6 +122,10 @@ export interface PlaybackAssemblyDeps {
   managedLocalSubtitleSelectionRuntime: Pick<
     ReturnType<typeof createManagedLocalSubtitleSelectionRuntime>,
     'handleMediaPathChange' | 'handleSubtitleTrackListChange'
+  >;
+  jimakuAutoOpenRuntime: Pick<
+    ReturnType<typeof createJimakuAutoOpenRuntime>,
+    'handleMediaPathChange'
   >;
   mediaTimingReviewRuntime: Pick<
     ReturnType<typeof createMediaTimingReviewRuntime>,
@@ -240,6 +245,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
     currentMediaTokenizationGate,
     startupOsdSequencer,
     managedLocalSubtitleSelectionRuntime,
+    jimakuAutoOpenRuntime,
     mediaTimingReviewRuntime,
     discordPresenceRuntime,
     immersionMediaRuntime,
@@ -683,6 +689,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
         }
         currentMediaTokenizationGate.updateCurrentMediaPath(path);
         managedLocalSubtitleSelectionRuntime.handleMediaPathChange(path);
+        jimakuAutoOpenRuntime.handleMediaPathChange(path);
         startupOsdSequencer.reset();
         subtitlePrefetchRuntime.clearScheduledSubtitlePrefetchRefresh();
         if (!preserveParsedSubtitleCues) {

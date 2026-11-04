@@ -25,6 +25,7 @@ import { createLinuxOverlayModeRuntime } from '../runtime/linux-overlay-mode-run
 import { shouldRunLinuxOverlayZOrderKeepAlive } from '../runtime/linux-overlay-zorder-keepalive';
 import { focusMacOSOverlayWindow } from '../runtime/macos-overlay-window-focus';
 import type { createMediaTimingReviewRuntime } from '../runtime/media-timing-review';
+import type { createJimakuAutoOpenRuntime } from '../runtime/jimaku-auto-open';
 import type { createOverlayModalInputState } from '../runtime/overlay-modal-input-state';
 import type { createOverlayGeometryRuntime } from '../runtime/overlay-geometry-runtime';
 import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notifications-runtime';
@@ -124,6 +125,10 @@ export interface OverlayAssemblyDeps {
   getMediaTimingReviewRuntime: () => Pick<
     ReturnType<typeof createMediaTimingReviewRuntime>,
     'dispose'
+  >;
+  getJimakuAutoOpenRuntime: () => Pick<
+    ReturnType<typeof createJimakuAutoOpenRuntime>,
+    'handleJimakuModalOpened' | 'handleJimakuModalClosed'
   >;
   getSubtitleProcessingController: () => Pick<
     PlaybackAssembly['subtitleProcessingController'],
@@ -331,6 +336,8 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
               return;
             }
             void deps.getMediaTimingReviewRuntime().dispose();
+            // A destroyed modal window never reports its modals closed.
+            deps.getJimakuAutoOpenRuntime().handleJimakuModalClosed();
             overlayManager.setModalWindow(null);
           }
         },
@@ -506,6 +513,9 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
       if (modal === 'media-timing-review') {
         void deps.getMediaTimingReviewRuntime().dispose();
       }
+      if (modal === 'jimaku') {
+        deps.getJimakuAutoOpenRuntime().handleJimakuModalClosed();
+      }
       if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
         deps.setSubtitleSidebarRequestedOpen(false);
       }
@@ -524,6 +534,9 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     onOverlayModalOpened: (modal, senderWindow) => {
       if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
         deps.setSubtitleSidebarRequestedOpen(true);
+      }
+      if (modal === 'jimaku') {
+        deps.getJimakuAutoOpenRuntime().handleJimakuModalOpened();
       }
       deps.overlayModalRuntime.notifyOverlayModalOpened(modal);
     },

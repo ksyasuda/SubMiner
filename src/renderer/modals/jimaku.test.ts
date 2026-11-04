@@ -573,3 +573,166 @@ test('media info arriving after the modal closed does not fill inputs or search'
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
   }
 });
+
+type MediaInfoFixture = { filename: string; season: number; episode: number };
+
+const mediaInfo = (info: MediaInfoFixture) => ({
+  ...info,
+  title: 'Show',
+  confidence: 'medium',
+  rawTitle: info.filename,
+});
+
+// A Jimaku modal whose media-info replies are either immediate (`current`) or held until a test
+// resolves them (`deferReplies`), to drive re-open and reply-ordering races.
+async function withReopenHarness(
+  run: (h: {
+    modal: ReturnType<typeof createJimakuModal>;
+    episodeInput: { value: string };
+    setCurrent: (info: MediaInfoFixture) => void;
+    deferReplies: () => void;
+    pendingReplies: Array<(info: MediaInfoFixture) => void>;
+    pressEnter: () => void;
+  }) => Promise<void>,
+): Promise<void> {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+
+  let current = mediaInfo({ filename: '01.mkv', season: 1, episode: 1 });
+  let deferred = false;
+  const pendingReplies: Array<(info: MediaInfoFixture) => void> = [];
+  const electronAPI = {
+    getJimakuMediaInfo: () =>
+      deferred
+        ? new Promise((resolve) => pendingReplies.push((info) => resolve(mediaInfo(info))))
+        : Promise.resolve(current),
+    jimakuSearchEntries: async () => ({ ok: true, data: [] }),
+    notifyOverlayModalClosed: () => {},
+  } as unknown as ElectronAPI;
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { electronAPI } });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { activeElement: null, createElement: () => createElementStub() },
+  });
+
+  try {
+    const episodeInput = { value: '' };
+    const ctx = {
+      dom: {
+        overlay: { classList: createClassList() },
+        jimakuModal: { classList: createClassList(['hidden']), setAttribute: () => {} },
+        jimakuTitleInput: { value: '' },
+        jimakuSeasonInput: { value: '' },
+        jimakuEpisodeInput: episodeInput,
+        jimakuSearchButton: { addEventListener: () => {} },
+        jimakuCloseButton: { addEventListener: () => {} },
+        jimakuStatus: { textContent: '', style: { color: '' } },
+        jimakuEntriesSection: { classList: createClassList(['hidden']) },
+        jimakuEntriesList: createListStub(),
+        jimakuFilesSection: { classList: createClassList(['hidden']) },
+        jimakuFilesList: createListStub(),
+        jimakuBroadenButton: { classList: createClassList(['hidden']), addEventListener: () => {} },
+        jimakuTabAnimeButton: { classList: createClassList(['active']), setAttribute: () => {} },
+        jimakuTabLiveActionButton: { classList: createClassList(), setAttribute: () => {} },
+      },
+      state: createRendererState(),
+    };
+    const modal = createJimakuModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+    });
+
+    await run({
+      modal,
+      episodeInput,
+      setCurrent: (info) => {
+        current = mediaInfo(info);
+      },
+      deferReplies: () => {
+        deferred = true;
+      },
+      pendingReplies,
+      // Enter with no results and no focused input starts a search with the current inputs.
+      pressEnter: () => {
+        modal.handleJimakuKeydown({ key: 'Enter', preventDefault: () => {} } as KeyboardEvent);
+      },
+    });
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+}
+
+for (const c of [
+  {
+    name: 'reloads media info when the video changed',
+    next: { filename: '02.mkv', season: 1, episode: 2 },
+    reloads: true,
+  },
+  {
+    name: 'reloads media info for the same file name in another season',
+    next: { filename: '01.mkv', season: 2, episode: 1 },
+    reloads: true,
+  },
+  {
+    name: 'keeps the current search for the same video',
+    next: { filename: '01.mkv', season: 1, episode: 1 },
+    reloads: false,
+  },
+]) {
+  test(`re-opening the open Jimaku modal ${c.name}`, async () => {
+    await withReopenHarness(async (h) => {
+      h.modal.openJimakuModal();
+      await flushAsyncWork();
+      h.episodeInput.value = '7'; // the user's own edit
+      h.setCurrent(c.next);
+      h.modal.openJimakuModal();
+      await flushAsyncWork();
+      await flushAsyncWork();
+
+      assert.equal(h.episodeInput.value, c.reloads ? String(c.next.episode) : '7');
+    });
+  });
+}
+
+test('a search started during a changed-video refresh does not cancel the refresh', async () => {
+  await withReopenHarness(async (h) => {
+    h.modal.openJimakuModal();
+    await flushAsyncWork();
+    h.deferReplies();
+
+    h.modal.openJimakuModal(); // refresh request now pending
+    h.pressEnter();
+    await flushAsyncWork();
+    h.pendingReplies.shift()?.({ filename: '02.mkv', season: 1, episode: 2 });
+    await flushAsyncWork();
+    h.pendingReplies.shift()?.({ filename: '02.mkv', season: 1, episode: 2 }); // the reload
+    await flushAsyncWork();
+
+    assert.equal(h.episodeInput.value, '2');
+  });
+});
+
+test('a stale media-info reply from an earlier open does not make the current video look changed', async () => {
+  await withReopenHarness(async (h) => {
+    h.deferReplies();
+    h.modal.openJimakuModal(); // load for episode 1 stays pending
+    h.modal.closeJimakuModal();
+    h.modal.openJimakuModal(); // load for episode 2
+    h.pendingReplies[1]?.({ filename: '02.mkv', season: 1, episode: 2 });
+    await flushAsyncWork();
+    h.pendingReplies[0]?.({ filename: '01.mkv', season: 1, episode: 1 }); // stale
+    await flushAsyncWork();
+    h.episodeInput.value = '7'; // the user's own edit
+
+    h.modal.openJimakuModal(); // same video: must keep the user's search
+    h.pendingReplies[2]?.({ filename: '02.mkv', season: 1, episode: 2 });
+    await flushAsyncWork();
+    h.pendingReplies[3]?.({ filename: '02.mkv', season: 1, episode: 2 }); // a reload, if any
+    await flushAsyncWork();
+
+    assert.equal(h.pendingReplies.length, 3);
+    assert.equal(h.episodeInput.value, '7');
+  });
+});

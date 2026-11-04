@@ -159,6 +159,10 @@ function makeDeps(recorder: Recorder, state: FixtureState) {
     getMediaTimingReviewRuntime: spy('getMediaTimingReviewRuntime', () => ({
       dispose: spy('mediaTimingReview.dispose', resolved),
     })),
+    getJimakuAutoOpenRuntime: spy('getJimakuAutoOpenRuntime', () => ({
+      handleJimakuModalOpened: spy('jimakuAutoOpen.handleJimakuModalOpened', noop),
+      handleJimakuModalClosed: spy('jimakuAutoOpen.handleJimakuModalClosed', noop),
+    })),
     getSubtitleProcessingController: spy('getSubtitleProcessingController', () => ({
       refreshCurrentSubtitle: spy('subtitle.refreshCurrent', () => true),
     })),

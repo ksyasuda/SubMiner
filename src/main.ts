@@ -188,6 +188,7 @@ import {
 } from './main/runtime/autoplay-ready-gate';
 import { isVisibleOverlayAutoplayTargetReady } from './main/runtime/visible-overlay-autoplay-readiness';
 import { createManagedLocalSubtitleSelectionRuntime } from './main/runtime/local-subtitle-selection';
+import { createJimakuAutoOpenRuntime } from './main/runtime/jimaku-auto-open';
 import { createWindowsMpvPluginDetectionRuntime } from './main/runtime/windows-mpv-plugin-detection';
 import { refreshManagedCommandLineLauncher } from './main/runtime/command-line-launcher';
 import { applyLoginShellPath } from './main/runtime/login-shell-path';
@@ -739,6 +740,8 @@ const autoplayReadyGate = createAutoplayReadyGate({
   },
   // Deferred: isTokenizationWarmupReady is assigned during composeMpvRuntimeHandlers below.
   isTokenizationReady: () => isTokenizationWarmupReady(),
+  // Deferred: jimakuAutoOpenRuntime is created right after this gate.
+  isPlaybackHeld: () => jimakuAutoOpenRuntime.isHoldingPlayback(),
   requestOverlayPointerRecovery: () => {
     if (process.platform !== 'darwin' || !overlayManager.getVisibleOverlayVisible()) {
       return;
@@ -782,6 +785,29 @@ const managedLocalSubtitleSelectionRuntime = createManagedLocalSubtitleSelection
   sendMpvCommand: (command) => {
     sendMpvCommandRuntime(appState.mpvClient, command);
   },
+  schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearScheduled: (timer) => clearTimeout(timer),
+});
+const jimakuAutoOpenRuntime = createJimakuAutoOpenRuntime({
+  isEnabled: () => configService.getConfig().jimaku.autoOpenWhenPrimarySubtitleMissing,
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getMpvClient: () => appState.mpvClient,
+  getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
+  isPlaybackPaused: () => appState.playbackPaused,
+  pausePlayback: () => {
+    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'yes']);
+  },
+  holdPluginAutoplayGate: () => {
+    sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-hold']);
+  },
+  endHold: ({ undoPause }) => {
+    // Readiness deferred during the hold goes through the normal release (plugin + unpause).
+    autoplayReadyGate.flushPendingAutoplayReadySignal();
+    if (undoPause) {
+      sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'no']);
+    }
+  },
+  openJimaku: () => overlayModals.openJimakuOverlay(),
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   clearScheduled: (timer) => clearTimeout(timer),
 });
@@ -1034,6 +1060,7 @@ const overlay = createOverlayAssembly({
   getOverlayNotifications: () => overlayNotificationsRuntime,
   getOverlayVisibilityComposer: () => overlayVisibilityComposer,
   getMediaTimingReviewRuntime: () => mining.mediaTimingReviewRuntime,
+  getJimakuAutoOpenRuntime: () => jimakuAutoOpenRuntime,
   getSubtitleProcessingController: () => subtitleProcessingController,
   getAutoplaySubtitlePriming: () => autoplaySubtitlePrimingRuntime,
   ensureOverlayMpvSubtitlesHidden: () => ensureOverlayMpvSubtitlesHidden(),
@@ -1768,6 +1795,7 @@ const playback = createPlaybackAssembly({
   currentMediaTokenizationGate,
   startupOsdSequencer,
   managedLocalSubtitleSelectionRuntime,
+  jimakuAutoOpenRuntime,
   mediaTimingReviewRuntime: mining.mediaTimingReviewRuntime,
   discordPresenceRuntime,
   immersionMediaRuntime: stats.immersionMediaRuntime,

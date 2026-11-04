@@ -471,13 +471,14 @@ When SubMiner fills the sentence on a word card, it sets one card-type flag and 
 
 Search and download Japanese subtitles from [Jimaku](https://jimaku.cc). See [Jimaku integration](/jimaku-integration).
 
-| Key                         | Default               | What it does                                               |
-| --------------------------- | --------------------- | ---------------------------------------------------------- |
-| `jimaku.apiKey`             | `""`                  | API key. Optional, but raises your rate limit              |
-| `jimaku.apiKeyCommand`      | `""`                  | Shell command that prints the key. Use instead of `apiKey` |
-| `jimaku.apiBaseUrl`         | `"https://jimaku.cc"` | API base URL                                               |
-| `jimaku.languagePreference` | `"ja"`                | Preferred language: `ja`, `en`, or `none`                  |
-| `jimaku.maxEntryResults`    | `10`                  | Maximum search results                                     |
+| Key                                         | Default               | What it does                                                                      |
+| ------------------------------------------- | --------------------- | --------------------------------------------------------------------------------- |
+| `jimaku.apiKey`                             | `""`                  | API key. Optional, but raises your rate limit                                     |
+| `jimaku.apiKeyCommand`                      | `""`                  | Shell command that prints the key. Use instead of `apiKey`                        |
+| `jimaku.apiBaseUrl`                         | `"https://jimaku.cc"` | API base URL                                                                      |
+| `jimaku.languagePreference`                 | `"ja"`                | Preferred language: `ja`, `en`, or `none`                                         |
+| `jimaku.maxEntryResults`                    | `10`                  | Maximum search results                                                            |
+| `jimaku.autoOpenWhenPrimarySubtitleMissing` | `false`               | Pause and open the Jimaku modal when a local video has no Japanese subtitle track |
 
 ### TsukiHime
 
