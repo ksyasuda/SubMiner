@@ -52,7 +52,10 @@ export function TitleFilter({
           }
         }}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') selectIfTitle(event.currentTarget.value);
+          // Enter during IME composition confirms the conversion, not the filter.
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+            selectIfTitle(event.currentTarget.value);
+          }
         }}
         className="w-56 max-w-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-2.5 py-1 text-xs text-ctp-text placeholder:text-ctp-overlay2 focus:border-ctp-blue focus:outline-none"
       />

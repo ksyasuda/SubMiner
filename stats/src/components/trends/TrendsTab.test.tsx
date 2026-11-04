@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseDateDrafts } from './DateRangeSelector';
 import { HEATMAP_HOURS, heatmapCellOpacity } from './DayHourHeatmap';
 import { describePeriodChange, SummaryStrip } from './SummaryStrip';
 import { isDatalistSelection } from './TitleFilter';
@@ -71,4 +72,16 @@ test('isDatalistSelection separates picking a suggestion from typing', () => {
   assert.equal(isDatalistSelection(inputEvent('insertReplacementText')), true);
   assert.equal(isDatalistSelection(inputEvent('insertText')), false);
   assert.equal(isDatalistSelection(inputEvent('deleteContentBackward')), false);
+});
+
+test('parseDateDrafts waits for two complete dates in order', () => {
+  const end = '2026-03-01';
+  assert.deepEqual(parseDateDrafts({ start: '2026-02-01', end }), {
+    startDay: 20_485,
+    endDay: 20_513,
+  });
+  // What a date input reports partway through typing a year, or when cleared.
+  assert.equal(parseDateDrafts({ start: '0002-02-01', end }), null);
+  assert.equal(parseDateDrafts({ start: '', end }), null);
+  assert.equal(parseDateDrafts({ start: '2026-03-02', end }), null);
 });

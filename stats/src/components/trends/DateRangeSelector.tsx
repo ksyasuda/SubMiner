@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import type { GroupBy, PresetTimeRange, TimeRange } from '../../hooks/useTrends';
 import { epochDayToIsoDate, isoDateToEpochDay, todayLocalDay } from '../../lib/formatters';
+import type { StatsDayRange } from '../../types/stats';
 
 interface DateRangeSelectorProps {
   range: TimeRange;
@@ -62,6 +64,69 @@ function SegmentedControl<T extends string>({
   );
 }
 
+interface DateDrafts {
+  start: string;
+  end: string;
+}
+
+/** The range two date inputs describe, or null while either is incomplete or they are reversed. */
+export function parseDateDrafts(drafts: DateDrafts): StatsDayRange | null {
+  const startDay = isoDateToEpochDay(drafts.start);
+  const endDay = isoDateToEpochDay(drafts.end);
+  return startDay !== null && endDay !== null && startDay <= endDay ? { startDay, endDay } : null;
+}
+
+/**
+ * Date inputs report every keystroke, so typing 2025 passes through years 0002 and
+ * 0020. Each input shows its own draft, or it would snap back and lose the digits.
+ * Both drafts are checked together on each edit, so a range can move forward by
+ * editing either end first. They reset whenever the range changes.
+ */
+function CustomRangeInputs({
+  range,
+  onRangeChange,
+}: {
+  range: StatsDayRange;
+  onRangeChange: (range: StatsDayRange) => void;
+}) {
+  const start = epochDayToIsoDate(range.startDay);
+  const end = epochDayToIsoDate(range.endDay);
+  const [drafts, setDrafts] = useState<DateDrafts>({ start, end });
+
+  useEffect(() => {
+    setDrafts({ start, end });
+  }, [start, end]);
+
+  const updateDrafts = (next: DateDrafts) => {
+    setDrafts(next);
+    const parsed = parseDateDrafts(next);
+    if (parsed) onRangeChange(parsed);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-ctp-overlay2">
+      <input
+        type="date"
+        aria-label="Range start"
+        className={DATE_INPUT_CLASS}
+        value={drafts.start}
+        max={drafts.end}
+        onChange={(event) => updateDrafts({ ...drafts, start: event.target.value })}
+      />
+      to
+      <input
+        type="date"
+        aria-label="Range end"
+        className={DATE_INPUT_CLASS}
+        value={drafts.end}
+        min={drafts.start}
+        max={epochDayToIsoDate(todayLocalDay())}
+        onChange={(event) => updateDrafts({ ...drafts, end: event.target.value })}
+      />
+    </div>
+  );
+}
+
 export function DateRangeSelector({
   range,
   groupBy,
@@ -91,36 +156,7 @@ export function DateRangeSelector({
         formatLabel={formatRangeOption}
       />
       {typeof range === 'string' ? null : (
-        <div className="flex items-center gap-1.5 text-xs text-ctp-overlay2">
-          <input
-            type="date"
-            aria-label="Range start"
-            className={DATE_INPUT_CLASS}
-            value={epochDayToIsoDate(range.startDay)}
-            max={epochDayToIsoDate(range.endDay)}
-            onChange={(event) => {
-              const startDay = isoDateToEpochDay(event.target.value);
-              if (startDay !== null && startDay <= range.endDay) {
-                onRangeChange({ startDay, endDay: range.endDay });
-              }
-            }}
-          />
-          to
-          <input
-            type="date"
-            aria-label="Range end"
-            className={DATE_INPUT_CLASS}
-            value={epochDayToIsoDate(range.endDay)}
-            min={epochDayToIsoDate(range.startDay)}
-            max={epochDayToIsoDate(todayLocalDay())}
-            onChange={(event) => {
-              const endDay = isoDateToEpochDay(event.target.value);
-              if (endDay !== null && endDay >= range.startDay) {
-                onRangeChange({ startDay: range.startDay, endDay });
-              }
-            }}
-          />
-        </div>
+        <CustomRangeInputs range={range} onRangeChange={onRangeChange} />
       )}
       <SegmentedControl
         label="Group by"
