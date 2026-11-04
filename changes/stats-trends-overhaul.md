@@ -12,3 +12,4 @@ area: stats
 - Fixed word counts and readings: lists and the word detail panel now total every form of a word and show the dictionary form's reading, so 見る no longer shows みてる. The detail panel loads example lines straight away and lists a word's forms.
 - Fixed names slipping past Hide Names and the Trends new-word counts when tagged with more than one part of speech.
 - Stats now says when a word or line can't be mined because it came from a stream, in Search and the word panel, instead of showing Unavailable buttons. Lines you can mine are listed first. The word panel counts affected lines, and the word table marks words with only streamed lines as Stream only.
+- Fixed stats treating the day as one earlier in time zones ahead of UTC, which affected today's totals, the custom date picker, and first-seen dates.

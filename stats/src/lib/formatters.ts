@@ -72,10 +72,10 @@ export function isoDateToEpochDay(value: string): number | null {
   return Number.isNaN(ms) ? null : ms / 86_400_000;
 }
 
+/** The local calendar day as an epoch day, the same numbering the stats server uses. */
 export function localDayFromMs(ms: number): number {
   const d = new Date(ms);
-  const localMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  return Math.floor(localMidnight / 86_400_000);
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000;
 }
 
 export function todayLocalDay(): number {

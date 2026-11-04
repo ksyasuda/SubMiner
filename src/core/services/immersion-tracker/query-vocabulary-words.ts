@@ -96,7 +96,9 @@ function loadDictionaryWords(db: DatabaseSync): DictionaryWord[] {
   const rows = db
     .prepare(
       `
-        SELECT id, ${DICTIONARY_WORD_KEY_SQL} AS key, word, reading, frequency AS seen,
+        SELECT id, ${DICTIONARY_WORD_KEY_SQL} AS key,
+          COALESCE(NULLIF(TRIM(word), ''), ${DICTIONARY_WORD_KEY_SQL}) AS word,
+          COALESCE(reading, '') AS reading, frequency AS seen,
           frequency_rank AS rank, pos2, part_of_speech AS partOfSpeech,
           first_seen AS firstSeen, last_seen AS lastSeen
         FROM imm_words

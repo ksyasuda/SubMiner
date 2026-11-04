@@ -333,6 +333,31 @@ test('lines that can be mined come first in examples and search, newest first wi
   });
 });
 
+test('legacy rows with NULL text columns list, search, and open without failing', () => {
+  withDb((db) => {
+    const insert = db.prepare(
+      `INSERT INTO imm_words (headword, word, reading, first_seen, last_seen, frequency)
+       VALUES (?, ?, ?, 1700000000, 1700000000, 3)`,
+    );
+    const noHeadword = Number(insert.run(null, '猫', null).lastInsertRowid);
+    const noForm = Number(insert.run('犬', null, null).lastInsertRowid);
+
+    const { rows } = getDictionaryWordPage(db, null, query());
+    assert.deepEqual(rows.map((row) => [row.headword, row.forms[0]?.word, row.reading]).sort(), [
+      ['犬', '犬', ''],
+      ['猫', '猫', ''],
+    ]);
+    // NULL must not become searchable text.
+    assert.deepEqual(headwords(db, { search: 'null' }), []);
+
+    for (const id of [noHeadword, noForm]) {
+      assert.equal(getWordDetail(db, id)?.frequency, 3);
+      assert.deepEqual(getWordAnimeAppearances(db, id), []);
+      assert.deepEqual(getSimilarWords(db, id), []);
+    }
+  });
+});
+
 test('maxSeen and total describe every page, for scaling bars and paging', () => {
   withDb((db) => {
     addWord(db, { headword: '一', seen: 100 });

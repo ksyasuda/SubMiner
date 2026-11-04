@@ -3,6 +3,7 @@ import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { KanjiBreakdown, kanjiCellAlpha, kanjiInKnownWords } from './KanjiBreakdown';
 import { VocabularyCoverage } from './VocabularyCoverage';
+import { highlightWord } from './WordDetailPanel';
 import { buildVocabularyGrowth } from './VocabularyTab';
 import {
   buildWordQuery,
@@ -127,4 +128,9 @@ test('VocabularyCoverage shows each band as a share of the words seen in it', ()
   );
   assert.match(markup, /690 of 910, 76%/);
   assert.match(markup, /0 of 0, 0%/);
+});
+
+test('highlightWord marks the longest form, whatever order forms arrive in', () => {
+  const markup = renderToStaticMarkup(<p>{highlightWord('食べたい', ['食べ', '食べた'])}</p>);
+  assert.match(markup, />食べた<\/mark>い/);
 });

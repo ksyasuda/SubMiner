@@ -29,8 +29,9 @@ interface WordDetailPanelProps {
   onToggleExclusion?: (w: { headword: string; word: string; reading: string }) => void;
 }
 
-function highlightWord(text: string, words: string[]): React.ReactNode {
-  const needles = words.filter(Boolean);
+export function highlightWord(text: string, words: string[]): React.ReactNode {
+  // Longest first: regex alternation takes the first match, so 食べ would cut 食べた short.
+  const needles = words.filter(Boolean).sort((left, right) => right.length - left.length);
   if (needles.length === 0) return text;
 
   const escaped = needles.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));

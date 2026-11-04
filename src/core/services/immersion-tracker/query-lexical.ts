@@ -699,7 +699,8 @@ export function getWordDetail(db: DatabaseSync, wordId: number): WordDetailRow |
   const word = db
     .prepare(
       `
-    SELECT id AS wordId, headword, word, reading,
+    SELECT id AS wordId, COALESCE(headword, '') AS headword, COALESCE(word, '') AS word,
+           COALESCE(reading, '') AS reading,
            part_of_speech AS partOfSpeech, pos1, pos2, pos3
     FROM imm_words WHERE id = ?
   `,
@@ -714,7 +715,8 @@ export function getWordDetail(db: DatabaseSync, wordId: number): WordDetailRow |
   const forms = db
     .prepare(
       `
-    SELECT id AS wordId, word, reading, frequency AS seen, frequency_rank AS rank,
+    SELECT id AS wordId, COALESCE(word, '') AS word, COALESCE(reading, '') AS reading,
+           frequency AS seen, frequency_rank AS rank,
            first_seen AS firstSeen, last_seen AS lastSeen
     FROM imm_words
     WHERE ${hasHeadword ? '(headword = ? AND vocabulary_visible = 1) OR id = ?' : 'id = ?'}
@@ -781,20 +783,23 @@ export function getWordAnimeAppearances(
     JOIN imm_words w ON w.id = o.word_id
     JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
     JOIN imm_anime a ON a.anime_id = sl.anime_id
-    WHERE w.headword = (SELECT headword FROM imm_words WHERE id = ?) AND sl.anime_id IS NOT NULL
+    WHERE (w.id = ? OR w.headword = (SELECT NULLIF(TRIM(headword), '') FROM imm_words WHERE id = ?))
+      AND sl.anime_id IS NOT NULL
     GROUP BY a.anime_id
     ORDER BY occurrenceCount DESC
   `,
     )
-    .all(wordId) as WordAnimeAppearanceRow[];
+    .all(wordId, wordId) as WordAnimeAppearanceRow[];
 }
 
 /** Other dictionary words sharing a reading or kanji; a word's own forms don't count. */
 export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): SimilarWordRow[] {
-  const word = db.prepare('SELECT headword, reading FROM imm_words WHERE id = ?').get(wordId) as {
-    headword: string;
-    reading: string;
-  } | null;
+  const word = db
+    .prepare(
+      `SELECT COALESCE(headword, '') AS headword, COALESCE(reading, '') AS reading
+       FROM imm_words WHERE id = ?`,
+    )
+    .get(wordId) as { headword: string; reading: string } | null;
   if (!word || word.headword.trim() === '') return [];
 
   const clauses: string[] = [];
