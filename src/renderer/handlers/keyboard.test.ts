@@ -985,15 +985,21 @@ test('keyboard mode: C switches between moving by word and by character', async 
 });
 
 test('keyboard mode: character navigation lasts until toggled, even across keyboard mode', async () => {
-  const { ctx, handlers, testGlobals, characterCursorLog } = createKeyboardHandlerHarness();
+  const { ctx, handlers, testGlobals, characterCursorLog, setWordTexts } =
+    createKeyboardHandlerHarness();
 
   try {
     await handlers.setupMpvInputForwarding();
+    setWordTexts(['もっとハ', 'キ', 'ハキ']);
     handlers.handleKeyboardModeToggleRequested();
     testGlobals.dispatchKeydown({ key: 'c', code: 'KeyC' });
+    // Leave the mode with the cursor in the middle of the first word.
+    for (let i = 0; i < 3; i += 1) testGlobals.dispatchKeydown({ key: 'l', code: 'KeyL' });
+    assert.equal(characterCursorLog.at(-1), 'paint:0:3');
     handlers.handleKeyboardModeToggleRequested();
     assert.equal(ctx.dom.subtitleRoot.classList.contains('keyboard-character-navigation'), false);
 
+    // Coming back starts at the beginning of the line, as word mode does.
     characterCursorLog.length = 0;
     handlers.handleKeyboardModeToggleRequested();
     assert.equal(ctx.state.keyboardCharacterNavigation, true);

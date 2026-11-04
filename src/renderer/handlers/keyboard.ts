@@ -605,6 +605,9 @@ export function createKeyboardHandlers(
     ctx.state.keyboardSelectionVisible = enabled;
     if (!enabled) {
       ctx.state.keyboardSelectedWordIndex = null;
+      // Character navigation itself stays on, but like the word cursor it restarts at the
+      // beginning of the line next time.
+      ctx.state.keyboardSelectedCharIndex = 0;
       pendingSelectionAnchorAfterSubtitleSeek = null;
       pendingLookupRefreshAfterSubtitleSeek = false;
       resetSelectionToStartOnNextSubtitleSync = false;
