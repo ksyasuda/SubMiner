@@ -8,10 +8,13 @@ const SAME_PRESS_WINDOW_MS = 500;
 
 /**
  * Replays macOS background presses (see `src/main/runtime/macos-controller-watch.ts`) into the
- * controller poll. A queued button reads as pressed on standard-mapping pads for one poll, so
- * the controller sees a normal press edge; the next poll reads the real pad again, so a button
- * still held does not fire twice. A press the Gamepad API already reported is dropped, and with
- * no pad visible yet the press only served to focus the overlay.
+ * controller poll. A queued button reads as pressed for one poll, so the controller sees a
+ * normal press edge; the next poll reads the real pad again, so a button still held does not
+ * fire twice. A press the Gamepad API already reported is dropped.
+ *
+ * Only a lone standard-mapping pad gets the replay: the press carries no pad identity, so with
+ * several visible it could run an action on the wrong one. With none visible yet, or a pad
+ * mapped differently, the press only served to focus the overlay.
  */
 export function createControllerPressReplay() {
   const pendingPresses: Array<{ buttonIndex: number; queuedAt: number }> = [];
@@ -52,12 +55,11 @@ export function createControllerPressReplay() {
         })
         .map(({ buttonIndex }) => buttonIndex);
       pendingPresses.length = 0;
-      if (replayed.length === 0) return gamepads;
+      const onlyPad = connected.length === 1 ? connected[0] : undefined;
+      if (replayed.length === 0 || onlyPad?.mapping !== 'standard') return gamepads;
 
       return gamepads.map((gamepad) =>
-        gamepad?.connected && gamepad.mapping === 'standard'
-          ? withPressed(gamepad, replayed)
-          : gamepad,
+        gamepad === onlyPad ? withPressed(onlyPad, replayed) : gamepad,
       );
     },
   };

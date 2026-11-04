@@ -52,6 +52,15 @@ test('an older press of the same button does not block the replay', () => {
   assert.deepEqual(pressedIndices(replay.apply([pad()], 5010)[0]), [3]);
 });
 
+test('nothing is replayed while several pads are connected', () => {
+  const replay = createControllerPressReplay();
+  replay.queue(0, 1000);
+
+  const pads = replay.apply([pad(), { ...pad(), index: 1 }], 1010);
+  assert.deepEqual(pads.map(pressedIndices), [[], []]);
+  assert.deepEqual(pressedIndices(replay.apply([pad()], 1026)[0]), []);
+});
+
 test('pads without the standard mapping are left alone', () => {
   const replay = createControllerPressReplay();
   replay.queue(0, 1000);

@@ -38,10 +38,12 @@ export function resolveMacOSControllerWatchCommand(
   return null;
 }
 
-/** Parses a helper line ("press <index>") into a standard-mapping button index. */
-export function parseControllerWatchLine(line: string): number | null {
-  const match = /^press (\d+)$/.exec(line.trim());
-  return match ? Number(match[1]) : null;
+export type ControllerWatchPress = { buttonIndex: number; controllerCount: number };
+
+/** Parses a helper line ("press <standard-mapping button index> <connected pads>"). */
+export function parseControllerWatchLine(line: string): ControllerWatchPress | null {
+  const match = /^press (\d+) (\d+)$/.exec(line.trim());
+  return match ? { buttonIndex: Number(match[1]), controllerCount: Number(match[2]) } : null;
 }
 
 type ControllerWatchLogger = {
@@ -52,7 +54,7 @@ type ControllerWatchLogger = {
 /** Runs the helper until `stop` is called; the helper also exits when SubMiner does. */
 export function startMacOSControllerWatch(options: {
   command: MacOSControllerWatchCommand;
-  onPress: (buttonIndex: number) => void;
+  onPress: (press: ControllerWatchPress) => void;
   logger: ControllerWatchLogger;
   spawn?: typeof spawnProcess;
 }): { stop: () => void } {
@@ -63,8 +65,8 @@ export function startMacOSControllerWatch(options: {
   let stopped = false;
 
   readline.createInterface({ input: child.stdout }).on('line', (line) => {
-    const buttonIndex = parseControllerWatchLine(line);
-    if (buttonIndex !== null) options.onPress(buttonIndex);
+    const press = parseControllerWatchLine(line);
+    if (press) options.onPress(press);
   });
   readline.createInterface({ input: child.stderr }).on('line', (line) => {
     options.logger.warn(`[${HELPER_NAME}] ${line}`);
@@ -94,10 +96,11 @@ type FocusableWindow = {
 /**
  * A press the overlay missed because mpv was in front: focus the overlay window that owns the
  * controller (a visible modal, else the main overlay) and replay the press in it. Presses made
- * while another app is in front are left alone, so a pad used elsewhere is not hijacked.
+ * while another app is in front are left alone, so a pad used elsewhere is not hijacked. With
+ * several pads connected the press only focuses: it might not be from the pad the overlay reads.
  */
 export function handleBackgroundControllerPress<TWindow extends FocusableWindow>(
-  buttonIndex: number,
+  press: ControllerWatchPress,
   deps: {
     isControllerEnabled: () => boolean;
     isMpvFocused: () => boolean;
@@ -113,5 +116,5 @@ export function handleBackgroundControllerPress<TWindow extends FocusableWindow>
   );
   if (!target) return;
   deps.focusWindow(target);
-  deps.replayPress(target, buttonIndex);
+  if (press.controllerCount === 1) deps.replayPress(target, press.buttonIndex);
 }

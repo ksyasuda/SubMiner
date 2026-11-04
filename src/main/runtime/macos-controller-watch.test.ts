@@ -8,9 +8,9 @@ import {
 } from './macos-controller-watch';
 
 test('parseControllerWatchLine reads press lines only', () => {
-  assert.equal(parseControllerWatchLine('press 7\n'), 7);
-  assert.equal(parseControllerWatchLine('press'), null);
-  assert.equal(parseControllerWatchLine('release 7'), null);
+  assert.deepEqual(parseControllerWatchLine('press 7 2\n'), { buttonIndex: 7, controllerCount: 2 });
+  assert.equal(parseControllerWatchLine('press 7'), null);
+  assert.equal(parseControllerWatchLine('release 7 1'), null);
 });
 
 function fakeFs(files: Record<string, number>) {
@@ -58,13 +58,15 @@ function window(name: string, visible = true) {
 }
 
 function run(overrides: {
+  controllerCount?: number;
   enabled?: boolean;
   mpvFocused?: boolean;
   modal?: ReturnType<typeof window> | null;
   main?: ReturnType<typeof window> | null;
 }): string[] {
   const calls: string[] = [];
-  handleBackgroundControllerPress(4, {
+  const press = { buttonIndex: 4, controllerCount: overrides.controllerCount ?? 1 };
+  handleBackgroundControllerPress(press, {
     isControllerEnabled: () => overrides.enabled ?? true,
     isMpvFocused: () => overrides.mpvFocused ?? true,
     getModalWindow: () => overrides.modal ?? null,
@@ -77,6 +79,10 @@ function run(overrides: {
 
 test('a press while mpv is in front focuses the overlay and replays it', () => {
   assert.deepEqual(run({}), ['focus:main', 'replay:main:4']);
+});
+
+test('with several pads connected a press focuses the overlay without replaying', () => {
+  assert.deepEqual(run({ controllerCount: 2 }), ['focus:main']);
 });
 
 test('an open modal window takes the press instead of the main overlay', () => {

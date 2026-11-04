@@ -89,6 +89,8 @@ function buildMacosHelper(helperName) {
     process.stdout.write(`Built macOS helper: ${binaryPath}\n`);
   } catch (error) {
     process.stdout.write(`Failed to compile macOS helper ${helperName}; using source fallback.\n`);
+    // A binary from an earlier build would otherwise pass the after-pack check and ship stale.
+    fs.rmSync(binaryPath, { force: true });
     fallbackToMacosSource(helperName);
     if (error instanceof Error) {
       process.stderr.write(`${error.message}\n`);

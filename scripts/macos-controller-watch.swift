@@ -8,7 +8,9 @@
 //  line per press so SubMiner can focus the overlay and replay the press there.
 //
 //  Usage: macos-controller-watch (long-running; exits when stdin closes)
-//  Output: "press <index>" per button press, using the W3C standard gamepad button indices
+//  Output: "press <index> <connected pads>" per button press, using the W3C standard gamepad
+//  button indices. SubMiner only replays a press when one pad is connected: nothing identifies
+//  a pad to both GameController and Chromium, so with several it could hit the wrong one.
 //
 
 import Cocoa
@@ -43,12 +45,16 @@ private func standardButtons(_ pad: GCExtendedGamepad) -> [(Int, GCControllerBut
     ]
 }
 
+private func connectedPadCount() -> Int {
+    return GCController.controllers().filter { $0.extendedGamepad != nil }.count
+}
+
 private func watch(_ controller: GCController) {
     guard let pad = controller.extendedGamepad else { return }
     for (index, button) in standardButtons(pad) {
         button?.pressedChangedHandler = { _, _, pressed in
             if pressed {
-                emit("press \(index)")
+                emit("press \(index) \(connectedPadCount())")
             }
         }
     }

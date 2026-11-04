@@ -195,7 +195,7 @@ The media timing review and duplicate card (field grouping) dialogs have their o
 
 On controllers that report the W3C standard layout, the default quit button lands on `L2` instead of `Select`, and the default pause button on `Start` instead of `L3`. The default right-stick popup jump does nothing on these controllers; click **Learn** on **Popup Jump (Stick)** and move the right stick up or down to set it. Remap anything else with `Alt+C`, which names buttons according to the layout your controller reports. All options are in [Configuration](/configuration#controller-support).
 
-On macOS, a controller only reaches the app in front. When mpv is in front, a controller button brings the overlay to the front and then runs that button's action. Stick movements only work once the overlay is in front. Buttons pressed while another app is in front are left alone.
+On macOS, a controller only reaches the app in front. When mpv is in front, a controller button brings the overlay to the front and then runs that button's action. With more than one controller connected, that first press only brings the overlay to the front; press the button again to run its action. Stick movements only work once the overlay is in front. Buttons pressed while another app is in front are left alone.
 
 ## Development profiles
 

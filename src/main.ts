@@ -2436,8 +2436,8 @@ if (process.platform === 'darwin') {
     const controllerWatch = startMacOSControllerWatch({
       command,
       logger,
-      onPress: (buttonIndex) =>
-        handleBackgroundControllerPress(buttonIndex, {
+      onPress: (press) =>
+        handleBackgroundControllerPress(press, {
           isControllerEnabled: () => configService.getConfig().controller.enabled,
           isMpvFocused: () => appState.windowTracker?.isTargetWindowFocused() ?? false,
           getModalWindow: () => overlayManager.getModalWindow(),
