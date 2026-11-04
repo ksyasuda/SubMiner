@@ -162,6 +162,7 @@ export const IPC_CHANNELS = {
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
     controllerSuspendedChanged: 'controller:suspended-changed',
     controllerConfigChanged: 'controller:config-changed',
+    controllerBackgroundPress: 'controller:background-press',
     playbackPauseChanged: 'mpv:pause-changed',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     sessionHelpOpen: 'session-help:open',

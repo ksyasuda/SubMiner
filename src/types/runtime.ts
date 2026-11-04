@@ -695,6 +695,8 @@ export interface ElectronAPI {
   onControllerSuspendedChanged: (callback: (suspended: boolean) => void) => void;
   /** Alt+C saved controller settings; reload them with `getControllerConfig`. */
   onControllerConfigChanged: (callback: () => void) => void;
+  /** macOS: a button pressed while mpv was in front, which the Gamepad API never saw. */
+  onControllerBackgroundPress: (callback: (buttonIndex: number) => void) => void;
   /** mpv's pause property changed, from any source. */
   onPlaybackPauseChanged: (callback: (paused: boolean) => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;

@@ -14,9 +14,8 @@ const settingsOutputDir = path.join(repoRoot, 'dist', 'settings');
 const syncUiSourceDir = path.join(repoRoot, 'src', 'syncui');
 const syncUiOutputDir = path.join(repoRoot, 'dist', 'syncui');
 const scriptsOutputDir = path.join(repoRoot, 'dist', 'scripts');
-const macosHelperSourcePath = path.join(scriptDir, 'get-mpv-window-macos.swift');
-const macosHelperBinaryPath = path.join(scriptsOutputDir, 'get-mpv-window-macos');
-const macosHelperSourceCopyPath = path.join(scriptsOutputDir, 'get-mpv-window-macos.swift');
+// Swift helpers compiled on macOS and shipped in Resources/scripts.
+const MACOS_HELPERS = ['get-mpv-window-macos', 'macos-controller-watch'];
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -45,9 +44,10 @@ function copySyncUiAssets() {
   copyAssets(syncUiSourceDir, syncUiOutputDir, 'syncui');
 }
 
-function fallbackToMacosSource() {
-  copyFile(macosHelperSourcePath, macosHelperSourceCopyPath);
-  process.stdout.write(`Staged macOS helper source fallback: ${macosHelperSourceCopyPath}\n`);
+function fallbackToMacosSource(helperName) {
+  const sourceCopyPath = path.join(scriptsOutputDir, `${helperName}.swift`);
+  copyFile(path.join(scriptDir, `${helperName}.swift`), sourceCopyPath);
+  process.stdout.write(`Staged macOS helper source fallback: ${sourceCopyPath}\n`);
 }
 
 // Pin the minimum macOS to the app's own floor (Electron's `minos`). Without an
@@ -64,34 +64,34 @@ function shouldSkipMacosHelperBuild() {
   return process.env.SUBMINER_SKIP_MACOS_HELPER_BUILD === '1';
 }
 
-function buildMacosHelper() {
+function buildMacosHelper(helperName) {
   if (shouldSkipMacosHelperBuild()) {
     process.stdout.write('Skipping macOS helper build (SUBMINER_SKIP_MACOS_HELPER_BUILD=1)\n');
-    fallbackToMacosSource();
+    fallbackToMacosSource(helperName);
     return;
   }
 
   if (process.platform !== 'darwin') {
     process.stdout.write('Skipping macOS helper build (not on macOS)\n');
-    fallbackToMacosSource();
+    fallbackToMacosSource(helperName);
     return;
   }
 
   ensureDir(scriptsOutputDir);
+  const sourcePath = path.join(scriptDir, `${helperName}.swift`);
+  const binaryPath = path.join(scriptsOutputDir, helperName);
 
   try {
-    execFileSync(
-      'swiftc',
-      ['-O', '-target', macosHelperTarget(), macosHelperSourcePath, '-o', macosHelperBinaryPath],
-      {
-        stdio: 'inherit',
-      },
-    );
-    fs.chmodSync(macosHelperBinaryPath, 0o755);
-    process.stdout.write(`Built macOS helper: ${macosHelperBinaryPath}\n`);
+    execFileSync('swiftc', ['-O', '-target', macosHelperTarget(), sourcePath, '-o', binaryPath], {
+      stdio: 'inherit',
+    });
+    fs.chmodSync(binaryPath, 0o755);
+    process.stdout.write(`Built macOS helper: ${binaryPath}\n`);
   } catch (error) {
-    process.stdout.write('Failed to compile macOS helper; using source fallback.\n');
-    fallbackToMacosSource();
+    process.stdout.write(`Failed to compile macOS helper ${helperName}; using source fallback.\n`);
+    // A binary from an earlier build would otherwise pass the after-pack check and ship stale.
+    fs.rmSync(binaryPath, { force: true });
+    fallbackToMacosSource(helperName);
     if (error instanceof Error) {
       process.stderr.write(`${error.message}\n`);
     }
@@ -117,7 +117,7 @@ function main() {
   copyRendererAssets();
   copySettingsAssets();
   copySyncUiAssets();
-  buildMacosHelper();
+  MACOS_HELPERS.forEach(buildMacosHelper);
   stageIntegrationKeys();
 }
 
