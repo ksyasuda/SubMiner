@@ -32,7 +32,16 @@ export function createControllerPressReplay() {
     const buttons = gamepad.buttons.map((button, index) =>
       buttonIndices.includes(index) ? { value: 1, pressed: true, touched: true } : button,
     );
-    return { ...gamepad, buttons };
+    // Native Gamepad fields are prototype getters, so object spread would drop them.
+    return {
+      id: gamepad.id,
+      index: gamepad.index,
+      connected: gamepad.connected,
+      mapping: gamepad.mapping,
+      timestamp: gamepad.timestamp,
+      axes: gamepad.axes,
+      buttons,
+    };
   }
 
   return {

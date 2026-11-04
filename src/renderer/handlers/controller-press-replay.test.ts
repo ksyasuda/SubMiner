@@ -52,6 +52,44 @@ test('an older press of the same button does not block the replay', () => {
   assert.deepEqual(pressedIndices(replay.apply([pad()], 5010)[0]), [3]);
 });
 
+test('a replayed native pad keeps its fields', () => {
+  // Like the browser's Gamepad, these fields are prototype getters that object spread skips.
+  class NativePad implements GamepadLike {
+    get id() {
+      return 'pad';
+    }
+    get index() {
+      return 2;
+    }
+    get connected() {
+      return true;
+    }
+    get mapping() {
+      return 'standard';
+    }
+    get timestamp() {
+      return 900;
+    }
+    get axes() {
+      return [0.5, 0];
+    }
+    get buttons() {
+      return pad().buttons;
+    }
+  }
+  const replay = createControllerPressReplay();
+  replay.queue(0, 1000);
+
+  const replayed = replay.apply([new NativePad()], 1010)[0];
+  assert.deepEqual(pressedIndices(replayed), [0]);
+  assert.equal(replayed?.id, 'pad');
+  assert.equal(replayed?.index, 2);
+  assert.equal(replayed?.connected, true);
+  assert.equal(replayed?.mapping, 'standard');
+  assert.equal(replayed?.timestamp, 900);
+  assert.deepEqual(replayed?.axes, [0.5, 0]);
+});
+
 test('nothing is replayed while several pads are connected', () => {
   const replay = createControllerPressReplay();
   replay.queue(0, 1000);
