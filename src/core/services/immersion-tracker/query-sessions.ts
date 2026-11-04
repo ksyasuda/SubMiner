@@ -1,3 +1,4 @@
+import type { StatsDayRange } from '../../../types/stats-http-contract';
 import type { DatabaseSync } from './sqlite';
 import type {
   ImmersionSessionRollupRow,
@@ -15,7 +16,12 @@ import {
   visibleWordSql,
 } from './query-shared';
 
-export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummaryQueryRow[] {
+export function getSessionSummaries(
+  db: DatabaseSync,
+  limit = 50,
+  dayRange?: StatsDayRange,
+): SessionSummaryQueryRow[] {
+  const dayFilter = dayRange ? `WHERE ${sessionRollupDaySql('s')} BETWEEN ? AND ?` : '';
   const prepared = db.prepare(`
     ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
@@ -38,10 +44,12 @@ export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummar
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
     LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+    ${dayFilter}
     ORDER BY s.started_at_ms DESC
     LIMIT ?
   `);
-  const rows = prepared.all(limit) as Array<
+  const params = dayRange ? [dayRange.startDay, dayRange.endDay, limit] : [limit];
+  const rows = prepared.all(...params) as Array<
     SessionSummaryQueryRow & {
       startedAtMs: number | string;
       endedAtMs: number | string | null;
@@ -391,6 +399,63 @@ export function selectDailyRollupRows(db: DatabaseSync, limit: number): RawRollu
   `,
     )
     .all(limit) as unknown as RawRollupRow[];
+}
+
+/** Raw daily rollup rows for an inclusive day span; a null start means no lower bound. */
+export function selectDailyRollupRowsBetween(
+  db: DatabaseSync,
+  startDay: number | null,
+  endDay: number,
+): RawRollupRow[] {
+  return db
+    .prepare(
+      `
+    SELECT
+      r.rollup_day AS rollupDayOrMonth,
+      r.video_id AS videoId,
+      r.total_sessions AS totalSessions,
+      r.total_active_min AS totalActiveMin,
+      r.total_lines_seen AS totalLinesSeen,
+      r.total_tokens_seen AS totalTokensSeen,
+      r.total_cards AS totalCards,
+      r.cards_per_hour AS cardsPerHour,
+      r.lookup_hit_rate AS lookupHitRate
+    FROM imm_daily_rollups r
+    WHERE r.rollup_day BETWEEN ? AND ?
+    ORDER BY r.rollup_day DESC, r.video_id DESC
+  `,
+    )
+    .all(startDay ?? Number.MIN_SAFE_INTEGER, endDay) as unknown as RawRollupRow[];
+}
+
+/** Raw monthly rollup rows for an inclusive `YYYYMM` span; a null start means no lower bound. */
+export function selectMonthlyRollupRowsBetween(
+  db: DatabaseSync,
+  startMonth: number | null,
+  endMonth: number,
+): RawRollupRow[] {
+  return db
+    .prepare(
+      `
+    SELECT
+      r.rollup_month AS rollupDayOrMonth,
+      r.video_id AS videoId,
+      r.total_sessions AS totalSessions,
+      r.total_active_min AS totalActiveMin,
+      r.total_lines_seen AS totalLinesSeen,
+      r.total_tokens_seen AS totalTokensSeen,
+      r.total_cards AS totalCards,
+      CASE
+        WHEN r.total_active_min > 0 THEN (r.total_cards * 60.0) / r.total_active_min
+        ELSE NULL
+      END AS cardsPerHour,
+      NULL AS lookupHitRate
+    FROM imm_monthly_rollups r
+    WHERE r.rollup_month BETWEEN ? AND ?
+    ORDER BY r.rollup_month DESC, r.video_id DESC
+  `,
+    )
+    .all(startMonth ?? Number.MIN_SAFE_INTEGER, endMonth) as unknown as RawRollupRow[];
 }
 
 /** Monthly counterpart of `selectDailyRollupRows`. */

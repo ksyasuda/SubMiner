@@ -8,7 +8,6 @@ import {
   getLexicalDailyRollups,
   rebuildLexicalDailyRollups,
 } from './lexical-rollups';
-import { getTrendsDashboard } from './query-trends';
 import {
   getVocabularyChartData,
   getVocabularySummary,
@@ -696,25 +695,4 @@ test('lexical rollup rebuild preserves the original error when rollback also fai
   } as unknown as DatabaseSync;
 
   assert.throws(() => rebuildLexicalDailyRollups(db), originalError);
-});
-
-test('trends read historical new-word buckets from lexical rollups', () => {
-  const dbPath = makeDbPath();
-  const db = new Database(dbPath);
-
-  try {
-    ensureSchema(db);
-    db.prepare(
-      `INSERT INTO imm_words(headword, word, reading, first_seen, last_seen, frequency)
-       VALUES ('海', '海', 'うみ', 1700000000, 1700000000, 1)`,
-    ).run();
-    db.prepare(`UPDATE imm_lexical_daily_rollups SET word_count = 9`).run();
-
-    const dashboard = getTrendsDashboard(db, 'all', 'day', false);
-
-    assert.equal(dashboard.progress.newWords[0]?.value, 9);
-  } finally {
-    db.close();
-    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
-  }
 });

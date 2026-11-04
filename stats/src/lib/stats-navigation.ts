@@ -1,10 +1,11 @@
-import type { SessionSummary } from '../types/stats';
+import type { SessionSummary, StatsDayRange } from '../types/stats';
 import type { TabId } from '../components/layout/TabBar';
 
 export type MediaDetailOrigin =
   | { type: 'anime'; animeId: number }
   | { type: 'overview' }
-  | { type: 'sessions' };
+  | { type: 'sessions' }
+  | { type: 'trends' };
 
 export interface MediaDetailState {
   videoId: number;
@@ -12,10 +13,16 @@ export interface MediaDetailState {
   origin: MediaDetailOrigin;
 }
 
+/** Narrows the Sessions tab to a span of days, set when arriving from a Trends chart. */
+export interface SessionsDayFilter extends StatsDayRange {
+  label: string;
+}
+
 export interface StatsViewState {
   activeTab: TabId;
   selectedAnimeId: number | null;
   focusedSessionId: number | null;
+  sessionsDayFilter: SessionsDayFilter | null;
   mediaDetail: MediaDetailState | null;
 }
 
@@ -24,6 +31,7 @@ export function createInitialStatsView(): StatsViewState {
     activeTab: 'overview',
     selectedAnimeId: null,
     focusedSessionId: null,
+    sessionsDayFilter: null,
     mediaDetail: null,
   };
 }
@@ -33,6 +41,7 @@ export function switchTab(state: StatsViewState, tabId: TabId): StatsViewState {
     activeTab: tabId,
     selectedAnimeId: null,
     focusedSessionId: tabId === 'sessions' ? state.focusedSessionId : null,
+    sessionsDayFilter: null,
     mediaDetail: null,
   };
 }
@@ -51,6 +60,20 @@ export function navigateToSession(state: StatsViewState, sessionId: number): Sta
     ...state,
     activeTab: 'sessions',
     focusedSessionId: sessionId,
+    sessionsDayFilter: null,
+    mediaDetail: null,
+  };
+}
+
+export function navigateToSessionsDays(
+  state: StatsViewState,
+  sessionsDayFilter: SessionsDayFilter,
+): StatsViewState {
+  return {
+    ...state,
+    activeTab: 'sessions',
+    focusedSessionId: null,
+    sessionsDayFilter,
     mediaDetail: null,
   };
 }
@@ -65,6 +88,7 @@ export function openAnimeEpisodeDetail(
     activeTab: 'anime',
     selectedAnimeId: animeId,
     focusedSessionId: null,
+    sessionsDayFilter: null,
     mediaDetail: {
       videoId,
       initialSessionId: sessionId,
@@ -85,6 +109,7 @@ export function openOverviewMediaDetail(
     activeTab: 'overview',
     selectedAnimeId: null,
     focusedSessionId: null,
+    sessionsDayFilter: null,
     mediaDetail: {
       videoId,
       initialSessionId: sessionId,
@@ -100,6 +125,7 @@ export function openSessionsMediaDetail(state: StatsViewState, videoId: number):
     activeTab: 'sessions',
     selectedAnimeId: null,
     focusedSessionId: null,
+    sessionsDayFilter: state.sessionsDayFilter,
     mediaDetail: {
       videoId,
       initialSessionId: null,
@@ -110,33 +136,43 @@ export function openSessionsMediaDetail(state: StatsViewState, videoId: number):
   };
 }
 
+export function openTrendsMediaDetail(_state: StatsViewState, videoId: number): StatsViewState {
+  return {
+    activeTab: 'trends',
+    selectedAnimeId: null,
+    focusedSessionId: null,
+    sessionsDayFilter: null,
+    mediaDetail: {
+      videoId,
+      initialSessionId: null,
+      origin: {
+        type: 'trends',
+      },
+    },
+  };
+}
+
 export function closeMediaDetail(state: StatsViewState): StatsViewState {
   if (!state.mediaDetail) {
     return state;
   }
 
-  if (state.mediaDetail.origin.type === 'overview') {
+  const { origin } = state.mediaDetail;
+  if (origin.type === 'anime') {
     return {
-      activeTab: 'overview',
-      selectedAnimeId: null,
+      activeTab: 'anime',
+      selectedAnimeId: origin.animeId,
       focusedSessionId: null,
-      mediaDetail: null,
-    };
-  }
-
-  if (state.mediaDetail.origin.type === 'sessions') {
-    return {
-      activeTab: 'sessions',
-      selectedAnimeId: null,
-      focusedSessionId: null,
+      sessionsDayFilter: null,
       mediaDetail: null,
     };
   }
 
   return {
-    activeTab: 'anime',
-    selectedAnimeId: state.mediaDetail.origin.animeId,
+    activeTab: origin.type,
+    selectedAnimeId: null,
     focusedSessionId: null,
+    sessionsDayFilter: origin.type === 'sessions' ? state.sessionsDayFilter : null,
     mediaDetail: null,
   };
 }

@@ -51,6 +51,11 @@ import {
   getSessionWordsByLine,
 } from './immersion-tracker/query-sessions';
 import { getTrendsDashboard } from './immersion-tracker/query-trends';
+import type {
+  StatsDayRange,
+  StatsTrendGroupBy,
+  StatsTrendRange,
+} from '../../types/stats-http-contract';
 import {
   getKanjiAnimeAppearances,
   getKanjiDetail,
@@ -618,8 +623,11 @@ export class ImmersionTrackerService {
     this.db.close();
   }
 
-  async getSessionSummaries(limit = 50): Promise<SessionSummaryQueryRow[]> {
-    return getSessionSummaries(this.db, limit);
+  async getSessionSummaries(
+    limit = 50,
+    dayRange?: StatsDayRange,
+  ): Promise<SessionSummaryQueryRow[]> {
+    return getSessionSummaries(this.db, limit, dayRange);
   }
 
   async getSessionTimeline(sessionId: number, limit?: number): Promise<SessionTimelineRow[]> {
@@ -673,11 +681,12 @@ export class ImmersionTrackerService {
   }
 
   async getTrendsDashboard(
-    range: '7d' | '30d' | '90d' | '365d' | 'all' = '30d',
-    groupBy: 'day' | 'month' = 'day',
+    range: StatsTrendRange = '30d',
+    groupBy: StatsTrendGroupBy = 'day',
     fillEmptyBuckets = true,
+    title: string | null = null,
   ) {
-    return getTrendsDashboard(this.db, range, groupBy, fillEmptyBuckets);
+    return getTrendsDashboard(this.db, range, groupBy, fillEmptyBuckets, title);
   }
 
   async getVocabularyStats(limit = 100, excludePos?: string[]): Promise<VocabularyStatsRow[]> {

@@ -64,7 +64,17 @@ The same show can end up on several cards when release names disagree. To fix th
 
 ### Trends
 
-Charts for watch time, cards, words, and sessions per day or month, running totals, efficiency (words per minute, cards per hour), and viewing patterns by weekday and hour. Each chart has its own date range and grouping.
+Pick a date range (or set **Custom** dates), group by day, week, or month, and the whole page follows. Your choices are remembered.
+
+- **Summary**: totals for the range, compared with the period just before it.
+- **Activity**: watch time, cards, words, and finished episodes. Click a bar to open that period's sessions.
+- **Learning**: new words per 1,000 words seen, and how common those new words are. Conjugations of a word count once, and names are left out.
+- **Efficiency**: words per minute, cards per hour, and lookups per 100 words. Daily views use a rolling 7 days, and gaps mean too little data to rate.
+- **Running total**: one chart with a switcher for each metric, counted from the start of the range.
+- **Patterns**: a day and hour heatmap of when you watch.
+- **Titles**: a timeline of what you watched when, and a sortable summary table. Click a title, or use the filter box, to narrow the page to it. **↗** opens the title.
+
+An episode counts as finished once, on the last day you watched it.
 
 ![Stats Trends](/screenshots/stats-trends.png)
 
@@ -76,7 +86,7 @@ Session history. Expand a session for its pace, lines, known-word rate, lookups,
 
 ### Vocabulary
 
-Unique words and kanji you have seen, new words per day, frequency rank tables with Hide Known and Hide Kana filters, and a kanji breakdown. Click a word to see every line it appeared in.
+Unique words and kanji you have seen, new words per day (a word's conjugations count once), frequency rank tables with Hide Known and Hide Kana filters, and a kanji breakdown. Click a word to see every line it appeared in.
 
 - **Exclusions** hides words from every vocabulary view. You can restore them from the same dialog.
 - **Duplicates** cleans up lines repeated by karaoke openings and animated signs (see [Repeated lines](#repeated-lines)).

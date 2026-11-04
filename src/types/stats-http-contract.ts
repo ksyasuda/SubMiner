@@ -29,8 +29,14 @@ import type {
 } from './stats-wire';
 import type { TmdbMediaType } from '../shared/media-kind';
 
-export type StatsTrendRange = '7d' | '30d' | '90d' | '365d' | 'all';
-export type StatsTrendGroupBy = 'day' | 'month';
+export type StatsTrendPresetRange = '7d' | '30d' | '90d' | '365d' | 'all';
+/** Inclusive local calendar days since the Unix epoch. */
+export interface StatsDayRange {
+  startDay: number;
+  endDay: number;
+}
+export type StatsTrendRange = StatsTrendPresetRange | StatsDayRange;
+export type StatsTrendGroupBy = 'day' | 'week' | 'month';
 export type StatsMineMode = 'word' | 'sentence' | 'audio';
 
 /** Body of `POST /api/stats/maintenance/duplicate-lines`. */
@@ -259,7 +265,7 @@ export interface StatsHttpClient {
   getOverview: () => Promise<OverviewData>;
   getDailyRollups: (limit?: number) => Promise<DailyRollup[]>;
   getMonthlyRollups: (limit?: number) => Promise<MonthlyRollup[]>;
-  getSessions: (limit?: number) => Promise<SessionSummary[]>;
+  getSessions: (limit?: number, dayRange?: StatsDayRange) => Promise<SessionSummary[]>;
   getSessionTimeline: (id: number, limit?: number) => Promise<SessionTimelinePoint[]>;
   getSessionEvents: (id: number, limit?: number, eventTypes?: number[]) => Promise<SessionEvent[]>;
   getSessionKnownWordsTimeline: (id: number) => Promise<StatsSessionKnownWordsTimelinePoint[]>;
@@ -306,6 +312,7 @@ export interface StatsHttpClient {
     range: StatsTrendRange,
     groupBy: StatsTrendGroupBy,
     fillEmpty?: boolean,
+    title?: string | null,
   ) => Promise<TrendsDashboardData>;
   getWordDetail: (wordId: number) => Promise<WordDetailData>;
   getKanjiDetail: (kanjiId: number) => Promise<KanjiDetailData>;

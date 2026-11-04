@@ -16,6 +16,7 @@ import type {
   StatsMoveVideoRequest,
   StatsMoveVideoResponse,
   StatsTmdbAssignment,
+  StatsDayRange,
   StatsTrendGroupBy,
   StatsTrendRange,
   StatsVideoWatchedRequest,
@@ -67,7 +68,13 @@ export const apiClient = {
     fetchJson('dailyRollups', `/api/stats/daily-rollups?limit=${limit}`),
   getMonthlyRollups: (limit = 24) =>
     fetchJson('monthlyRollups', `/api/stats/monthly-rollups?limit=${limit}`),
-  getSessions: (limit = 50) => fetchJson('sessions', `/api/stats/sessions?limit=${limit}`),
+  getSessions: (limit = 50, dayRange?: StatsDayRange) =>
+    fetchJson(
+      'sessions',
+      dayRange
+        ? `/api/stats/sessions?limit=${limit}&fromDay=${dayRange.startDay}&toDay=${dayRange.endDay}`
+        : `/api/stats/sessions?limit=${limit}`,
+    ),
   getSessionTimeline: (id: number, limit?: number) =>
     fetchJson(
       'sessionTimeline',
@@ -159,11 +166,26 @@ export const apiClient = {
     fetchJson('newAnimePerDay', `/api/stats/trends/new-anime-per-day?limit=${limit}`),
   getWatchTimePerAnime: (limit = 90) =>
     fetchJson('watchTimePerAnime', `/api/stats/trends/watch-time-per-anime?limit=${limit}`),
-  getTrendsDashboard: (range: StatsTrendRange, groupBy: StatsTrendGroupBy, fillEmpty = true) =>
-    fetchJson(
-      'trendsDashboard',
-      `/api/stats/trends/dashboard?range=${encodeURIComponent(range)}&groupBy=${encodeURIComponent(groupBy)}&fillEmpty=${fillEmpty ? 'true' : 'false'}`,
-    ),
+  getTrendsDashboard: (
+    range: StatsTrendRange,
+    groupBy: StatsTrendGroupBy,
+    fillEmpty = true,
+    title: string | null = null,
+  ) => {
+    const params = new URLSearchParams(
+      typeof range === 'string'
+        ? { range }
+        : {
+            range: 'custom',
+            fromDay: String(range.startDay),
+            toDay: String(range.endDay),
+          },
+    );
+    params.set('groupBy', groupBy);
+    params.set('fillEmpty', fillEmpty ? 'true' : 'false');
+    if (title !== null) params.set('title', title);
+    return fetchJson('trendsDashboard', `/api/stats/trends/dashboard?${params.toString()}`);
+  },
   getWordDetail: (wordId: number) =>
     fetchJson('wordDetail', `/api/stats/vocabulary/${wordId}/detail`),
   getKanjiDetail: (kanjiId: number) =>

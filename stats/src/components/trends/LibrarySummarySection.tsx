@@ -1,23 +1,21 @@
 import { useMemo, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { LibrarySummaryRow } from '../../types/stats';
-import { CHART_DEFAULTS, CHART_THEME, TOOLTIP_CONTENT_STYLE } from '../../lib/chart-theme';
 import { epochDayToDate, formatDuration, formatNumber } from '../../lib/formatters';
 
 interface LibrarySummarySectionProps {
   rows: LibrarySummaryRow[];
-  hiddenTitles: ReadonlySet<string>;
+  selectedTitle: string | null;
+  onSelectTitle: (title: string) => void;
+  onOpenTitle: (row: LibrarySummaryRow) => void;
 }
 
-const LEADERBOARD_LIMIT = 10;
-const LEADERBOARD_HEIGHT = 260;
-const LEADERBOARD_BAR_COLOR = '#8aadf4';
 const TABLE_MAX_HEIGHT = 480;
 
 type SortColumn =
   | 'title'
   | 'watchTimeMin'
   | 'videos'
+  | 'episodesFinished'
   | 'sessions'
   | 'cards'
   | 'words'
@@ -37,6 +35,7 @@ const COLUMNS: ColumnDef[] = [
   { id: 'title', label: 'Title', align: 'left' },
   { id: 'watchTimeMin', label: 'Watch Time', align: 'right' },
   { id: 'videos', label: 'Videos', align: 'right' },
+  { id: 'episodesFinished', label: 'Finished', align: 'right' },
   { id: 'sessions', label: 'Sessions', align: 'right' },
   { id: 'cards', label: 'Cards', align: 'right' },
   { id: 'words', label: 'Words', align: 'right' },
@@ -44,11 +43,6 @@ const COLUMNS: ColumnDef[] = [
   { id: 'lookupsPerHundred', label: 'Lookups/100w', align: 'right' },
   { id: 'firstWatched', label: 'Date Range', align: 'right' },
 ];
-
-function truncateTitle(title: string, maxChars: number): string {
-  if (title.length <= maxChars) return title;
-  return `${title.slice(0, maxChars - 1)}…`;
-}
 
 function formatDateRange(firstEpochDay: number, lastEpochDay: number): string {
   const fmt = (epochDay: number) =>
@@ -76,10 +70,6 @@ function compareRows(
     return a.title.localeCompare(b.title) * sign;
   }
 
-  if (column === 'firstWatched') {
-    return (a.firstWatched - b.firstWatched) * sign;
-  }
-
   if (column === 'lookupsPerHundred') {
     const aVal = a.lookupsPerHundred;
     const bVal = b.lookupsPerHundred;
@@ -89,39 +79,28 @@ function compareRows(
     return (aVal - bVal) * sign;
   }
 
-  const aVal = a[column] as number;
-  const bVal = b[column] as number;
-  return (aVal - bVal) * sign;
+  return (a[column] - b[column]) * sign;
 }
 
-export function LibrarySummarySection({ rows, hiddenTitles }: LibrarySummarySectionProps) {
+export function LibrarySummarySection({
+  rows,
+  selectedTitle,
+  onSelectTitle,
+  onOpenTitle,
+}: LibrarySummarySectionProps) {
   const [sortColumn, setSortColumn] = useState<SortColumn>('watchTimeMin');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  const visibleRows = useMemo(
-    () => rows.filter((row) => !hiddenTitles.has(row.title)),
-    [rows, hiddenTitles],
-  );
-
   const sortedRows = useMemo(
-    () => [...visibleRows].sort((a, b) => compareRows(a, b, sortColumn, sortDirection)),
-    [visibleRows, sortColumn, sortDirection],
+    () => [...rows].sort((a, b) => compareRows(a, b, sortColumn, sortDirection)),
+    [rows, sortColumn, sortDirection],
+  );
+  const maxWatchTime = useMemo(
+    () => rows.reduce((max, row) => Math.max(max, row.watchTimeMin), 0),
+    [rows],
   );
 
-  const leaderboard = useMemo(
-    () =>
-      [...visibleRows]
-        .sort((a, b) => b.watchTimeMin - a.watchTimeMin)
-        .slice(0, LEADERBOARD_LIMIT)
-        .map((row) => ({
-          title: row.title,
-          displayTitle: truncateTitle(row.title, 24),
-          watchTimeMin: row.watchTimeMin,
-        })),
-    [visibleRows],
-  );
-
-  if (visibleRows.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="col-span-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 p-4">
         <div className="text-xs text-ctp-overlay2">No library activity in the selected window.</div>
@@ -139,85 +118,84 @@ export function LibrarySummarySection({ rows, hiddenTitles }: LibrarySummarySect
   };
 
   return (
-    <>
-      <div className="col-span-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 p-4">
-        <h3 className="text-xs font-semibold text-ctp-text mb-2">Top Titles by Watch Time (min)</h3>
-        <ResponsiveContainer width="100%" height={LEADERBOARD_HEIGHT}>
-          <BarChart
-            data={leaderboard}
-            layout="vertical"
-            margin={{ top: 8, right: 16, bottom: 8, left: 8 }}
-          >
-            <CartesianGrid stroke={CHART_THEME.grid} {...CHART_DEFAULTS.grid} />
-            <XAxis
-              type="number"
-              tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
-              axisLine={{ stroke: CHART_THEME.axisLine }}
-              tickLine={false}
-            />
-            <YAxis
-              type="category"
-              dataKey="displayTitle"
-              width={160}
-              tick={{ fontSize: CHART_DEFAULTS.tickFontSize, fill: CHART_THEME.tick }}
-              axisLine={{ stroke: CHART_THEME.axisLine }}
-              tickLine={false}
-              interval={0}
-            />
-            <Tooltip
-              contentStyle={TOOLTIP_CONTENT_STYLE}
-              formatter={(value: number) => [`${value} min`, 'Watch Time']}
-              labelFormatter={(_label, payload) => {
-                const datum = payload?.[0]?.payload as { title?: string } | undefined;
-                return datum?.title ?? '';
-              }}
-            />
-            <Bar dataKey="watchTimeMin" fill={LEADERBOARD_BAR_COLOR} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="col-span-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 p-4">
-        <h3 className="text-xs font-semibold text-ctp-text mb-2">Per-Title Summary</h3>
-        <div className="overflow-auto" style={{ maxHeight: TABLE_MAX_HEIGHT }}>
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-ctp-surface0">
-              <tr className="border-b border-ctp-surface1 text-ctp-subtext0">
-                {COLUMNS.map((column) => {
-                  const isActive = column.id === sortColumn;
-                  const indicator = isActive ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : '';
-                  return (
-                    <th
-                      key={column.id}
-                      scope="col"
-                      className={`px-2 py-2 font-medium select-none cursor-pointer hover:text-ctp-text ${
-                        column.align === 'right' ? 'text-right' : 'text-left'
-                      } ${isActive ? 'text-ctp-text' : ''}`}
-                      onClick={() => handleHeaderClick(column.id)}
-                    >
-                      {column.label}
-                      {indicator}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedRows.map((row) => (
+    <div className="col-span-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 p-4">
+      <h3 className="text-xs font-semibold text-ctp-text mb-2">Per-Title Summary</h3>
+      <div className="overflow-auto" style={{ maxHeight: TABLE_MAX_HEIGHT }}>
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-ctp-surface0">
+            <tr className="border-b border-ctp-surface1 text-ctp-subtext0">
+              {COLUMNS.map((column) => {
+                const isActive = column.id === sortColumn;
+                const indicator = isActive ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : '';
+                return (
+                  <th
+                    key={column.id}
+                    scope="col"
+                    aria-sort={
+                      isActive ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined
+                    }
+                    className={`px-2 py-2 font-medium select-none cursor-pointer hover:text-ctp-text ${
+                      column.align === 'right' ? 'text-right' : 'text-left'
+                    } ${isActive ? 'text-ctp-text' : ''}`}
+                    onClick={() => handleHeaderClick(column.id)}
+                  >
+                    {column.label}
+                    {indicator}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedRows.map((row) => {
+              const isSelected = row.title === selectedTitle;
+              return (
                 <tr
                   key={row.title}
-                  className="border-b border-ctp-surface1 last:border-b-0 hover:bg-ctp-surface1/40"
+                  className={`border-b border-ctp-surface1 last:border-b-0 hover:bg-ctp-surface1/40 ${
+                    isSelected ? 'bg-ctp-surface1/60' : ''
+                  }`}
                 >
-                  <td
-                    className="px-2 py-2 text-left text-ctp-text max-w-[240px] truncate"
-                    title={row.title}
-                  >
-                    {row.title}
+                  <td className="px-2 py-2 text-left max-w-[240px]">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        aria-pressed={isSelected}
+                        title={`Filter the page to ${row.title}`}
+                        className={`min-w-0 truncate text-left transition hover:text-ctp-blue ${
+                          isSelected ? 'font-semibold text-ctp-blue' : 'text-ctp-text'
+                        }`}
+                        onClick={() => onSelectTitle(row.title)}
+                      >
+                        {row.title}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Open ${row.title}`}
+                        title="Open this title"
+                        className="shrink-0 text-ctp-overlay2 transition hover:text-ctp-blue"
+                        onClick={() => onOpenTitle(row)}
+                      >
+                        ↗
+                      </button>
+                    </div>
                   </td>
                   <td className="px-2 py-2 text-right text-ctp-text tabular-nums">
-                    {formatWatchTime(row.watchTimeMin)}
+                    <div>{formatWatchTime(row.watchTimeMin)}</div>
+                    <div className="ml-auto mt-1 h-1 w-20 overflow-hidden rounded-full bg-ctp-surface1/60">
+                      <div
+                        className="ml-auto h-full rounded-full bg-ctp-blue"
+                        style={{
+                          width: `${maxWatchTime > 0 ? (row.watchTimeMin / maxWatchTime) * 100 : 0}%`,
+                        }}
+                      />
+                    </div>
                   </td>
                   <td className="px-2 py-2 text-right text-ctp-text tabular-nums">
                     {formatNumber(row.videos)}
+                  </td>
+                  <td className="px-2 py-2 text-right text-ctp-text tabular-nums">
+                    {formatNumber(row.episodesFinished)}
                   </td>
                   <td className="px-2 py-2 text-right text-ctp-text tabular-nums">
                     {formatNumber(row.sessions)}
@@ -238,11 +216,11 @@ export function LibrarySummarySection({ rows, hiddenTitles }: LibrarySummarySect
                     {formatDateRange(row.firstWatched, row.lastWatched)}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-    </>
+    </div>
   );
 }

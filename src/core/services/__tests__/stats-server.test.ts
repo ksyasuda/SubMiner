@@ -155,15 +155,20 @@ const WATCH_TIME_PER_ANIME = [
 ];
 
 const TRENDS_DASHBOARD = {
+  window: { startDay: 20_000, endDay: 20_000 },
+  buckets: [{ label: 'Mar 1', startDay: 20_000, endDay: 20_000 }],
+  summary: {
+    current: { watchTimeMin: 25, words: 300, newWords: 12, cards: 5, episodes: 2, activeDays: 1 },
+    previous: null,
+  },
   activity: {
     watchTime: [{ label: 'Mar 1', value: 25 }],
     cards: [{ label: 'Mar 1', value: 5 }],
     words: [{ label: 'Mar 1', value: 300 }],
-    sessions: [{ label: 'Mar 1', value: 3 }],
+    episodes: [{ label: 'Mar 1', value: 2 }],
   },
   progress: {
     watchTime: [{ label: 'Mar 1', value: 25 }],
-    sessions: [{ label: 'Mar 1', value: 3 }],
     words: [{ label: 'Mar 1', value: 300 }],
     newWords: [{ label: 'Mar 1', value: 12 }],
     cards: [{ label: 'Mar 1', value: 5 }],
@@ -175,11 +180,19 @@ const TRENDS_DASHBOARD = {
     cardsPerHour: [{ label: 'Mar 1', value: 12 }],
     readingSpeed: [{ label: 'Mar 1', value: 180 }],
   },
+  learning: {
+    newWordsPerThousand: [{ label: 'Mar 1', value: null }],
+    frequencyBands: [],
+  },
+  watchTimeByDayHour: [],
   librarySummary: [
     {
       title: 'Little Witch Academia',
+      animeId: 1,
+      videoId: 1,
       watchTimeMin: 25,
       videos: 1,
+      episodesFinished: 1,
       sessions: 1,
       cards: 5,
       words: 300,
@@ -189,16 +202,7 @@ const TRENDS_DASHBOARD = {
       lastWatched: 20_000,
     },
   ],
-  animeDaily: {
-    watchTime: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 25 }],
-    episodes: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 1 }],
-    cards: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 5 }],
-    words: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 300 }],
-  },
-  patterns: {
-    watchTimeByDayOfWeek: [{ label: 'Sun', value: 25 }],
-    watchTimeByHour: [{ label: '12:00', value: 25 }],
-  },
+  titleTimeline: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 25 }],
 };
 
 const ANIME_EPISODES = [
@@ -674,9 +678,16 @@ const CLAMPED_QUERIES: Array<{
 ];
 
 const TRENDS_DASHBOARD_QUERIES = [
-  { query: 'range=90d&groupBy=month', expectedArgs: ['90d', 'month', true] },
-  { query: 'range=weird&groupBy=year', expectedArgs: ['30d', 'day', true] },
-  { query: 'range=30d&groupBy=day&fillEmpty=false', expectedArgs: ['30d', 'day', false] },
+  { query: 'range=90d&groupBy=month', expectedArgs: ['90d', 'month', true, null] },
+  { query: 'range=90d&groupBy=week', expectedArgs: ['90d', 'week', true, null] },
+  { query: 'range=weird&groupBy=year', expectedArgs: ['30d', 'day', true, null] },
+  { query: 'range=30d&groupBy=day&fillEmpty=false', expectedArgs: ['30d', 'day', false, null] },
+  {
+    query: 'range=custom&fromDay=20000&toDay=20010',
+    expectedArgs: [{ startDay: 20000, endDay: 20010 }, 'day', true, null],
+  },
+  { query: 'range=custom&fromDay=20010&toDay=20000', expectedArgs: ['30d', 'day', true, null] },
+  { query: 'range=30d&title=Bocchi%20%26%20Co', expectedArgs: ['30d', 'day', true, 'Bocchi & Co'] },
 ];
 
 const MALFORMED_IDS = [
@@ -991,7 +1002,7 @@ describe('stats server API routes', () => {
   });
 
   for (const { query, expectedArgs } of TRENDS_DASHBOARD_QUERIES) {
-    it(`GET /api/stats/trends/dashboard?${query} requests ${expectedArgs.join('/')}`, async () => {
+    it(`GET /api/stats/trends/dashboard?${query} requests ${JSON.stringify(expectedArgs)}`, async () => {
       let seenArgs: unknown[] = [];
       const app = createStatsApp(
         createMockTracker({
@@ -1007,6 +1018,23 @@ describe('stats server API routes', () => {
       assert.deepEqual(seenArgs, expectedArgs);
     });
   }
+
+  it('GET /api/stats/sessions narrows to a valid day range and ignores a reversed one', async () => {
+    const seenRanges: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getSessionSummaries: async (_limit?: number, dayRange?: unknown) => {
+          seenRanges.push(dayRange);
+          return SESSION_SUMMARIES;
+        },
+      }),
+    );
+
+    await app.request('/api/stats/sessions?limit=500&fromDay=20000&toDay=20006');
+    await app.request('/api/stats/sessions?fromDay=20006&toDay=20000');
+
+    assert.deepEqual(seenRanges, [{ startDay: 20000, endDay: 20006 }, undefined]);
+  });
 
   it('GET /api/stats/vocabulary/occurrences returns recent occurrence rows for a word', async () => {
     let seenArgs: unknown[] = [];

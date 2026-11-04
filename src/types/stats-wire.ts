@@ -343,16 +343,59 @@ export interface TrendChartPoint {
   value: number;
 }
 
+/** A rate over a bucket. `null` means too little data to rate, which charts draw as a gap. */
+export interface TrendRatePoint {
+  label: string;
+  value: number | null;
+}
+
+/** One x-axis bucket, clipped to the requested date range. Epoch days are local calendar days. */
+export interface TrendBucket {
+  label: string;
+  startDay: number;
+  endDay: number;
+}
+
 export interface TrendPerAnimePoint {
   epochDay: number;
   animeTitle: string;
   value: number;
 }
 
+export const TREND_FREQUENCY_BANDS = [
+  'top1k',
+  'top5k',
+  'top10k',
+  'top20k',
+  'beyond20k',
+  'unranked',
+] as const;
+export type TrendFrequencyBand = (typeof TREND_FREQUENCY_BANDS)[number];
+
+export interface TrendFrequencyBandPoint {
+  label: string;
+  counts: Record<TrendFrequencyBand, number>;
+}
+
+export interface TrendSummaryTotals {
+  watchTimeMin: number;
+  words: number;
+  /** Null when the dashboard is filtered to one title: new words are not tracked per title. */
+  newWords: number | null;
+  cards: number;
+  episodes: number;
+  activeDays: number;
+}
+
 export interface LibrarySummaryRow {
   title: string;
+  /** Null for videos that are not linked to a library title. */
+  animeId: number | null;
+  /** Most recently watched video, the click-through target when `animeId` is null. */
+  videoId: number | null;
   watchTimeMin: number;
   videos: number;
+  episodesFinished: number;
   sessions: number;
   cards: number;
   words: number;
@@ -363,15 +406,24 @@ export interface LibrarySummaryRow {
 }
 
 export interface TrendsDashboardData {
+  /** The days the dashboard covers. For `all` this is the span of recorded data. */
+  window: { startDay: number; endDay: number };
+  /** Axis shared by the `activity`, `progress`, and `ratios` series, index for index. */
+  buckets: TrendBucket[];
+  summary: {
+    current: TrendSummaryTotals;
+    /** The equally long period just before `window`; null for `all`. */
+    previous: TrendSummaryTotals | null;
+  };
   activity: {
     watchTime: TrendChartPoint[];
     cards: TrendChartPoint[];
     words: TrendChartPoint[];
-    sessions: TrendChartPoint[];
+    episodes: TrendChartPoint[];
   };
+  /** Running totals that start at zero on the first day of `window`. */
   progress: {
     watchTime: TrendChartPoint[];
-    sessions: TrendChartPoint[];
     words: TrendChartPoint[];
     newWords: TrendChartPoint[];
     cards: TrendChartPoint[];
@@ -379,22 +431,21 @@ export interface TrendsDashboardData {
     lookups: TrendChartPoint[];
   };
   ratios: {
-    lookupsPerHundred: TrendChartPoint[];
-    cardsPerHour: TrendChartPoint[];
-    readingSpeed: TrendChartPoint[];
+    lookupsPerHundred: TrendRatePoint[];
+    cardsPerHour: TrendRatePoint[];
+    readingSpeed: TrendRatePoint[];
   };
+  /** Vocabulary growth signals. Null when filtered to one title. */
+  learning: {
+    newWordsPerThousand: TrendRatePoint[];
+    frequencyBands: TrendFrequencyBandPoint[];
+  } | null;
+  /** Active minutes as `[dayOfWeek][hour]`, with 0 = Sunday and local-time hours. */
+  watchTimeByDayHour: number[][];
+  /** Every title in `window`, unaffected by the title filter. */
   librarySummary: LibrarySummaryRow[];
-  /** Sparse per-title values for each active day; the client accumulates them for charts. */
-  animeDaily: {
-    watchTime: TrendPerAnimePoint[];
-    episodes: TrendPerAnimePoint[];
-    cards: TrendPerAnimePoint[];
-    words: TrendPerAnimePoint[];
-  };
-  patterns: {
-    watchTimeByDayOfWeek: TrendChartPoint[];
-    watchTimeByHour: TrendChartPoint[];
-  };
+  /** Sparse active minutes per title per day, unaffected by the title filter. */
+  titleTimeline: TrendPerAnimePoint[];
 }
 
 export interface WordDetailData {

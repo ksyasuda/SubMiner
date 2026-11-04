@@ -1,3 +1,4 @@
+import type { TrendFrequencyBand } from '../../../types/stats-wire';
 import type { DatabaseSync } from './sqlite';
 import type {
   KanjiAnimeAppearanceRow,
@@ -19,12 +20,15 @@ import type {
 import { forEachIdChunk, fromDbTimestamp, makePlaceholders, toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
 import { narrowFullwidthKana, widenHalfwidthKana } from '../../utils/halfwidth-kana';
-import {
-  areLexicalDailyRollupsReady,
-  getLexicalDailyRollups,
-  localEpochDaySql,
-} from './lexical-rollups';
+import { areLexicalDailyRollupsReady, localEpochDaySql } from './lexical-rollups';
 import { isVocabularyStatsRowVisible } from './vocabulary-visibility';
+
+export interface NewWordFirstSeenRow {
+  firstSeenDay: number;
+  firstSeenDayWithoutNames: number | null;
+  band: TrendFrequencyBand;
+  wordCount: number;
+}
 
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
@@ -162,8 +166,8 @@ function getWordAnimeCounts(db: DatabaseSync, wordIds: number[]): Map<number, nu
 
 /**
  * Chart data is intentionally independent of the paginated vocabulary tables.
- * Top words use the frequency index; new-word history reads permanent daily
- * lexical rollups rather than loading every vocabulary row into the dashboard.
+ * Top words use the frequency index; new-word history is a SQL aggregate over
+ * first-seen dates rather than loading every vocabulary row into the dashboard.
  */
 export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
   const ready = areLexicalDailyRollupsReady(db);
@@ -173,44 +177,16 @@ export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
   const isExcluded = (word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>): boolean =>
     excludedVocabularyAliases(word).some((alias) => excludedAliases.has(alias));
   const topWords = getTopVocabularyChartWords(db, isExcluded);
-  const rollups = ready ? getLexicalDailyRollups(db) : [];
-  const timeline = new Map(rollups.map((row) => [row.epochDay, { ...row }]));
-  if (excludedAliases.size > 0 && ready) {
-    const aliases = [...excludedAliases];
-    const excludedRows = new Map<
-      number,
-      Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading' | 'pos2'> & {
-        wordId: number;
-        epochDay: number;
-      }
-    >();
-    for (let offset = 0; offset < aliases.length; offset += EXCLUSION_ALIAS_BATCH_SIZE) {
-      const batch = aliases.slice(offset, offset + EXCLUSION_ALIAS_BATCH_SIZE);
-      const placeholders = batch.map(() => '?').join(', ');
-      const rows = db
-        .prepare(
-          `
-            SELECT id AS wordId, headword, word, reading, pos2,
-              ${localEpochDaySql('first_seen')} AS epochDay
-            FROM imm_words
-            WHERE vocabulary_visible = 1
-              AND (headword IN (${placeholders}) OR word IN (${placeholders}) OR reading IN (${placeholders}))
-          `,
-        )
-        .all(...batch, ...batch, ...batch) as Array<
-        Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading' | 'pos2'> & {
-          wordId: number;
-          epochDay: number;
-        }
-      >;
-      for (const row of rows) excludedRows.set(row.wordId, row);
-    }
-    for (const word of excludedRows.values()) {
-      if (!isExcluded(word)) continue;
-      const rollup = timeline.get(word.epochDay);
-      if (!rollup) continue;
-      rollup.wordCount -= 1;
-      if (word.pos2 !== '固有名詞') rollup.wordCountWithoutNames -= 1;
+  const firstSeenRows = ready ? getNewWordFirstSeenRows(db) : [];
+  const timeline = new Map<number, number>();
+  const timelineWithoutNames = new Map<number, number>();
+  for (const row of firstSeenRows) {
+    timeline.set(row.firstSeenDay, (timeline.get(row.firstSeenDay) ?? 0) + row.wordCount);
+    if (row.firstSeenDayWithoutNames !== null) {
+      timelineWithoutNames.set(
+        row.firstSeenDayWithoutNames,
+        (timelineWithoutNames.get(row.firstSeenDayWithoutNames) ?? 0) + row.wordCount,
+      );
     }
   }
   return {
@@ -225,13 +201,118 @@ export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
       headword: vocabularyDisplayHeadword(word),
       frequency: word.frequency,
     })),
-    newWordsTimeline: [...timeline.values()]
-      .filter((row) => row.wordCount > 0)
-      .map((row) => ({ epochDay: row.epochDay, wordCount: row.wordCount })),
-    newWordsTimelineWithoutNames: [...timeline.values()]
-      .filter((row) => row.wordCountWithoutNames > 0)
-      .map((row) => ({ epochDay: row.epochDay, wordCount: row.wordCountWithoutNames })),
+    newWordsTimeline: toNewWordTimeline(timeline),
+    newWordsTimelineWithoutNames: toNewWordTimeline(timelineWithoutNames),
   };
+}
+
+function toNewWordTimeline(byDay: Map<number, number>): VocabularyChartData['newWordsTimeline'] {
+  return [...byDay.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([epochDay, wordCount]) => ({ epochDay, wordCount }));
+}
+
+/** Word rows matching the user's stats exclusions, using the same aliases as the summary. */
+function getExcludedWordIds(db: DatabaseSync): number[] {
+  const excludedAliases = new Set(
+    getStatsExcludedWords(db).flatMap((word) => excludedVocabularyAliases(word)),
+  );
+  const aliases = [...excludedAliases];
+  const ids = new Set<number>();
+  for (let offset = 0; offset < aliases.length; offset += EXCLUSION_ALIAS_BATCH_SIZE) {
+    const batch = aliases.slice(offset, offset + EXCLUSION_ALIAS_BATCH_SIZE);
+    const placeholders = batch.map(() => '?').join(', ');
+    const rows = db
+      .prepare(
+        `
+          SELECT id AS wordId, headword, word, reading
+          FROM imm_words
+          WHERE vocabulary_visible = 1
+            AND (headword IN (${placeholders}) OR word IN (${placeholders}) OR reading IN (${placeholders}))
+        `,
+      )
+      .all(...batch, ...batch, ...batch) as Array<
+      Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'> & { wordId: number }
+    >;
+    for (const row of rows) {
+      if (excludedVocabularyAliases(row).some((alias) => excludedAliases.has(alias))) {
+        ids.add(row.wordId);
+      }
+    }
+  }
+  return [...ids];
+}
+
+// The aggregate below scans every word (about 200ms on 68k rows), and the Trends tab
+// runs it on each control change. Results stay valid until something writes:
+// total_changes covers this connection, data_version covers other connections.
+const newWordFirstSeenCache = new WeakMap<
+  DatabaseSync,
+  { version: string; rows: NewWordFirstSeenRow[] }
+>();
+
+function databaseWriteVersion(db: DatabaseSync): string {
+  const { changes } = db.prepare('SELECT total_changes() AS changes').get() as { changes: number };
+  const { data_version: dataVersion } = db.prepare('PRAGMA data_version').get() as {
+    data_version: number;
+  };
+  return `${changes}:${dataVersion}`;
+}
+
+/**
+ * When each dictionary word was first seen, folded across its surface forms:
+ * `imm_words` stores 言う and 言った as separate rows, so counting rows would count
+ * conjugations as new words. Rows group identical (day, day without names, band)
+ * results so the caller gets a small aggregate rather than one row per word.
+ * `firstSeenDayWithoutNames` and `band` ignore proper-noun forms, and the day is
+ * null when every form of the word is a proper noun.
+ */
+export function getNewWordFirstSeenRows(db: DatabaseSync): NewWordFirstSeenRow[] {
+  const version = databaseWriteVersion(db);
+  const cached = newWordFirstSeenCache.get(db);
+  if (cached?.version === version) return cached.rows;
+
+  const excludedIds = getExcludedWordIds(db);
+  const exclusion =
+    excludedIds.length > 0 ? `AND id NOT IN (${makePlaceholders(excludedIds)})` : '';
+  const seconds = `CASE
+      WHEN ABS(CAST(first_seen AS REAL)) >= 10000000000 THEN CAST(first_seen AS REAL) / 1000
+      ELSE CAST(first_seen AS REAL)
+    END`;
+  const rows = db
+    .prepare(
+      `
+        WITH dictionary_words AS (
+          SELECT
+            MIN(${seconds}) AS firstSeen,
+            MIN(CASE WHEN pos2 IS NOT '固有名詞' THEN ${seconds} END) AS firstSeenWithoutNames,
+            MIN(CASE WHEN pos2 IS NOT '固有名詞' THEN frequency_rank END) AS rank
+          FROM imm_words
+          WHERE vocabulary_visible = 1 AND first_seen IS NOT NULL ${exclusion}
+          GROUP BY COALESCE(NULLIF(TRIM(headword), ''), NULLIF(TRIM(word), ''), TRIM(reading))
+        )
+        SELECT
+          ${localEpochDaySql('firstSeen')} AS firstSeenDay,
+          CASE
+            WHEN firstSeenWithoutNames IS NULL THEN NULL
+            ELSE ${localEpochDaySql('firstSeenWithoutNames')}
+          END AS firstSeenDayWithoutNames,
+          CASE
+            WHEN rank IS NULL THEN 'unranked'
+            WHEN rank <= 1000 THEN 'top1k'
+            WHEN rank <= 5000 THEN 'top5k'
+            WHEN rank <= 10000 THEN 'top10k'
+            WHEN rank <= 20000 THEN 'top20k'
+            ELSE 'beyond20k'
+          END AS band,
+          COUNT(*) AS wordCount
+        FROM dictionary_words
+        GROUP BY 1, 2, 3
+      `,
+    )
+    .all(...excludedIds) as unknown as NewWordFirstSeenRow[];
+  newWordFirstSeenCache.set(db, { version, rows });
+  return rows;
 }
 
 function getTopVocabularyChartWords(
@@ -324,6 +405,12 @@ export function getVocabularySummary(
     knownWordCount: knownWords ? 0 : null,
     knownWordCountWithoutNames: knownWords ? 0 : null,
   };
+  // Keyed by dictionary form, so a word's conjugations count once and it is new
+  // this week only if no form of it was seen earlier.
+  const dictionaryWords = new Map<
+    string,
+    { firstSeenSec: number; firstSeenSecWithoutNames: number | null }
+  >();
 
   let lastId = Number.MIN_SAFE_INTEGER;
   for (;;) {
@@ -337,21 +424,37 @@ export function getVocabularySummary(
       ) {
         continue;
       }
-      const isName = word.pos2 === '固有名詞';
-      const isNewThisWeek = timestampSeconds(fromDbTimestamp(word.firstSeen) ?? 0) >= weekAgoSec;
-      const isKnown = knownWords?.has(vocabularyDisplayHeadword(word)) ?? false;
-      summary.uniqueWords += 1;
-      if (!isName) summary.uniqueWordsWithoutNames += 1;
-      if (isNewThisWeek) {
-        summary.newThisWeek += 1;
-        if (!isName) summary.newThisWeekWithoutNames += 1;
+      const firstSeenSec = timestampSeconds(fromDbTimestamp(word.firstSeen) ?? 0);
+      const key = vocabularyDisplayHeadword(word);
+      const entry = dictionaryWords.get(key) ?? {
+        firstSeenSec,
+        firstSeenSecWithoutNames: null,
+      };
+      entry.firstSeenSec = Math.min(entry.firstSeenSec, firstSeenSec);
+      if (word.pos2 !== '固有名詞') {
+        entry.firstSeenSecWithoutNames = Math.min(
+          entry.firstSeenSecWithoutNames ?? firstSeenSec,
+          firstSeenSec,
+        );
       }
-      if (isKnown) {
-        summary.knownWordCount! += 1;
-        if (!isName) summary.knownWordCountWithoutNames! += 1;
-      }
+      dictionaryWords.set(key, entry);
     }
     if (words.length < scanBatchSize) break;
+  }
+
+  for (const [key, { firstSeenSec, firstSeenSecWithoutNames }] of dictionaryWords) {
+    const hasNonNameForm = firstSeenSecWithoutNames !== null;
+    const isKnown = knownWords?.has(key) ?? false;
+    summary.uniqueWords += 1;
+    if (hasNonNameForm) summary.uniqueWordsWithoutNames += 1;
+    if (firstSeenSec >= weekAgoSec) summary.newThisWeek += 1;
+    if (hasNonNameForm && firstSeenSecWithoutNames >= weekAgoSec) {
+      summary.newThisWeekWithoutNames += 1;
+    }
+    if (isKnown) {
+      summary.knownWordCount! += 1;
+      if (hasNonNameForm) summary.knownWordCountWithoutNames! += 1;
+    }
   }
 
   return summary;

@@ -89,6 +89,37 @@ test('deleteSession throws when the stats API delete request fails', async () =>
   );
 });
 
+test('getTrendsDashboard encodes a custom range and title filter', async () => {
+  await withFetchStub(
+    () => jsonResponse({}),
+    async (requests) => {
+      await apiClient.getTrendsDashboard(
+        { startDay: 20_000, endDay: 20_010 },
+        'week',
+        true,
+        'A & B',
+      );
+      assert.equal(
+        requests[0]?.url,
+        `${BASE_URL}/api/stats/trends/dashboard?range=custom&fromDay=20000&toDay=20010&groupBy=week&fillEmpty=true&title=A+%26+B`,
+      );
+    },
+  );
+});
+
+test('getSessions narrows to a span of days when given one', async () => {
+  await withFetchStub(
+    () => jsonResponse([]),
+    async (requests) => {
+      await apiClient.getSessions(500, { startDay: 20_000, endDay: 20_006 });
+      assert.equal(
+        requests[0]?.url,
+        `${BASE_URL}/api/stats/sessions?limit=500&fromDay=20000&toDay=20006`,
+      );
+    },
+  );
+});
+
 test('getTrendsDashboard accepts 365d range and builds correct URL', async () => {
   await withFetchStub(
     () =>
