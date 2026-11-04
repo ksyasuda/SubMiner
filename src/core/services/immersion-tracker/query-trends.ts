@@ -3,16 +3,22 @@ import type { ImmersionSessionRollupRow } from './types';
 import {
   ACTIVE_SESSION_METRICS_CTE,
   currentDbTimestamp,
-  getLocalDayOfWeek,
   getLocalEpochDay,
-  getLocalHourOfDay,
   getLocalMonthKey,
   getShiftedLocalDayTimestamp,
   makePlaceholders,
   sessionDisplayWordsExpr,
   toDbTimestamp,
 } from './query-shared';
-import { getDailyRollups, getMonthlyRollups } from './query-sessions';
+import {
+  addRollupWordCount,
+  applyRollupWordCounts,
+  selectDailyRollupRows,
+  selectMonthlyRollupRows,
+  sessionRollupDaySql,
+  sessionRollupMonthSql,
+  type RollupWordCounts,
+} from './query-sessions';
 import { areLexicalDailyRollupsReady, getLexicalDailyRollups } from './lexical-rollups';
 
 type TrendRange = '7d' | '30d' | '90d' | '365d' | 'all';
@@ -43,7 +49,6 @@ export interface LibrarySummaryRow {
 }
 
 interface TrendSessionMetricRow {
-  startedAtMs: number;
   epochDay: number;
   monthKey: number;
   dayOfWeek: number;
@@ -78,7 +83,8 @@ export interface TrendsDashboardQueryResult {
     cardsPerHour: TrendChartPoint[];
     readingSpeed: TrendChartPoint[];
   };
-  animeCumulative: {
+  /** Sparse per-title values for each active day; the stats UI builds the running totals. */
+  animeDaily: {
     watchTime: TrendPerAnimePoint[];
     episodes: TrendPerAnimePoint[];
     cards: TrendPerAnimePoint[];
@@ -387,41 +393,6 @@ function buildLookupsPerHundredWords(
   return fillAxisPoints(axis, ratioByBucket);
 }
 
-function buildCumulativePerAnime(points: TrendPerAnimePoint[]): TrendPerAnimePoint[] {
-  const byAnime = new Map<string, Map<number, number>>();
-  const allDays = new Set<number>();
-
-  for (const point of points) {
-    const dayMap = byAnime.get(point.animeTitle) ?? new Map();
-    dayMap.set(point.epochDay, (dayMap.get(point.epochDay) ?? 0) + point.value);
-    byAnime.set(point.animeTitle, dayMap);
-    allDays.add(point.epochDay);
-  }
-
-  const sortedDays = [...allDays].sort((left, right) => left - right);
-  if (sortedDays.length === 0) {
-    return [];
-  }
-
-  const minDay = sortedDays[0]!;
-  const maxDay = sortedDays[sortedDays.length - 1]!;
-  const result: TrendPerAnimePoint[] = [];
-
-  for (const [animeTitle, dayMap] of byAnime) {
-    const firstDay = Math.min(...dayMap.keys());
-    let cumulative = 0;
-    for (let epochDay = minDay; epochDay <= maxDay; epochDay += 1) {
-      if (epochDay < firstDay) {
-        continue;
-      }
-      cumulative += dayMap.get(epochDay) ?? 0;
-      result.push({ epochDay, animeTitle, value: cumulative });
-    }
-  }
-
-  return result;
-}
-
 function buildLibrarySummary(
   rollups: ImmersionSessionRollupRow[],
   sessions: TrendSessionMetricRow[],
@@ -616,44 +587,64 @@ function buildEpisodesSeriesFromRollups(
   return fillAxisPoints(axis, counts);
 }
 
-function getTrendSessionMetrics(
+interface TrendSessionRow extends TrendSessionMetricRow {
+  ended: number;
+  inTrendRange: number;
+}
+
+/**
+ * One pass over the sessions the dashboard needs. Rows inside the trend range
+ * feed the session-metric charts; ended rows also supply the rollup word counts,
+ * so the per-session word count is computed once per request instead of once
+ * per rollup query. `minRollupDay` / `minRollupMonth` widen the scan to the
+ * oldest rollup bucket shown.
+ */
+function getTrendSessionRows(
   db: DatabaseSync,
   cutoffMs: string | null,
-): TrendSessionMetricRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
-  const whereClause = cutoffMs === null ? '' : 'WHERE s.started_at_ms >= ?';
+  minRollupDay: number | null,
+  minRollupMonth: number | null,
+): TrendSessionRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const cutoffValue = cutoffMs === null ? null : toDbTimestamp(cutoffMs);
+  const rangeSql = cutoffValue === null ? '1' : 's.started_at_ms >= ?';
+  const dayValue = minRollupDay ?? Number.MAX_SAFE_INTEGER;
+  const monthValue = minRollupMonth ?? Number.MAX_SAFE_INTEGER;
   const prepared = db.prepare(`
     ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
-      s.started_at_ms AS startedAtMs,
       s.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
       a.canonical_title AS animeTitle,
       COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
       ${wordsExpr} AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
-      COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
+      COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount,
+      CASE WHEN s.ended_at_ms IS NOT NULL THEN 1 ELSE 0 END AS ended,
+      CASE WHEN ${rangeSql} THEN 1 ELSE 0 END AS inTrendRange,
+      ${sessionRollupDaySql('s')} AS epochDay,
+      ${sessionRollupMonthSql('s')} AS monthKey,
+      CAST(strftime('%w', CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS dayOfWeek,
+      CAST(strftime('%H', CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS hourOfDay
     FROM imm_sessions s
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
-    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
     LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
-    ${whereClause}
+    WHERE ${rangeSql}
+      OR (s.ended_at_ms IS NOT NULL AND ${sessionRollupDaySql('s')} >= ?)
+      OR (s.ended_at_ms IS NOT NULL AND ${sessionRollupMonthSql('s')} >= ?)
     ORDER BY s.started_at_ms ASC
   `);
 
-  const rows = (cutoffValue === null ? prepared.all() : prepared.all(cutoffValue)) as Array<
-    TrendSessionMetricRow & { startedAtMs: number | string }
-  >;
-  return rows.map((row) => ({
-    ...row,
-    startedAtMs: 0,
-    epochDay: getLocalEpochDay(db, row.startedAtMs),
-    monthKey: getLocalMonthKey(db, row.startedAtMs),
-    dayOfWeek: getLocalDayOfWeek(db, row.startedAtMs),
-    hourOfDay: getLocalHourOfDay(db, row.startedAtMs),
-  }));
+  const params =
+    cutoffValue === null
+      ? [dayValue, monthValue]
+      : [cutoffValue, cutoffValue, dayValue, monthValue];
+  return prepared.all(...params) as unknown as TrendSessionRow[];
+}
+
+function minRollupBucket(rows: Array<{ rollupDayOrMonth: number }>): number | null {
+  return rows.length === 0 ? null : Math.min(...rows.map((row) => row.rollupDayOrMonth));
 }
 
 function buildNewWordsPerDay(
@@ -750,8 +741,24 @@ export function getTrendsDashboard(
   const monthlyLimit = getTrendMonthlyLimit(db, range);
   const cutoffMs = getTrendCutoffMs(db, range);
   const useMonthlyBuckets = groupBy === 'month';
-  const dailyRollups = getDailyRollups(db, dayLimit);
-  const monthlyRollups = getMonthlyRollups(db, monthlyLimit);
+  const rawDailyRollups = selectDailyRollupRows(db, dayLimit);
+  const rawMonthlyRollups = selectMonthlyRollupRows(db, monthlyLimit);
+  const sessionRows = getTrendSessionRows(
+    db,
+    cutoffMs,
+    minRollupBucket(rawDailyRollups),
+    minRollupBucket(rawMonthlyRollups),
+  );
+  const dailyWordCounts: RollupWordCounts = new Map();
+  const monthlyWordCounts: RollupWordCounts = new Map();
+  for (const row of sessionRows) {
+    if (row.ended !== 1) continue;
+    addRollupWordCount(dailyWordCounts, row.epochDay, row.videoId, row.tokensSeen);
+    addRollupWordCount(monthlyWordCounts, row.monthKey, row.videoId, row.tokensSeen);
+  }
+  const dailyRollups = applyRollupWordCounts(rawDailyRollups, dailyWordCounts);
+  const monthlyRollups = applyRollupWordCounts(rawMonthlyRollups, monthlyWordCounts);
+  const sessions = sessionRows.filter((row) => row.inTrendRange === 1);
   // A null axis makes the builders fall back to only the buckets present in the
   // data; the contiguous axis zero-fills every calendar bucket in the window.
   const bucketAxis = fillEmptyBuckets
@@ -759,7 +766,6 @@ export function getTrendsDashboard(
     : null;
 
   const chartRollups = useMonthlyBuckets ? monthlyRollups : dailyRollups;
-  const sessions = getTrendSessionMetrics(db, cutoffMs);
   const titlesByVideoId = getVideoAnimeTitleMap(
     db,
     dailyRollups.map((rollup) => rollup.videoId),
@@ -820,12 +826,7 @@ export function getTrendsDashboard(
       cardsPerHour: efficiency.cardsPerHour,
       readingSpeed: efficiency.readingSpeed,
     },
-    animeCumulative: {
-      watchTime: buildCumulativePerAnime(animePerDay.watchTime),
-      episodes: buildCumulativePerAnime(animePerDay.episodes),
-      cards: buildCumulativePerAnime(animePerDay.cards),
-      words: buildCumulativePerAnime(animePerDay.words),
-    },
+    animeDaily: animePerDay,
     patterns: {
       watchTimeByDayOfWeek: buildWatchTimeByDayOfWeek(sessions),
       watchTimeByHour: buildWatchTimeByHour(sessions),

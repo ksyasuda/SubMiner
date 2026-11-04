@@ -384,7 +384,8 @@ export interface TrendsDashboardData {
     readingSpeed: TrendChartPoint[];
   };
   librarySummary: LibrarySummaryRow[];
-  animeCumulative: {
+  /** Sparse per-title values for each active day; the client accumulates them for charts. */
+  animeDaily: {
     watchTime: TrendPerAnimePoint[];
     episodes: TrendPerAnimePoint[];
     cards: TrendPerAnimePoint[];

@@ -14,9 +14,11 @@ import {
   getVocabularySummary,
   replaceStatsExcludedWords,
 } from './query-lexical';
+import { cleanupVocabularyStats } from './query-maintenance';
 import { Database } from './sqlite';
 import type { DatabaseSync } from './sqlite';
 import { createTrackerPreparedStatements, ensureSchema, executeQueuedWrite } from './storage';
+import { isVocabularyStatsRowVisible, type VocabularyVisibilityRow } from './vocabulary-visibility';
 import { BASE_MS, createDb, seedEndedSession, seedVideo } from './__tests__/lifetime-test-fixtures';
 
 function makeDbPath(): string {
@@ -384,10 +386,189 @@ test('current lexical rollup readiness accepts legacy integer state storage', ()
         state_value INTEGER NOT NULL
       );
       INSERT INTO imm_rollup_state(state_key, state_value)
-      VALUES ('lexical_daily_rollups_version', 3);
+      VALUES ('lexical_daily_rollups_version', 4);
     `);
 
     assert.equal(areLexicalDailyRollupsReady(db), true);
+  } finally {
+    db.close();
+    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+  }
+});
+
+function insertWord(
+  db: DatabaseSync,
+  word: {
+    headword: string;
+    word: string;
+    reading: string;
+    partOfSpeech: string;
+    pos1: string;
+    pos2: string;
+  },
+  firstSeen: number,
+): number {
+  const result = db
+    .prepare(
+      `INSERT INTO imm_words(
+         headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+       ) VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, 1)`,
+    )
+    .run(
+      word.headword,
+      word.word,
+      word.reading,
+      word.partOfSpeech,
+      word.pos1,
+      word.pos2,
+      firstSeen,
+      firstSeen,
+    );
+  return Number(result.lastInsertRowid);
+}
+
+function assertPersistedVisibilityMatchesPredicate(db: DatabaseSync): void {
+  const rows = db
+    .prepare(
+      `SELECT headword, word, reading, part_of_speech AS partOfSpeech, pos1, pos2, pos3,
+         frequency_rank AS frequencyRank, vocabulary_visible AS vocabularyVisible
+       FROM imm_words`,
+    )
+    .all() as Array<VocabularyVisibilityRow & { vocabularyVisible: number }>;
+  assert.ok(rows.length > 0);
+  assert.deepEqual(
+    rows.map((row) => [row.headword, row.vocabularyVisible === 1]),
+    rows.map((row) => [row.headword, isVocabularyStatsRowVisible(row)]),
+  );
+}
+
+test('cleanupVocabularyStats re-derives visibility for a repaired word', async () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const epochDay = 19_500;
+    const firstSeen = epochDay * 86_400 + 43_200;
+    const legacyWord = {
+      headword: '旧',
+      word: '旧',
+      reading: '',
+      partOfSpeech: 'particle',
+      pos1: '助詞',
+      pos2: '係助詞',
+    };
+    const legacyId = insertWord(db, legacyWord, firstSeen);
+    rebuildLexicalDailyRollups(db);
+    assert.equal(getVocabularySummary(db, null).uniqueWords, 0);
+
+    await cleanupVocabularyStats(db, {
+      resolveLegacyPos: async (row) =>
+        row.id === legacyId
+          ? {
+              headword: '旧',
+              reading: 'きゅう',
+              partOfSpeech: 'noun',
+              pos1: '名詞',
+              pos2: '一般',
+              pos3: '',
+            }
+          : null,
+    });
+
+    assertPersistedVisibilityMatchesPredicate(db);
+    assert.equal(getVocabularySummary(db, null).uniqueWords, 1);
+    assert.equal(getLexicalDailyRollups(db)[0]?.wordCount, 1);
+  } finally {
+    db.close();
+    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+  }
+});
+
+test('cleanupVocabularyStats re-derives visibility for a merged duplicate', async () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const firstSeen = 19_500 * 86_400 + 43_200;
+    // The merge fills these blank POS fields from the repair, which hides the word.
+    insertWord(
+      db,
+      {
+        headword: '知る',
+        word: '知っている',
+        reading: 'しっている',
+        partOfSpeech: 'noun',
+        pos1: '',
+        pos2: '',
+      },
+      firstSeen,
+    );
+    const legacyId = insertWord(
+      db,
+      {
+        headword: '知っている',
+        word: '知っている',
+        reading: '',
+        partOfSpeech: 'verb',
+        pos1: '動詞',
+        pos2: '自立',
+      },
+      firstSeen,
+    );
+    rebuildLexicalDailyRollups(db);
+    assert.equal(getVocabularySummary(db, null).uniqueWords, 2);
+
+    await cleanupVocabularyStats(db, {
+      resolveLegacyPos: async (row) =>
+        row.id === legacyId
+          ? {
+              headword: '知る',
+              reading: 'しっている',
+              partOfSpeech: 'particle',
+              pos1: '助詞',
+              pos2: '係助詞',
+              pos3: '',
+            }
+          : null,
+    });
+
+    assertPersistedVisibilityMatchesPredicate(db);
+    assert.equal(getVocabularySummary(db, null).uniqueWords, 0);
+    assert.deepEqual(getLexicalDailyRollups(db), []);
+  } finally {
+    db.close();
+    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+  }
+});
+
+test('a queued word write persists visibility from the stored row', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const firstSeen = 19_500 * 86_400 + 43_200;
+    executeQueuedWrite(
+      {
+        kind: 'word',
+        headword: 'は',
+        word: 'は',
+        reading: 'は',
+        partOfSpeech: 'particle',
+        pos1: '助詞',
+        pos2: '係助詞',
+        pos3: '',
+        firstSeen,
+        lastSeen: firstSeen,
+        frequencyRank: null,
+      },
+      createTrackerPreparedStatements(db),
+    );
+
+    assertPersistedVisibilityMatchesPredicate(db);
+    assert.equal(getVocabularySummary(db, null).uniqueWords, 0);
   } finally {
     db.close();
     fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });

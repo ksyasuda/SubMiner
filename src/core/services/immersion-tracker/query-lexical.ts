@@ -16,7 +16,7 @@ import type {
   WordDetailRow,
   WordOccurrenceRow,
 } from './types';
-import { fromDbTimestamp, toDbTimestamp } from './query-shared';
+import { forEachIdChunk, fromDbTimestamp, makePlaceholders, toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
 import { narrowFullwidthKana, widenHalfwidthKana } from '../../utils/halfwidth-kana';
 import {
@@ -106,42 +106,58 @@ export function getVocabularyStats(
   const whereClause = hasExclude
     ? `WHERE (part_of_speech IS NULL OR part_of_speech NOT IN (${placeholders}))`
     : '';
-  // The page is selected before the join so `animeCount` is only computed for the
-  // rows being returned. Aggregating first made every request walk each word's
-  // entire occurrence history — seconds of blocked event loop on a large library,
-  // because only the ordering, not the aggregate, decides which rows survive.
+  // Rows are paged and filtered before `animeCount` is computed, and only the
+  // rows being returned are counted. The count walks each word's entire
+  // occurrence history, and the most frequent words hold most occurrences, so
+  // counting the oversampled page or aggregating first cost seconds of blocked
+  // event loop on a large library.
   const stmt = db.prepare(`
-    WITH page AS (
-      SELECT id, headword, word, reading, part_of_speech, pos1, pos2, pos3,
-             frequency, frequency_rank, first_seen, last_seen
-      FROM imm_words
-      ${whereClause}
-      ORDER BY frequency DESC, id
-      LIMIT ? OFFSET ?
-    )
-    SELECT p.id AS wordId, p.headword, p.word, p.reading,
-      p.part_of_speech AS partOfSpeech, p.pos1, p.pos2, p.pos3,
-      p.frequency, p.frequency_rank AS frequencyRank,
-      p.first_seen AS firstSeen, p.last_seen AS lastSeen,
-      COUNT(DISTINCT sl.anime_id) AS animeCount
-    FROM page p
-    LEFT JOIN imm_word_line_occurrences o ON o.word_id = p.id
-    LEFT JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id AND sl.anime_id IS NOT NULL
-    GROUP BY p.id
-    ORDER BY p.frequency DESC, p.id
+    SELECT id AS wordId, headword, word, reading,
+      part_of_speech AS partOfSpeech, pos1, pos2, pos3,
+      frequency, frequency_rank AS frequencyRank,
+      first_seen AS firstSeen, last_seen AS lastSeen
+    FROM imm_words
+    ${whereClause}
+    ORDER BY frequency DESC, id
+    LIMIT ? OFFSET ?
   `);
-  const visibleRows: VocabularyStatsRow[] = [];
+  const visibleRows: Array<Omit<VocabularyStatsRow, 'animeCount'>> = [];
   let offset = 0;
 
   while (visibleRows.length < limit) {
     const params = hasExclude ? [...excludePos, pageSize, offset] : [pageSize, offset];
-    const page = stmt.all(...params) as VocabularyStatsRow[];
+    const page = stmt.all(...params) as Array<Omit<VocabularyStatsRow, 'animeCount'>>;
     if (page.length === 0) break;
     visibleRows.push(...page.filter(isVocabularyStatsRowVisible));
     offset += page.length;
   }
 
-  return visibleRows.slice(0, limit);
+  const rows = visibleRows.slice(0, limit);
+  const animeCounts = getWordAnimeCounts(
+    db,
+    rows.map((row) => row.wordId),
+  );
+  return rows.map((row) => ({ ...row, animeCount: animeCounts.get(row.wordId) ?? 0 }));
+}
+
+/** Number of distinct anime each word appears in, keyed by word id. */
+function getWordAnimeCounts(db: DatabaseSync, wordIds: number[]): Map<number, number> {
+  const counts = new Map<number, number>();
+  forEachIdChunk(wordIds, (chunk) => {
+    const rows = db
+      .prepare(
+        `
+        SELECT o.word_id AS wordId, COUNT(DISTINCT sl.anime_id) AS animeCount
+        FROM imm_word_line_occurrences o
+        JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+        WHERE o.word_id IN (${makePlaceholders(chunk)}) AND sl.anime_id IS NOT NULL
+        GROUP BY o.word_id
+      `,
+      )
+      .all(...chunk) as Array<{ wordId: number; animeCount: number }>;
+    for (const row of rows) counts.set(row.wordId, row.animeCount);
+  });
+  return counts;
 }
 
 /**
@@ -276,8 +292,12 @@ export function getVocabularySummary(
   nowMs: number = Date.now(),
   scanBatchSize: number = VOCABULARY_SUMMARY_SCAN_BATCH_SIZE,
 ): VocabularyStatsSummary {
-  // Visibility and exclusion rules live in JS, so rows are scanned in id-keyed
-  // batches to keep memory bounded on large vocabularies.
+  // Exclusion and known-word rules live in JS, so rows are scanned in id-keyed
+  // batches to keep memory bounded on large vocabularies. Once the lexical
+  // rollups are ready, `vocabulary_visible` holds the persisted result of
+  // isVocabularyStatsRowVisible (the same column the new-word charts count), so
+  // the scan skips re-running the subtitle filter rules for every word.
+  const persistedVisibility = areLexicalDailyRollupsReady(db);
   const scanStmt = db.prepare(`
     SELECT id AS wordId, headword, word, reading,
       part_of_speech AS partOfSpeech, pos1, pos2, pos3,
@@ -285,10 +305,11 @@ export function getVocabularySummary(
       first_seen AS firstSeen, last_seen AS lastSeen,
       0 AS animeCount
     FROM imm_words
-    WHERE id > ?
+    WHERE id > ?${persistedVisibility ? ' AND vocabulary_visible = 1' : ''}
     ORDER BY id
     LIMIT ?
   `);
+  const isVisible = persistedVisibility ? () => true : isVocabularyStatsRowVisible;
   const excludedAliases = new Set(
     getStatsExcludedWords(db).flatMap((word) => excludedVocabularyAliases(word)),
   );
@@ -311,7 +332,7 @@ export function getVocabularySummary(
     lastId = words[words.length - 1]!.wordId;
     for (const word of words) {
       if (
-        !isVocabularyStatsRowVisible(word) ||
+        !isVisible(word) ||
         excludedVocabularyAliases(word).some((alias) => excludedAliases.has(alias))
       ) {
         continue;
@@ -489,15 +510,16 @@ export function searchSubtitleSentences(
       narrowFullwidthKana(widenedTerm),
     ]).map((variant) => `%${escapeLikeTerm(variant)}%`);
     const headwords = getHeadwordCandidatesForSentenceSearchTerm(term, options);
+    // Uncorrelated on purpose: SQLite resolves the headword's lines once through
+    // the word indexes. A per-line EXISTS probed every subtitle line (~0.2 s).
     const headwordClause =
       headwords.length > 0
         ? `
-        OR EXISTS (
-          SELECT 1
-          FROM imm_word_line_occurrences o
-          JOIN imm_words w ON w.id = o.word_id
-          WHERE o.line_id = l.line_id
-            AND w.headword IN (${headwords.map(() => '?').join(', ')})
+        OR l.line_id IN (
+          SELECT o.line_id
+          FROM imm_words w
+          JOIN imm_word_line_occurrences o ON o.word_id = w.id
+          WHERE w.headword IN (${headwords.map(() => '?').join(', ')})
         )
       `
         : '';

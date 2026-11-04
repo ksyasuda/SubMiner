@@ -1849,14 +1849,24 @@ function incrementWordAggregate(
       occurrence.frequencyRank ?? null,
     );
   }
-  const row = stmts.wordSelectStmt.get(occurrence.headword, occurrence.word, occurrence.reading) as
+  return syncStoredWordVisibility(stmts, occurrence);
+}
+
+/**
+ * Persists visibility for a word that was just upserted and returns its id. The
+ * upsert keeps the first-seen POS metadata, so visibility comes from the stored
+ * row (as the vocabulary summary expects) rather than the incoming token.
+ */
+function syncStoredWordVisibility(
+  stmts: TrackerPreparedStatements,
+  key: Pick<Extract<QueuedWrite, { kind: 'word' }>, 'headword' | 'word' | 'reading'>,
+): number {
+  const row = stmts.wordSelectStmt.get(key.headword, key.word, key.reading) as
     | (VocabularyVisibilityRow & { id: number; vocabularyVisible: number })
     | null;
   if (!row?.id) {
-    throw new Error(`Failed to resolve imm_words id for ${occurrence.headword}`);
+    throw new Error(`Failed to resolve imm_words id for ${key.headword}`);
   }
-  // The upsert keeps the first-seen POS metadata, so derive visibility from the
-  // stored row (as the vocabulary summary does) rather than the incoming token.
   const visible = isVocabularyStatsRowVisible(row) ? 1 : 0;
   if (row.vocabularyVisible !== visible) {
     stmts.wordVisibilityUpdateStmt.run(visible, row.id);
@@ -1939,6 +1949,7 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       write.lastSeen,
       write.frequencyRank ?? null,
     );
+    syncStoredWordVisibility(stmts, write);
     return;
   }
   if (write.kind === 'kanji') {

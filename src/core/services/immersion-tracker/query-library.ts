@@ -18,7 +18,6 @@ import type {
 } from './types';
 import {
   ACTIVE_SESSION_METRICS_CTE,
-  SESSION_WORD_COUNTS_SELECT,
   fromDbTimestamp,
   resolvedCoverBlobExpr,
   sessionDisplayWordsExpr,
@@ -123,7 +122,7 @@ export function getAnimeAnilistEntries(db: DatabaseSync, animeId: number): Anime
 }
 
 export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisodeRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
+  const wordsExpr = sessionDisplayWordsExpr('s', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const rows = db
     .prepare(
       `
@@ -184,7 +183,6 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
     FROM imm_videos v
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
-    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE v.anime_id = ?
     GROUP BY v.video_id
     ORDER BY
@@ -250,7 +248,7 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
 }
 
 export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRow | null {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
+  const wordsExpr = sessionDisplayWordsExpr('s', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   return db
     .prepare(
       `
@@ -298,7 +296,6 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
     LEFT JOIN imm_youtube_videos yv ON yv.video_id = v.video_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
-    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE v.video_id = ?
       AND (lm.video_id IS NOT NULL OR s.session_id IS NOT NULL)
     GROUP BY v.video_id
@@ -312,7 +309,7 @@ export function getMediaSessions(
   videoId: number,
   limit = 100,
 ): SessionSummaryQueryRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
+  const wordsExpr = sessionDisplayWordsExpr('s', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const rows = db
     .prepare(
       `
@@ -333,7 +330,6 @@ export function getMediaSessions(
       COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
     FROM imm_sessions s
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
-    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
     WHERE s.video_id = ?
     ORDER BY s.started_at_ms DESC
@@ -358,12 +354,15 @@ export function getMediaDailyRollups(
   videoId: number,
   limit = 90,
 ): ImmersionSessionRollupRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   return db
     .prepare(
       `
-    WITH session_word_counts AS (
-      ${SESSION_WORD_COUNTS_SELECT}
+    WITH recent_days AS (
+      SELECT DISTINCT rollup_day
+      FROM imm_daily_rollups
+      WHERE video_id = ?
+      ORDER BY rollup_day DESC
+      LIMIT ?
     ),
     daily_word_counts AS (
       SELECT
@@ -372,18 +371,15 @@ export function getMediaDailyRollups(
           AS INTEGER
         ) AS rollupDay,
         s.video_id AS videoId,
-        SUM(${wordsExpr}) AS totalTokensSeen
+        SUM(${sessionDisplayWordsExpr('s')}) AS totalTokensSeen
       FROM imm_sessions s
-      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
       WHERE s.ended_at_ms IS NOT NULL
+        AND s.video_id = ?
+        AND CAST(
+            julianday(CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+            AS INTEGER
+          ) >= (SELECT MIN(rollup_day) FROM recent_days)
       GROUP BY rollupDay, s.video_id
-    ),
-    recent_days AS (
-      SELECT DISTINCT rollup_day
-      FROM imm_daily_rollups
-      WHERE video_id = ?
-      ORDER BY rollup_day DESC
-      LIMIT ?
     )
     SELECT
       rollup_day AS rollupDayOrMonth,
@@ -416,7 +412,7 @@ export function getMediaDailyRollups(
     ORDER BY rollup_day DESC, video_id DESC
     `,
     )
-    .all(videoId, limit, videoId) as unknown as ImmersionSessionRollupRow[];
+    .all(videoId, limit, videoId, videoId) as unknown as ImmersionSessionRollupRow[];
 }
 
 export function getAnimeDailyRollups(
@@ -424,12 +420,16 @@ export function getAnimeDailyRollups(
   animeId: number,
   limit = 90,
 ): ImmersionSessionRollupRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc');
   return db
     .prepare(
       `
-    WITH session_word_counts AS (
-      ${SESSION_WORD_COUNTS_SELECT}
+    WITH recent_days AS (
+      SELECT DISTINCT r.rollup_day
+      FROM imm_daily_rollups r
+      JOIN imm_videos v ON v.video_id = r.video_id
+      WHERE v.anime_id = ?
+      ORDER BY r.rollup_day DESC
+      LIMIT ?
     ),
     daily_word_counts AS (
       SELECT
@@ -438,19 +438,15 @@ export function getAnimeDailyRollups(
           AS INTEGER
         ) AS rollupDay,
         s.video_id AS videoId,
-        SUM(${wordsExpr}) AS totalTokensSeen
+        SUM(${sessionDisplayWordsExpr('s')}) AS totalTokensSeen
       FROM imm_sessions s
-      LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
       WHERE s.ended_at_ms IS NOT NULL
+        AND s.video_id IN (SELECT video_id FROM imm_videos WHERE anime_id = ?)
+        AND CAST(
+            julianday(CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+            AS INTEGER
+          ) >= (SELECT MIN(rollup_day) FROM recent_days)
       GROUP BY rollupDay, s.video_id
-    ),
-    recent_days AS (
-      SELECT DISTINCT r.rollup_day
-      FROM imm_daily_rollups r
-      JOIN imm_videos v ON v.video_id = r.video_id
-      WHERE v.anime_id = ?
-      ORDER BY r.rollup_day DESC
-      LIMIT ?
     )
     SELECT r.rollup_day AS rollupDayOrMonth, r.video_id AS videoId,
            r.total_sessions AS totalSessions, r.total_active_min AS totalActiveMin,
@@ -481,7 +477,7 @@ export function getAnimeDailyRollups(
     ORDER BY r.rollup_day DESC, r.video_id DESC
     `,
     )
-    .all(animeId, limit, animeId) as unknown as ImmersionSessionRollupRow[];
+    .all(animeId, limit, animeId, animeId) as unknown as ImmersionSessionRollupRow[];
 }
 
 export function getAnimeCoverArt(db: DatabaseSync, animeId: number): MediaArtRow | null {
@@ -657,7 +653,7 @@ export function getEpisodeWords(db: DatabaseSync, videoId: number, limit = 50): 
 }
 
 export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSummaryQueryRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'swc', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
+  const wordsExpr = sessionDisplayWordsExpr('s', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
   const rows = db
     .prepare(
       `
@@ -677,7 +673,6 @@ export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSu
     FROM imm_sessions s
     JOIN imm_videos v ON v.video_id = s.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
-    LEFT JOIN session_word_counts swc ON swc.sessionId = s.session_id
     WHERE s.video_id = ?
     ORDER BY s.started_at_ms DESC
   `,

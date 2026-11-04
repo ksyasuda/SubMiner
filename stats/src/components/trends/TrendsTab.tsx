@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTrends, type TimeRange, type GroupBy } from '../../hooks/useTrends';
 import { DateRangeSelector } from './DateRangeSelector';
 import { TrendChart } from './TrendChart';
@@ -20,6 +20,7 @@ import {
   type MaxTitlesMode,
 } from './anime-visibility';
 import { LibrarySummarySection } from './LibrarySummarySection';
+import { buildAnimeCumulative } from './anime-cumulative';
 
 const MAX_TITLES_MODE_LABELS: Record<MaxTitlesMode, string> = {
   recent: 'most recent',
@@ -156,6 +157,10 @@ export function TrendsTab() {
   const [maxTitles, setMaxTitles] = useState<number | null>(() => loadMaxTitles());
   const [maxTitlesMode, setMaxTitlesMode] = useState<MaxTitlesMode>(() => loadMaxTitlesMode());
   const { data, loading, error } = useTrends(range, groupBy, showEmptyDays);
+  const animeCumulative = useMemo(
+    () => (data ? buildAnimeCumulative(data.animeDaily) : null),
+    [data],
+  );
 
   const updateHiddenAnime = (next: Set<string>) => {
     setHiddenAnime(next);
@@ -187,30 +192,21 @@ export function TrendsTab() {
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
-  if (!data) return null;
+  if (!data || !animeCumulative) return null;
 
   const animeTitles = buildAnimeVisibilityOptions([
-    data.animeCumulative.episodes,
-    data.animeCumulative.cards,
-    data.animeCumulative.words,
-    data.animeCumulative.watchTime,
+    animeCumulative.episodes,
+    animeCumulative.cards,
+    animeCumulative.words,
+    animeCumulative.watchTime,
   ]);
   const activeHiddenAnime = pruneHiddenAnime(hiddenAnime, animeTitles);
 
-  const filteredAnimeProgress = filterHiddenAnimeData(
-    data.animeCumulative.episodes,
-    activeHiddenAnime,
-  );
-  const filteredCardsProgress = filterHiddenAnimeData(
-    data.animeCumulative.cards,
-    activeHiddenAnime,
-  );
-  const filteredWordsProgress = filterHiddenAnimeData(
-    data.animeCumulative.words,
-    activeHiddenAnime,
-  );
+  const filteredAnimeProgress = filterHiddenAnimeData(animeCumulative.episodes, activeHiddenAnime);
+  const filteredCardsProgress = filterHiddenAnimeData(animeCumulative.cards, activeHiddenAnime);
+  const filteredWordsProgress = filterHiddenAnimeData(animeCumulative.words, activeHiddenAnime);
   const filteredWatchTimeProgress = filterHiddenAnimeData(
-    data.animeCumulative.watchTime,
+    animeCumulative.watchTime,
     activeHiddenAnime,
   );
 
