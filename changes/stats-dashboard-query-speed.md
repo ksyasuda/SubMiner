@@ -5,3 +5,4 @@ area: stats
 - The Vocabulary tab's summary and word list load several times faster (summary ~2 s to ~0.2 s, word list ~0.6 s to ~0.2 s).
 - The Trends tab downloads far less data: the per-title library charts now arrive as daily values and are totalled in the dashboard, so the all-time response shrank from ~3.9 MB to ~0.2 MB.
 - Sentence search with headword matching returns several times faster (~0.3 s to ~0.08 s per query).
+- Vocabulary totals and new-word charts stay correct after running vocabulary cleanup. Words it repaired could be counted or hidden by mistake; the first launch after updating corrects them in the background.
