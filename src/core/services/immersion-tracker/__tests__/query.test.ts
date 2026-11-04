@@ -704,7 +704,7 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
           total_tokens_seen, total_cards
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
-    ).run(Math.floor(dayOneStart / 86_400_000), videoId, 1, 30, 10, 120, 2);
+    ).run(getLocalEpochDay(db, dayOneStart), videoId, 1, 30, 10, 120, 2);
 
     db.prepare(
       `
@@ -713,7 +713,7 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
           total_tokens_seen, total_cards
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
-    ).run(Math.floor(dayTwoStart / 86_400_000), videoId, 1, 45, 10, 140, 3);
+    ).run(getLocalEpochDay(db, dayTwoStart), videoId, 1, 45, 10, 140, 3);
 
     db.prepare(
       `
@@ -5072,7 +5072,7 @@ test('getTrendsDashboard rollup word metrics keep persisted totals over partial 
           total_tokens_seen, total_cards
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
-      ).run(Math.floor(row.start / 86_400_000), videoId, 1, 10, 1, row.rawWords, 0);
+      ).run(getLocalEpochDay(db, row.start), videoId, 1, 10, 1, row.rawWords, 0);
     }
 
     const dashboard = getTrendsDashboard(db, 'all', 'day');

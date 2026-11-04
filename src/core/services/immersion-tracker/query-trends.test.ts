@@ -12,9 +12,15 @@ import { getSessionSummaries } from './query-sessions';
 import { getVocabularyChartData, getVocabularySummary } from './query-lexical';
 import { markLexicalDailyRollupsReady } from './lexical-rollups';
 
-// Mocked "now" is local epoch day 20513 (2026-03-01), which is a Sunday.
-const NOW_MS = '1772395200000';
-const TODAY = 20_513;
+/** Noon, local time, on a calendar day, so the local epoch day holds in every time zone. */
+function localNoonMs(epochDay: number): number {
+  const date = new Date(epochDay * 86_400_000);
+  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12).getTime();
+}
+
+// Mocked "now" is noon on 2026-03-01, a Sunday.
+const TODAY = Date.UTC(2026, 2, 1) / 86_400_000;
+const NOW_MS = String(localNoonMs(TODAY));
 
 function withDashboardDb(run: (db: DatabaseSync) => void): void {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-trends-'));
@@ -82,7 +88,7 @@ function addSession(
   videoId: number,
   values: { minutes?: number; lookups?: number } = {},
 ): void {
-  const startedAtMs = (day * 86_400_000 + 12 * 3_600_000).toString();
+  const startedAtMs = localNoonMs(day).toString();
   const activeMs = (values.minutes ?? 30) * 60_000;
   db.prepare(
     `INSERT INTO imm_sessions (
@@ -110,7 +116,7 @@ function addWord(
     rank?: number | null;
   },
 ): void {
-  const firstSeen = values.day * 86_400 + 12 * 3_600;
+  const firstSeen = localNoonMs(values.day) / 1000;
   db.prepare(
     `INSERT INTO imm_words (
        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen,

@@ -9,8 +9,19 @@ interface TitleFilterProps {
 const TITLE_OPTIONS_ID = 'trends-title-options';
 
 /**
- * Typing narrows the title lists below. Choosing an exact title filters the whole
- * page to it, which the same choice from a list row also does.
+ * Whether an input event came from picking a datalist option rather than typing.
+ * Firefox reports insertReplacementText. Chromium, which the stats window runs on,
+ * sends a plain Event with no inputType, while typing always reports one.
+ */
+export function isDatalistSelection(event: Event): boolean {
+  const inputType = 'inputType' in event ? event.inputType : undefined;
+  return inputType === undefined || inputType === 'insertReplacementText';
+}
+
+/**
+ * Typing narrows the title lists below. Picking a suggestion, or pressing Enter on
+ * an exact title, filters the whole page to it, as choosing it from a list row does.
+ * Typing alone never selects, because one title can be the start of another.
  */
 export function TitleFilter({
   titles,
@@ -19,6 +30,13 @@ export function TitleFilter({
   onQueryChange,
   onSelectTitle,
 }: TitleFilterProps) {
+  const selectIfTitle = (value: string): boolean => {
+    if (!titles.includes(value)) return false;
+    onSelectTitle(value);
+    onQueryChange('');
+    return true;
+  };
+
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
       <input
@@ -29,12 +47,12 @@ export function TitleFilter({
         value={query}
         onChange={(event) => {
           const value = event.target.value;
-          if (titles.includes(value)) {
-            onSelectTitle(value);
-            onQueryChange('');
-          } else {
+          if (!isDatalistSelection(event.nativeEvent) || !selectIfTitle(value)) {
             onQueryChange(value);
           }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') selectIfTitle(event.currentTarget.value);
         }}
         className="w-56 max-w-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-2.5 py-1 text-xs text-ctp-text placeholder:text-ctp-overlay2 focus:border-ctp-blue focus:outline-none"
       />

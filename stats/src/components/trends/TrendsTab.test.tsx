@@ -3,6 +3,7 @@ import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { HEATMAP_HOURS, heatmapCellOpacity } from './DayHourHeatmap';
 import { describePeriodChange, SummaryStrip } from './SummaryStrip';
+import { isDatalistSelection } from './TitleFilter';
 import { isIsolatedPoint } from './TrendChart';
 
 test('heatmap hours start at 06:00 so a late evening is not split across the axis', () => {
@@ -62,4 +63,12 @@ test('isIsolatedPoint is true only for a value with gaps on both sides', () => {
   assert.equal(isIsolatedPoint(values, 1), true);
   assert.equal(isIsolatedPoint(values, 3), false);
   assert.equal(isIsolatedPoint(values, 2), false);
+});
+
+test('isDatalistSelection separates picking a suggestion from typing', () => {
+  const inputEvent = (inputType: string) => Object.assign(new Event('input'), { inputType });
+  assert.equal(isDatalistSelection(new Event('input')), true);
+  assert.equal(isDatalistSelection(inputEvent('insertReplacementText')), true);
+  assert.equal(isDatalistSelection(inputEvent('insertText')), false);
+  assert.equal(isDatalistSelection(inputEvent('deleteContentBackward')), false);
 });

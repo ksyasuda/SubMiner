@@ -62,11 +62,13 @@ export function epochDayToIsoDate(epochDay: number): string {
   return new Date(epochDay * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** Epoch day for a date input value, or null when the input is empty or invalid. */
+/** Epoch day for a date input value, or null when the input is empty, invalid, or before 1970. */
 export function isoDateToEpochDay(value: string): number | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return null;
-  const ms = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const year = Number(match[1]);
+  if (year < 1970) return null;
+  const ms = Date.UTC(year, Number(match[2]) - 1, Number(match[3]));
   return Number.isNaN(ms) ? null : ms / 86_400_000;
 }
 
