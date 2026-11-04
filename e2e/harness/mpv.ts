@@ -21,7 +21,10 @@ function videoOutputArgs(display: E2eDisplay): string[] {
   // gpu-next's Vulkan path (libplacebo over MoltenVK) segfaults on the first frame
   // on GitHub's paravirtual macOS GPU with libplacebo 7.387. `--vo=libmpv` is mpv's
   // cocoa-cb OpenGL output, which avoids it and still opens the window the overlay tracks.
-  if (process.platform === 'darwin') return ['--vo=libmpv'];
+  // Each new decoder asks that render thread for a direct-rendering image and waits with no
+  // timeout. cocoa-cb only answers from its main queue, which can stall on this runner, so a
+  // `loadfile` could freeze mpv's core and its IPC for good. `--vd-lavc-dr=no` skips the request.
+  if (process.platform === 'darwin') return ['--vo=libmpv', '--vd-lavc-dr=no'];
   return [];
 }
 
