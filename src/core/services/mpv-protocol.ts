@@ -55,6 +55,7 @@ export const MPV_REQUEST_ID_SUB_SHADOW_OFFSET = 120;
 export const MPV_REQUEST_ID_SUB_ASS_OVERRIDE = 121;
 export const MPV_REQUEST_ID_SUB_USE_MARGINS = 122;
 export const MPV_REQUEST_ID_PAUSE = 123;
+export const MPV_REQUEST_ID_RELOADED_PATH = 124;
 export const MPV_REQUEST_ID_TRACK_LIST_SECONDARY = 200;
 export const MPV_REQUEST_ID_TRACK_LIST_AUDIO = 201;
 export const MPV_REQUEST_ID_MEDIA_TITLE = 202;
@@ -109,7 +110,11 @@ export interface MpvProtocolHandleMessageDeps {
   getPauseAtTime: () => number | null;
   setPauseAtTime: (value: number | null) => void;
   autoLoadSecondarySubTrack: (path: string) => void;
+  getCurrentVideoPath: () => string;
   setCurrentVideoPath: (value: string) => void;
+  /** True from `end-file` until mpv reports a different path or the next `file-loaded`. */
+  getAwaitingPathChangeAfterEndFile: () => boolean;
+  setAwaitingPathChangeAfterEndFile: (value: boolean) => void;
   emitSecondarySubtitleVisibility: (payload: { visible: boolean }) => void;
   setPreviousSecondarySubVisibility: (visible: boolean) => void;
   setCurrentAudioStreamIndex: (
@@ -380,18 +385,10 @@ export async function dispatchMpvProtocolMessage(
       applyMediaTitle(deps, msg.data);
     } else if (msg.name === 'path') {
       const path = (msg.data as string) || '';
-      deps.setCurrentVideoPath(path);
-      // A forced title set before loadfile arrives ahead of the path change that clears the
-      // cached title and never fires again, so read it back once the new path is known.
-      if (path) {
-        deps.sendCommand({
-          command: ['get_property', 'media-title'],
-          request_id: MPV_REQUEST_ID_MEDIA_TITLE,
-        });
+      if (path !== deps.getCurrentVideoPath()) {
+        deps.setAwaitingPathChangeAfterEndFile(false);
       }
-      deps.emitMediaPathChange({ path });
-      deps.autoLoadSecondarySubTrack(path);
-      deps.syncCurrentAudioStreamIndex();
+      applyMediaPath(deps, path);
     } else if (msg.name === 'sub-pos') {
       deps.emitSubtitleMetricsChange({ subPos: msg.data as number });
     } else if (msg.name === 'sub-font-size') {
@@ -464,9 +461,26 @@ export async function dispatchMpvProtocolMessage(
       deps.emitClientMessage?.({ args });
     }
   } else if (msg.event === 'file-loaded') {
+    if (deps.getAwaitingPathChangeAfterEndFile()) {
+      // mpv only sends the latest value of an observed property, once its IPC thread gets to it, so
+      // a same-file reload can skip the path clear. The reload then looks like nothing happened and
+      // per-file state (autoplay gate, subtitles) never resets. Replay the clear so consumers see
+      // the same sequence as any other load. Read the path back because the unchanged value may
+      // never be reported, and hold file-loaded until the reply so listeners can read the path.
+      deps.setAwaitingPathChangeAfterEndFile(false);
+      applyMediaPath(deps, '');
+      deps.sendCommand({
+        command: ['get_property', 'path'],
+        request_id: MPV_REQUEST_ID_RELOADED_PATH,
+      });
+      return;
+    }
     deps.emitFileLoaded?.();
   } else if (msg.event === 'end-file') {
     deps.emitEndFile?.(parseEndFileEvent(msg));
+    if (deps.getCurrentVideoPath()) {
+      deps.setAwaitingPathChangeAfterEndFile(true);
+    }
   } else if (msg.event === 'shutdown') {
     deps.restorePreviousSecondarySubVisibility();
     if (deps.shouldQuitOnMpvShutdown()) {
@@ -474,6 +488,17 @@ export async function dispatchMpvProtocolMessage(
     }
   } else if (msg.request_id) {
     if (deps.resolvePendingRequest(msg.request_id, msg)) {
+      return;
+    }
+
+    // Before the no-data check: an error reply still owes the file-loaded held for this read.
+    if (msg.request_id === MPV_REQUEST_ID_RELOADED_PATH) {
+      // The path property event may have restored the path before this reply arrived.
+      const path = (msg.data as string) || '';
+      if (path && !deps.getCurrentVideoPath()) {
+        applyMediaPath(deps, path);
+      }
+      deps.emitFileLoaded?.();
       return;
     }
 
@@ -616,6 +641,21 @@ function applyMediaTitle(
   const title = typeof data === 'string' ? sanitizeMediaTitle(data) : null;
   if (typeof data === 'string' && data.trim() && !title) return;
   deps.emitMediaTitleChange({ title });
+}
+
+function applyMediaPath(deps: MpvProtocolHandleMessageDeps, path: string): void {
+  deps.setCurrentVideoPath(path);
+  // A forced title set before loadfile arrives ahead of the path change that clears the
+  // cached title and never fires again, so read it back once the new path is known.
+  if (path) {
+    deps.sendCommand({
+      command: ['get_property', 'media-title'],
+      request_id: MPV_REQUEST_ID_MEDIA_TITLE,
+    });
+  }
+  deps.emitMediaPathChange({ path });
+  deps.autoLoadSecondarySubTrack(path);
+  deps.syncCurrentAudioStreamIndex();
 }
 
 export function parseVisibilityProperty(value: unknown): boolean | null {
