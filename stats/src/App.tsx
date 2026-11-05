@@ -10,10 +10,13 @@ import {
   createInitialStatsView,
   navigateToAnime as navigateToAnimeState,
   navigateToSession as navigateToSessionState,
+  navigateToSessionsDays,
   openAnimeEpisodeDetail,
   openOverviewMediaDetail,
   openSessionsMediaDetail,
+  openTrendsMediaDetail,
   switchTab,
+  type SessionsDayFilter,
 } from './lib/stats-navigation';
 
 const AnimeTab = lazy(() =>
@@ -72,7 +75,8 @@ export function App() {
   const [mountedTabs, setMountedTabs] = useState<Set<TabId>>(() => new Set(['overview']));
   const [globalWordId, setGlobalWordId] = useState<number | null>(null);
   const { excluded, isExcluded, toggleExclusion, removeExclusion, clearAll } = useExcludedWords();
-  const { activeTab, selectedAnimeId, focusedSessionId, mediaDetail } = viewState;
+  const { activeTab, selectedAnimeId, focusedSessionId, sessionsDayFilter, mediaDetail } =
+    viewState;
 
   const activateTab = useCallback((tabId: TabId) => {
     setViewState((prev) => switchTab(prev, tabId));
@@ -104,6 +108,16 @@ export function App() {
     });
   }, []);
 
+  const openSessionsForDays = useCallback((filter: SessionsDayFilter) => {
+    setViewState((prev) => navigateToSessionsDays(prev, filter));
+    setMountedTabs((prev) => {
+      if (prev.has('sessions')) return prev;
+      const next = new Set(prev);
+      next.add('sessions');
+      return next;
+    });
+  }, []);
+
   const navigateToEpisodeDetail = useCallback(
     (animeId: number, videoId: number, sessionId: number | null = null) => {
       setViewState((prev) => openAnimeEpisodeDetail(prev, animeId, videoId, sessionId));
@@ -120,6 +134,10 @@ export function App() {
 
   const navigateToSessionsMediaDetail = useCallback((videoId: number) => {
     setViewState((prev) => openSessionsMediaDetail(prev, videoId));
+  }, []);
+
+  const navigateToTrendsMediaDetail = useCallback((videoId: number) => {
+    setViewState((prev) => openTrendsMediaDetail(prev, videoId));
   }, []);
 
   const openWordDetail = useCallback((wordId: number) => {
@@ -171,7 +189,9 @@ export function App() {
                   ? 'Back to Overview'
                   : mediaDetail.origin.type === 'sessions'
                     ? 'Back to Sessions'
-                    : 'Back to Library'
+                    : mediaDetail.origin.type === 'trends'
+                      ? 'Back to Trends'
+                      : 'Back to Library'
               }
               onNavigateToAnime={navigateToAnime}
             />
@@ -222,7 +242,11 @@ export function App() {
                 className="animate-fade-in"
               >
                 <Suspense fallback={<LoadingSurface label="Loading trends..." />}>
-                  <TrendsTab />
+                  <TrendsTab
+                    onNavigateToAnime={navigateToAnime}
+                    onNavigateToMediaDetail={navigateToTrendsMediaDetail}
+                    onOpenSessionsForDays={openSessionsForDays}
+                  />
                 </Suspense>
               </section>
             ) : null}
@@ -239,7 +263,7 @@ export function App() {
                     onNavigateToAnime={navigateToAnime}
                     onOpenWordDetail={openWordDetail}
                     excluded={excluded}
-                    isExcluded={isExcluded}
+                    onToggleExclusion={toggleExclusion}
                     onRemoveExclusion={removeExclusion}
                     onClearExclusions={clearAll}
                   />
@@ -274,6 +298,10 @@ export function App() {
                       setViewState((prev) => ({ ...prev, focusedSessionId: null }))
                     }
                     onNavigateToMediaDetail={navigateToSessionsMediaDetail}
+                    dayFilter={sessionsDayFilter}
+                    onClearDayFilter={() =>
+                      setViewState((prev) => ({ ...prev, sessionsDayFilter: null }))
+                    }
                   />
                 </Suspense>
               </section>

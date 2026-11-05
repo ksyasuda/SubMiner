@@ -24,3 +24,19 @@ export function writeBooleanPreference(key: string, value: boolean): void {
     // Storage can be blocked in private/restricted contexts; keep the in-memory choice.
   }
 }
+
+export function readStringPreference(key: string): string | null {
+  try {
+    return getPreferenceStorage()?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeStringPreference(key: string, value: string): void {
+  try {
+    getPreferenceStorage()?.setItem(key, value);
+  } catch {
+    // Storage can be blocked in private/restricted contexts; keep the in-memory choice.
+  }
+}

@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { getStatsClient } from './useStatsApi';
 import { subscribeExcludedWordsServerSync } from './useExcludedWords';
 import type {
-  VocabularyEntry,
   KanjiEntry,
   StatsVocabularyCharts,
   StatsVocabularySummary,
+  VocabularyCoverageBand,
 } from '../types/stats';
 
 const AGGREGATE_RETRY_BASE_MS = 1_000;
@@ -15,17 +15,19 @@ const CHART_BACKFILL_POLL_MS = 1_000;
 const CHART_BACKFILL_SLOW_POLL_MS = 5_000;
 const CHART_BACKFILL_FAST_POLLS = 30;
 const CHART_BACKFILL_POLL_LIMIT = 60;
+// Every kanji seen. The list stays small because the writing system does.
+const KANJI_LIMIT = 10_000;
 
 function aggregateRetryDelayMs(attempt: number): number {
   return Math.min(AGGREGATE_RETRY_BASE_MS * 2 ** attempt, AGGREGATE_RETRY_MAX_MS);
 }
 
 export function useVocabulary() {
-  const [words, setWords] = useState<VocabularyEntry[]>([]);
   const [kanji, setKanji] = useState<KanjiEntry[]>([]);
   const [knownWords, setKnownWords] = useState<Set<string>>(new Set());
   const [summary, setSummary] = useState<StatsVocabularySummary | null>(null);
   const [charts, setCharts] = useState<StatsVocabularyCharts | null>(null);
+  const [coverage, setCoverage] = useState<VocabularyCoverageBand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aggregatesError, setAggregatesError] = useState<string | null>(null);
@@ -47,16 +49,10 @@ export function useVocabulary() {
     setLoading(true);
     setError(null);
     const client = getStatsClient();
-    Promise.allSettled([client.getVocabulary(500), client.getKanji(200), client.getKnownWords()])
-      .then(([wordsResult, kanjiResult, knownResult]) => {
+    Promise.allSettled([client.getKanji(KANJI_LIMIT), client.getKnownWords()])
+      .then(([kanjiResult, knownResult]) => {
         if (cancelled) return;
         const errors: string[] = [];
-
-        if (wordsResult.status === 'fulfilled') {
-          setWords(wordsResult.value);
-        } else {
-          errors.push(wordsResult.reason.message);
-        }
 
         if (kanjiResult.status === 'fulfilled') {
           setKanji(kanjiResult.value);
@@ -145,6 +141,15 @@ export function useVocabulary() {
         });
     };
 
+    void client
+      .getVocabularyCoverage()
+      .then((nextCoverage) => {
+        if (!cancelled) setCoverage(nextCoverage);
+      })
+      .catch((coverageError: unknown) => {
+        // Coverage is a supplement, so losing it shouldn't flag the whole page.
+        console.error('Failed to load vocabulary coverage', coverageError);
+      });
     loadSummary(0);
     loadCharts(0, 0);
     return () => {
@@ -154,11 +159,13 @@ export function useVocabulary() {
   }, [aggregatesToken]);
 
   return {
-    words,
     kanji,
     knownWords,
     summary,
     charts,
+    coverage,
+    /** Changes whenever server-side word data may have changed. */
+    dataRevision: aggregatesToken,
     loading,
     error,
     aggregatesError,

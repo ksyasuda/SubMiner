@@ -5,6 +5,7 @@ import {
   renderSentenceWithMatches,
 } from '../../lib/sentence-search';
 import { buildStatsMineCardParams, getStatsMineCardError } from '../../lib/mining';
+import { MineUnavailableNote } from '../common/MineUnavailableNote';
 import type { SentenceSearchResult } from '../../types/stats';
 
 const SEARCH_LIMIT = 50;
@@ -215,51 +216,53 @@ export function SearchTab() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {availability.exactMatch && (
-                      <button
-                        type="button"
-                        title={wordAudioDisabledReason || 'Create a word card from this sentence'}
-                        className="rounded-md border border-ctp-mauve/50 px-3 py-1.5 text-xs font-medium text-ctp-mauve transition hover:bg-ctp-mauve/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
-                        disabled={wordStatus?.loading || !availability.canMineWordAudio}
-                        onClick={() => void handleMine(result, index, 'word')}
-                      >
-                        {buttonLabel(
-                          'word',
-                          wordStatus,
-                          availability.canMineWordAudio ? '' : 'Unavailable',
-                        )}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      title={sentenceDisabledReason || 'Create a sentence card from this line'}
-                      className="rounded-md border border-ctp-green/50 px-3 py-1.5 text-xs font-medium text-ctp-green transition hover:bg-ctp-green/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
-                      disabled={sentenceStatus?.loading || !availability.canMineSentence}
-                      onClick={() => void handleMine(result, index, 'sentence')}
-                    >
-                      {buttonLabel(
-                        'sentence',
-                        sentenceStatus,
-                        availability.canMineSentence ? '' : 'Unavailable',
+                  {availability.unavailableReason ? (
+                    <MineUnavailableNote reason={availability.unavailableReason} />
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {availability.exactMatch && (
+                        <button
+                          type="button"
+                          title={wordAudioDisabledReason || 'Create a word card from this sentence'}
+                          className="rounded-md border border-ctp-mauve/50 px-3 py-1.5 text-xs font-medium text-ctp-mauve transition hover:bg-ctp-mauve/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
+                          disabled={wordStatus?.loading || !availability.canMineWordAudio}
+                          onClick={() => void handleMine(result, index, 'word')}
+                        >
+                          {buttonLabel(
+                            'word',
+                            wordStatus,
+                            availability.canMineWordAudio ? '' : 'No exact match',
+                          )}
+                        </button>
                       )}
-                    </button>
-                    {availability.exactMatch && (
                       <button
                         type="button"
-                        title={wordAudioDisabledReason || 'Create an audio card from this sentence'}
-                        className="rounded-md border border-ctp-blue/50 px-3 py-1.5 text-xs font-medium text-ctp-blue transition hover:bg-ctp-blue/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
-                        disabled={audioStatus?.loading || !availability.canMineWordAudio}
-                        onClick={() => void handleMine(result, index, 'audio')}
+                        title={sentenceDisabledReason || 'Create a sentence card from this line'}
+                        className="rounded-md border border-ctp-green/50 px-3 py-1.5 text-xs font-medium text-ctp-green transition hover:bg-ctp-green/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
+                        disabled={sentenceStatus?.loading || !availability.canMineSentence}
+                        onClick={() => void handleMine(result, index, 'sentence')}
                       >
-                        {buttonLabel(
-                          'audio',
-                          audioStatus,
-                          availability.canMineWordAudio ? '' : 'Unavailable',
-                        )}
+                        {buttonLabel('sentence', sentenceStatus, '')}
                       </button>
-                    )}
-                  </div>
+                      {availability.exactMatch && (
+                        <button
+                          type="button"
+                          title={
+                            wordAudioDisabledReason || 'Create an audio card from this sentence'
+                          }
+                          className="rounded-md border border-ctp-blue/50 px-3 py-1.5 text-xs font-medium text-ctp-blue transition hover:bg-ctp-blue/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
+                          disabled={audioStatus?.loading || !availability.canMineWordAudio}
+                          onClick={() => void handleMine(result, index, 'audio')}
+                        >
+                          {buttonLabel(
+                            'audio',
+                            audioStatus,
+                            availability.canMineWordAudio ? '' : 'No exact match',
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <p className="mt-4 rounded-lg bg-ctp-base/70 px-4 py-3 text-base leading-7 text-ctp-text">

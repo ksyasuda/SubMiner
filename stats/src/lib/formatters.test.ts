@@ -5,6 +5,8 @@ import {
   epochDayToDate,
   epochMsFromDbTimestamp,
   formatClockDuration,
+  isoDateToEpochDay,
+  localDayFromMs,
   formatRelativeDate,
   formatSessionDayLabel,
 } from './formatters';
@@ -159,4 +161,21 @@ test('formatClockDuration keeps seconds for sub-hour spans', () => {
   assert.equal(formatClockDuration(42_000), '42s');
   assert.equal(formatClockDuration(372_000), '6m 12s');
   assert.equal(formatClockDuration(3_780_000), '1h 3m');
+});
+
+test('isoDateToEpochDay reads date input values and rejects dates before 1970', () => {
+  assert.equal(isoDateToEpochDay('1970-01-02'), 1);
+  assert.equal(isoDateToEpochDay('2026-03-01'), 20_513);
+  assert.equal(isoDateToEpochDay('1969-12-31'), null);
+  // Date.UTC would read this year as 1999.
+  assert.equal(isoDateToEpochDay('0099-01-01'), null);
+  assert.equal(isoDateToEpochDay(''), null);
+});
+
+test('localDayFromMs numbers the local calendar day in every time zone', () => {
+  const justAfterMidnight = new Date(2026, 0, 2, 0, 30).getTime();
+  const lateEvening = new Date(2026, 0, 2, 23, 30).getTime();
+  const january2 = Date.UTC(2026, 0, 2) / 86_400_000;
+  assert.equal(localDayFromMs(justAfterMidnight), january2);
+  assert.equal(localDayFromMs(lateEvening), january2);
 });

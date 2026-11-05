@@ -89,6 +89,67 @@ test('deleteSession throws when the stats API delete request fails', async () =>
   );
 });
 
+test('getTrendsDashboard encodes a custom range and title filter', async () => {
+  await withFetchStub(
+    () => jsonResponse({}),
+    async (requests) => {
+      await apiClient.getTrendsDashboard(
+        { startDay: 20_000, endDay: 20_010 },
+        'week',
+        true,
+        'A & B',
+      );
+      assert.equal(
+        requests[0]?.url,
+        `${BASE_URL}/api/stats/trends/dashboard?range=custom&fromDay=20000&toDay=20010&groupBy=week&fillEmpty=true&title=A+%26+B`,
+      );
+    },
+  );
+});
+
+test('getDictionaryWords sends only the filters in use', async () => {
+  await withFetchStub(
+    () => jsonResponse({ rows: [], total: 0, maxSeen: 0 }),
+    async (requests) => {
+      await apiClient.getDictionaryWords({
+        search: '猫',
+        sort: 'rank',
+        descending: false,
+        hideKnown: true,
+        hideNames: false,
+        hideKana: false,
+        maxRank: 10_000,
+        limit: 25,
+        offset: 50,
+      });
+      const url = new URL(requests[0]!.url, 'http://stats.local');
+      assert.equal(url.pathname, '/api/stats/vocabulary/words');
+      assert.deepEqual(Object.fromEntries(url.searchParams), {
+        sort: 'rank',
+        order: 'asc',
+        limit: '25',
+        offset: '50',
+        search: '猫',
+        hideKnown: 'true',
+        maxRank: '10000',
+      });
+    },
+  );
+});
+
+test('getSessions narrows to a span of days when given one', async () => {
+  await withFetchStub(
+    () => jsonResponse([]),
+    async (requests) => {
+      await apiClient.getSessions(500, { startDay: 20_000, endDay: 20_006 });
+      assert.equal(
+        requests[0]?.url,
+        `${BASE_URL}/api/stats/sessions?limit=500&fromDay=20000&toDay=20006`,
+      );
+    },
+  );
+});
+
 test('getTrendsDashboard accepts 365d range and builds correct URL', async () => {
   await withFetchStub(
     () =>

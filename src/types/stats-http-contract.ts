@@ -3,6 +3,7 @@ import type {
   AnimeLibraryItem,
   AnimeWord,
   DailyRollup,
+  DictionaryWordPage,
   EpisodeDetailData,
   EpisodesPerDay,
   KanjiDetailData,
@@ -22,6 +23,7 @@ import type {
   StatsExcludedWord,
   StreakCalendarDay,
   TrendsDashboardData,
+  VocabularyCoverageBand,
   VocabularyEntry,
   VocabularyOccurrenceEntry,
   WatchTimePerAnime,
@@ -29,8 +31,14 @@ import type {
 } from './stats-wire';
 import type { TmdbMediaType } from '../shared/media-kind';
 
-export type StatsTrendRange = '7d' | '30d' | '90d' | '365d' | 'all';
-export type StatsTrendGroupBy = 'day' | 'month';
+export type StatsTrendPresetRange = '7d' | '30d' | '90d' | '365d' | 'all';
+/** Inclusive local calendar days since the Unix epoch. */
+export interface StatsDayRange {
+  startDay: number;
+  endDay: number;
+}
+export type StatsTrendRange = StatsTrendPresetRange | StatsDayRange;
+export type StatsTrendGroupBy = 'day' | 'week' | 'month';
 export type StatsMineMode = 'word' | 'sentence' | 'audio';
 
 /** Body of `POST /api/stats/maintenance/duplicate-lines`. */
@@ -63,10 +71,35 @@ export interface StatsVocabularySummary {
 
 export interface StatsVocabularyCharts {
   ready: boolean;
-  topWords: Array<{ wordId: number; headword: string; frequency: number }>;
-  topWordsWithoutNames: Array<{ wordId: number; headword: string; frequency: number }>;
   newWordsTimeline: Array<{ epochDay: number; wordCount: number }>;
   newWordsTimelineWithoutNames: Array<{ epochDay: number; wordCount: number }>;
+}
+
+export type StatsDictionaryWordSort =
+  | 'seen'
+  | 'rank'
+  | 'titles'
+  | 'firstSeen'
+  | 'lastSeen'
+  | 'headword';
+export type StatsDictionaryWordPos = 'noun' | 'verb' | 'adjective';
+
+/** Query for `GET /api/stats/vocabulary/words`. */
+export interface StatsDictionaryWordQuery {
+  /** Matches any form or reading, treating katakana and hiragana alike. */
+  search?: string;
+  sort: StatsDictionaryWordSort;
+  descending: boolean;
+  hideKnown: boolean;
+  hideNames: boolean;
+  hideKana: boolean;
+  partOfSpeech?: StatsDictionaryWordPos;
+  /** Keep only ranked words at or better than this frequency rank. */
+  maxRank?: number;
+  /** Keep only words seen in at least this many titles. */
+  minTitles?: number;
+  limit: number;
+  offset: number;
 }
 
 export interface StatsAnilistSearchResult {
@@ -204,6 +237,8 @@ export interface StatsJsonResponseMap {
   vocabulary: VocabularyEntry[];
   vocabularySummary: StatsVocabularySummary;
   vocabularyCharts: StatsVocabularyCharts;
+  dictionaryWords: DictionaryWordPage;
+  vocabularyCoverage: VocabularyCoverageBand[];
   excludedWords: StatsExcludedWord[];
   setExcludedWords: StatsOkResponse;
   duplicateLineCleanup: StatsDuplicateLineCleanupResult;
@@ -259,13 +294,15 @@ export interface StatsHttpClient {
   getOverview: () => Promise<OverviewData>;
   getDailyRollups: (limit?: number) => Promise<DailyRollup[]>;
   getMonthlyRollups: (limit?: number) => Promise<MonthlyRollup[]>;
-  getSessions: (limit?: number) => Promise<SessionSummary[]>;
+  getSessions: (limit?: number, dayRange?: StatsDayRange) => Promise<SessionSummary[]>;
   getSessionTimeline: (id: number, limit?: number) => Promise<SessionTimelinePoint[]>;
   getSessionEvents: (id: number, limit?: number, eventTypes?: number[]) => Promise<SessionEvent[]>;
   getSessionKnownWordsTimeline: (id: number) => Promise<StatsSessionKnownWordsTimelinePoint[]>;
   getVocabulary: (limit?: number) => Promise<VocabularyEntry[]>;
   getVocabularySummary: () => Promise<StatsVocabularySummary>;
   getVocabularyCharts: () => Promise<StatsVocabularyCharts>;
+  getDictionaryWords: (query: StatsDictionaryWordQuery) => Promise<DictionaryWordPage>;
+  getVocabularyCoverage: () => Promise<VocabularyCoverageBand[]>;
   getExcludedWords: () => Promise<StatsExcludedWord[]>;
   setExcludedWords: (words: StatsExcludedWord[]) => Promise<void>;
   cleanupDuplicateLines: (
@@ -277,6 +314,7 @@ export interface StatsHttpClient {
     reading: string,
     limit?: number,
     offset?: number,
+    allForms?: boolean,
   ) => Promise<VocabularyOccurrenceEntry[]>;
   searchSentences: (
     query: string,
@@ -306,6 +344,7 @@ export interface StatsHttpClient {
     range: StatsTrendRange,
     groupBy: StatsTrendGroupBy,
     fillEmpty?: boolean,
+    title?: string | null,
   ) => Promise<TrendsDashboardData>;
   getWordDetail: (wordId: number) => Promise<WordDetailData>;
   getKanjiDetail: (kanjiId: number) => Promise<KanjiDetailData>;

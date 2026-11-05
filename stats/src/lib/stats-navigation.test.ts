@@ -5,8 +5,11 @@ import {
   createInitialStatsView,
   getSessionNavigationTarget,
   navigateToAnime,
+  navigateToSessionsDays,
   openAnimeEpisodeDetail,
   openOverviewMediaDetail,
+  openSessionsMediaDetail,
+  openTrendsMediaDetail,
   switchTab,
   type StatsViewState,
 } from './stats-navigation';
@@ -18,6 +21,7 @@ test('openAnimeEpisodeDetail opens dedicated media detail from anime context', (
     activeTab: 'anime',
     selectedAnimeId: 42,
     focusedSessionId: null,
+    sessionsDayFilter: null,
     mediaDetail: {
       videoId: 7,
       initialSessionId: null,
@@ -36,6 +40,7 @@ test('closeMediaDetail returns to originating anime detail state', () => {
     activeTab: 'anime',
     selectedAnimeId: 42,
     focusedSessionId: null,
+    sessionsDayFilter: null,
     mediaDetail: null,
   } satisfies StatsViewState);
 });
@@ -45,6 +50,7 @@ test('openOverviewMediaDetail opens dedicated media detail from overview context
     activeTab: 'overview',
     selectedAnimeId: null,
     focusedSessionId: null,
+    sessionsDayFilter: null,
     mediaDetail: {
       videoId: 9,
       initialSessionId: null,
@@ -68,6 +74,7 @@ test('switchTab clears dedicated media detail state', () => {
     activeTab: 'sessions',
     selectedAnimeId: null,
     focusedSessionId: null,
+    sessionsDayFilter: null,
     mediaDetail: null,
   } satisfies StatsViewState);
 });
@@ -92,6 +99,7 @@ test('openOverviewMediaDetail can carry a target session id for auto-expansion',
     activeTab: 'overview',
     selectedAnimeId: null,
     focusedSessionId: null,
+    sessionsDayFilter: null,
     mediaDetail: {
       videoId: 9,
       initialSessionId: 33,
@@ -100,4 +108,26 @@ test('openOverviewMediaDetail can carry a target session id for auto-expansion',
       },
     },
   } satisfies StatsViewState);
+});
+
+const OCT_5 = { startDay: 20_366, endDay: 20_366, label: 'Oct 5' };
+
+test('navigateToSessionsDays opens Sessions narrowed to those days', () => {
+  const state = navigateToSessionsDays(createInitialStatsView(), OCT_5);
+  assert.equal(state.activeTab, 'sessions');
+  assert.deepEqual(state.sessionsDayFilter, OCT_5);
+});
+
+test('the sessions day filter survives a media detail round trip but not a tab switch', () => {
+  const filtered = navigateToSessionsDays(createInitialStatsView(), OCT_5);
+  const back = closeMediaDetail(openSessionsMediaDetail(filtered, 3));
+  assert.equal(back.activeTab, 'sessions');
+  assert.deepEqual(back.sessionsDayFilter, OCT_5);
+  assert.equal(switchTab(filtered, 'sessions').sessionsDayFilter, null);
+});
+
+test('media detail opened from Trends returns to Trends', () => {
+  const state = closeMediaDetail(openTrendsMediaDetail(createInitialStatsView(), 3));
+  assert.equal(state.activeTab, 'trends');
+  assert.equal(state.mediaDetail, null);
 });

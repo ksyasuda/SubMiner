@@ -1,54 +1,40 @@
+import type {
+  StatsTrendGroupBy,
+  StatsTrendPresetRange,
+  StatsTrendRange,
+} from '../../../types/stats-http-contract';
+import {
+  TREND_FREQUENCY_BANDS,
+  type LibrarySummaryRow,
+  type TrendBucket,
+  type TrendChartPoint,
+  type TrendFrequencyBandPoint,
+  type TrendPerAnimePoint,
+  type TrendRatePoint,
+  type TrendSummaryTotals,
+  type TrendsDashboardData,
+} from '../../../types/stats-wire';
 import type { DatabaseSync } from './sqlite';
 import type { ImmersionSessionRollupRow } from './types';
 import {
   ACTIVE_SESSION_METRICS_CTE,
   currentDbTimestamp,
   getLocalEpochDay,
-  getLocalMonthKey,
-  getShiftedLocalDayTimestamp,
   makePlaceholders,
   sessionDisplayWordsExpr,
-  toDbTimestamp,
 } from './query-shared';
 import {
   addRollupWordCount,
   applyRollupWordCounts,
-  selectDailyRollupRows,
-  selectMonthlyRollupRows,
+  selectDailyRollupRowsBetween,
+  selectMonthlyRollupRowsBetween,
   sessionRollupDaySql,
   sessionRollupMonthSql,
   type RollupWordCounts,
 } from './query-sessions';
-import { areLexicalDailyRollupsReady, getLexicalDailyRollups } from './lexical-rollups';
+import { getNewWordFirstSeenRows, type NewWordFirstSeenRow } from './query-lexical';
 
-type TrendRange = '7d' | '30d' | '90d' | '365d' | 'all';
-type TrendGroupBy = 'day' | 'month';
-
-interface TrendChartPoint {
-  label: string;
-  value: number;
-}
-
-interface TrendPerAnimePoint {
-  epochDay: number;
-  animeTitle: string;
-  value: number;
-}
-
-export interface LibrarySummaryRow {
-  title: string;
-  watchTimeMin: number;
-  videos: number;
-  sessions: number;
-  cards: number;
-  words: number;
-  lookups: number;
-  lookupsPerHundred: number | null;
-  firstWatched: number;
-  lastWatched: number;
-}
-
-interface TrendSessionMetricRow {
+interface TrendSessionRow {
   epochDay: number;
   monthKey: number;
   dayOfWeek: number;
@@ -60,49 +46,52 @@ interface TrendSessionMetricRow {
   tokensSeen: number;
   cardsMined: number;
   yomitanLookupCount: number;
+  ended: number;
 }
 
-export interface TrendsDashboardQueryResult {
-  activity: {
-    watchTime: TrendChartPoint[];
-    cards: TrendChartPoint[];
-    words: TrendChartPoint[];
-    sessions: TrendChartPoint[];
-  };
-  progress: {
-    watchTime: TrendChartPoint[];
-    sessions: TrendChartPoint[];
-    words: TrendChartPoint[];
-    newWords: TrendChartPoint[];
-    cards: TrendChartPoint[];
-    episodes: TrendChartPoint[];
-    lookups: TrendChartPoint[];
-  };
-  ratios: {
-    lookupsPerHundred: TrendChartPoint[];
-    cardsPerHour: TrendChartPoint[];
-    readingSpeed: TrendChartPoint[];
-  };
-  /** Sparse per-title values for each active day; the stats UI builds the running totals. */
-  animeDaily: {
-    watchTime: TrendPerAnimePoint[];
-    episodes: TrendPerAnimePoint[];
-    cards: TrendPerAnimePoint[];
-    words: TrendPerAnimePoint[];
-  };
-  patterns: {
-    watchTimeByDayOfWeek: TrendChartPoint[];
-    watchTimeByHour: TrendChartPoint[];
-  };
-  librarySummary: LibrarySummaryRow[];
+/** The dated numbers one day or bucket adds up. */
+interface TrendTotals {
+  activeMin: number;
+  cards: number;
+  words: number;
+  lookups: number;
+  episodes: number;
+  newWords: number;
 }
 
-const TREND_DAY_LIMITS: Record<Exclude<TrendRange, 'all'>, number> = {
+interface DayRange {
+  startDay: number;
+  endDay: number;
+}
+
+interface TrendWindow {
+  /** Null for `all`, whose bounds come from the data. */
+  startDay: number | null;
+  endDay: number;
+  today: number;
+  previous: DayRange | null;
+  /** Earliest day any metric needs, covering `previous` and the rolling-rate lookback. */
+  loadFromDay: number | null;
+}
+
+interface TitleRef {
+  title: string;
+  animeId: number | null;
+}
+
+const TREND_DAY_LIMITS: Record<Exclude<StatsTrendPresetRange, 'all'>, number> = {
   '7d': 7,
   '30d': 30,
   '90d': 90,
   '365d': 365,
 };
+
+// A single day's rate is mostly noise: one card in a two-minute day reads as 30
+// cards per hour. Daily charts rate a trailing week instead, and every rate needs
+// this much underlying data before it is shown at all.
+const ROLLING_RATE_DAYS = 7;
+const MIN_RATE_ACTIVE_MIN = 30;
+const MIN_RATE_WORDS = 2_000;
 
 const MONTH_NAMES = [
   'Jan',
@@ -119,70 +108,91 @@ const MONTH_NAMES = [
   'Dec',
 ];
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-function getTrendDayLimit(range: TrendRange): number {
-  return range === 'all' ? 365 : TREND_DAY_LIMITS[range];
+function emptyTotals(): TrendTotals {
+  return { activeMin: 0, cards: 0, words: 0, lookups: 0, episodes: 0, newWords: 0 };
 }
 
-function getTrendMonthlyLimit(db: DatabaseSync, range: TrendRange): number {
+function dayToDate(epochDay: number): Date {
+  return new Date(epochDay * 86_400_000);
+}
+
+function dayToMonthKey(epochDay: number): number {
+  const date = dayToDate(epochDay);
+  return date.getUTCFullYear() * 100 + date.getUTCMonth() + 1;
+}
+
+function monthDayBounds(monthKey: number): DayRange {
+  const year = Math.floor(monthKey / 100);
+  const month = monthKey % 100;
+  return {
+    startDay: Date.UTC(year, month - 1, 1) / 86_400_000,
+    endDay: Date.UTC(year, month, 0) / 86_400_000,
+  };
+}
+
+/** Bucket key for a day: the day itself, the Monday starting its week, or its `YYYYMM`. */
+function bucketKeyForDay(epochDay: number, groupBy: StatsTrendGroupBy): number {
+  if (groupBy === 'day') return epochDay;
+  if (groupBy === 'month') return dayToMonthKey(epochDay);
+  // Epoch day 0 was a Thursday, so +3 makes Monday the zero of the week.
+  return epochDay - ((((epochDay + 3) % 7) + 7) % 7);
+}
+
+function formatBucketLabel(
+  startDay: number,
+  groupBy: StatsTrendGroupBy,
+  showYear: boolean,
+): string {
+  const date = dayToDate(startDay);
+  const month = MONTH_NAMES[date.getUTCMonth()];
+  if (groupBy === 'month') return `${month} ${date.getUTCFullYear()}`;
+  const label = `${month} ${date.getUTCDate()}`;
+  return showYear ? `${label}, ${date.getUTCFullYear()}` : label;
+}
+
+function resolveTrendWindow(db: DatabaseSync, range: StatsTrendRange): TrendWindow {
+  const today = getLocalEpochDay(db, currentDbTimestamp());
   if (range === 'all') {
-    return 120;
+    return { startDay: null, endDay: today, today, previous: null, loadFromDay: null };
   }
-  const currentTimestamp = currentDbTimestamp();
-  const todayStartMs = getShiftedLocalDayTimestamp(db, currentTimestamp, 0);
-  const cutoffMs = getShiftedLocalDayTimestamp(
-    db,
-    currentTimestamp,
-    -(TREND_DAY_LIMITS[range] - 1),
-  );
-  const currentMonthKey = getLocalMonthKey(db, todayStartMs);
-  const cutoffMonthKey = getLocalMonthKey(db, cutoffMs);
-  const currentYear = Math.floor(currentMonthKey / 100);
-  const currentMonth = currentMonthKey % 100;
-  const cutoffYear = Math.floor(cutoffMonthKey / 100);
-  const cutoffMonth = cutoffMonthKey % 100;
-  return Math.max(1, (currentYear - cutoffYear) * 12 + currentMonth - cutoffMonth + 1);
+  const startDay =
+    typeof range === 'string' ? today - (TREND_DAY_LIMITS[range] - 1) : range.startDay;
+  const endDay = typeof range === 'string' ? today : Math.min(range.endDay, today);
+  const span = Math.max(1, endDay - startDay + 1);
+  const previous = { startDay: startDay - span, endDay: startDay - 1 };
+  return {
+    startDay,
+    endDay,
+    today,
+    previous,
+    loadFromDay: Math.min(previous.startDay, startDay - (ROLLING_RATE_DAYS - 1)),
+  };
 }
 
-function getTrendCutoffMs(db: DatabaseSync, range: TrendRange): string | null {
-  if (range === 'all') {
-    return null;
+function buildBuckets(
+  firstDay: number,
+  lastDay: number,
+  groupBy: StatsTrendGroupBy,
+  keepKeys: ReadonlySet<number> | null,
+): Array<TrendBucket & { key: number }> {
+  const showYear = dayToDate(firstDay).getUTCFullYear() !== dayToDate(lastDay).getUTCFullYear();
+  const buckets = new Map<number, TrendBucket & { key: number }>();
+  for (let day = firstDay; day <= lastDay; day += 1) {
+    const key = bucketKeyForDay(day, groupBy);
+    const existing = buckets.get(key);
+    if (existing) {
+      existing.endDay = day;
+    } else {
+      buckets.set(key, {
+        key,
+        label: formatBucketLabel(day, groupBy, showYear),
+        startDay: day,
+        endDay: day,
+      });
+    }
   }
-  return getShiftedLocalDayTimestamp(db, currentDbTimestamp(), -(getTrendDayLimit(range) - 1));
-}
-
-function dayPartsFromEpochDay(epochDay: number): { year: number; month: number; day: number } {
-  const z = epochDay + 719468;
-  const era = Math.floor(z / 146097);
-  const doe = z - era * 146097;
-  const yoe = Math.floor(
-    (doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365,
-  );
-  let year = yoe + era * 400;
-  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
-  const mp = Math.floor((5 * doy + 2) / 153);
-  const day = doy - Math.floor((153 * mp + 2) / 5) + 1;
-  const month = mp < 10 ? mp + 3 : mp - 9;
-  if (month <= 2) {
-    year += 1;
-  }
-  return { year, month, day };
-}
-
-function makeTrendLabel(value: number): string {
-  if (value > 100_000) {
-    const year = Math.floor(value / 100);
-    const month = value % 100;
-    return `${MONTH_NAMES[month - 1]} ${String(year).slice(-2)}`;
-  }
-
-  const { month, day } = dayPartsFromEpochDay(value);
-  return `${MONTH_NAMES[month - 1]} ${day}`;
-}
-
-function getTrendSessionWordCount(session: Pick<TrendSessionMetricRow, 'tokensSeen'>): number {
-  return session.tokensSeen;
+  const all = [...buckets.values()];
+  return keepKeys ? all.filter((bucket) => keepKeys.has(bucket.key)) : all;
 }
 
 function looksLikeJellyfinStreamTitle(title: string): boolean {
@@ -205,202 +215,160 @@ function sanitizeTrendTitle(title: string): string {
   return looksLikeJellyfinStreamTitle(normalized) ? 'Jellyfin Video' : normalized;
 }
 
-function resolveTrendAnimeTitle(value: {
-  animeTitle: string | null;
-  canonicalTitle: string | null;
-}): string {
-  return sanitizeTrendTitle(value.animeTitle ?? value.canonicalTitle ?? 'Unknown');
+function resolveSessionTitle(session: TrendSessionRow): string {
+  return sanitizeTrendTitle(session.animeTitle ?? session.canonicalTitle ?? 'Unknown');
 }
 
-// Ordered list of bucket keys (epoch days or YYYYMM months) covering the
-// selected range, so charts render one point per calendar bucket instead of
-// silently collapsing to only the buckets that have activity. Returns null for
-// the unbounded "all" range, where builders fall back to the buckets in data.
-function buildBucketAxis(
+function getVideoTitleMap(db: DatabaseSync, videoIds: Array<number | null>): Map<number, TitleRef> {
+  const uniqueIds = [
+    ...new Set(videoIds.filter((value): value is number => typeof value === 'number')),
+  ];
+  if (uniqueIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = db
+    .prepare(
+      `
+        SELECT
+          v.video_id AS videoId,
+          v.anime_id AS animeId,
+          COALESCE(a.canonical_title, v.canonical_title, 'Unknown') AS animeTitle
+        FROM imm_videos v
+        LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+        WHERE v.video_id IN (${makePlaceholders(uniqueIds)})
+      `,
+    )
+    .all(...uniqueIds) as Array<{ videoId: number; animeId: number | null; animeTitle: string }>;
+
+  return new Map(
+    rows.map((row) => [
+      row.videoId,
+      { title: sanitizeTrendTitle(row.animeTitle), animeId: row.animeId },
+    ]),
+  );
+}
+
+/**
+ * One pass over the sessions the dashboard needs. Each row's display word count
+ * also feeds the rollup word merge, so it is computed once per request.
+ */
+function getTrendSessionRows(
   db: DatabaseSync,
-  groupBy: TrendGroupBy,
-  cutoffMs: string | null,
-  referenceMs: string,
-): number[] | null {
-  if (cutoffMs === null) {
-    return null;
-  }
-
-  if (groupBy === 'month') {
-    const startKey = getLocalMonthKey(db, cutoffMs);
-    const endKey = getLocalMonthKey(db, referenceMs);
-    const keys: number[] = [];
-    let year = Math.floor(startKey / 100);
-    let month = startKey % 100;
-    const endYear = Math.floor(endKey / 100);
-    const endMonth = endKey % 100;
-    while (year < endYear || (year === endYear && month <= endMonth)) {
-      keys.push(year * 100 + month);
-      month += 1;
-      if (month > 12) {
-        month = 1;
-        year += 1;
-      }
-    }
-    return keys;
-  }
-
-  const startDay = getLocalEpochDay(db, cutoffMs);
-  const endDay = getLocalEpochDay(db, referenceMs);
-  const keys: number[] = [];
-  for (let day = startDay; day <= endDay; day += 1) {
-    keys.push(day);
-  }
-  return keys;
+  startDay: number | null,
+  endDay: number,
+): TrendSessionRow[] {
+  const wordsExpr = sessionDisplayWordsExpr('s', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
+  return db
+    .prepare(
+      `
+    ${ACTIVE_SESSION_METRICS_CTE}
+    SELECT
+      s.video_id AS videoId,
+      v.canonical_title AS canonicalTitle,
+      a.canonical_title AS animeTitle,
+      COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
+      ${wordsExpr} AS tokensSeen,
+      COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
+      COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount,
+      CASE WHEN s.ended_at_ms IS NOT NULL THEN 1 ELSE 0 END AS ended,
+      ${sessionRollupDaySql('s')} AS epochDay,
+      ${sessionRollupMonthSql('s')} AS monthKey,
+      CAST(strftime('%w', CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS dayOfWeek,
+      CAST(strftime('%H', CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS hourOfDay
+    FROM imm_sessions s
+    LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN imm_videos v ON v.video_id = s.video_id
+    LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+    WHERE ${sessionRollupDaySql('s')} BETWEEN ? AND ?
+    ORDER BY s.started_at_ms ASC
+  `,
+    )
+    .all(startDay ?? Number.MIN_SAFE_INTEGER, endDay) as unknown as TrendSessionRow[];
 }
 
-// Project a bucket→value map onto the axis, filling absent buckets with zero.
-// Without an axis (the "all" range) it falls back to the populated buckets in
-// ascending order, preserving the previous behaviour.
-function fillAxisPoints(
-  axis: number[] | null,
-  valueByBucket: Map<number, number>,
-): TrendChartPoint[] {
-  const keys = axis ?? [...valueByBucket.keys()].sort((left, right) => left - right);
-  return keys.map((key) => ({ label: makeTrendLabel(key), value: valueByBucket.get(key) ?? 0 }));
+/**
+ * Finished videos and the last day each was watched. `imm_videos.watched` has no
+ * timestamp, so a video counts once, on the day of its last recorded activity.
+ */
+function getFinishedVideoDays(db: DatabaseSync): Array<{ videoId: number; epochDay: number }> {
+  return db
+    .prepare(
+      `
+        SELECT r.video_id AS videoId, MAX(r.rollup_day) AS epochDay
+        FROM imm_daily_rollups r
+        JOIN imm_videos v ON v.video_id = r.video_id
+        WHERE v.watched = 1
+        GROUP BY r.video_id
+      `,
+    )
+    .all() as Array<{ videoId: number; epochDay: number }>;
+}
+
+/**
+ * Rows behind the chart buckets. Day and week buckets read daily rollups. Month
+ * buckets prefer monthly rollups, which outlive daily ones under the shorter
+ * retention presets, but a month the range only partly covers has to come from
+ * daily rows or it would include days outside the range.
+ */
+function bucketChartRollups(
+  window: TrendWindow,
+  groupBy: StatsTrendGroupBy,
+  dailyRows: ImmersionSessionRollupRow[],
+  monthlyRows: ImmersionSessionRollupRow[],
+): Array<{ key: number; row: ImmersionSessionRollupRow }> {
+  const { startDay, endDay, today } = window;
+  if (groupBy !== 'month') {
+    return dailyRows
+      .filter((row) => startDay === null || row.rollupDayOrMonth >= startDay)
+      .map((row) => ({ key: bucketKeyForDay(row.rollupDayOrMonth, groupBy), row }));
+  }
+  const isWholeMonth = (monthKey: number): boolean => {
+    const bounds = monthDayBounds(monthKey);
+    return (
+      (startDay === null || bounds.startDay >= startDay) &&
+      (bounds.endDay <= endDay || endDay >= today)
+    );
+  };
+  return [
+    ...monthlyRows
+      .filter((row) => isWholeMonth(row.rollupDayOrMonth))
+      .map((row) => ({ key: row.rollupDayOrMonth, row })),
+    ...dailyRows
+      .filter((row) => {
+        const day = row.rollupDayOrMonth;
+        return (startDay === null || day >= startDay) && !isWholeMonth(dayToMonthKey(day));
+      })
+      .map((row) => ({ key: dayToMonthKey(row.rollupDayOrMonth), row })),
+  ];
 }
 
 function accumulatePoints(points: TrendChartPoint[]): TrendChartPoint[] {
   let sum = 0;
   return points.map((point) => {
     sum += point.value;
-    return {
-      label: point.label,
-      value: sum,
-    };
+    return { label: point.label, value: sum };
   });
 }
 
-function buildAggregatedTrendRows(rollups: ImmersionSessionRollupRow[], axis: number[] | null) {
-  const byKey = new Map<
-    number,
-    { activeMin: number; cards: number; words: number; sessions: number }
-  >();
-
-  for (const rollup of rollups) {
-    const existing = byKey.get(rollup.rollupDayOrMonth) ?? {
-      activeMin: 0,
-      cards: 0,
-      words: 0,
-      sessions: 0,
-    };
-    existing.activeMin += rollup.totalActiveMin;
-    existing.cards += rollup.totalCards;
-    existing.words += rollup.totalTokensSeen;
-    existing.sessions += rollup.totalSessions;
-    byKey.set(rollup.rollupDayOrMonth, existing);
-  }
-
-  const keys = axis ?? Array.from(byKey.keys()).sort((left, right) => left - right);
-  return keys.map((key) => {
-    const value = byKey.get(key) ?? { activeMin: 0, cards: 0, words: 0, sessions: 0 };
-    return {
-      label: makeTrendLabel(key),
-      activeMin: Math.round(value.activeMin),
-      cards: value.cards,
-      words: value.words,
-      sessions: value.sessions,
-    };
-  });
-}
-
-function buildEfficiencyRates(rows: ReturnType<typeof buildAggregatedTrendRows>): {
-  cardsPerHour: TrendChartPoint[];
-  readingSpeed: TrendChartPoint[];
-} {
-  const cardsPerHour: TrendChartPoint[] = [];
-  const readingSpeed: TrendChartPoint[] = [];
-  for (const row of rows) {
-    const hours = row.activeMin / 60;
-    cardsPerHour.push({
-      label: row.label,
-      value: hours > 0 ? +(row.cards / hours).toFixed(1) : 0,
-    });
-    readingSpeed.push({
-      label: row.label,
-      value: row.activeMin > 0 ? +(row.words / row.activeMin).toFixed(1) : 0,
-    });
-  }
-  return { cardsPerHour, readingSpeed };
-}
-
-function buildWatchTimeByDayOfWeek(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
-  const totals = new Array(7).fill(0);
-  for (const session of sessions) {
-    totals[session.dayOfWeek] += session.activeWatchedMs;
-  }
-  return DAY_NAMES.map((name, index) => ({
-    label: name,
-    value: Math.round(totals[index] / 60_000),
-  }));
-}
-
-function buildWatchTimeByHour(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
-  const totals = new Array(24).fill(0);
-  for (const session of sessions) {
-    totals[session.hourOfDay] += session.activeWatchedMs;
-  }
-  return totals.map((ms, index) => ({
-    label: `${String(index).padStart(2, '0')}:00`,
-    value: Math.round(ms / 60_000),
-  }));
-}
-
-function buildSessionSeries(
-  sessions: TrendSessionMetricRow[],
-  groupBy: TrendGroupBy,
-  getValue: (session: TrendSessionMetricRow) => number,
-  axis: number[] | null,
-): TrendChartPoint[] {
-  const byBucket = new Map<number, number>();
-  for (const session of sessions) {
-    const bucketKey = groupBy === 'month' ? session.monthKey : session.epochDay;
-    byBucket.set(bucketKey, (byBucket.get(bucketKey) ?? 0) + getValue(session));
-  }
-  return fillAxisPoints(axis, byBucket);
-}
-
-function buildLookupsPerHundredWords(
-  sessions: TrendSessionMetricRow[],
-  groupBy: TrendGroupBy,
-  axis: number[] | null,
-): TrendChartPoint[] {
-  const lookupsByBucket = new Map<number, number>();
-  const wordsByBucket = new Map<number, number>();
-
-  for (const session of sessions) {
-    const bucketKey = groupBy === 'month' ? session.monthKey : session.epochDay;
-    lookupsByBucket.set(
-      bucketKey,
-      (lookupsByBucket.get(bucketKey) ?? 0) + session.yomitanLookupCount,
-    );
-    wordsByBucket.set(
-      bucketKey,
-      (wordsByBucket.get(bucketKey) ?? 0) + getTrendSessionWordCount(session),
-    );
-  }
-
-  const ratioByBucket = new Map<number, number>();
-  for (const [bucketKey, lookups] of lookupsByBucket) {
-    const words = wordsByBucket.get(bucketKey) ?? 0;
-    ratioByBucket.set(bucketKey, words > 0 ? +((lookups / words) * 100).toFixed(1) : 0);
-  }
-  return fillAxisPoints(axis, ratioByBucket);
+function toRate(numerator: number, denominator: number, scale: number, minDenominator: number) {
+  return denominator >= minDenominator && denominator > 0
+    ? +((numerator / denominator) * scale).toFixed(1)
+    : null;
 }
 
 function buildLibrarySummary(
   rollups: ImmersionSessionRollupRow[],
-  sessions: TrendSessionMetricRow[],
-  titlesByVideoId: Map<number, string>,
+  sessions: TrendSessionRow[],
+  titlesByVideoId: Map<number, TitleRef>,
+  finishedInWindow: Array<{ videoId: number }>,
 ): LibrarySummaryRow[] {
   type Accum = {
+    animeId: number | null;
+    latestVideo: { videoId: number; day: number } | null;
     watchTimeMin: number;
     videos: Set<number>;
+    episodesFinished: number;
     cards: number;
     words: number;
     firstWatched: number;
@@ -411,12 +379,16 @@ function buildLibrarySummary(
 
   const byTitle = new Map<string, Accum>();
 
-  const ensure = (title: string): Accum => {
-    const existing = byTitle.get(title);
-    if (existing) return existing;
-    const created: Accum = {
+  for (const rollup of rollups) {
+    if (rollup.videoId === null) continue;
+    const ref = titlesByVideoId.get(rollup.videoId);
+    const title = ref?.title ?? 'Unknown';
+    const acc: Accum = byTitle.get(title) ?? {
+      animeId: ref?.animeId ?? null,
+      latestVideo: null,
       watchTimeMin: 0,
       videos: new Set<number>(),
+      episodesFinished: 0,
       cards: 0,
       words: 0,
       firstWatched: Number.POSITIVE_INFINITY,
@@ -424,43 +396,40 @@ function buildLibrarySummary(
       sessions: 0,
       lookups: 0,
     };
-    byTitle.set(title, created);
-    return created;
-  };
-
-  for (const rollup of rollups) {
-    if (rollup.videoId === null) continue;
-    const title = resolveVideoAnimeTitle(rollup.videoId, titlesByVideoId);
-    const acc = ensure(title);
+    byTitle.set(title, acc);
     acc.watchTimeMin += rollup.totalActiveMin;
     acc.cards += rollup.totalCards;
     acc.words += rollup.totalTokensSeen;
     acc.videos.add(rollup.videoId);
-    if (rollup.rollupDayOrMonth < acc.firstWatched) {
-      acc.firstWatched = rollup.rollupDayOrMonth;
-    }
-    if (rollup.rollupDayOrMonth > acc.lastWatched) {
-      acc.lastWatched = rollup.rollupDayOrMonth;
+    acc.firstWatched = Math.min(acc.firstWatched, rollup.rollupDayOrMonth);
+    acc.lastWatched = Math.max(acc.lastWatched, rollup.rollupDayOrMonth);
+    if (!acc.latestVideo || rollup.rollupDayOrMonth > acc.latestVideo.day) {
+      acc.latestVideo = { videoId: rollup.videoId, day: rollup.rollupDayOrMonth };
     }
   }
 
   for (const session of sessions) {
-    const title = resolveTrendAnimeTitle(session);
-    if (!byTitle.has(title)) continue;
-    const acc = byTitle.get(title)!;
+    const acc = byTitle.get(resolveSessionTitle(session));
+    if (!acc) continue;
     acc.sessions += 1;
     acc.lookups += session.yomitanLookupCount;
   }
 
+  for (const { videoId } of finishedInWindow) {
+    const title = titlesByVideoId.get(videoId)?.title;
+    const acc = title === undefined ? undefined : byTitle.get(title);
+    if (acc) acc.episodesFinished += 1;
+  }
+
   const rows: LibrarySummaryRow[] = [];
   for (const [title, acc] of byTitle) {
-    if (!Number.isFinite(acc.firstWatched) || !Number.isFinite(acc.lastWatched)) {
-      continue;
-    }
     rows.push({
       title,
+      animeId: acc.animeId,
+      videoId: acc.latestVideo?.videoId ?? null,
       watchTimeMin: Math.round(acc.watchTimeMin),
       videos: acc.videos.size,
+      episodesFinished: acc.episodesFinished,
       sessions: acc.sessions,
       cards: acc.cards,
       words: acc.words,
@@ -475,280 +444,78 @@ function buildLibrarySummary(
   return rows;
 }
 
-function getVideoAnimeTitleMap(
-  db: DatabaseSync,
-  videoIds: Array<number | null>,
-): Map<number, string> {
-  const uniqueIds = [
-    ...new Set(videoIds.filter((value): value is number => typeof value === 'number')),
-  ];
-  if (uniqueIds.length === 0) {
-    return new Map();
-  }
-
-  const rows = db
-    .prepare(
-      `
-        SELECT
-          v.video_id AS videoId,
-          COALESCE(a.canonical_title, v.canonical_title, 'Unknown') AS animeTitle
-        FROM imm_videos v
-        LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
-        WHERE v.video_id IN (${makePlaceholders(uniqueIds)})
-      `,
-    )
-    .all(...uniqueIds) as Array<{ videoId: number; animeTitle: string }>;
-
-  return new Map(rows.map((row) => [row.videoId, sanitizeTrendTitle(row.animeTitle)]));
-}
-
-function resolveVideoAnimeTitle(
-  videoId: number | null,
-  titlesByVideoId: Map<number, string>,
-): string {
-  if (videoId === null) {
-    return 'Unknown';
-  }
-  return titlesByVideoId.get(videoId) ?? 'Unknown';
-}
-
-function buildPerAnimeFromDailyRollups(
+function buildTitleTimeline(
   rollups: ImmersionSessionRollupRow[],
-  titlesByVideoId: Map<number, string>,
-  getValue: (rollup: ImmersionSessionRollupRow) => number,
+  titlesByVideoId: Map<number, TitleRef>,
 ): TrendPerAnimePoint[] {
-  const byAnime = new Map<string, Map<number, number>>();
-
+  const byPoint = new Map<string, TrendPerAnimePoint>();
   for (const rollup of rollups) {
-    const animeTitle = resolveVideoAnimeTitle(rollup.videoId, titlesByVideoId);
-    const dayMap = byAnime.get(animeTitle) ?? new Map();
-    dayMap.set(
-      rollup.rollupDayOrMonth,
-      (dayMap.get(rollup.rollupDayOrMonth) ?? 0) + getValue(rollup),
-    );
-    byAnime.set(animeTitle, dayMap);
+    if (rollup.videoId === null || rollup.totalActiveMin <= 0) continue;
+    const animeTitle = titlesByVideoId.get(rollup.videoId)?.title ?? 'Unknown';
+    const key = `${rollup.rollupDayOrMonth}:${animeTitle}`;
+    const point = byPoint.get(key) ?? {
+      epochDay: rollup.rollupDayOrMonth,
+      animeTitle,
+      value: 0,
+    };
+    point.value += rollup.totalActiveMin;
+    byPoint.set(key, point);
   }
-
-  const result: TrendPerAnimePoint[] = [];
-  for (const [animeTitle, dayMap] of byAnime) {
-    for (const [epochDay, value] of dayMap) {
-      result.push({ epochDay, animeTitle, value });
-    }
-  }
-  return result;
+  return [...byPoint.values()].map((point) => ({
+    ...point,
+    value: Math.round(point.value * 10) / 10,
+  }));
 }
 
-function buildEpisodesPerAnimeFromDailyRollups(
-  rollups: ImmersionSessionRollupRow[],
-  titlesByVideoId: Map<number, string>,
-): TrendPerAnimePoint[] {
-  const byAnime = new Map<string, Map<number, Set<number>>>();
-
-  for (const rollup of rollups) {
-    if (rollup.videoId === null) {
-      continue;
-    }
-    const animeTitle = resolveVideoAnimeTitle(rollup.videoId, titlesByVideoId);
-    const dayMap = byAnime.get(animeTitle) ?? new Map();
-    const videoIds = dayMap.get(rollup.rollupDayOrMonth) ?? new Set<number>();
-    videoIds.add(rollup.videoId);
-    dayMap.set(rollup.rollupDayOrMonth, videoIds);
-    byAnime.set(animeTitle, dayMap);
+function buildWatchTimeByDayHour(sessions: TrendSessionRow[]): number[][] {
+  const grid = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
+  for (const session of sessions) {
+    grid[session.dayOfWeek]![session.hourOfDay]! += session.activeWatchedMs;
   }
-
-  const result: TrendPerAnimePoint[] = [];
-  for (const [animeTitle, dayMap] of byAnime) {
-    for (const [epochDay, videoIds] of dayMap) {
-      result.push({ epochDay, animeTitle, value: videoIds.size });
-    }
-  }
-  return result;
+  return grid.map((hours) => hours.map((ms) => Math.round(ms / 60_000)));
 }
 
-function buildEpisodesSeriesFromRollups(
-  rollups: ImmersionSessionRollupRow[],
-  axis: number[] | null,
-): TrendChartPoint[] {
-  const byBucket = new Map<number, Set<number>>();
-
-  for (const rollup of rollups) {
-    if (rollup.videoId === null) {
-      continue;
-    }
-    const videoIds = byBucket.get(rollup.rollupDayOrMonth) ?? new Set<number>();
-    videoIds.add(rollup.videoId);
-    byBucket.set(rollup.rollupDayOrMonth, videoIds);
+function buildFrequencyBands(
+  rows: NewWordFirstSeenRow[],
+  window: { startDay: number; endDay: number },
+  groupBy: StatsTrendGroupBy,
+): TrendFrequencyBandPoint[] {
+  // A band mix needs more words than most single days have, so daily views use weeks.
+  const bandGroupBy = groupBy === 'day' ? 'week' : groupBy;
+  const countsByKey = new Map<number, TrendFrequencyBandPoint['counts']>();
+  for (const row of rows) {
+    const day = row.firstSeenDayWithoutNames;
+    if (day === null || day < window.startDay || day > window.endDay) continue;
+    const key = bucketKeyForDay(day, bandGroupBy);
+    const counts =
+      countsByKey.get(key) ??
+      (Object.fromEntries(
+        TREND_FREQUENCY_BANDS.map((band) => [band, 0]),
+      ) as TrendFrequencyBandPoint['counts']);
+    counts[row.band] += row.wordCount;
+    countsByKey.set(key, counts);
   }
-
-  const counts = new Map<number, number>();
-  for (const [bucketKey, videoIds] of byBucket) {
-    counts.set(bucketKey, videoIds.size);
-  }
-  return fillAxisPoints(axis, counts);
-}
-
-interface TrendSessionRow extends TrendSessionMetricRow {
-  ended: number;
-  inTrendRange: number;
+  return buildBuckets(window.startDay, window.endDay, bandGroupBy, new Set(countsByKey.keys())).map(
+    (bucket) => ({ label: bucket.label, counts: countsByKey.get(bucket.key)! }),
+  );
 }
 
 /**
- * One pass over the sessions the dashboard needs. Rows inside the trend range
- * feed the session-metric charts; ended rows also supply the rollup word counts,
- * so the per-session word count is computed once per request instead of once
- * per rollup query. `minRollupDay` / `minRollupMonth` widen the scan to the
- * oldest rollup bucket shown.
+ * Builds every series on the Trends tab for a date range. A `title` narrows the
+ * totals, charts, and patterns to that title; `librarySummary` and `titleTimeline`
+ * stay complete so the title can still be compared to and switched from the rest.
  */
-function getTrendSessionRows(
-  db: DatabaseSync,
-  cutoffMs: string | null,
-  minRollupDay: number | null,
-  minRollupMonth: number | null,
-): TrendSessionRow[] {
-  const wordsExpr = sessionDisplayWordsExpr('s', 'COALESCE(asm.tokensSeen, s.tokens_seen)');
-  const cutoffValue = cutoffMs === null ? null : toDbTimestamp(cutoffMs);
-  const rangeSql = cutoffValue === null ? '1' : 's.started_at_ms >= ?';
-  const dayValue = minRollupDay ?? Number.MAX_SAFE_INTEGER;
-  const monthValue = minRollupMonth ?? Number.MAX_SAFE_INTEGER;
-  const prepared = db.prepare(`
-    ${ACTIVE_SESSION_METRICS_CTE}
-    SELECT
-      s.video_id AS videoId,
-      v.canonical_title AS canonicalTitle,
-      a.canonical_title AS animeTitle,
-      COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
-      ${wordsExpr} AS tokensSeen,
-      COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
-      COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount,
-      CASE WHEN s.ended_at_ms IS NOT NULL THEN 1 ELSE 0 END AS ended,
-      CASE WHEN ${rangeSql} THEN 1 ELSE 0 END AS inTrendRange,
-      ${sessionRollupDaySql('s')} AS epochDay,
-      ${sessionRollupMonthSql('s')} AS monthKey,
-      CAST(strftime('%w', CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS dayOfWeek,
-      CAST(strftime('%H', CAST(s.started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS hourOfDay
-    FROM imm_sessions s
-    LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
-    LEFT JOIN imm_videos v ON v.video_id = s.video_id
-    LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
-    WHERE ${rangeSql}
-      OR (s.ended_at_ms IS NOT NULL AND ${sessionRollupDaySql('s')} >= ?)
-      OR (s.ended_at_ms IS NOT NULL AND ${sessionRollupMonthSql('s')} >= ?)
-    ORDER BY s.started_at_ms ASC
-  `);
-
-  const params =
-    cutoffValue === null
-      ? [dayValue, monthValue]
-      : [cutoffValue, cutoffValue, dayValue, monthValue];
-  return prepared.all(...params) as unknown as TrendSessionRow[];
-}
-
-function minRollupBucket(rows: Array<{ rollupDayOrMonth: number }>): number | null {
-  return rows.length === 0 ? null : Math.min(...rows.map((row) => row.rollupDayOrMonth));
-}
-
-function buildNewWordsPerDay(
-  db: DatabaseSync,
-  cutoffMs: string | null,
-  axis: number[] | null,
-): TrendChartPoint[] {
-  if (areLexicalDailyRollupsReady(db)) {
-    // A trend range is defined in calendar buckets, so the rollup includes the
-    // complete local cutoff day rather than applying a time-of-day boundary.
-    const cutoffDay = cutoffMs === null ? null : getLocalEpochDay(db, cutoffMs);
-    const rows = getLexicalDailyRollups(db).filter(
-      (row) => cutoffDay === null || row.epochDay >= cutoffDay,
-    );
-    return fillAxisPoints(axis, new Map(rows.map((row) => [row.epochDay, row.wordCount])));
-  }
-
-  const whereClause = cutoffMs === null ? '' : 'AND first_seen >= ?';
-  const prepared = db.prepare(`
-    SELECT
-      CAST(
-        julianday(CAST(first_seen AS REAL), 'unixepoch', 'localtime') - 2440587.5
-        AS INTEGER
-      ) AS epochDay,
-      COUNT(*) AS wordCount
-    FROM imm_words
-    WHERE first_seen IS NOT NULL
-    ${whereClause}
-    GROUP BY epochDay
-    ORDER BY epochDay ASC
-  `);
-
-  const rows = (
-    cutoffMs === null ? prepared.all() : prepared.all((BigInt(cutoffMs) / 1000n).toString())
-  ) as Array<{
-    epochDay: number;
-    wordCount: number;
-  }>;
-
-  const byBucket = new Map<number, number>(rows.map((row) => [row.epochDay, row.wordCount]));
-  return fillAxisPoints(axis, byBucket);
-}
-
-function buildNewWordsPerMonth(
-  db: DatabaseSync,
-  cutoffMs: string | null,
-  axis: number[] | null,
-): TrendChartPoint[] {
-  if (areLexicalDailyRollupsReady(db)) {
-    const cutoffDay = cutoffMs === null ? null : getLocalEpochDay(db, cutoffMs);
-    const byMonth = new Map<number, number>();
-    for (const row of getLexicalDailyRollups(db)) {
-      if (cutoffDay !== null && row.epochDay < cutoffDay) continue;
-      const { year, month } = dayPartsFromEpochDay(row.epochDay);
-      const monthKey = year * 100 + month;
-      byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + row.wordCount);
-    }
-    return fillAxisPoints(axis, byMonth);
-  }
-
-  const whereClause = cutoffMs === null ? '' : 'AND first_seen >= ?';
-  const prepared = db.prepare(`
-    SELECT
-      CAST(
-        strftime('%Y%m', CAST(first_seen AS REAL), 'unixepoch', 'localtime')
-        AS INTEGER
-      ) AS monthKey,
-      COUNT(*) AS wordCount
-    FROM imm_words
-    WHERE first_seen IS NOT NULL
-    ${whereClause}
-    GROUP BY monthKey
-    ORDER BY monthKey ASC
-  `);
-
-  const rows = (
-    cutoffMs === null ? prepared.all() : prepared.all((BigInt(cutoffMs) / 1000n).toString())
-  ) as Array<{
-    monthKey: number;
-    wordCount: number;
-  }>;
-
-  const byBucket = new Map<number, number>(rows.map((row) => [row.monthKey, row.wordCount]));
-  return fillAxisPoints(axis, byBucket);
-}
-
 export function getTrendsDashboard(
   db: DatabaseSync,
-  range: TrendRange = '30d',
-  groupBy: TrendGroupBy = 'day',
+  range: StatsTrendRange = '30d',
+  groupBy: StatsTrendGroupBy = 'day',
   fillEmptyBuckets = true,
-): TrendsDashboardQueryResult {
-  const dayLimit = getTrendDayLimit(range);
-  const monthlyLimit = getTrendMonthlyLimit(db, range);
-  const cutoffMs = getTrendCutoffMs(db, range);
-  const useMonthlyBuckets = groupBy === 'month';
-  const rawDailyRollups = selectDailyRollupRows(db, dayLimit);
-  const rawMonthlyRollups = selectMonthlyRollupRows(db, monthlyLimit);
-  const sessionRows = getTrendSessionRows(
-    db,
-    cutoffMs,
-    minRollupBucket(rawDailyRollups),
-    minRollupBucket(rawMonthlyRollups),
-  );
+  title: string | null = null,
+): TrendsDashboardData {
+  const window = resolveTrendWindow(db, range);
+  const { startDay, endDay, previous, loadFromDay } = window;
+
+  const sessionRows = getTrendSessionRows(db, loadFromDay, endDay);
   const dailyWordCounts: RollupWordCounts = new Map();
   const monthlyWordCounts: RollupWordCounts = new Map();
   for (const row of sessionRows) {
@@ -756,81 +523,266 @@ export function getTrendsDashboard(
     addRollupWordCount(dailyWordCounts, row.epochDay, row.videoId, row.tokensSeen);
     addRollupWordCount(monthlyWordCounts, row.monthKey, row.videoId, row.tokensSeen);
   }
-  const dailyRollups = applyRollupWordCounts(rawDailyRollups, dailyWordCounts);
-  const monthlyRollups = applyRollupWordCounts(rawMonthlyRollups, monthlyWordCounts);
-  const sessions = sessionRows.filter((row) => row.inTrendRange === 1);
-  // A null axis makes the builders fall back to only the buckets present in the
-  // data; the contiguous axis zero-fills every calendar bucket in the window.
-  const bucketAxis = fillEmptyBuckets
-    ? buildBucketAxis(db, groupBy, cutoffMs, currentDbTimestamp())
-    : null;
-
-  const chartRollups = useMonthlyBuckets ? monthlyRollups : dailyRollups;
-  const titlesByVideoId = getVideoAnimeTitleMap(
-    db,
-    dailyRollups.map((rollup) => rollup.videoId),
+  const allDailyRollups = applyRollupWordCounts(
+    selectDailyRollupRowsBetween(db, loadFromDay, endDay),
+    dailyWordCounts,
   );
+  const monthlyRollups =
+    groupBy === 'month'
+      ? applyRollupWordCounts(
+          selectMonthlyRollupRowsBetween(
+            db,
+            startDay === null ? null : dayToMonthKey(startDay),
+            dayToMonthKey(endDay),
+          ),
+          monthlyWordCounts,
+        )
+      : [];
+  const finishedVideos = getFinishedVideoDays(db);
+  const titlesByVideoId = getVideoTitleMap(db, [
+    ...allDailyRollups.map((row) => row.videoId),
+    ...monthlyRollups.map((row) => row.videoId),
+    ...finishedVideos.map((row) => row.videoId),
+  ]);
 
-  const aggregatedRows = buildAggregatedTrendRows(chartRollups, bucketAxis);
-  const efficiency = buildEfficiencyRates(aggregatedRows);
-  const activity = {
-    watchTime: aggregatedRows.map((row) => ({ label: row.label, value: row.activeMin })),
-    cards: aggregatedRows.map((row) => ({ label: row.label, value: row.cards })),
-    words: aggregatedRows.map((row) => ({ label: row.label, value: row.words })),
-    sessions: aggregatedRows.map((row) => ({ label: row.label, value: row.sessions })),
+  const inWindow = (day: number): boolean =>
+    (startDay === null || day >= startDay) && day <= endDay;
+  const matchesTitle = (videoId: number | null): boolean =>
+    title === null || (videoId !== null && titlesByVideoId.get(videoId)?.title === title);
+
+  // New words are recorded per word, not per title, so a title filter has none.
+  const newWordRows = title === null ? getNewWordFirstSeenRows(db) : [];
+
+  const dailyRollups = allDailyRollups.filter((row) => matchesTitle(row.videoId));
+  const sessions =
+    title === null ? sessionRows : sessionRows.filter((row) => resolveSessionTitle(row) === title);
+
+  const totalsByDay = new Map<number, TrendTotals>();
+  const dayTotals = (day: number): TrendTotals => {
+    const totals = totalsByDay.get(day) ?? emptyTotals();
+    totalsByDay.set(day, totals);
+    return totals;
+  };
+  const rolledUpDays = new Set<number>();
+  for (const row of dailyRollups) {
+    const totals = dayTotals(row.rollupDayOrMonth);
+    totals.activeMin += row.totalActiveMin;
+    totals.cards += row.totalCards;
+    totals.words += row.totalTokensSeen;
+    rolledUpDays.add(row.rollupDayOrMonth);
+  }
+  for (const session of sessions) {
+    if (session.ended === 1) dayTotals(session.epochDay).lookups += session.yomitanLookupCount;
+  }
+  for (const finished of finishedVideos) {
+    if (matchesTitle(finished.videoId)) dayTotals(finished.epochDay).episodes += 1;
+  }
+  for (const row of newWordRows) {
+    if (row.firstSeenDayWithoutNames !== null) {
+      dayTotals(row.firstSeenDayWithoutNames).newWords += row.wordCount;
+    }
+  }
+
+  // Bucket totals: rollup metrics come from the rows the bucket should read, while
+  // everything that only exists per day folds up from `totalsByDay`.
+  const chartRollups = bucketChartRollups(
+    window,
+    groupBy,
+    dailyRollups,
+    monthlyRollups.filter((row) => matchesTitle(row.videoId)),
+  );
+  const totalsByBucket = new Map<number, TrendTotals>();
+  const bucketTotals = (key: number): TrendTotals => {
+    const totals = totalsByBucket.get(key) ?? emptyTotals();
+    totalsByBucket.set(key, totals);
+    return totals;
+  };
+  for (const { key, row } of chartRollups) {
+    const totals = bucketTotals(key);
+    totals.activeMin += row.totalActiveMin;
+    totals.cards += row.totalCards;
+    totals.words += row.totalTokensSeen;
+  }
+  for (const [day, totals] of totalsByDay) {
+    if (!inWindow(day)) continue;
+    const target = bucketTotals(bucketKeyForDay(day, groupBy));
+    target.lookups += totals.lookups;
+    target.episodes += totals.episodes;
+    target.newWords += totals.newWords;
+  }
+
+  // `all` spans the recorded data, including months only monthly rollups still hold.
+  const activeKeys = new Set(totalsByBucket.keys());
+  const activeDays = [...totalsByDay.keys()].filter(inWindow);
+  const monthlyKeys = monthlyRollups.map((row) => row.rollupDayOrMonth);
+  const dataDays = [
+    ...activeDays,
+    ...(monthlyKeys.length > 0
+      ? [
+          monthDayBounds(Math.min(...monthlyKeys)).startDay,
+          Math.min(monthDayBounds(Math.max(...monthlyKeys)).endDay, endDay),
+        ]
+      : []),
+  ];
+  const dataStart = dataDays.length > 0 ? Math.min(...dataDays) : null;
+  const dataEnd = dataDays.length > 0 ? Math.max(...dataDays) : null;
+  const axisStart = startDay ?? dataStart;
+  const axisEnd = startDay === null ? dataEnd : endDay;
+  const buckets =
+    axisStart === null || axisEnd === null
+      ? []
+      : buildBuckets(axisStart, axisEnd, groupBy, fillEmptyBuckets ? null : activeKeys);
+
+  const series = (pick: (totals: TrendTotals) => number): TrendChartPoint[] =>
+    buckets.map((bucket) => {
+      const totals = totalsByBucket.get(bucket.key);
+      return { label: bucket.label, value: totals ? pick(totals) : 0 };
+    });
+
+  const rateSeries = (
+    numerator: (totals: TrendTotals) => number,
+    denominator: (totals: TrendTotals) => number,
+    scale: number,
+    minDenominator: number,
+  ): TrendRatePoint[] =>
+    buckets.map((bucket) => {
+      if (groupBy !== 'day') {
+        const totals = totalsByBucket.get(bucket.key) ?? emptyTotals();
+        return {
+          label: bucket.label,
+          value: toRate(numerator(totals), denominator(totals), scale, minDenominator),
+        };
+      }
+      let top = 0;
+      let bottom = 0;
+      for (let day = bucket.key - (ROLLING_RATE_DAYS - 1); day <= bucket.key; day += 1) {
+        const totals = totalsByDay.get(day);
+        if (!totals) continue;
+        top += numerator(totals);
+        bottom += denominator(totals);
+      }
+      return { label: bucket.label, value: toRate(top, bottom, scale, minDenominator) };
+    });
+
+  const sumDays = (span: DayRange): TrendSummaryTotals => {
+    const sum = emptyTotals();
+    let activeDayCount = 0;
+    for (const [day, totals] of totalsByDay) {
+      if (day < span.startDay || day > span.endDay) continue;
+      sum.activeMin += totals.activeMin;
+      sum.cards += totals.cards;
+      sum.words += totals.words;
+      sum.episodes += totals.episodes;
+      sum.newWords += totals.newWords;
+      if (rolledUpDays.has(day)) activeDayCount += 1;
+    }
+    return {
+      watchTimeMin: Math.round(sum.activeMin),
+      words: sum.words,
+      newWords: title === null ? sum.newWords : null,
+      cards: sum.cards,
+      episodes: sum.episodes,
+      activeDays: activeDayCount,
+    };
   };
 
-  const animePerDay = {
-    episodes: buildEpisodesPerAnimeFromDailyRollups(dailyRollups, titlesByVideoId),
-    watchTime: buildPerAnimeFromDailyRollups(
-      dailyRollups,
-      titlesByVideoId,
-      (rollup) => rollup.totalActiveMin,
-    ),
-    cards: buildPerAnimeFromDailyRollups(
-      dailyRollups,
-      titlesByVideoId,
-      (rollup) => rollup.totalCards,
-    ),
-    words: buildPerAnimeFromDailyRollups(
-      dailyRollups,
-      titlesByVideoId,
-      (rollup) => rollup.totalTokensSeen,
-    ),
+  // In date order like the running totals: float addition depends on order, so a total
+  // near .5 could otherwise round differently here than where the chart ends.
+  const bucketSum = [...totalsByBucket.entries()]
+    .sort(([left], [right]) => left - right)
+    .reduce<TrendTotals>(
+      (sum, [, totals]) => ({
+        activeMin: sum.activeMin + totals.activeMin,
+        cards: sum.cards + totals.cards,
+        words: sum.words + totals.words,
+        lookups: sum.lookups + totals.lookups,
+        episodes: sum.episodes + totals.episodes,
+        newWords: sum.newWords + totals.newWords,
+      }),
+      emptyTotals(),
+    );
+
+  const windowRollups = allDailyRollups.filter((row) => inWindow(row.rollupDayOrMonth));
+  const windowSessions = sessionRows.filter((row) => inWindow(row.epochDay));
+  const reportedWindow = { startDay: axisStart ?? endDay, endDay: axisEnd ?? endDay };
+
+  const activity = {
+    watchTime: series((totals) => Math.round(totals.activeMin)),
+    cards: series((totals) => totals.cards),
+    words: series((totals) => totals.words),
+    episodes: series((totals) => totals.episodes),
   };
 
   return {
+    window: reportedWindow,
+    buckets: buckets.map(({ label, startDay: first, endDay: last }) => ({
+      label,
+      startDay: first,
+      endDay: last,
+    })),
+    summary: {
+      current: {
+        watchTimeMin: Math.round(bucketSum.activeMin),
+        words: bucketSum.words,
+        newWords: title === null ? bucketSum.newWords : null,
+        cards: bucketSum.cards,
+        episodes: bucketSum.episodes,
+        activeDays: [...rolledUpDays].filter(inWindow).length,
+      },
+      previous: previous ? sumDays(previous) : null,
+    },
     activity,
     progress: {
-      watchTime: accumulatePoints(activity.watchTime),
-      sessions: accumulatePoints(activity.sessions),
+      // Rounded after summing, so rounding each day's minutes can't drift from the summary total.
+      watchTime: accumulatePoints(series((totals) => totals.activeMin)).map((point) => ({
+        ...point,
+        value: Math.round(point.value),
+      })),
       words: accumulatePoints(activity.words),
-      newWords: accumulatePoints(
-        useMonthlyBuckets
-          ? buildNewWordsPerMonth(db, cutoffMs, bucketAxis)
-          : buildNewWordsPerDay(db, cutoffMs, bucketAxis),
-      ),
+      newWords: title === null ? accumulatePoints(series((totals) => totals.newWords)) : [],
       cards: accumulatePoints(activity.cards),
-      episodes: accumulatePoints(
-        buildEpisodesSeriesFromRollups(
-          useMonthlyBuckets ? monthlyRollups : dailyRollups,
-          bucketAxis,
-        ),
-      ),
-      lookups: accumulatePoints(
-        buildSessionSeries(sessions, groupBy, (session) => session.yomitanLookupCount, bucketAxis),
-      ),
+      episodes: accumulatePoints(activity.episodes),
+      lookups: accumulatePoints(series((totals) => totals.lookups)),
     },
     ratios: {
-      lookupsPerHundred: buildLookupsPerHundredWords(sessions, groupBy, bucketAxis),
-      cardsPerHour: efficiency.cardsPerHour,
-      readingSpeed: efficiency.readingSpeed,
+      lookupsPerHundred: rateSeries(
+        (totals) => totals.lookups,
+        (totals) => totals.words,
+        100,
+        MIN_RATE_WORDS,
+      ),
+      cardsPerHour: rateSeries(
+        (totals) => totals.cards,
+        (totals) => totals.activeMin,
+        60,
+        MIN_RATE_ACTIVE_MIN,
+      ),
+      readingSpeed: rateSeries(
+        (totals) => totals.words,
+        (totals) => totals.activeMin,
+        1,
+        MIN_RATE_ACTIVE_MIN,
+      ),
     },
-    animeDaily: animePerDay,
-    patterns: {
-      watchTimeByDayOfWeek: buildWatchTimeByDayOfWeek(sessions),
-      watchTimeByHour: buildWatchTimeByHour(sessions),
-    },
-    librarySummary: buildLibrarySummary(dailyRollups, sessions, titlesByVideoId),
+    learning:
+      title === null
+        ? {
+            newWordsPerThousand: rateSeries(
+              (totals) => totals.newWords,
+              (totals) => totals.words,
+              1_000,
+              MIN_RATE_WORDS,
+            ),
+            frequencyBands: buildFrequencyBands(newWordRows, reportedWindow, groupBy),
+          }
+        : null,
+    watchTimeByDayHour: buildWatchTimeByDayHour(sessions.filter((row) => inWindow(row.epochDay))),
+    librarySummary: buildLibrarySummary(
+      windowRollups,
+      windowSessions,
+      titlesByVideoId,
+      finishedVideos.filter((row) => inWindow(row.epochDay)),
+    ),
+    titleTimeline: buildTitleTimeline(windowRollups, titlesByVideoId),
   };
 }

@@ -155,15 +155,20 @@ const WATCH_TIME_PER_ANIME = [
 ];
 
 const TRENDS_DASHBOARD = {
+  window: { startDay: 20_000, endDay: 20_000 },
+  buckets: [{ label: 'Mar 1', startDay: 20_000, endDay: 20_000 }],
+  summary: {
+    current: { watchTimeMin: 25, words: 300, newWords: 12, cards: 5, episodes: 2, activeDays: 1 },
+    previous: null,
+  },
   activity: {
     watchTime: [{ label: 'Mar 1', value: 25 }],
     cards: [{ label: 'Mar 1', value: 5 }],
     words: [{ label: 'Mar 1', value: 300 }],
-    sessions: [{ label: 'Mar 1', value: 3 }],
+    episodes: [{ label: 'Mar 1', value: 2 }],
   },
   progress: {
     watchTime: [{ label: 'Mar 1', value: 25 }],
-    sessions: [{ label: 'Mar 1', value: 3 }],
     words: [{ label: 'Mar 1', value: 300 }],
     newWords: [{ label: 'Mar 1', value: 12 }],
     cards: [{ label: 'Mar 1', value: 5 }],
@@ -175,11 +180,19 @@ const TRENDS_DASHBOARD = {
     cardsPerHour: [{ label: 'Mar 1', value: 12 }],
     readingSpeed: [{ label: 'Mar 1', value: 180 }],
   },
+  learning: {
+    newWordsPerThousand: [{ label: 'Mar 1', value: null }],
+    frequencyBands: [],
+  },
+  watchTimeByDayHour: [],
   librarySummary: [
     {
       title: 'Little Witch Academia',
+      animeId: 1,
+      videoId: 1,
       watchTimeMin: 25,
       videos: 1,
+      episodesFinished: 1,
       sessions: 1,
       cards: 5,
       words: 300,
@@ -189,16 +202,7 @@ const TRENDS_DASHBOARD = {
       lastWatched: 20_000,
     },
   ],
-  animeDaily: {
-    watchTime: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 25 }],
-    episodes: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 1 }],
-    cards: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 5 }],
-    words: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 300 }],
-  },
-  patterns: {
-    watchTimeByDayOfWeek: [{ label: 'Sun', value: 25 }],
-    watchTimeByHour: [{ label: '12:00', value: 25 }],
-  },
+  titleTimeline: [{ epochDay: 20_000, animeTitle: 'Little Witch Academia', value: 25 }],
 };
 
 const ANIME_EPISODES = [
@@ -227,6 +231,12 @@ const WORD_DETAIL = {
   pos2: '一般',
   pos3: null,
   frequency: 42,
+  frequencyRank: 100,
+  dictionaryReading: 'ねこ',
+  formCount: 1,
+  forms: [{ wordId: 1, word: '猫', reading: 'ねこ', seen: 42 }],
+  lineCount: 40,
+  streamLineCount: 0,
   firstSeen: Date.now() - 100_000,
   lastSeen: Date.now(),
 };
@@ -313,11 +323,11 @@ function createMockTracker(
     }),
     getVocabularyChartData: async () => ({
       ready: true,
-      topWords: [{ wordId: 1, headword: 'する', frequency: 50 }],
-      topWordsWithoutNames: [{ wordId: 1, headword: 'する', frequency: 50 }],
       newWordsTimeline: [{ epochDay: 20_000, wordCount: 3 }],
       newWordsTimelineWithoutNames: [{ epochDay: 20_000, wordCount: 3 }],
     }),
+    getDictionaryWords: async () => ({ rows: [], total: 0, maxSeen: 0 }),
+    getVocabularyCoverage: async () => [],
     getStatsExcludedWords: async () => [],
     replaceStatsExcludedWords: async () => {},
     getKanjiStats: async () => KANJI_STATS,
@@ -674,9 +684,16 @@ const CLAMPED_QUERIES: Array<{
 ];
 
 const TRENDS_DASHBOARD_QUERIES = [
-  { query: 'range=90d&groupBy=month', expectedArgs: ['90d', 'month', true] },
-  { query: 'range=weird&groupBy=year', expectedArgs: ['30d', 'day', true] },
-  { query: 'range=30d&groupBy=day&fillEmpty=false', expectedArgs: ['30d', 'day', false] },
+  { query: 'range=90d&groupBy=month', expectedArgs: ['90d', 'month', true, null] },
+  { query: 'range=90d&groupBy=week', expectedArgs: ['90d', 'week', true, null] },
+  { query: 'range=weird&groupBy=year', expectedArgs: ['30d', 'day', true, null] },
+  { query: 'range=30d&groupBy=day&fillEmpty=false', expectedArgs: ['30d', 'day', false, null] },
+  {
+    query: 'range=custom&fromDay=20000&toDay=20010',
+    expectedArgs: [{ startDay: 20000, endDay: 20010 }, 'day', true, null],
+  },
+  { query: 'range=custom&fromDay=20010&toDay=20000', expectedArgs: ['30d', 'day', true, null] },
+  { query: 'range=30d&title=Bocchi%20%26%20Co', expectedArgs: ['30d', 'day', true, 'Bocchi & Co'] },
 ];
 
 const MALFORMED_IDS = [
@@ -991,7 +1008,7 @@ describe('stats server API routes', () => {
   });
 
   for (const { query, expectedArgs } of TRENDS_DASHBOARD_QUERIES) {
-    it(`GET /api/stats/trends/dashboard?${query} requests ${expectedArgs.join('/')}`, async () => {
+    it(`GET /api/stats/trends/dashboard?${query} requests ${JSON.stringify(expectedArgs)}`, async () => {
       let seenArgs: unknown[] = [];
       const app = createStatsApp(
         createMockTracker({
@@ -1007,6 +1024,69 @@ describe('stats server API routes', () => {
       assert.deepEqual(seenArgs, expectedArgs);
     });
   }
+
+  it('GET /api/stats/vocabulary/words passes a parsed query and ignores unknown values', async () => {
+    const seenQueries: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getDictionaryWords: async (_knownWords: unknown, query: unknown) => {
+          seenQueries.push(query);
+          return { rows: [], total: 0, maxSeen: 0 };
+        },
+      }),
+    );
+
+    await app.request(
+      '/api/stats/vocabulary/words?search=%20%E7%8C%AB%20&sort=rank&order=asc&hideKnown=true&hideNames=true&pos=verb&maxRank=10000&minTitles=2&limit=25&offset=50',
+    );
+    await app.request('/api/stats/vocabulary/words?sort=bogus&pos=bogus&maxRank=-1&limit=99999');
+
+    assert.deepEqual(seenQueries, [
+      {
+        search: '猫',
+        sort: 'rank',
+        descending: false,
+        hideKnown: true,
+        hideNames: true,
+        hideKana: false,
+        partOfSpeech: 'verb',
+        maxRank: 10000,
+        minTitles: 2,
+        limit: 25,
+        offset: 50,
+      },
+      {
+        search: undefined,
+        sort: 'seen',
+        descending: true,
+        hideKnown: false,
+        hideNames: false,
+        hideKana: false,
+        partOfSpeech: undefined,
+        maxRank: undefined,
+        minTitles: undefined,
+        limit: 200,
+        offset: 0,
+      },
+    ]);
+  });
+
+  it('GET /api/stats/sessions narrows to a valid day range and ignores a reversed one', async () => {
+    const seenRanges: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getSessionSummaries: async (_limit?: number, dayRange?: unknown) => {
+          seenRanges.push(dayRange);
+          return SESSION_SUMMARIES;
+        },
+      }),
+    );
+
+    await app.request('/api/stats/sessions?limit=500&fromDay=20000&toDay=20006');
+    await app.request('/api/stats/sessions?fromDay=20006&toDay=20000');
+
+    assert.deepEqual(seenRanges, [{ startDay: 20000, endDay: 20006 }, undefined]);
+  });
 
   it('GET /api/stats/vocabulary/occurrences returns recent occurrence rows for a word', async () => {
     let seenArgs: unknown[] = [];
@@ -1026,7 +1106,7 @@ describe('stats server API routes', () => {
     const body = await res.json();
     assert.ok(Array.isArray(body));
     assert.equal(body[0].animeTitle, 'Little Witch Academia');
-    assert.deepEqual(seenArgs, ['猫', '猫', 'ねこ', 500, 25]);
+    assert.deepEqual(seenArgs, ['猫', '猫', 'ねこ', 500, 25, false]);
   });
 
   it('GET /api/stats/kanji/occurrences returns recent occurrence rows for a kanji', async () => {
@@ -1053,6 +1133,33 @@ describe('stats server API routes', () => {
   it('GET /api/stats/vocabulary/occurrences rejects missing required params', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/vocabulary/occurrences?headword=%E7%8C%AB');
+    assert.equal(res.status, 400);
+  });
+
+  it('GET /api/stats/vocabulary/occurrences finds all forms of legacy words missing text', async () => {
+    const seenHeadwords: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getWordOccurrences: async (...args: unknown[]) => {
+          seenHeadwords.push(args[0]);
+          return OCCURRENCES;
+        },
+      }),
+    );
+    const request = (params: string) =>
+      app.request(`/api/stats/vocabulary/occurrences?allForms=true&${params}`);
+
+    assert.equal((await request('headword=&word=%E7%8C%AB&reading=')).status, 200);
+    assert.equal((await request('headword=%E7%8A%AC&word=&reading=')).status, 200);
+    assert.equal((await request('headword=&word=&reading=%E3%81%AD%E3%81%93')).status, 200);
+    assert.deepEqual(seenHeadwords, ['猫', '犬', 'ねこ']);
+
+    assert.equal((await request('headword=%20&word=&reading=')).status, 400);
+  });
+
+  it('GET /api/stats/vocabulary/occurrences needs a headword and form for an exact lookup', async () => {
+    const app = createStatsApp(createMockTracker());
+    const res = await app.request('/api/stats/vocabulary/occurrences?headword=&word=%E7%8C%AB');
     assert.equal(res.status, 400);
   });
 

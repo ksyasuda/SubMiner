@@ -14,6 +14,7 @@ import {
   parseBooleanQuery,
   parseDuplicateLineCleanupBody,
   parseExcludedWordsBody,
+  parseDictionaryWordQuery,
   parseIntQuery,
   parsePositiveId,
   parsePositiveIdList,
@@ -49,6 +50,20 @@ export function registerStatsLibraryRoutes(
     return c.json(statsJson('vocabularyCharts', await tracker.getVocabularyChartData()));
   });
 
+  app.get('/api/stats/vocabulary/words', async (c) => {
+    const page = await tracker.getDictionaryWords(
+      loadKnownWordsSet(options?.knownWordCachePath),
+      parseDictionaryWordQuery((name) => c.req.query(name)),
+    );
+    return c.json(statsJson('dictionaryWords', page));
+  });
+
+  app.get('/api/stats/vocabulary/coverage', async (c) => {
+    const knownWords = loadKnownWordsSet(options?.knownWordCachePath);
+    const coverage = knownWords ? await tracker.getVocabularyCoverage(knownWords) : [];
+    return c.json(statsJson('vocabularyCoverage', coverage));
+  });
+
   app.get('/api/stats/excluded-words', async (c) => {
     return c.json(statsJson('excludedWords', await tracker.getStatsExcludedWords()));
   });
@@ -78,12 +93,23 @@ export function registerStatsLibraryRoutes(
     const headword = (c.req.query('headword') ?? '').trim();
     const word = (c.req.query('word') ?? '').trim();
     const reading = (c.req.query('reading') ?? '').trim();
-    if (!headword || !word) {
+    const allForms = c.req.query('allForms') === 'true';
+    // Legacy rows can lack a headword or form, so an all-forms lookup falls back the same
+    // way the word list does. An exact lookup can only match a row that has both.
+    const dictionaryWord = headword || word || reading;
+    if (allForms ? !dictionaryWord : !headword || !word) {
       return c.json(statsJson('wordOccurrences', []), 400);
     }
     const limit = parseIntQuery(c.req.query('limit'), 50, 500);
     const offset = parseIntQuery(c.req.query('offset'), 0, 10_000);
-    const occurrences = await tracker.getWordOccurrences(headword, word, reading, limit, offset);
+    const occurrences = await tracker.getWordOccurrences(
+      dictionaryWord,
+      word,
+      reading,
+      limit,
+      offset,
+      allForms,
+    );
     return c.json(statsJson('wordOccurrences', occurrences));
   });
 
@@ -102,7 +128,7 @@ export function registerStatsLibraryRoutes(
   });
 
   app.get('/api/stats/kanji', async (c) => {
-    const limit = parseIntQuery(c.req.query('limit'), 100, 500);
+    const limit = parseIntQuery(c.req.query('limit'), 100, 10_000);
     const kanji = await tracker.getKanjiStats(limit);
     return c.json(statsJson('kanji', kanji));
   });

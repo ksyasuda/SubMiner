@@ -5,6 +5,7 @@ import {
   enrichSessionsWithKnownWordMetrics,
   loadKnownWordsSet,
   parseEventTypesQuery,
+  parseDayRange,
   parseIntQuery,
   parsePositiveId,
   parseTrendFillEmpty,
@@ -64,17 +65,26 @@ export function registerStatsAnalyticsRoutes(
   });
 
   app.get('/api/stats/trends/dashboard', async (c) => {
-    const range = parseTrendRange(c.req.query('range'));
+    const range = parseTrendRange(
+      c.req.query('range'),
+      c.req.query('fromDay'),
+      c.req.query('toDay'),
+    );
     const groupBy = parseTrendGroupBy(c.req.query('groupBy'));
     const fillEmpty = parseTrendFillEmpty(c.req.query('fillEmpty'));
+    const title = c.req.query('title')?.trim() || null;
     return c.json(
-      statsJson('trendsDashboard', await tracker.getTrendsDashboard(range, groupBy, fillEmpty)),
+      statsJson(
+        'trendsDashboard',
+        await tracker.getTrendsDashboard(range, groupBy, fillEmpty, title),
+      ),
     );
   });
 
   app.get('/api/stats/sessions', async (c) => {
     const limit = parseIntQuery(c.req.query('limit'), 50, 500);
-    const rawSessions = await tracker.getSessionSummaries(limit);
+    const dayRange = parseDayRange(c.req.query('fromDay'), c.req.query('toDay')) ?? undefined;
+    const rawSessions = await tracker.getSessionSummaries(limit, dayRange);
     const sessions = await enrichSessionsWithKnownWordMetrics(
       tracker,
       rawSessions,

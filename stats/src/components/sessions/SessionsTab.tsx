@@ -6,6 +6,7 @@ import { apiClient } from '../../lib/api-client';
 import { confirmBucketDelete, confirmSessionDelete } from '../../lib/delete-confirm';
 import { formatDuration, formatNumber, formatSessionDayLabel } from '../../lib/formatters';
 import { groupSessionsByVideo, type SessionBucket } from '../../lib/session-grouping';
+import type { SessionsDayFilter } from '../../lib/stats-navigation';
 import type { SessionSummary } from '../../types/stats';
 
 function groupSessionsByDay(sessions: SessionSummary[]): Map<string, SessionSummary[]> {
@@ -79,18 +80,28 @@ export function decrementDeletingSessionCounts(
   return next;
 }
 
+// Enough to show every session of any span a chart bar can open; the API caps limit at 500.
+const DAY_FILTER_SESSION_LIMIT = 500;
+
 interface SessionsTabProps {
   initialSessionId?: number | null;
   onClearInitialSession?: () => void;
   onNavigateToMediaDetail?: (videoId: number) => void;
+  dayFilter?: SessionsDayFilter | null;
+  onClearDayFilter?: () => void;
 }
 
 export function SessionsTab({
   initialSessionId,
   onClearInitialSession,
   onNavigateToMediaDetail,
+  dayFilter,
+  onClearDayFilter,
 }: SessionsTabProps = {}) {
-  const { sessions, loading, error } = useSessions();
+  const { sessions, loading, error } = useSessions(
+    dayFilter ? DAY_FILTER_SESSION_LIMIT : undefined,
+    dayFilter,
+  );
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [expandedBuckets, setExpandedBuckets] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState('');
@@ -212,6 +223,20 @@ export function SessionsTab({
 
   return (
     <div className="space-y-4">
+      {dayFilter ? (
+        <div className="flex items-center gap-3 rounded-lg border border-ctp-surface1 bg-ctp-surface0/70 px-3 py-2 text-sm">
+          <span className="text-ctp-subtext0">
+            Sessions from <span className="text-ctp-text">{dayFilter.label}</span>
+          </span>
+          <button
+            type="button"
+            onClick={onClearDayFilter}
+            className="ml-auto rounded-md border border-ctp-surface2 px-2 py-1 text-xs text-ctp-text transition hover:border-ctp-blue hover:text-ctp-blue"
+          >
+            Show all sessions
+          </button>
+        </div>
+      ) : null}
       <input
         type="search"
         aria-label="Search sessions by title"

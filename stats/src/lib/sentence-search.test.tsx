@@ -61,7 +61,7 @@ test('getSentenceSearchMineAvailability disables every mining mode without sourc
     canMineSentence: false,
     canMineWordAudio: false,
     exactMatch: true,
-    unavailableReason: 'This source has no local file path.',
+    unavailableReason: "Can't mine: from a stream, so there's no video file to cut clips from.",
   });
 });
 

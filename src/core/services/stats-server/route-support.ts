@@ -12,6 +12,13 @@ import {
 } from '../../../anki-integration/known-word-cache-format.js';
 import { createLogger } from '../../../logger.js';
 import type { AnkiConnectConfig } from '../../../types.js';
+import type {
+  StatsDayRange,
+  StatsDictionaryWordQuery,
+  StatsDictionaryWordSort,
+  StatsTrendGroupBy,
+  StatsTrendRange,
+} from '../../../types/stats-http-contract.js';
 import type { StatsExcludedWord } from '../../../types/stats-wire.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import { splitSentenceSearchTerms } from '../immersion-tracker/query-lexical.js';
@@ -58,14 +65,61 @@ export function parsePositiveId(raw: string | undefined): number | null {
   return isPositiveSafeInteger(value) && String(value) === raw ? value : null;
 }
 
-export function parseTrendRange(raw: string | undefined): '7d' | '30d' | '90d' | '365d' | 'all' {
+/** Parses an inclusive `fromDay`/`toDay` pair; anything malformed or reversed means no range. */
+export function parseDayRange(
+  rawFrom: string | undefined,
+  rawTo: string | undefined,
+): StatsDayRange | null {
+  const startDay = parsePositiveId(rawFrom);
+  const endDay = parsePositiveId(rawTo);
+  return startDay !== null && endDay !== null && startDay <= endDay ? { startDay, endDay } : null;
+}
+
+export function parseTrendRange(
+  raw: string | undefined,
+  rawFrom?: string,
+  rawTo?: string,
+): StatsTrendRange {
+  if (raw === 'custom') return parseDayRange(rawFrom, rawTo) ?? '30d';
   return raw === '7d' || raw === '30d' || raw === '90d' || raw === '365d' || raw === 'all'
     ? raw
     : '30d';
 }
 
-export function parseTrendGroupBy(raw: string | undefined): 'day' | 'month' {
-  return raw === 'month' ? 'month' : 'day';
+export function parseTrendGroupBy(raw: string | undefined): StatsTrendGroupBy {
+  return raw === 'month' || raw === 'week' ? raw : 'day';
+}
+
+const DICTIONARY_WORD_SORTS: readonly StatsDictionaryWordSort[] = [
+  'seen',
+  'rank',
+  'titles',
+  'firstSeen',
+  'lastSeen',
+  'headword',
+];
+const DICTIONARY_WORD_PAGE_LIMIT = 200;
+
+/** Reads the word list query string. Anything unrecognized falls back to the default. */
+export function parseDictionaryWordQuery(
+  read: (name: string) => string | undefined,
+): StatsDictionaryWordQuery {
+  const sort = DICTIONARY_WORD_SORTS.find((value) => value === read('sort')) ?? 'seen';
+  const pos = read('pos');
+  const flag = (name: string): boolean => read(name) === 'true';
+  return {
+    search: read('search')?.trim() || undefined,
+    sort,
+    descending: read('order') !== 'asc',
+    hideKnown: flag('hideKnown'),
+    hideNames: flag('hideNames'),
+    hideKana: flag('hideKana'),
+    partOfSpeech: pos === 'noun' || pos === 'verb' || pos === 'adjective' ? pos : undefined,
+    maxRank: parsePositiveId(read('maxRank')) ?? undefined,
+    minTitles: parsePositiveId(read('minTitles')) ?? undefined,
+    limit: parseIntQuery(read('limit'), 25, DICTIONARY_WORD_PAGE_LIMIT),
+    offset: parseIntQuery(read('offset'), 0),
+  };
 }
 
 export function parseTrendFillEmpty(raw: string | undefined): boolean {

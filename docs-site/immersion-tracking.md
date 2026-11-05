@@ -64,7 +64,17 @@ The same show can end up on several cards when release names disagree. To fix th
 
 ### Trends
 
-Charts for watch time, cards, words, and sessions per day or month, running totals, efficiency (words per minute, cards per hour), and viewing patterns by weekday and hour. Each chart has its own date range and grouping.
+Pick a date range (or set **Custom** dates), group by day, week, or month, and the whole page follows. Your choices are remembered.
+
+- **Summary**: totals for the range, compared with the period just before it.
+- **Activity**: watch time, cards, words, and finished episodes. Click a bar to open that period's sessions.
+- **Learning**: new words per 1,000 words seen, and how common those new words are. Conjugations of a word count once, and names are left out.
+- **Efficiency**: words per minute, cards per hour, and lookups per 100 words. Daily views use a rolling 7 days, and gaps mean too little data to rate.
+- **Running total**: one chart with a switcher for each metric, climbing from zero at the start of the range.
+- **Patterns**: a day and hour heatmap of when you watch.
+- **Titles**: a timeline of what you watched when, and a sortable summary table. Click a title, or use the filter box, to narrow the page to it. **↗** opens the title.
+
+An episode counts as finished once, on the last day you watched it.
 
 ![Stats Trends](/screenshots/stats-trends.png)
 
@@ -76,10 +86,15 @@ Session history. Expand a session for its pace, lines, known-word rate, lookups,
 
 ### Vocabulary
 
-Unique words and kanji you have seen, new words per day, frequency rank tables with Hide Known and Hide Kana filters, and a kanji breakdown. Click a word to see every line it appeared in.
+Words are counted as dictionary words, so a word's conjugations count once. Names are left out unless you turn off **Hide names**.
 
-- **Exclusions** hides words from every vocabulary view. You can restore them from the same dialog.
-- **Duplicates** cleans up lines repeated by karaoke openings and animated signs (see [Repeated lines](#repeated-lines)).
+- **Summary**: words seen, how many are in Anki, new words this week, and kanji seen.
+- **Known Words by Frequency**: how much of each frequency band you already know.
+- **Vocabulary Growth**: your running total of words seen.
+- **Words**: one table for every word you have seen. **Worth mining** lists common words you haven't mined, most seen first. **All words**, **Across titles**, and **Newest** are the other views. Sort by any column, or filter by known words, names, kana, and part of speech. Searching looks through everything, including conjugated forms and readings. Click a word for its forms, where it appeared, and example lines you can mine from. **Hide** excludes a word.
+- **Kanji**: every kanji you have seen, shaded by how often. Dashed kanji are not in any word you know.
+
+**Exclusions** at the bottom of the page lists hidden words so you can restore them. **Clean up duplicates** removes lines repeated by karaoke openings and animated signs (see [Repeated lines](#repeated-lines)).
 
 ![Stats Vocabulary](/screenshots/stats-vocabulary.png)
 
@@ -89,7 +104,7 @@ Searches the primary subtitle lines and titles in your history. **Search by head
 
 ## Mining from the dashboard
 
-Search results and the Vocabulary word panel can create cards from past lines, as long as the source video file is still available:
+Search results and the Vocabulary word panel can create cards from past lines, as long as the source video file is still available. Lines from a stream, such as Jellyfin or YouTube, have no file to cut clips from, so they say so instead of offering mining. Lines you can mine are listed first. The word panel counts how many of a word's lines this affects, and the word table marks words with only streamed lines as **Stream only**.
 
 - **Mine Word**: looks up the word with the selected dictionary backend (Yomitan or Hachidori), plus sentence, audio, and image. The history line you picked is the card's sentence, even while mpv plays another line. Hachidori uses its own Anki template, dictionary aliases, and frequency data.
 - **Mine Sentence**: a sentence card with `IsSentenceCard` set, for Lapis and Kiku note types.
@@ -103,7 +118,7 @@ Dashboard cards also get the `SubMiner::Stats` tag. With the Anki proxy off, Sub
 
 Karaoke openings and animated signs repeat the same text once per frame. SubMiner collapses these as it records, so one lyric is stored once. Stats recorded before that can hold hundreds of copies and skew Top Repeated Words.
 
-To clean them, use **Duplicates** in the Vocabulary tab: pick a time window, **Scan** to preview, then **Clean Up**. Or from the terminal:
+To clean them, use **Clean up duplicates** in the Vocabulary tab: pick a time window, **Scan** to preview, then **Clean Up**. Or from the terminal:
 
 ```bash
 subminer stats cleanup --duplicate-lines --dry-run --lookback-days 30

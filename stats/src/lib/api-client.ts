@@ -16,6 +16,8 @@ import type {
   StatsMoveVideoRequest,
   StatsMoveVideoResponse,
   StatsTmdbAssignment,
+  StatsDayRange,
+  StatsDictionaryWordQuery,
   StatsTrendGroupBy,
   StatsTrendRange,
   StatsVideoWatchedRequest,
@@ -67,7 +69,13 @@ export const apiClient = {
     fetchJson('dailyRollups', `/api/stats/daily-rollups?limit=${limit}`),
   getMonthlyRollups: (limit = 24) =>
     fetchJson('monthlyRollups', `/api/stats/monthly-rollups?limit=${limit}`),
-  getSessions: (limit = 50) => fetchJson('sessions', `/api/stats/sessions?limit=${limit}`),
+  getSessions: (limit = 50, dayRange?: StatsDayRange) =>
+    fetchJson(
+      'sessions',
+      dayRange
+        ? `/api/stats/sessions?limit=${limit}&fromDay=${dayRange.startDay}&toDay=${dayRange.endDay}`
+        : `/api/stats/sessions?limit=${limit}`,
+    ),
   getSessionTimeline: (id: number, limit?: number) =>
     fetchJson(
       'sessionTimeline',
@@ -87,6 +95,23 @@ export const apiClient = {
   getVocabulary: (limit = 100) => fetchJson('vocabulary', `/api/stats/vocabulary?limit=${limit}`),
   getVocabularySummary: () => fetchJson('vocabularySummary', '/api/stats/vocabulary/summary'),
   getVocabularyCharts: () => fetchJson('vocabularyCharts', '/api/stats/vocabulary/charts'),
+  getDictionaryWords: (query: StatsDictionaryWordQuery) => {
+    const params = new URLSearchParams({
+      sort: query.sort,
+      order: query.descending ? 'desc' : 'asc',
+      limit: String(query.limit),
+      offset: String(query.offset),
+    });
+    if (query.search) params.set('search', query.search);
+    if (query.hideKnown) params.set('hideKnown', 'true');
+    if (query.hideNames) params.set('hideNames', 'true');
+    if (query.hideKana) params.set('hideKana', 'true');
+    if (query.partOfSpeech) params.set('pos', query.partOfSpeech);
+    if (query.maxRank !== undefined) params.set('maxRank', String(query.maxRank));
+    if (query.minTitles !== undefined) params.set('minTitles', String(query.minTitles));
+    return fetchJson('dictionaryWords', `/api/stats/vocabulary/words?${params.toString()}`);
+  },
+  getVocabularyCoverage: () => fetchJson('vocabularyCoverage', '/api/stats/vocabulary/coverage'),
   getExcludedWords: () => fetchJson('excludedWords', '/api/stats/excluded-words'),
   setExcludedWords: async (words: StatsExcludedWord[]): Promise<void> => {
     await fetchResponse('/api/stats/excluded-words', {
@@ -108,10 +133,17 @@ export const apiClient = {
     });
     return res.json() as Promise<StatsDuplicateLineCleanupResult>;
   },
-  getWordOccurrences: (headword: string, word: string, reading: string, limit = 50, offset = 0) =>
+  getWordOccurrences: (
+    headword: string,
+    word: string,
+    reading: string,
+    limit = 50,
+    offset = 0,
+    allForms = false,
+  ) =>
     fetchJson(
       'wordOccurrences',
-      `/api/stats/vocabulary/occurrences?headword=${encodeURIComponent(headword)}&word=${encodeURIComponent(word)}&reading=${encodeURIComponent(reading)}&limit=${limit}&offset=${offset}`,
+      `/api/stats/vocabulary/occurrences?headword=${encodeURIComponent(headword)}&word=${encodeURIComponent(word)}&reading=${encodeURIComponent(reading)}&limit=${limit}&offset=${offset}${allForms ? '&allForms=true' : ''}`,
     ),
   searchSentences: (query: string, limit = 50, searchByHeadword = true) =>
     fetchJson(
@@ -159,11 +191,26 @@ export const apiClient = {
     fetchJson('newAnimePerDay', `/api/stats/trends/new-anime-per-day?limit=${limit}`),
   getWatchTimePerAnime: (limit = 90) =>
     fetchJson('watchTimePerAnime', `/api/stats/trends/watch-time-per-anime?limit=${limit}`),
-  getTrendsDashboard: (range: StatsTrendRange, groupBy: StatsTrendGroupBy, fillEmpty = true) =>
-    fetchJson(
-      'trendsDashboard',
-      `/api/stats/trends/dashboard?range=${encodeURIComponent(range)}&groupBy=${encodeURIComponent(groupBy)}&fillEmpty=${fillEmpty ? 'true' : 'false'}`,
-    ),
+  getTrendsDashboard: (
+    range: StatsTrendRange,
+    groupBy: StatsTrendGroupBy,
+    fillEmpty = true,
+    title: string | null = null,
+  ) => {
+    const params = new URLSearchParams(
+      typeof range === 'string'
+        ? { range }
+        : {
+            range: 'custom',
+            fromDay: String(range.startDay),
+            toDay: String(range.endDay),
+          },
+    );
+    params.set('groupBy', groupBy);
+    params.set('fillEmpty', fillEmpty ? 'true' : 'false');
+    if (title !== null) params.set('title', title);
+    return fetchJson('trendsDashboard', `/api/stats/trends/dashboard?${params.toString()}`);
+  },
   getWordDetail: (wordId: number) =>
     fetchJson('wordDetail', `/api/stats/vocabulary/${wordId}/detail`),
   getKanjiDetail: (kanjiId: number) =>

@@ -4,11 +4,14 @@ import { apiClient } from '../../lib/api-client';
 import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../lib/formatters';
 import {
   buildStatsMineCardParams,
+  describeStreamedLines,
   getStatsMineCardError,
   getStatsMineCardUnavailableReason,
 } from '../../lib/mining';
 import { fullReading } from '../../lib/reading-utils';
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
+import { MineUnavailableNote } from '../common/MineUnavailableNote';
+import { SummaryTile } from '../layout/SummaryTile';
 import { PosBadge } from './pos-helpers';
 
 const INITIAL_PAGE_SIZE = 5;
@@ -26,8 +29,9 @@ interface WordDetailPanelProps {
   onToggleExclusion?: (w: { headword: string; word: string; reading: string }) => void;
 }
 
-function highlightWord(text: string, words: string[]): React.ReactNode {
-  const needles = words.filter(Boolean);
+export function highlightWord(text: string, words: string[]): React.ReactNode {
+  // Longest first: regex alternation takes the first match, so 食べ would cut 食べた short.
+  const needles = words.filter(Boolean).sort((left, right) => right.length - left.length);
   if (needles.length === 0) return text;
 
   const escaped = needles.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
@@ -47,6 +51,11 @@ function highlightWord(text: string, words: string[]): React.ReactNode {
       part
     ),
   );
+}
+
+function displayReading(detail: { headword: string; dictionaryReading: string }): string {
+  const reading = fullReading(detail.headword, detail.dictionaryReading);
+  return reading === fullReading(detail.headword, detail.headword) ? '' : reading;
 }
 
 function formatSegment(ms: number | null): string {
@@ -88,8 +97,6 @@ export function WordDetailPanel({
     requestIdRef.current++;
   }, [wordId]);
 
-  if (wordId === null) return null;
-
   const loadOccurrences = async (
     detail: NonNullable<typeof data>['detail'],
     offset: number,
@@ -110,6 +117,7 @@ export function WordDetailPanel({
         detail.reading,
         limit,
         offset,
+        true,
       );
       if (reqId !== requestIdRef.current) return;
       setOccurrences((prev) => (append ? [...prev, ...rows] : rows));
@@ -129,10 +137,16 @@ export function WordDetailPanel({
     }
   };
 
-  const handleShowOccurrences = () => {
-    if (!data) return;
+  // The examples are where mining happens, so they load with the word. The detail
+  // may still be the previous word's while the new one loads.
+  const loadedWordId = data?.detail.wordId ?? null;
+  useEffect(() => {
+    if (!data || loadedWordId !== wordId) return;
     void loadOccurrences(data.detail, 0, INITIAL_PAGE_SIZE, false);
-  };
+    // Only a newly opened word should reload examples.
+  }, [loadedWordId, wordId]);
+
+  if (wordId === null) return null;
 
   const handleLoadMore = () => {
     if (!data || occLoadingMore || !hasMore) return;
@@ -182,6 +196,11 @@ export function WordDetailPanel({
     }
   };
 
+  const dictionaryReading = data ? displayReading(data.detail) : '';
+  const streamedLinesNotice = data
+    ? describeStreamedLines(data.detail.lineCount, data.detail.streamLineCount)
+    : null;
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
       <button
@@ -201,30 +220,19 @@ export function WordDetailPanel({
               {error && <div className="mt-2 text-sm text-ctp-red">Error: {error}</div>}
               {data && (
                 <>
-                  <h2 className="mt-1 truncate text-3xl font-semibold text-ctp-text">
+                  <h2 lang="ja" className="mt-1 truncate text-3xl font-semibold text-ctp-text">
                     {data.detail.headword}
                   </h2>
-                  <div className="mt-1 text-sm text-ctp-subtext0">
-                    {fullReading(data.detail.headword, data.detail.reading) || data.detail.word}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {data.detail.partOfSpeech && <PosBadge pos={data.detail.partOfSpeech} />}
-                    {data.detail.pos1 && data.detail.pos1 !== data.detail.partOfSpeech && (
-                      <span className="rounded-full bg-ctp-surface1 px-2 py-0.5 text-[11px] text-ctp-subtext0">
-                        {data.detail.pos1}
-                      </span>
-                    )}
-                    {data.detail.pos2 && (
-                      <span className="rounded-full bg-ctp-surface1 px-2 py-0.5 text-[11px] text-ctp-subtext0">
-                        {data.detail.pos2}
-                      </span>
-                    )}
-                    {data.detail.pos3 && (
-                      <span className="rounded-full bg-ctp-surface1 px-2 py-0.5 text-[11px] text-ctp-subtext0">
-                        {data.detail.pos3}
-                      </span>
-                    )}
-                  </div>
+                  {dictionaryReading && (
+                    <div lang="ja" className="mt-1 text-sm text-ctp-subtext0">
+                      {dictionaryReading}
+                    </div>
+                  )}
+                  {data.detail.partOfSpeech && (
+                    <div className="mt-2">
+                      <PosBadge pos={data.detail.partOfSpeech} />
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -255,26 +263,61 @@ export function WordDetailPanel({
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
             {data && (
               <>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
-                    <div className="text-lg font-bold text-ctp-blue">
-                      {formatNumber(data.detail.frequency)}
-                    </div>
-                    <div className="text-[11px] text-ctp-overlay1 uppercase">Frequency</div>
-                  </div>
-                  <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
-                    <div className="text-sm font-medium text-ctp-green">
-                      {formatRelativeDate(epochMsFromDbTimestamp(data.detail.firstSeen))}
-                    </div>
-                    <div className="text-[11px] text-ctp-overlay1 uppercase">First Seen</div>
-                  </div>
-                  <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
-                    <div className="text-sm font-medium text-ctp-mauve">
-                      {formatRelativeDate(epochMsFromDbTimestamp(data.detail.lastSeen))}
-                    </div>
-                    <div className="text-[11px] text-ctp-overlay1 uppercase">Last Seen</div>
-                  </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <SummaryTile
+                    label="Seen"
+                    value={formatNumber(data.detail.frequency)}
+                    detail={
+                      data.detail.formCount > 1
+                        ? `across ${formatNumber(data.detail.formCount)} forms`
+                        : null
+                    }
+                  />
+                  <SummaryTile
+                    label="Frequency rank"
+                    value={
+                      data.detail.frequencyRank === null
+                        ? '—'
+                        : formatNumber(data.detail.frequencyRank)
+                    }
+                    detail={null}
+                  />
+                  <SummaryTile
+                    label="First seen"
+                    value={formatRelativeDate(epochMsFromDbTimestamp(data.detail.firstSeen))}
+                    detail={null}
+                    compact
+                  />
+                  <SummaryTile
+                    label="Last seen"
+                    value={formatRelativeDate(epochMsFromDbTimestamp(data.detail.lastSeen))}
+                    detail={null}
+                    compact
+                  />
                 </div>
+
+                {data.detail.formCount > 1 && (
+                  <section>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
+                      Forms
+                    </h3>
+                    <div lang="ja" className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                      {data.detail.forms.map((form) => (
+                        <span key={form.wordId} className="text-ctp-text">
+                          {form.word}
+                          <span lang="en" className="ml-1 text-xs text-ctp-overlay2 tabular-nums">
+                            {formatNumber(form.seen)}
+                          </span>
+                        </span>
+                      ))}
+                      {data.detail.formCount > data.detail.forms.length && (
+                        <span lang="en" className="text-xs text-ctp-overlay2">
+                          +{formatNumber(data.detail.formCount - data.detail.forms.length)} more
+                        </span>
+                      )}
+                    </div>
+                  </section>
+                )}
 
                 {data.animeAppearances.length > 0 && (
                   <section>
@@ -328,11 +371,13 @@ export function WordDetailPanel({
                         <button
                           key={sw.wordId}
                           type="button"
-                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-ctp-blue bg-ctp-blue/10 transition hover:ring-1 hover:ring-ctp-blue"
+                          className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-ctp-text bg-ctp-surface0 transition hover:ring-1 hover:ring-ctp-blue"
                           onClick={() => onSelectWord?.(sw.wordId)}
                         >
-                          {sw.headword}
-                          <span className="opacity-60">({formatNumber(sw.frequency)})</span>
+                          <span lang="ja">{sw.headword}</span>
+                          <span className="text-ctp-overlay2 tabular-nums">
+                            {formatNumber(sw.frequency)}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -343,19 +388,15 @@ export function WordDetailPanel({
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
                     Example Lines
                   </h3>
-                  {!occLoaded && !occLoading && (
-                    <button
-                      type="button"
-                      className="w-full rounded-lg border border-ctp-surface2 bg-ctp-surface0 px-4 py-2 text-sm font-medium text-ctp-text transition hover:border-ctp-blue hover:text-ctp-blue"
-                      onClick={handleShowOccurrences}
-                    >
-                      Load example lines
-                    </button>
-                  )}
                   {occLoading && (
                     <div className="text-sm text-ctp-overlay2">Loading occurrences...</div>
                   )}
                   {occError && <div className="text-sm text-ctp-red">Error: {occError}</div>}
+                  {streamedLinesNotice && (
+                    <p className="mb-2 text-xs text-ctp-peach" role="note">
+                      {streamedLinesNotice}
+                    </p>
+                  )}
                   {occLoaded && !occLoading && occurrences.length === 0 && (
                     <div className="text-sm text-ctp-overlay2">
                       No example lines tracked yet. Lines are stored for sessions recorded after the
@@ -393,54 +434,49 @@ export function WordDetailPanel({
                               const wordStatus = mineStatus[`${baseKey}-word`];
                               const sentenceStatus = mineStatus[`${baseKey}-sentence`];
                               const audioStatus = mineStatus[`${baseKey}-audio`];
+                              if (unavailableReason) {
+                                return <MineUnavailableNote reason={unavailableReason} />;
+                              }
                               return (
                                 <>
                                   <button
                                     type="button"
-                                    title={unavailableReason ?? 'Mine this word from video clip'}
+                                    title="Mine this word from video clip"
                                     className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-mauve hover:text-ctp-mauve disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={wordStatus?.loading || !!unavailableReason}
+                                    disabled={wordStatus?.loading}
                                     onClick={() => void handleMine(occ, 'word')}
                                   >
                                     {wordStatus?.loading
                                       ? 'Mining...'
                                       : wordStatus?.success
                                         ? 'Mined!'
-                                        : unavailableReason
-                                          ? 'Unavailable'
-                                          : 'Mine Word'}
+                                        : 'Mine Word'}
                                   </button>
                                   <button
                                     type="button"
-                                    title={
-                                      unavailableReason ?? 'Mine this sentence from video clip'
-                                    }
+                                    title="Mine this sentence from video clip"
                                     className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-green hover:text-ctp-green disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={sentenceStatus?.loading || !!unavailableReason}
+                                    disabled={sentenceStatus?.loading}
                                     onClick={() => void handleMine(occ, 'sentence')}
                                   >
                                     {sentenceStatus?.loading
                                       ? 'Mining...'
                                       : sentenceStatus?.success
                                         ? 'Mined!'
-                                        : unavailableReason
-                                          ? 'Unavailable'
-                                          : 'Mine Sentence'}
+                                        : 'Mine Sentence'}
                                   </button>
                                   <button
                                     type="button"
-                                    title={unavailableReason ?? 'Mine this line as audio-only card'}
+                                    title="Mine this line as audio-only card"
                                     className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={audioStatus?.loading || !!unavailableReason}
+                                    disabled={audioStatus?.loading}
                                     onClick={() => void handleMine(occ, 'audio')}
                                   >
                                     {audioStatus?.loading
                                       ? 'Mining...'
                                       : audioStatus?.success
                                         ? 'Mined!'
-                                        : unavailableReason
-                                          ? 'Unavailable'
-                                          : 'Mine Audio'}
+                                        : 'Mine Audio'}
                                   </button>
                                 </>
                               );
@@ -455,8 +491,14 @@ export function WordDetailPanel({
                               <div className="mt-1 text-[10px] text-ctp-red">{errors[0]}</div>
                             ) : null;
                           })()}
-                          <p className="mt-3 rounded-lg bg-ctp-base/70 px-3 py-3 text-sm leading-6 text-ctp-text">
-                            {highlightWord(occ.text, [data!.detail.headword, data!.detail.word])}
+                          <p
+                            lang="ja"
+                            className="mt-3 rounded-lg bg-ctp-base/70 px-3 py-3 text-sm leading-6 text-ctp-text"
+                          >
+                            {highlightWord(occ.text, [
+                              data!.detail.headword,
+                              ...data!.detail.forms.map((form) => form.word),
+                            ])}
                           </p>
                         </article>
                       ))}

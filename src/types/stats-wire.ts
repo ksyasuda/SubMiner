@@ -78,6 +78,55 @@ export interface VocabularyEntry {
   lastSeen: number;
 }
 
+/** One written form of a dictionary word, such as 見て for 見る. */
+export interface DictionaryWordForm {
+  wordId: number;
+  word: string;
+  reading: string;
+  seen: number;
+}
+
+/** A dictionary word with every form it was seen in folded together. */
+export interface DictionaryWordRow {
+  /** The form to open: the dictionary form when it was seen, otherwise the most seen one. */
+  wordId: number;
+  headword: string;
+  /** Reading of the dictionary form, or empty when only conjugated forms were seen. */
+  reading: string;
+  partOfSpeech: string | null;
+  rank: number | null;
+  seen: number;
+  /** Titles it appeared in. Computed for the returned rows. */
+  titles: number;
+  firstSeen: number;
+  lastSeen: number;
+  known: boolean;
+  isName: boolean;
+  /** Every line with this word came from a stream, so it can't be mined. */
+  streamOnly: boolean;
+  formCount: number;
+  /** The most seen forms, capped so a word with hundreds of forms stays small. */
+  forms: DictionaryWordForm[];
+}
+
+export interface DictionaryWordPage {
+  rows: DictionaryWordRow[];
+  /** Words matching the query across all pages. */
+  total: number;
+  /** Highest `seen` across all pages, for scaling inline bars. */
+  maxSeen: number;
+}
+
+export const VOCABULARY_COVERAGE_BANDS = ['top1k', 'top5k', 'top10k', 'top20k'] as const;
+export type VocabularyCoverageBandId = (typeof VOCABULARY_COVERAGE_BANDS)[number];
+
+/** Words seen in a frequency band, and how many of those are known. Names are left out. */
+export interface VocabularyCoverageBand {
+  band: VocabularyCoverageBandId;
+  seen: number;
+  known: number;
+}
+
 export interface StatsExcludedWord {
   headword: string;
   word: string;
@@ -343,16 +392,59 @@ export interface TrendChartPoint {
   value: number;
 }
 
+/** A rate over a bucket. `null` means too little data to rate, which charts draw as a gap. */
+export interface TrendRatePoint {
+  label: string;
+  value: number | null;
+}
+
+/** One x-axis bucket, clipped to the requested date range. Epoch days are local calendar days. */
+export interface TrendBucket {
+  label: string;
+  startDay: number;
+  endDay: number;
+}
+
 export interface TrendPerAnimePoint {
   epochDay: number;
   animeTitle: string;
   value: number;
 }
 
+export const TREND_FREQUENCY_BANDS = [
+  'top1k',
+  'top5k',
+  'top10k',
+  'top20k',
+  'beyond20k',
+  'unranked',
+] as const;
+export type TrendFrequencyBand = (typeof TREND_FREQUENCY_BANDS)[number];
+
+export interface TrendFrequencyBandPoint {
+  label: string;
+  counts: Record<TrendFrequencyBand, number>;
+}
+
+export interface TrendSummaryTotals {
+  watchTimeMin: number;
+  words: number;
+  /** Null when the dashboard is filtered to one title: new words are not tracked per title. */
+  newWords: number | null;
+  cards: number;
+  episodes: number;
+  activeDays: number;
+}
+
 export interface LibrarySummaryRow {
   title: string;
+  /** Null for videos that are not linked to a library title. */
+  animeId: number | null;
+  /** Most recently watched video, the click-through target when `animeId` is null. */
+  videoId: number | null;
   watchTimeMin: number;
   videos: number;
+  episodesFinished: number;
   sessions: number;
   cards: number;
   words: number;
@@ -363,15 +455,24 @@ export interface LibrarySummaryRow {
 }
 
 export interface TrendsDashboardData {
+  /** The days the dashboard covers. For `all` this is the span of recorded data. */
+  window: { startDay: number; endDay: number };
+  /** Axis shared by the `activity`, `progress`, and `ratios` series, index for index. */
+  buckets: TrendBucket[];
+  summary: {
+    current: TrendSummaryTotals;
+    /** The equally long period just before `window`; null for `all`. */
+    previous: TrendSummaryTotals | null;
+  };
   activity: {
     watchTime: TrendChartPoint[];
     cards: TrendChartPoint[];
     words: TrendChartPoint[];
-    sessions: TrendChartPoint[];
+    episodes: TrendChartPoint[];
   };
+  /** Running totals counted from the start of `window`, each point the total at its period's end. */
   progress: {
     watchTime: TrendChartPoint[];
-    sessions: TrendChartPoint[];
     words: TrendChartPoint[];
     newWords: TrendChartPoint[];
     cards: TrendChartPoint[];
@@ -379,22 +480,21 @@ export interface TrendsDashboardData {
     lookups: TrendChartPoint[];
   };
   ratios: {
-    lookupsPerHundred: TrendChartPoint[];
-    cardsPerHour: TrendChartPoint[];
-    readingSpeed: TrendChartPoint[];
+    lookupsPerHundred: TrendRatePoint[];
+    cardsPerHour: TrendRatePoint[];
+    readingSpeed: TrendRatePoint[];
   };
+  /** Vocabulary growth signals. Null when filtered to one title. */
+  learning: {
+    newWordsPerThousand: TrendRatePoint[];
+    frequencyBands: TrendFrequencyBandPoint[];
+  } | null;
+  /** Active minutes as `[dayOfWeek][hour]`, with 0 = Sunday and local-time hours. */
+  watchTimeByDayHour: number[][];
+  /** Every title in `window`, unaffected by the title filter. */
   librarySummary: LibrarySummaryRow[];
-  /** Sparse per-title values for each active day; the client accumulates them for charts. */
-  animeDaily: {
-    watchTime: TrendPerAnimePoint[];
-    episodes: TrendPerAnimePoint[];
-    cards: TrendPerAnimePoint[];
-    words: TrendPerAnimePoint[];
-  };
-  patterns: {
-    watchTimeByDayOfWeek: TrendChartPoint[];
-    watchTimeByHour: TrendChartPoint[];
-  };
+  /** Sparse active minutes per title per day, unaffected by the title filter. */
+  titleTimeline: TrendPerAnimePoint[];
 }
 
 export interface WordDetailData {
@@ -407,7 +507,17 @@ export interface WordDetailData {
     pos1: string | null;
     pos2: string | null;
     pos3: string | null;
+    /** Times seen across every form of this dictionary word. */
     frequency: number;
+    frequencyRank: number | null;
+    /** Reading of the dictionary form, or empty when only conjugated forms were seen. */
+    dictionaryReading: string;
+    formCount: number;
+    forms: DictionaryWordForm[];
+    /** Stored subtitle lines with this word, across every form. */
+    lineCount: number;
+    /** Those lines that came from a stream, which can't be mined. */
+    streamLineCount: number;
     firstSeen: number;
     lastSeen: number;
   };

@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
 import { getStatsClient } from './useStatsApi';
 import { SESSION_CHART_EVENT_TYPES } from '../lib/session-events';
-import type { SessionSummary, SessionTimelinePoint, SessionEvent } from '../types/stats';
+import type {
+  SessionSummary,
+  SessionTimelinePoint,
+  SessionEvent,
+  StatsDayRange,
+} from '../types/stats';
 
 export function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export function useSessions(limit = 50) {
+export function useSessions(limit = 50, dayRange?: StatsDayRange | null) {
+  const startDay = dayRange?.startDay;
+  const endDay = dayRange?.endDay;
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +25,10 @@ export function useSessions(limit = 50) {
     setError(null);
     const client = getStatsClient();
     client
-      .getSessions(limit)
+      .getSessions(
+        limit,
+        startDay !== undefined && endDay !== undefined ? { startDay, endDay } : undefined,
+      )
       .then((nextSessions) => {
         if (cancelled) return;
         setSessions(nextSessions);
@@ -34,7 +44,7 @@ export function useSessions(limit = 50) {
     return () => {
       cancelled = true;
     };
-  }, [limit]);
+  }, [limit, startDay, endDay]);
 
   return { sessions, loading, error };
 }

@@ -1,45 +1,60 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import type { ExcludedWord } from '../../hooks/useExcludedWords';
 import { useVocabulary } from '../../hooks/useVocabulary';
-import { StatCard } from '../layout/StatCard';
-import { WordList } from './WordList';
+import { epochDayToDate, formatNumber } from '../../lib/formatters';
+import { writeBooleanPreference } from '../../lib/preference-storage';
+import type { DictionaryWordRow, KanjiEntry, StatsVocabularyCharts } from '../../types/stats';
+import { SummaryTile } from '../layout/SummaryTile';
+import { TrendChart } from '../trends/TrendChart';
+import { DuplicateLineCleanup } from './DuplicateLineCleanup';
+import { ExclusionManager } from './ExclusionManager';
 import { KanjiBreakdown } from './KanjiBreakdown';
 import { KanjiDetailPanel } from './KanjiDetailPanel';
-import { ExclusionManager } from './ExclusionManager';
-import { DuplicateLineCleanup } from './DuplicateLineCleanup';
-import { epochDayToDate, formatNumber } from '../../lib/formatters';
-import { TrendChart } from '../trends/TrendChart';
-import { FrequencyRankTable } from './FrequencyRankTable';
-import { CrossAnimeWordsTable } from './CrossAnimeWordsTable';
-import type { ExcludedWord } from '../../hooks/useExcludedWords';
-import type { KanjiEntry, VocabularyEntry } from '../../types/stats';
+import { VocabularyCoverage } from './VocabularyCoverage';
+import { WordExplorer } from './WordExplorer';
+import { HIDE_NAMES_KEY, loadHideNames } from './word-explorer-query';
 
 interface VocabularyTabProps {
   onNavigateToAnime?: (animeId: number) => void;
   onOpenWordDetail?: (wordId: number) => void;
   excluded: ExcludedWord[];
-  isExcluded: (w: { headword: string; word: string; reading: string }) => boolean;
+  onToggleExclusion: (w: { headword: string; word: string; reading: string }) => void;
   onRemoveExclusion: (w: ExcludedWord) => void;
   onClearExclusions: () => void;
 }
 
-function isProperNoun(w: VocabularyEntry): boolean {
-  return w.pos2 === '固有名詞';
+const GROWTH_COLOR = '#8aadf4';
+
+/** Running total of words seen, one point per day a new word appeared. */
+export function buildVocabularyGrowth(timeline: StatsVocabularyCharts['newWordsTimeline']) {
+  let total = 0;
+  return timeline.map((point) => {
+    total += point.wordCount;
+    return {
+      label: epochDayToDate(point.epochDay).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      }),
+      value: total,
+    };
+  });
 }
 
 export function VocabularyTab({
   onNavigateToAnime,
   onOpenWordDetail,
   excluded,
-  isExcluded,
+  onToggleExclusion,
   onRemoveExclusion,
   onClearExclusions,
 }: VocabularyTabProps) {
   const {
-    words,
     kanji,
     knownWords,
     summary,
     charts,
+    coverage,
+    dataRevision,
     loading,
     error,
     aggregatesError,
@@ -47,35 +62,15 @@ export function VocabularyTab({
     reload,
   } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
-  const [hideNames, setHideNames] = useState(false);
+  const [hideNames, setHideNames] = useState(() => loadHideNames());
   const [showExclusionManager, setShowExclusionManager] = useState(false);
   const [showDuplicateLineCleanup, setShowDuplicateLineCleanup] = useState(false);
 
-  const hasNames = useMemo(() => words.some(isProperNoun), [words]);
-  const filteredWords = useMemo(() => {
-    let result = words;
-    if (hideNames) result = result.filter((w) => !isProperNoun(w));
-    if (excluded.length > 0) result = result.filter((w) => !isExcluded(w));
-    return result;
-  }, [words, hideNames, excluded, isExcluded]);
-  const chartData = useMemo(
-    () => ({
-      topWords: ((hideNames ? charts?.topWordsWithoutNames : charts?.topWords) ?? []).map(
-        (word) => ({
-          label: word.headword,
-          value: word.frequency,
-        }),
+  const growth = useMemo(
+    () =>
+      buildVocabularyGrowth(
+        (hideNames ? charts?.newWordsTimelineWithoutNames : charts?.newWordsTimeline) ?? [],
       ),
-      newWordsTimeline: (
-        (hideNames ? charts?.newWordsTimelineWithoutNames : charts?.newWordsTimeline) ?? []
-      ).map((point) => ({
-        label: epochDayToDate(point.epochDay).toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric',
-        }),
-        value: point.wordCount,
-      })),
-    }),
     [charts, hideNames],
   );
 
@@ -94,61 +89,53 @@ export function VocabularyTab({
     );
   }
 
-  const handleSelectWord = (entry: VocabularyEntry): void => {
-    onOpenWordDetail?.(entry.wordId);
+  const updateHideNames = (hide: boolean) => {
+    setHideNames(hide);
+    writeBooleanPreference(HIDE_NAMES_KEY, hide);
   };
-
-  const handleBarClick = (headword: string): void => {
-    const match = (hideNames ? charts?.topWordsWithoutNames : charts?.topWords)?.find(
-      (word) => word.headword === headword,
-    );
-    if (match) onOpenWordDetail?.(match.wordId);
+  const hideWord = (row: DictionaryWordRow) => {
+    onToggleExclusion({ headword: row.headword, word: row.headword, reading: row.reading });
   };
+  const openKanjiDetail = (entry: KanjiEntry) => setSelectedKanjiId(entry.kanjiId);
 
-  const openKanjiDetail = (entry: KanjiEntry): void => {
-    setSelectedKanjiId(entry.kanjiId);
-  };
-
-  const displayedSummary = hideNames
-    ? {
-        uniqueWords: summary?.uniqueWordsWithoutNames ?? 0,
-        newThisWeek: summary?.newThisWeekWithoutNames ?? 0,
-        knownWordCount: summary?.knownWordCountWithoutNames ?? null,
-      }
-    : {
-        uniqueWords: summary?.uniqueWords ?? 0,
-        newThisWeek: summary?.newThisWeek ?? 0,
-        knownWordCount: summary?.knownWordCount ?? null,
-      };
+  const uniqueWords = (hideNames ? summary?.uniqueWordsWithoutNames : summary?.uniqueWords) ?? 0;
+  const newThisWeek = (hideNames ? summary?.newThisWeekWithoutNames : summary?.newThisWeek) ?? 0;
+  const knownWordCount =
+    (hideNames ? summary?.knownWordCountWithoutNames : summary?.knownWordCount) ?? null;
+  const knownPercent =
+    knownWordCount !== null && uniqueWords > 0
+      ? Math.round((knownWordCount / uniqueWords) * 100)
+      : 0;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <StatCard
-          label="Unique Words"
-          value={summary ? formatNumber(displayedSummary.uniqueWords) : '…'}
-          color="text-ctp-blue"
+      <section
+        aria-label="Vocabulary summary"
+        className="grid grid-cols-2 gap-4 rounded-lg border border-ctp-surface1 bg-ctp-surface0 p-4 lg:grid-cols-4"
+      >
+        <SummaryTile
+          label="Words seen"
+          value={summary ? formatNumber(uniqueWords) : '…'}
+          detail={hideNames ? 'Dictionary forms, names excluded' : 'Dictionary forms'}
         />
-        {displayedSummary.knownWordCount !== null ? (
-          <StatCard
-            label="Known Words"
-            value={`${formatNumber(displayedSummary.knownWordCount)} (${displayedSummary.uniqueWords > 0 ? Math.round((displayedSummary.knownWordCount / displayedSummary.uniqueWords) * 100) : 0}%)`}
-            color="text-ctp-green"
+        {knownWordCount !== null ? (
+          <SummaryTile
+            label="Known in Anki"
+            value={formatNumber(knownWordCount)}
+            detail={`${knownPercent}% of words seen`}
           />
-        ) : knownWords.size > 0 ? (
-          <StatCard label="Known Words" value="…" color="text-ctp-green" />
         ) : null}
-        <StatCard
-          label="Unique Kanji"
+        <SummaryTile
+          label="New in the last 7 days"
+          value={summary ? `+${formatNumber(newThisWeek)}` : '…'}
+          detail={null}
+        />
+        <SummaryTile
+          label="Kanji seen"
           value={summary ? formatNumber(summary.uniqueKanji) : '…'}
-          color="text-ctp-teal"
+          detail={null}
         />
-        <StatCard
-          label="New This Week"
-          value={summary ? `+${formatNumber(displayedSummary.newThisWeek)}` : '…'}
-          color="text-ctp-mauve"
-        />
-      </div>
+      </section>
 
       {aggregatesError && (
         <p className="text-xs text-ctp-red" role="alert">
@@ -163,54 +150,11 @@ export function VocabularyTab({
         </p>
       )}
 
-      <div className="flex items-center justify-end gap-3">
-        {hasNames && (
-          <button
-            type="button"
-            onClick={() => setHideNames(!hideNames)}
-            className={`shrink-0 px-3 py-2 rounded-lg text-xs transition-colors border ${
-              hideNames
-                ? 'bg-ctp-surface2 text-ctp-text border-ctp-blue/50'
-                : 'bg-ctp-surface0 text-ctp-overlay2 border-ctp-surface1 hover:text-ctp-subtext0'
-            }`}
-          >
-            Hide Names
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => setShowDuplicateLineCleanup(true)}
-          className="shrink-0 rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-3 py-2 text-xs text-ctp-overlay2 transition-colors hover:text-ctp-subtext0"
-        >
-          Duplicates
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowExclusionManager(true)}
-          className={`shrink-0 px-3 py-2 rounded-lg text-xs transition-colors border ${
-            excluded.length > 0
-              ? 'bg-ctp-surface2 text-ctp-text border-ctp-red/50'
-              : 'bg-ctp-surface0 text-ctp-overlay2 border-ctp-surface1 hover:text-ctp-subtext0'
-          }`}
-        >
-          Exclusions{excluded.length > 0 && ` (${excluded.length})`}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <TrendChart
-          title="Top Repeated Words"
-          data={chartData.topWords}
-          color="#8aadf4"
-          type="bar"
-          onBarClick={handleBarClick}
-        />
-        <TrendChart
-          title="New Words by Day"
-          data={chartData.newWordsTimeline}
-          color="#c6a0f6"
-          type="line"
-        />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {coverage.length > 0 ? <VocabularyCoverage bands={coverage} /> : null}
+        <div className={coverage.length > 0 ? '' : 'xl:col-span-2'}>
+          <TrendChart title="Vocabulary Growth" data={growth} color={GROWTH_COLOR} type="line" />
+        </div>
       </div>
 
       {charts && !charts.ready && (
@@ -219,25 +163,38 @@ export function VocabularyTab({
         </p>
       )}
 
-      <FrequencyRankTable
-        words={filteredWords}
-        knownWords={knownWords}
-        onSelectWord={handleSelectWord}
+      <WordExplorer
+        hasKnownData={knownWords.size > 0}
+        hideNames={hideNames}
+        onHideNamesChange={updateHideNames}
+        refreshKey={dataRevision}
+        onOpenWord={(wordId) => onOpenWordDetail?.(wordId)}
+        onHideWord={hideWord}
       />
-
-      <CrossAnimeWordsTable
-        words={filteredWords}
-        knownWords={knownWords}
-        onSelectWord={handleSelectWord}
-      />
-
-      <WordList words={filteredWords} selectedKey={null} onSelectWord={handleSelectWord} />
 
       <KanjiBreakdown
         kanji={kanji}
+        knownWords={knownWords}
         selectedKanjiId={selectedKanjiId}
         onSelectKanji={openKanjiDetail}
       />
+
+      <div className="flex justify-end gap-4 text-[11px] text-ctp-overlay2">
+        <button
+          type="button"
+          onClick={() => setShowExclusionManager(true)}
+          className="transition-colors hover:text-ctp-text"
+        >
+          Exclusions{excluded.length > 0 && ` (${excluded.length})`}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowDuplicateLineCleanup(true)}
+          className="transition-colors hover:text-ctp-text"
+        >
+          Clean up duplicates
+        </button>
+      </div>
 
       <KanjiDetailPanel
         kanjiId={selectedKanjiId}

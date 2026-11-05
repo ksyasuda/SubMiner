@@ -8,7 +8,6 @@ import {
   getLexicalDailyRollups,
   rebuildLexicalDailyRollups,
 } from './lexical-rollups';
-import { getTrendsDashboard } from './query-trends';
 import {
   getVocabularyChartData,
   getVocabularySummary,
@@ -262,7 +261,7 @@ test('lexical rollup rebuild tolerates nullable legacy vocabulary text', () => {
     assert.equal(areLexicalDailyRollupsReady(db), true);
     assert.equal(getVocabularySummary(db, null).uniqueWords, 1);
     assert.equal(getVocabularySummary(db, new Set(['猫'])).knownWordCount, 1);
-    assert.equal(getVocabularyChartData(db).topWords[0]?.headword, '猫');
+    assert.equal(getVocabularyChartData(db).newWordsTimeline[0]?.wordCount, 1);
   } finally {
     db.close();
     fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
@@ -593,7 +592,7 @@ test('imm_words persists vocabulary visibility for rollup maintenance', () => {
   }
 });
 
-test('vocabulary charts use complete top-word and lexical rollup data', () => {
+test('vocabulary charts count every word in new-word history', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
 
@@ -611,44 +610,7 @@ test('vocabulary charts use complete top-word and lexical rollup data', () => {
 
     const charts = getVocabularyChartData(db);
 
-    assert.equal(charts.topWords[0]?.headword, '語500');
-    assert.equal(charts.topWords[0]?.frequency, 10_000);
     assert.equal(charts.newWordsTimeline[0]?.wordCount, 501);
-  } finally {
-    db.close();
-    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
-  }
-});
-
-test('vocabulary charts find full top-word sets beyond excluded and name rows', () => {
-  const dbPath = makeDbPath();
-  const db = new Database(dbPath);
-
-  try {
-    ensureSchema(db);
-    const insertWord = db.prepare(
-      `INSERT INTO imm_words(headword, word, reading, pos2, first_seen, last_seen, frequency)
-       VALUES (?, ?, '', ?, 1700000000, 1700000000, ?)`,
-    );
-    const exclusions = [];
-    for (let index = 0; index < 100; index += 1) {
-      const headword = `語${index}`;
-      insertWord.run(
-        headword,
-        headword,
-        index < 80 && index >= 60 ? '固有名詞' : '一般',
-        100 - index,
-      );
-      if (index < 60) exclusions.push({ headword, word: headword, reading: '' });
-    }
-    replaceStatsExcludedWords(db, exclusions);
-
-    const charts = getVocabularyChartData(db);
-
-    assert.equal(charts.topWords.length, 12);
-    assert.equal(charts.topWords[0]?.headword, '語60');
-    assert.equal(charts.topWordsWithoutNames.length, 12);
-    assert.equal(charts.topWordsWithoutNames[0]?.headword, '語80');
   } finally {
     db.close();
     fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
@@ -674,7 +636,6 @@ test('vocabulary charts handle exclusion lists above one SQLite variable batch',
 
     const charts = getVocabularyChartData(db);
 
-    assert.deepEqual(charts.topWords, []);
     assert.deepEqual(charts.newWordsTimeline, []);
   } finally {
     db.close();
@@ -696,25 +657,4 @@ test('lexical rollup rebuild preserves the original error when rollback also fai
   } as unknown as DatabaseSync;
 
   assert.throws(() => rebuildLexicalDailyRollups(db), originalError);
-});
-
-test('trends read historical new-word buckets from lexical rollups', () => {
-  const dbPath = makeDbPath();
-  const db = new Database(dbPath);
-
-  try {
-    ensureSchema(db);
-    db.prepare(
-      `INSERT INTO imm_words(headword, word, reading, first_seen, last_seen, frequency)
-       VALUES ('海', '海', 'うみ', 1700000000, 1700000000, 1)`,
-    ).run();
-    db.prepare(`UPDATE imm_lexical_daily_rollups SET word_count = 9`).run();
-
-    const dashboard = getTrendsDashboard(db, 'all', 'day', false);
-
-    assert.equal(dashboard.progress.newWords[0]?.value, 9);
-  } finally {
-    db.close();
-    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
-  }
 });

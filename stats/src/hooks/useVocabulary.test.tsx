@@ -66,8 +66,6 @@ function summaryFixture(): StatsVocabularySummary {
 function chartsFixture(overrides: Partial<StatsVocabularyCharts> = {}): StatsVocabularyCharts {
   return {
     ready: true,
-    topWords: [{ wordId: 1, headword: '猫', frequency: 5 }],
-    topWordsWithoutNames: [{ wordId: 1, headword: '猫', frequency: 5 }],
     newWordsTimeline: [{ epochDay: 20_000, wordCount: 4 }],
     newWordsTimelineWithoutNames: [{ epochDay: 20_000, wordCount: 4 }],
     ...overrides,
@@ -147,14 +145,14 @@ function stubVocabularyClient(overrides: {
   getVocabularyCharts: () => Promise<StatsVocabularyCharts>;
 }): () => void {
   const original = {
-    getVocabulary: apiClient.getVocabulary,
+    getVocabularyCoverage: apiClient.getVocabularyCoverage,
     getKanji: apiClient.getKanji,
     getKnownWords: apiClient.getKnownWords,
     getVocabularySummary: apiClient.getVocabularySummary,
     getVocabularyCharts: apiClient.getVocabularyCharts,
     setExcludedWords: apiClient.setExcludedWords,
   };
-  apiClient.getVocabulary = async () => [];
+  apiClient.getVocabularyCoverage = async () => [];
   apiClient.getKanji = async () => [];
   apiClient.getKnownWords = async () => [];
   apiClient.setExcludedWords = async () => {};

@@ -624,7 +624,14 @@ export interface WordDetailRow {
   pos1: string | null;
   pos2: string | null;
   pos3: string | null;
+  /** Times seen across every form of this dictionary word. */
   frequency: number;
+  frequencyRank: number | null;
+  dictionaryReading: string;
+  formCount: number;
+  forms: Array<{ wordId: number; word: string; reading: string; seen: number }>;
+  lineCount: number;
+  streamLineCount: number;
   firstSeen: number;
   lastSeen: number;
 }
