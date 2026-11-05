@@ -8,6 +8,9 @@ const http = require('node:http');
 const root = path.resolve(__dirname, '..');
 const parser = require(path.join(root, 'dist/core/services/tokenizer/yomitan-parser-runtime.js'));
 const { writeStoredZip } = require(path.join(root, 'dist/shared/stored-zip.js'));
+const { HACHIDORI_POPUP_OPEN_SELECTOR } = require(
+  path.join(root, 'dist/renderer/yomitan-popup.js'),
+);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-hachidori-parser-'));
 
 protocol.registerSchemesAsPrivileged([
@@ -41,6 +44,58 @@ function fixture(name, title, bankName, entries, frequencyMode = 'rank-based') {
     { name: bankName, data: Buffer.from(JSON.stringify(entries)) },
   ]);
   return zipPath;
+}
+
+// The renderer's popup auto-pause and key routing read this marker because the
+// reader's shadow root is closed. Drives the real reader with real input, since
+// stubbed DOM tests cannot notice an upstream merge that changes what it exposes.
+async function assertPopupOpenMarkerFollowsPane(targetSession) {
+  const server = http.createServer((_request, response) => {
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.end(
+      '<!doctype html><p id="word" style="font-size:48px;margin:300px 0 0 100px">食べた</p>',
+    );
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const page = new BrowserWindow({
+    width: 900,
+    height: 600,
+    show: true,
+    webPreferences: { session: targetSession, contextIsolation: true, nodeIntegration: false },
+  });
+  try {
+    await page.loadURL(`http://127.0.0.1:${server.address().port}/`);
+    const { webContents } = page;
+    const word = await webContents.executeJavaScript(
+      `(() => { const { x, y, height } = document.getElementById('word').getBoundingClientRect(); return { x, y, height }; })()`,
+    );
+    const repeatUntilMarker = async (expected, act) => {
+      const query = `document.querySelector(${JSON.stringify(HACHIDORI_POPUP_OPEN_SELECTOR)}) !== null`;
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        // Content scripts load asynchronously, so keep acting until the reader reacts.
+        act(attempt);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if ((await webContents.executeJavaScript(query)) === expected) return;
+      }
+      assert.fail(`Hachidori popup-open marker never became ${expected}`);
+    };
+    page.focus();
+    webContents.focus();
+    await repeatUntilMarker(true, (attempt) =>
+      webContents.sendInputEvent({
+        type: 'mouseMove',
+        x: Math.round(word.x + 24) + (attempt % 2),
+        y: Math.round(word.y + word.height / 2),
+      }),
+    );
+    await repeatUntilMarker(false, () => {
+      webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+      webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    });
+  } finally {
+    page.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  }
 }
 
 app
@@ -211,6 +266,7 @@ app
     assert.deepEqual(unmatched, []);
     assert.equal(await parser.getYomitanCurrentAnkiDeckName(deps, logger), 'Test Mining');
     assert.equal((await targetSession.extensions.getAllExtensions()).length, 1);
+    await assertPopupOpenMarkerFollowsPane(targetSession);
     assert.equal(
       await parser.syncYomitanDefaultAnkiServer('http://127.0.0.1:8765', deps, logger),
       true,

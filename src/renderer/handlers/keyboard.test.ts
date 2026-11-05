@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
 import { createRendererState } from '../state.js';
-import { HACHIDORI_HOST_SELECTOR } from '../yomitan-popup.js';
+import { HACHIDORI_HOST_SELECTOR, HACHIDORI_POPUP_OPEN_SELECTOR } from '../yomitan-popup.js';
 import type { CompiledSessionBinding } from '../../types';
 import type { MpvInputBindingsSnapshot } from '../../types/session-bindings';
 import { DEFAULT_KEYBINDINGS, SPECIAL_COMMANDS } from '../../config/definitions';
@@ -156,9 +156,6 @@ function installKeyboardTestGlobals() {
 
   let popupVisible = false;
   let hachidoriPaneOpen = false;
-  const hachidoriHost = {
-    shadowRoot: { querySelectorAll: () => [{ hidden: false }] },
-  };
 
   const popupIframe = {
     tagName: 'IFRAME',
@@ -293,8 +290,8 @@ function installKeyboardTestGlobals() {
         documentListeners.set(type, listeners);
       },
       querySelectorAll: (selector: string) => {
-        if (selector === HACHIDORI_HOST_SELECTOR) {
-          return hachidoriPaneOpen ? [hachidoriHost] : [];
+        if (selector === HACHIDORI_POPUP_OPEN_SELECTOR) {
+          return hachidoriPaneOpen ? [{}] : [];
         }
         if (popupVisible) {
           return [popupIframe];

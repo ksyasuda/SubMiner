@@ -5,9 +5,8 @@ import { SUBTITLE_DEFAULT_CONFIG } from '../../config/definitions/defaults-subti
 import { createRendererState } from '../state';
 import { createMouseHandlers } from './mouse.js';
 import {
-  HACHIDORI_HOST_SELECTOR,
   HACHIDORI_POPUP_HIDDEN_EVENT,
-  HACHIDORI_POPUP_SELECTOR,
+  HACHIDORI_POPUP_OPEN_SELECTOR,
   HACHIDORI_POPUP_SHOWN_EVENT,
   YOMITAN_LOOKUP_EVENT,
   YOMITAN_POPUP_HIDDEN_EVENT,
@@ -110,23 +109,11 @@ function createMouseHarness(
   };
   const ignoreCalls: IgnoreCall[] = [];
   const mpvCommands: Array<(string | number)[]> = [];
-  const popupPane = {
-    get hidden() {
-      return !harness.popupPaneOpen;
-    },
-  };
   const popupHost = {
     tagName: options.hachidori ? 'HACHIDORI-HOST' : 'DIV',
     getAttribute: (name: string) =>
       name === 'data-subminer-yomitan-popup-visible' ? String(harness.popupHostVisible) : null,
-    shadowRoot: {
-      querySelectorAll: (selector: string) =>
-        selector === HACHIDORI_POPUP_SELECTOR ? [popupPane] : [],
-    },
   };
-  const hostSelectors = options.hachidori
-    ? [HACHIDORI_HOST_SELECTOR, YOMITAN_POPUP_HOST_SELECTOR]
-    : [YOMITAN_POPUP_HOST_SELECTOR];
 
   const harness = {
     ctx,
@@ -183,7 +170,10 @@ function createMouseHarness(
         if (selector === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR) {
           return harness.popupHostVisible ? [popupHost] : [];
         }
-        return hostSelectors.includes(selector) &&
+        if (selector === HACHIDORI_POPUP_OPEN_SELECTOR) {
+          return harness.popupPaneOpen ? [popupHost] : [];
+        }
+        return selector === YOMITAN_POPUP_HOST_SELECTOR &&
           (harness.popupHostVisible || harness.popupHostAttached)
           ? [popupHost]
           : [];
@@ -527,6 +517,31 @@ test('Hachidori hover popup pauses when shown', async (t) => {
   await waitForNextTick();
 
   assert.deepEqual(h.mpvCommands, [PAUSE]);
+});
+
+test('leaving the subtitle keeps playback paused while a Hachidori popup is open', async (t) => {
+  let paused = false;
+  const h = createMouseHarness(t, {
+    hoverPause: true,
+    popupPause: true,
+    hachidori: true,
+    getPlaybackPaused: async () => paused,
+  });
+  h.handlers.setupYomitanObserver();
+
+  await h.handlers.handleMouseEnter();
+  paused = true;
+  h.popupPaneOpen = true;
+  h.popupHostVisible = true;
+  h.fire('window', HACHIDORI_POPUP_SHOWN_EVENT);
+  await waitForNextTick();
+  await h.handlers.handleMouseLeave();
+  assert.deepEqual(h.mpvCommands, [PAUSE]);
+
+  h.popupPaneOpen = false;
+  h.popupHostVisible = false;
+  h.fire('window', HACHIDORI_POPUP_HIDDEN_EVENT);
+  assert.deepEqual(h.mpvCommands, [PAUSE, RESUME]);
 });
 
 test('popup shown reclaims overlay focus on macOS and captures click-away', (t) => {

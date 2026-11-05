@@ -12,11 +12,13 @@ export const YOMITAN_LOOKUP_EVENT = 'subminer-yomitan-lookup';
 export const PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS = 'primary-sub-visible-on-yomitan-popup';
 // Hachidori's shown/hidden pair means "the reader needs mouse events", which
 // also covers a left press on subtitle text that may start a selection. Its
-// popup panes live in the host's open shadow root.
+// popup panes live in a closed shadow root, so the fork's subminer-host.js
+// publishes whether one is on screen as an attribute on the host.
 export const HACHIDORI_POPUP_SHOWN_EVENT = 'hachidori-popup-shown';
 export const HACHIDORI_POPUP_HIDDEN_EVENT = 'hachidori-popup-hidden';
 export const HACHIDORI_HOST_SELECTOR = 'hachidori-host';
-export const HACHIDORI_POPUP_SELECTOR = '.gsm-hoshidicts-popup';
+export const HACHIDORI_POPUP_OPEN_SELECTOR =
+  'hachidori-host[data-subminer-hachidori-popup-open="true"]';
 
 export type DictionaryReader = 'yomitan' | 'hachidori';
 
@@ -114,12 +116,7 @@ function queryPopupElements<T extends Element>(
  * attaches its host on the first lookup, so no host means no popup.
  */
 export function isHachidoriPopupOpen(root: ParentNode | null | undefined = document): boolean {
-  const hosts = queryPopupElements<HTMLElement>(root, HACHIDORI_HOST_SELECTOR);
-  return hosts.some((host) =>
-    queryPopupElements<HTMLElement>(host.shadowRoot, HACHIDORI_POPUP_SELECTOR).some(
-      (pane) => !pane.hidden,
-    ),
-  );
+  return queryPopupElements(root, HACHIDORI_POPUP_OPEN_SELECTOR).length > 0;
 }
 
 /**
