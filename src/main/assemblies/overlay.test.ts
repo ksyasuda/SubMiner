@@ -157,6 +157,22 @@ function setup(t: TestContext, options: { platform?: NodeJS.Platform; visible?: 
     Object.defineProperty(process, 'platform', { value: options.platform, configurable: true });
     t.after(() => Object.defineProperty(process, 'platform', { value: originalPlatform }));
   }
+  if (options.platform === 'linux') {
+    // Fullscreen recreation only runs outside Hyprland and Sway, so pin an X11
+    // session rather than inheriting the compositor the tests happen to run under.
+    for (const key of [
+      'HYPRLAND_INSTANCE_SIGNATURE',
+      'SWAYSOCK',
+      'XDG_CURRENT_DESKTOP',
+      'XDG_SESSION_DESKTOP',
+    ]) {
+      const original = process.env[key];
+      delete process.env[key];
+      t.after(() => {
+        if (original !== undefined) process.env[key] = original;
+      });
+    }
+  }
   const recorder = createRecorder();
   const state: FixtureState = {
     visible: options.visible ?? false,
