@@ -2045,7 +2045,7 @@ body:focus-visible,
   text-align: center;
 }
 
-/* Controller hints: shown beside each control while controller support is on. */
+/* Controller hints: shown beside each control while a controller is connected. */
 .media-timing-review-modal.controller-hints-visible button[data-controller-hint]::after,
 #kikuFieldGroupingModal.controller-hints-visible [data-controller-hint]::after {
   content: attr(data-controller-hint);

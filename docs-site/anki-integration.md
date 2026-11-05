@@ -162,7 +162,7 @@ When you cancel, you can go back to editing, keep the original timing, create th
 
 #### With a controller
 
-With [controller support](/usage#controller-support) on, the dialog has its own controller layout, and each button shows its controller shortcut. It works with or without keyboard-only mode, and the controller's usual actions pause until the dialog closes. Buttons that were already held when the dialog opened, such as the mine button, wait for a fresh press.
+With [controller support](/usage#controller-support) on, the dialog has its own controller layout, and each button shows its controller shortcut once SubMiner has seen a controller, which takes one button press after connecting it. It works with or without keyboard-only mode, and the controller's usual actions pause until the dialog closes. Buttons that were already held when the dialog opened, such as the mine button, wait for a fresh press.
 
 `A`, `B`, `X` and `Y` mean the letters printed on your controller. Pick your controller's **Button Style** in `Alt+C`: choose Nintendo if A is on the right and B at the bottom (Switch-style and many 8BitDo pads). On PlayStation, `A` is ╳, `B` ○, `X` □ and `Y` △, and the shortcuts on screen show those symbols.
 
@@ -267,7 +267,7 @@ The manual dialog cancels itself after 90 seconds. Identical entries are not ded
 
 ### With a controller {#field-grouping-with-a-controller}
 
-With [controller support](/usage#controller-support) on, the dialog has its own controller layout, and each control shows its controller shortcut. Like the [media timing review](#with-a-controller), it works with or without keyboard-only mode, `A`/`B`/`X`/`Y` are the printed letters (set by **Button Style** in `Alt+C`), and a button already held when the dialog opens waits for a fresh press.
+With [controller support](/usage#controller-support) on, the dialog has its own controller layout, and each control shows its controller shortcut once SubMiner has seen a controller. Like the [media timing review](#with-a-controller), it works with or without keyboard-only mode, `A`/`B`/`X`/`Y` are the printed letters (set by **Button Style** in `Alt+C`), and a button already held when the dialog opens waits for a fresh press.
 
 | Controller         | Choosing the card                 | Merge preview           |
 | ------------------ | --------------------------------- | ----------------------- |
