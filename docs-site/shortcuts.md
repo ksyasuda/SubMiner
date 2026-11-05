@@ -62,6 +62,7 @@ Built into the overlay, not configurable:
 | Input                     | Action                                             |
 | ------------------------- | -------------------------------------------------- |
 | `V`                       | Cycle primary subtitle bar: hidden, visible, hover |
+| `C` (keyboard-only mode)  | Move by word or by character                       |
 | Right-click               | Pause or resume (outside the subtitle area)        |
 | Right-click + drag        | Move the subtitles                                 |
 | Drop files on the overlay | Replace the mpv playlist                           |

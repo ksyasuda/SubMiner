@@ -83,17 +83,6 @@ Anki must be running and logged in to AnkiWeb. Cards mined from the stats dashbo
 
 Templates can use `{show}`, `{season}`, `{episode}`, and `{ep}` (`S01E07`, or `E07` when there is no season). When a placeholder has no value, the tag stops before that `::` level, so a movie gets `show::<title>`. The parsing is a guess from the name: a title ending in a number, like `Mob Psycho 100`, reads that number as the episode.
 
-## Example: open Jimaku when a file has no Japanese subtitles
-
-[`assets/plugins/auto-jimaku`](https://github.com/ksyasuda/SubMiner/tree/main/assets/plugins/auto-jimaku) opens the Jimaku search a few seconds after a file starts if none of its subtitle tracks is Japanese. A track counts as Japanese when its language code is in `languages`, or its title contains "Japanese" or 日本語.
-
-| Setting     | Default               | What it does                                                    |
-| ----------- | --------------------- | --------------------------------------------------------------- |
-| `action`    | `"openJimaku"`        | Built-in action to run, e.g. `openTsukihime`                    |
-| `languages` | `["ja", "jp", "jpn"]` | Track language codes that count as Japanese                     |
-| `delayMs`   | `3000`                | Wait this long after the file starts, so external subs load     |
-| `streams`   | `false`               | Also check `http(s)` streams, which Jimaku usually can't search |
-
 ## Write a plugin
 
 A plugin folder needs a `plugin.json`:
