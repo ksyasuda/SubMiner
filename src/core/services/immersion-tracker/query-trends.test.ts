@@ -414,6 +414,23 @@ test('the watch time running total rounds its sum, so it ends on the summary tot
   });
 });
 
+test('the summary adds watch time in date order, so a total near .5 rounds like the chart', () => {
+  withDashboardDb((db) => {
+    const videoId = addVideo(db, 'Show', 1);
+    // Newest first these add up to 4.499999999999999, and oldest first to 4.5.
+    addRollup(db, TODAY - 2, videoId, { minutes: 0.1 });
+    addRollup(db, TODAY - 1, videoId, { minutes: 0.1 });
+    addRollup(db, TODAY, videoId, { minutes: 4.3 });
+
+    const dashboard = getTrendsDashboard(db, '7d', 'day');
+
+    assert.equal(
+      dashboard.summary.current.watchTimeMin,
+      dashboard.progress.watchTime.at(-1)?.value,
+    );
+  });
+});
+
 test('new words count a dictionary word once, on its first form, without names', () => {
   withDashboardDb((db) => {
     addWord(db, { headword: '言う', word: '言う', day: TODAY - 2, rank: 50 });

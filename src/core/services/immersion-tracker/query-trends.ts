@@ -686,17 +686,21 @@ export function getTrendsDashboard(
     };
   };
 
-  const bucketSum = [...totalsByBucket.values()].reduce<TrendTotals>(
-    (sum, totals) => ({
-      activeMin: sum.activeMin + totals.activeMin,
-      cards: sum.cards + totals.cards,
-      words: sum.words + totals.words,
-      lookups: sum.lookups + totals.lookups,
-      episodes: sum.episodes + totals.episodes,
-      newWords: sum.newWords + totals.newWords,
-    }),
-    emptyTotals(),
-  );
+  // In date order like the running totals: float addition depends on order, so a total
+  // near .5 could otherwise round differently here than where the chart ends.
+  const bucketSum = [...totalsByBucket.entries()]
+    .sort(([left], [right]) => left - right)
+    .reduce<TrendTotals>(
+      (sum, [, totals]) => ({
+        activeMin: sum.activeMin + totals.activeMin,
+        cards: sum.cards + totals.cards,
+        words: sum.words + totals.words,
+        lookups: sum.lookups + totals.lookups,
+        episodes: sum.episodes + totals.episodes,
+        newWords: sum.newWords + totals.newWords,
+      }),
+      emptyTotals(),
+    );
 
   const windowRollups = allDailyRollups.filter((row) => inWindow(row.rollupDayOrMonth));
   const windowSessions = sessionRows.filter((row) => inWindow(row.epochDay));
