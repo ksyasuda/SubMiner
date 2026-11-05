@@ -828,6 +828,7 @@ export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): S
 
   // One form matching is enough to relate a word, but its total and the form it shows
   // come from all its visible forms, so a rare form with the same reading can't stand in.
+  // The blank check lists its characters because SQL TRIM alone strips only ASCII spaces.
   return db
     .prepare(
       `
@@ -835,6 +836,7 @@ export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): S
       SELECT DISTINCT headword
       FROM imm_words
       WHERE headword != ? AND vocabulary_visible = 1
+      AND TRIM(headword, ' ' || char(9, 10, 13, 12288)) != ''
       AND (${clauses.join(' OR ')})
     ),
     forms AS (
