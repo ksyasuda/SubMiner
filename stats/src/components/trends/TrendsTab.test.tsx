@@ -5,7 +5,7 @@ import { parseDateDrafts } from './DateRangeSelector';
 import { HEATMAP_HOURS, heatmapCellOpacity } from './DayHourHeatmap';
 import { describePeriodChange, SummaryStrip } from './SummaryStrip';
 import { isDatalistSelection } from './TitleFilter';
-import { isIsolatedPoint } from './TrendChart';
+import { isIsolatedPoint, startFromZero } from './TrendChart';
 
 test('heatmap hours start at 06:00 so a late evening is not split across the axis', () => {
   assert.equal(HEATMAP_HOURS[0], 6);
@@ -57,6 +57,57 @@ test('SummaryStrip hides new words while filtered to a title and comparison on a
   assert.match(markup, /1\.5h/);
   assert.doesNotMatch(markup, /New words/);
   assert.doesNotMatch(markup, /previous/);
+});
+
+const SUMMARY_CURRENT = {
+  watchTimeMin: 210,
+  words: 15_900,
+  newWords: null,
+  cards: 35,
+  episodes: 11,
+  activeDays: 3,
+};
+const EMPTY_PERIOD = {
+  watchTimeMin: 0,
+  words: 0,
+  newWords: null,
+  cards: 0,
+  episodes: 0,
+  activeDays: 0,
+};
+
+test('SummaryStrip shows one note instead of repeating an empty previous period', () => {
+  const markup = renderToStaticMarkup(
+    <SummaryStrip days={30} summary={{ current: SUMMARY_CURRENT, previous: EMPTY_PERIOD }} />,
+  );
+  assert.equal(markup.match(/previous 30/g)?.length, 1);
+  assert.match(markup, /Not watched in the previous 30 days/);
+  assert.doesNotMatch(markup, /None in previous/);
+});
+
+test('SummaryStrip still compares each tile when the previous period has any activity', () => {
+  const markup = renderToStaticMarkup(
+    <SummaryStrip
+      days={30}
+      summary={{
+        current: SUMMARY_CURRENT,
+        previous: { ...EMPTY_PERIOD, watchTimeMin: 105, words: 7_950, activeDays: 1 },
+      }}
+    />,
+  );
+  assert.match(markup, /\+100% vs previous 30 days/);
+  assert.match(markup, /None in previous 30 days/);
+  assert.match(markup, /1 in previous 30/);
+  assert.doesNotMatch(markup, /Not watched/);
+});
+
+test('startFromZero leads a running total with a zero point', () => {
+  const points = [
+    { label: 'Oct 24', value: 106 },
+    { label: 'Oct 25', value: 155 },
+  ];
+  assert.deepEqual(startFromZero(points), [{ label: 'Start', value: 0 }, ...points]);
+  assert.deepEqual(startFromZero([]), []);
 });
 
 test('isIsolatedPoint is true only for a value with gaps on both sides', () => {

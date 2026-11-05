@@ -10,7 +10,7 @@ import { LibrarySummarySection } from './LibrarySummarySection';
 import { SummaryStrip } from './SummaryStrip';
 import { TitleFilter } from './TitleFilter';
 import { TitleTimeline } from './TitleTimeline';
-import { TrendChart } from './TrendChart';
+import { startFromZero, TrendChart } from './TrendChart';
 import {
   RUNNING_TOTAL_METRICS,
   loadGroupBy,
@@ -327,11 +327,11 @@ export function TrendsTab({
           </div>
           <TrendChart
             title={`${RUNNING_TOTAL_LABELS[activeRunningTotal]}, total since the start of this range`}
-            data={
+            data={startFromZero(
               isWatchTimeTotal
                 ? toHours(data.progress.watchTime)
-                : data.progress[activeRunningTotal]
-            }
+                : data.progress[activeRunningTotal],
+            )}
             color={RUNNING_TOTAL_COLORS[activeRunningTotal]}
             type="line"
             {...(isWatchTimeTotal

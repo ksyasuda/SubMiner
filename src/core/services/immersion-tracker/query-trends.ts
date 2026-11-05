@@ -628,16 +628,26 @@ export function getTrendsDashboard(
   const dataEnd = dataDays.length > 0 ? Math.max(...dataDays) : null;
   const axisStart = startDay ?? dataStart;
   const axisEnd = startDay === null ? dataEnd : endDay;
-  const buckets =
-    axisStart === null || axisEnd === null
-      ? []
-      : buildBuckets(axisStart, axisEnd, groupBy, fillEmptyBuckets ? null : activeKeys);
+  const calendarBuckets =
+    axisStart === null || axisEnd === null ? [] : buildBuckets(axisStart, axisEnd, groupBy, null);
+  const buckets = fillEmptyBuckets
+    ? calendarBuckets
+    : calendarBuckets.filter((bucket) => activeKeys.has(bucket.key));
+  // A running total's flat stretches show when nothing happened, so hiding empty days
+  // from the activity charts doesn't apply to it.
+  const runningTotalBuckets = buckets.length > 0 ? calendarBuckets : [];
 
-  const series = (pick: (totals: TrendTotals) => number): TrendChartPoint[] =>
-    buckets.map((bucket) => {
+  const series = (
+    pick: (totals: TrendTotals) => number,
+    axis: Array<{ key: number; label: string }> = buckets,
+  ): TrendChartPoint[] =>
+    axis.map((bucket) => {
       const totals = totalsByBucket.get(bucket.key);
       return { label: bucket.label, value: totals ? pick(totals) : 0 };
     });
+  const runningTotal = (pick: (totals: TrendTotals) => number): TrendChartPoint[] =>
+    accumulatePoints(series(pick, runningTotalBuckets));
+  const watchMinutes = (totals: TrendTotals): number => Math.round(totals.activeMin);
 
   const rateSeries = (
     numerator: (totals: TrendTotals) => number,
@@ -703,7 +713,7 @@ export function getTrendsDashboard(
   const reportedWindow = { startDay: axisStart ?? endDay, endDay: axisEnd ?? endDay };
 
   const activity = {
-    watchTime: series((totals) => Math.round(totals.activeMin)),
+    watchTime: series(watchMinutes),
     cards: series((totals) => totals.cards),
     words: series((totals) => totals.words),
     episodes: series((totals) => totals.episodes),
@@ -729,12 +739,12 @@ export function getTrendsDashboard(
     },
     activity,
     progress: {
-      watchTime: accumulatePoints(activity.watchTime),
-      words: accumulatePoints(activity.words),
-      newWords: title === null ? accumulatePoints(series((totals) => totals.newWords)) : [],
-      cards: accumulatePoints(activity.cards),
-      episodes: accumulatePoints(activity.episodes),
-      lookups: accumulatePoints(series((totals) => totals.lookups)),
+      watchTime: runningTotal(watchMinutes),
+      words: runningTotal((totals) => totals.words),
+      newWords: title === null ? runningTotal((totals) => totals.newWords) : [],
+      cards: runningTotal((totals) => totals.cards),
+      episodes: runningTotal((totals) => totals.episodes),
+      lookups: runningTotal((totals) => totals.lookups),
     },
     ratios: {
       lookupsPerHundred: rateSeries(

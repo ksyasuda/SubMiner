@@ -17,7 +17,8 @@ Trend charts now consume one chart-oriented backend payload from `/api/stats/tre
 - A range resolves to calendar days (`resolveTrendWindow`). Rollups are selected by day span, never by "last N rows", so sparse activity cannot pull older days into a range. Custom ranges are `{ startDay, endDay }` from `range=custom&fromDay&toDay`.
 - `all` spans the recorded data, not today.
 - Day and week buckets read daily rollups. Month buckets read monthly rollups for months wholly in range, because the `minimal` and `deep-history` retention presets prune daily rollups first, and daily rollups for a partly covered month. Weeks start on Monday.
-- `buckets` is the one axis for `activity`, `progress`, and `ratios`, index for index. Charts use it to map a clicked bar back to its days.
+- `buckets` is the one axis for `activity` and `ratios`, index for index. Charts use it to map a clicked bar back to its days.
+- `progress` keeps every period of the window even when empty days are hidden, so it has its own labels and isn't index-aligned with `buckets` in that case. Each point is the total at the end of its period, and the chart adds the zero starting point.
 
 ## Data Sources
 

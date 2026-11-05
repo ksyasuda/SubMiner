@@ -457,7 +457,7 @@ export interface LibrarySummaryRow {
 export interface TrendsDashboardData {
   /** The days the dashboard covers. For `all` this is the span of recorded data. */
   window: { startDay: number; endDay: number };
-  /** Axis shared by the `activity`, `progress`, and `ratios` series, index for index. */
+  /** Axis shared by the `activity` and `ratios` series, index for index. */
   buckets: TrendBucket[];
   summary: {
     current: TrendSummaryTotals;
@@ -470,7 +470,10 @@ export interface TrendsDashboardData {
     words: TrendChartPoint[];
     episodes: TrendChartPoint[];
   };
-  /** Running totals that start at zero on the first day of `window`. */
+  /**
+   * Running totals counted from the start of `window`, each point the total at the end of
+   * its period. These keep every period of `window`, even when empty days are hidden.
+   */
   progress: {
     watchTime: TrendChartPoint[];
     words: TrendChartPoint[];

@@ -38,6 +38,16 @@ export function isIsolatedPoint(values: ReadonlyArray<number | null>, index: num
   );
 }
 
+/**
+ * Leads a running total with zero. Each point is the total at the end of its period, so
+ * without this the line would begin at the first day's whole total.
+ */
+export function startFromZero<T extends { label: string; value: number }>(
+  points: T[],
+): Array<T | { label: string; value: number }> {
+  return points.length > 0 ? [{ label: 'Start', value: 0 }, ...points] : points;
+}
+
 export function TrendChart({
   title,
   data,

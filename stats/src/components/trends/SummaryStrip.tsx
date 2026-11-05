@@ -31,8 +31,15 @@ export function describePeriodChange(
   return `${percent > 0 ? '+' : '\u2212'}${Math.abs(percent)}% vs ${period}`;
 }
 
+function isEmptyPeriod(totals: TrendSummaryTotals): boolean {
+  return totals.activeDays === 0 && TILES.every(({ key }) => !totals[key]);
+}
+
 export function SummaryStrip({ summary, days }: SummaryStripProps) {
-  const { current, previous } = summary;
+  const { current } = summary;
+  // An empty period gets one note, because the same sentence on every tile reads as missing data.
+  const previousIsEmpty = summary.previous !== null && isEmptyPeriod(summary.previous);
+  const previous = previousIsEmpty ? null : summary.previous;
   return (
     <section
       aria-label="Period summary"
@@ -58,6 +65,11 @@ export function SummaryStrip({ summary, days }: SummaryStripProps) {
         value={formatNumber(current.activeDays)}
         detail={previous ? `${formatNumber(previous.activeDays)} in previous ${days}` : null}
       />
+      {previousIsEmpty ? (
+        <p className="col-span-full text-[11px] text-ctp-overlay2">
+          Not watched in the previous {days} day{days === 1 ? '' : 's'}
+        </p>
+      ) : null}
     </section>
   );
 }

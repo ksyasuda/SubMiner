@@ -1,7 +1,7 @@
 type: changed
 area: stats
 
-- Rebuilt the Trends tab: summary totals with period comparison, a Learning section (new words per 1,000 seen, new words by frequency rank), a day and hour heatmap, a title timeline, and a single running-total chart with a metric switcher. These replace the seven cumulative charts, the Sessions chart, the day-of-week and hour charts, the four overlapping per-title charts, and the top titles chart.
+- Rebuilt the Trends tab: summary totals with period comparison, a Learning section (new words per 1,000 seen, new words by frequency rank), a day and hour heatmap, a title timeline, and a single running-total chart with a metric switcher that climbs from zero and keeps empty days. These replace the seven cumulative charts, the Sessions chart, the day-of-week and hour charts, the four overlapping per-title charts, and the top titles chart.
 - Added week grouping, custom date ranges, a title filter for the whole page, and click-through from charts to sessions and from titles to their library page. Range and grouping are remembered, and changing them no longer blanks the page or loses your scroll position.
 - Fixed the Library section including days outside the selected range, so its totals now match Activity.
 - Fixed episode counts: Trends now counts finished episodes, each once, instead of counting a video again for every day it was opened.
