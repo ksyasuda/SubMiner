@@ -729,7 +729,11 @@ export function getTrendsDashboard(
     },
     activity,
     progress: {
-      watchTime: accumulatePoints(activity.watchTime),
+      // Rounded after summing, so rounding each day's minutes can't drift from the summary total.
+      watchTime: accumulatePoints(series((totals) => totals.activeMin)).map((point) => ({
+        ...point,
+        value: Math.round(point.value),
+      })),
       words: accumulatePoints(activity.words),
       newWords: title === null ? accumulatePoints(series((totals) => totals.newWords)) : [],
       cards: accumulatePoints(activity.cards),

@@ -393,6 +393,27 @@ test('running totals follow the activity charts when empty days are hidden', () 
   });
 });
 
+test('the watch time running total rounds its sum, so it ends on the summary total', () => {
+  withDashboardDb((db) => {
+    const videoId = addVideo(db, 'Show', 1);
+    addRollup(db, TODAY - 2, videoId, { minutes: 10.4 });
+    addRollup(db, TODAY - 1, videoId, { minutes: 10.4 });
+    addRollup(db, TODAY, videoId, { minutes: 10.4 });
+
+    const dashboard = getTrendsDashboard(db, '7d', 'day', false);
+
+    assert.deepEqual(
+      dashboard.activity.watchTime.map((point) => point.value),
+      [10, 10, 10],
+    );
+    assert.deepEqual(
+      dashboard.progress.watchTime.map((point) => point.value),
+      [10, 21, 31],
+    );
+    assert.equal(dashboard.summary.current.watchTimeMin, 31);
+  });
+});
+
 test('new words count a dictionary word once, on its first form, without names', () => {
   withDashboardDb((db) => {
     addWord(db, { headword: '言う', word: '言う', day: TODAY - 2, rank: 50 });
