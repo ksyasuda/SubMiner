@@ -836,7 +836,7 @@ export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): S
       SELECT DISTINCT headword
       FROM imm_words
       WHERE headword != ? AND vocabulary_visible = 1
-      AND TRIM(headword, ' ' || char(9, 10, 13, 12288)) != ''
+      AND TRIM(headword, ' ' || char(9, 10, 11, 12, 13, 12288)) != ''
       AND (${clauses.join(' OR ')})
     ),
     forms AS (

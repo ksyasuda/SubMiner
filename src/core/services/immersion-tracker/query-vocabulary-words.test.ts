@@ -526,7 +526,7 @@ test('related words show the same form when a word has tied top forms', () => {
 test('related words leave out rows with a blank headword', () => {
   withDb((db) => {
     const form = addWord(db, { headword: '見る', word: '見て', reading: 'みて', seen: 10 });
-    for (const [index, headword] of ['', '  ', '\t', '　'].entries()) {
+    for (const [index, headword] of ['', '  ', '\t', '\v', '\f', '　'].entries()) {
       addWord(db, { headword, word: `空${index}`, reading: 'みて', seen: 50 });
     }
     addWord(db, { headword: '満ちる', word: '満ちて', reading: 'みて', seen: 1 });
