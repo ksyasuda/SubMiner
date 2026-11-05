@@ -16,7 +16,10 @@ export function resolveControllerConfigForGamepad(
   if (!profile) return config;
   return {
     ...config,
+    faceButtonLabels: profile.faceButtonLabels ?? config.faceButtonLabels,
     buttonIndices: profile.buttonIndices,
     bindings: profile.bindings,
+    reviewBindings: profile.reviewBindings ?? config.reviewBindings,
+    fieldGroupingBindings: profile.fieldGroupingBindings ?? config.fieldGroupingBindings,
   };
 }

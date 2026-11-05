@@ -105,7 +105,7 @@ test('getTrendsDashboard accepts 365d range and builds correct URL', async () =>
         },
         ratios: { lookupsPerHundred: [] },
         librarySummary: [],
-        animeCumulative: { watchTime: [], episodes: [], cards: [], words: [] },
+        animeDaily: { watchTime: [], episodes: [], cards: [], words: [] },
         patterns: { watchTimeByDayOfWeek: [], watchTimeByHour: [] },
       }),
     async (requests) => {

@@ -24,10 +24,12 @@ import type {
   SubtitlePosition,
   SubsyncManualPayload,
   ConfigHotReloadPayload,
+  ResolvedControllerConfig,
 } from '../types';
 import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import { createKeyboardHandlers } from './handlers/keyboard.js';
 import { createGamepadController } from './handlers/gamepad-controller.js';
+import { createControllerPressReplay } from './handlers/controller-press-replay.js';
 import { createMouseHandlers } from './handlers/mouse.js';
 import { createControllerStatusIndicator } from './controller-status-indicator.js';
 import { createControllerDebugModal } from './modals/controller-debug.js';
@@ -50,6 +52,22 @@ import { createSubsyncModal } from './modals/subsync.js';
 import { createSubtitleGenerationModal } from './modals/subtitle-generation.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
 import { createMediaTimingReviewModal } from './modals/media-timing-review.js';
+import {
+  createMediaTimingReviewControllerLayout,
+  formatMediaTimingReviewControllerHints,
+} from './handlers/media-timing-review-controller.js';
+import { resolveControllerConfigForGamepad } from './controller-profile-config.js';
+import { dispatchConfiguredMpvCommand } from './utils/mpv-command-dispatch.js';
+import { createKeyboardModeAutoPause } from './keyboard-mode-auto-pause.js';
+import { getDefaultControllerReviewBindings } from '../shared/controller-review';
+import {
+  CONTROLLER_FIELD_GROUPING_SCREEN,
+  getDefaultControllerFieldGroupingBindings,
+} from '../shared/controller-field-grouping';
+import {
+  createControllerComboScreenLayout,
+  formatControllerScreenHints,
+} from './handlers/controller-screen-layout.js';
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
@@ -251,7 +269,9 @@ const controllerDebugModal = createControllerDebugModal(ctx, {
   syncSettingsModalSubtitleSuppression,
   notifyControllerDisabled: showControllerDisabledNotice,
 });
-const controllerStatusIndicator = createControllerStatusIndicator(ctx.dom);
+const controllerStatusIndicator = createControllerStatusIndicator((message) => {
+  window.electronAPI.notifyControllerStatus(message);
+});
 const sessionHelpModal = createSessionHelpModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -311,7 +331,29 @@ const mediaTimingReviewModal = createMediaTimingReviewModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const mediaTimingReviewControllerLayout = createMediaTimingReviewControllerLayout({
+  getStep: () => mediaTimingReviewModal.getControllerStep(),
+  dispatch: (action) => {
+    mediaTimingReviewModal.handleControllerAction(action);
+  },
+});
+const fieldGroupingControllerLayout = createControllerComboScreenLayout({
+  screen: CONTROLLER_FIELD_GROUPING_SCREEN,
+  getBindings: (config) => config.fieldGroupingBindings,
+  getStep: () => kikuModal.getControllerStep(),
+  dispatch: (action) => {
+    kikuModal.handleControllerAction(action);
+  },
+});
+const keyboardModeAutoPause = createKeyboardModeAutoPause({
+  isEnabled: () => ctx.state.autoPauseVideoOnKeyboardMode,
+  getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
+  sendMpvCommand: (command) => window.electronAPI.sendMpvCommand(command),
+});
 const keyboardHandlers = createKeyboardHandlers(ctx, {
+  onKeyboardDrivenModeChanged: (enabled) => {
+    void keyboardModeAutoPause.handleModeChanged(enabled);
+  },
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
   handleSubtitleSelectionKeydown: subtitleSelectionModal.handleKeydown,
@@ -355,6 +397,7 @@ let lastSubtitlePreview = '';
 let lastSecondarySubtitlePreview = '';
 let overlayErrorToastTimeout: ReturnType<typeof setTimeout> | null = null;
 let controllerAnimationFrameId: number | null = null;
+const controllerPressReplay = createControllerPressReplay();
 
 function truncateForErrorLog(text: string): string {
   const normalized = text.replace(/\s+/g, ' ').trim();
@@ -389,22 +432,88 @@ function applyControllerSnapshot(snapshot: {
   rawAxes: number[];
   rawButtons: Array<{ value: number; pressed: boolean; touched?: boolean }>;
 }): void {
-  controllerStatusIndicator.update({
-    connectedGamepads: snapshot.connectedGamepads,
-    activeGamepadId: snapshot.activeGamepadId,
-  });
+  // Modal windows are fresh documents that only see the pad after a press; announcing
+  // that as "Controller connected" on every dialog reads like a reconnection. Polling also
+  // runs with controller support off, where a system notification would just be noise.
+  if (!ctx.platform.isModalLayer && ctx.state.controllerConfig?.enabled === true) {
+    controllerStatusIndicator.update({
+      connectedGamepads: snapshot.connectedGamepads,
+      activeGamepadId: snapshot.activeGamepadId,
+    });
+  }
   ctx.state.connectedGamepads = snapshot.connectedGamepads;
   ctx.state.activeGamepadId = snapshot.activeGamepadId;
+  // Alt+C opens in its own window that cannot see a pad until a press there; it asks main
+  // which controller the overlay is reading so it can preview the right one.
+  if (!ctx.platform.isModalLayer && snapshot.activeGamepadId !== reportedActiveControllerId) {
+    reportedActiveControllerId = snapshot.activeGamepadId;
+    window.electronAPI.reportActiveController?.(snapshot.activeGamepadId);
+  }
   ctx.state.controllerRawAxes = snapshot.rawAxes;
   ctx.state.controllerRawButtons = snapshot.rawButtons;
   controllerSelectModal.updateDevices();
   controllerDebugModal.updateSnapshot();
+  // Shown whenever controller support is on: a fresh dialog window cannot see the pad
+  // until its first press, so "connected" would hide the hints exactly when needed.
+  const controllerConfig = ctx.state.controllerConfig;
+  const hintsVisible = controllerConfig?.enabled === true;
+  mediaTimingReviewModal.setControllerHintsVisible(hintsVisible);
+  kikuModal.setControllerHintsVisible(hintsVisible);
+  if (
+    !controllerConfig ||
+    !hintsVisible ||
+    (!ctx.state.mediaTimingReviewModalOpen && !ctx.state.kikuModalOpen)
+  ) {
+    return;
+  }
+  // Before the dialog window has seen the pad, use the saved controller's bindings.
+  const gamepadId = snapshot.activeGamepadId ?? controllerConfig.preferredGamepadId;
+  const mapping =
+    snapshot.connectedGamepads.find((device) => device.id === snapshot.activeGamepadId)?.mapping ??
+    'standard';
+  const padConfig = resolveControllerConfigForGamepad(controllerConfig, gamepadId);
+  if (ctx.state.mediaTimingReviewModalOpen) {
+    mediaTimingReviewModal.setControllerHints(
+      formatMediaTimingReviewControllerHints(padConfig, mapping),
+    );
+  }
+  if (ctx.state.kikuModalOpen) {
+    kikuModal.setControllerHints(
+      formatControllerScreenHints(
+        CONTROLLER_FIELD_GROUPING_SCREEN,
+        padConfig.fieldGroupingBindings,
+        padConfig,
+        mapping,
+      ),
+    );
+  }
 }
 
+/**
+ * While Alt+C is open, its window reads the controller selected there instead of the saved
+ * one, so Learn hears the pad being configured when several are connected.
+ */
+function withAltCSelectedController(config: ResolvedControllerConfig): ResolvedControllerConfig {
+  const selectedId = ctx.state.controllerSelectModalOpen
+    ? ctx.state.controllerSelectGamepadId
+    : null;
+  return selectedId ? { ...config, preferredGamepadId: selectedId } : config;
+}
+
+let reportedActiveControllerId: string | null | undefined;
+
 function showControllerDisabledNotice(): void {
-  controllerStatusIndicator.show(
+  window.electronAPI.notifyControllerStatus(
     'Controller support disabled. Set controller.enabled to true in config to use controller tools.',
   );
+}
+
+/** A paused video stays paused after the jump, as with the keyboard shortcut. */
+function seekSubtitleForController(delta: -1 | 1): void {
+  void dispatchConfiguredMpvCommand(['sub-seek', delta], {
+    getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
+    sendMpvCommand: (command) => window.electronAPI.sendMpvCommand(command),
+  });
 }
 
 function emitControllerPopupScroll(deltaPixels: number): void {
@@ -424,53 +533,63 @@ function startControllerPolling(): void {
   }
 
   const gamepadController = createGamepadController({
-    getGamepads: () => Array.from(navigator.getGamepads?.() ?? []),
+    getGamepads: () =>
+      controllerPressReplay.apply(Array.from(navigator.getGamepads?.() ?? []), performance.now()),
     getConfig: () =>
-      ctx.state.controllerConfig ?? {
-        enabled: false,
-        preferredGamepadId: '',
-        preferredGamepadLabel: '',
-        smoothScroll: true,
-        scrollPixelsPerSecond: 900,
-        horizontalJumpPixels: 160,
-        stickDeadzone: 0.2,
-        triggerInputMode: 'auto',
-        triggerDeadzone: 0.5,
-        repeatDelayMs: 320,
-        repeatIntervalMs: 120,
-        buttonIndices: {
-          select: 6,
-          buttonSouth: 0,
-          buttonEast: 1,
-          buttonWest: 2,
-          buttonNorth: 3,
-          leftShoulder: 4,
-          rightShoulder: 5,
-          leftStickPress: 9,
-          rightStickPress: 10,
-          leftTrigger: 6,
-          rightTrigger: 7,
+      withAltCSelectedController(
+        ctx.state.controllerConfig ?? {
+          enabled: false,
+          preferredGamepadId: '',
+          preferredGamepadLabel: '',
+          smoothScroll: true,
+          scrollPixelsPerSecond: 900,
+          horizontalJumpPixels: 160,
+          stickDeadzone: 0.2,
+          triggerInputMode: 'auto',
+          triggerDeadzone: 0.5,
+          faceButtonLabels: 'xbox',
+          repeatDelayMs: 320,
+          repeatIntervalMs: 120,
+          buttonIndices: {
+            select: 6,
+            buttonSouth: 0,
+            buttonEast: 1,
+            buttonWest: 2,
+            buttonNorth: 3,
+            leftShoulder: 4,
+            rightShoulder: 5,
+            leftStickPress: 9,
+            rightStickPress: 10,
+            leftTrigger: 6,
+            rightTrigger: 7,
+          },
+          bindings: {
+            toggleLookup: { kind: 'button', buttonIndex: 0 },
+            closeLookup: { kind: 'button', buttonIndex: 1 },
+            toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+            mineCard: { kind: 'button', buttonIndex: 2 },
+            quitMpv: { kind: 'button', buttonIndex: 6 },
+            previousAudio: { kind: 'none' },
+            nextAudio: { kind: 'button', buttonIndex: 5 },
+            playCurrentAudio: { kind: 'button', buttonIndex: 4 },
+            toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+            holdSecondarySub: { kind: 'none' },
+            previousEntry: { kind: 'none' },
+            nextEntry: { kind: 'none' },
+            previousSubtitle: { kind: 'none' },
+            nextSubtitle: { kind: 'none' },
+            replaySubtitle: { kind: 'none' },
+            playNextSubtitle: { kind: 'none' },
+            leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
+            leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
+            rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+            rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
+          },
+          reviewBindings: getDefaultControllerReviewBindings(),
+          fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
+          profiles: {},
         },
-        bindings: {
-          toggleLookup: { kind: 'button', buttonIndex: 0 },
-          closeLookup: { kind: 'button', buttonIndex: 1 },
-          toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
-          mineCard: { kind: 'button', buttonIndex: 2 },
-          quitMpv: { kind: 'button', buttonIndex: 6 },
-          previousAudio: { kind: 'none' },
-          nextAudio: { kind: 'button', buttonIndex: 5 },
-          playCurrentAudio: { kind: 'button', buttonIndex: 4 },
-          toggleMpvPause: { kind: 'button', buttonIndex: 9 },
-          holdSecondarySub: { kind: 'none' },
-          previousEntry: { kind: 'none' },
-          nextEntry: { kind: 'none' },
-          leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
-          leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
-          rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
-          rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
-        },
-        profiles: {},
-      },
+      ),
     getKeyboardModeEnabled: () => ctx.state.keyboardDrivenModeEnabled,
     getLookupWindowOpen: () => isLookupPopupOpen(ctx.state, document),
     getInteractionBlocked: () => isControllerInputBlocked(),
@@ -487,6 +606,19 @@ function startControllerPolling(): void {
     },
     quitMpv: () => {
       window.electronAPI.sendMpvCommand(['quit']);
+    },
+    // Same as Shift+H / Shift+L and Ctrl+Shift+H / Ctrl+Shift+L.
+    previousSubtitle: () => {
+      seekSubtitleForController(-1);
+    },
+    nextSubtitle: () => {
+      seekSubtitleForController(1);
+    },
+    replaySubtitle: () => {
+      void window.electronAPI.dispatchSessionAction('replayCurrentSubtitle');
+    },
+    playNextSubtitle: () => {
+      void window.electronAPI.dispatchSessionAction('playNextSubtitle');
     },
     previousAudio: () => {
       keyboardHandlers.cyclePopupAudioSourceForController(-1);
@@ -519,6 +651,18 @@ function startControllerPolling(): void {
     onState: (snapshot) => {
       applyControllerSnapshot(snapshot);
     },
+    getScreenLayout: () =>
+      ctx.state.mediaTimingReviewModalOpen
+        ? mediaTimingReviewControllerLayout
+        : ctx.state.kikuModalOpen
+          ? fieldGroupingControllerLayout
+          : null,
+    // macOS and Windows keep the modal window's renderer alive while hidden, and it keeps
+    // polling. It only owns the controller with a modal open; otherwise every press would run
+    // here and in the main overlay.
+    getSuspended: () =>
+      ctx.state.controllerSuspendedByModalWindow ||
+      (ctx.platform.isModalLayer && !isAnyModalOpen()),
   });
 
   const poll = (now: number): void => {
@@ -719,6 +863,29 @@ function registerKeyboardCommandHandlers(): void {
     runGuarded('session:numeric-selection-start', () => {
       keyboardHandlers.beginSessionNumericSelection(payload.actionId, payload.timeoutMs);
     });
+  });
+
+  window.electronAPI.onControllerSuspendedChanged((suspended: boolean) => {
+    ctx.state.controllerSuspendedByModalWindow = suspended;
+  });
+
+  window.electronAPI.onPlaybackPauseChanged((paused: boolean) => {
+    keyboardModeAutoPause.handlePlaybackPauseChanged(paused);
+  });
+
+  // macOS: replay a press made while mpv was in front; main has just focused this window.
+  window.electronAPI.onControllerBackgroundPress((buttonIndex) => {
+    if (buttonIndex >= 0) controllerPressReplay.queue(buttonIndex, performance.now());
+  });
+
+  // Alt+C saves in its own window; pick up remaps and the button style without a restart.
+  window.electronAPI.onControllerConfigChanged(() => {
+    window.electronAPI
+      .getControllerConfig()
+      .then((config) => {
+        ctx.state.controllerConfig = config;
+      })
+      .catch((error: unknown) => console.error('Could not reload controller config', error));
   });
 
   window.electronAPI.onKeyboardModeToggleRequested(() => {

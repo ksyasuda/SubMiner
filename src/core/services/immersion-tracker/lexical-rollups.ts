@@ -19,8 +19,9 @@ const LOCAL_EPOCH_DAY_SQL = `
 `;
 
 // v3 re-derives visibility for rows a re-seen word forced visible and repairs
-// last_seen values left behind by session deletes.
-const LEXICAL_DAILY_ROLLUP_VERSION = '3';
+// last_seen values left behind by session deletes. v4 re-derives visibility for
+// rows vocabulary cleanup repaired without updating it.
+const LEXICAL_DAILY_ROLLUP_VERSION = '4';
 const LEXICAL_DAILY_ROLLUP_VERSION_KEY = 'lexical_daily_rollups_version';
 const VOCABULARY_VISIBILITY_SCAN_BATCH_SIZE = 5_000;
 

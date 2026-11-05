@@ -8,6 +8,7 @@ const HOT_RELOAD_ROOTS = [
   'shortcuts',
   'subtitleSidebar',
   'subtitleSelection',
+  'subtitleFilter',
 ] as const;
 
 const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [

@@ -275,13 +275,14 @@ export function createMouseHandlers(
       return;
     }
 
-    const requestId = ++popupPauseRequestId;
     if (pausedByYomitanPopup) return;
+    const requestId = ++popupPauseRequestId;
 
+    // The popup takes over the hover pause so that closing it owns the resume. A pause toggle
+    // can resume playback without clearing the hover flag, so mpv still decides below.
     if (pausedBySubtitleHover) {
       pausedBySubtitleHover = false;
       pausedByYomitanPopup = true;
-      return;
     }
 
     let paused: boolean | null = null;
@@ -442,16 +443,17 @@ export function createMouseHandlers(
   }
 
   function setupPointerTracking(): void {
-    document.addEventListener('mousemove', (event: MouseEvent) => {
+    // The lookup's fallback scan dispatches untrusted events on the selected word, which say
+    // nothing about where the cursor is. Counting them as hover pauses playback until the next
+    // real pointer move.
+    const trackPointer = (event: MouseEvent | PointerEvent): void => {
+      if (!event.isTrusted) return;
       updatePointerPosition(event);
       syncHoverStateFromTrackedPointer(event);
       maybeResyncPointerHoverState(event);
-    });
-    document.addEventListener('pointermove', (event: PointerEvent) => {
-      updatePointerPosition(event);
-      syncHoverStateFromTrackedPointer(event);
-      maybeResyncPointerHoverState(event);
-    });
+    };
+    document.addEventListener('mousemove', trackPointer);
+    document.addEventListener('pointermove', trackPointer);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') {
         return;
@@ -505,7 +507,10 @@ export function createMouseHandlers(
 
     window.addEventListener(YOMITAN_POPUP_MOUSE_LEAVE_EVENT, () => {
       ctx.state.isOverYomitanPopup = false;
-      reconcilePopupInteraction({ assumeVisible: true });
+      // A popup that hides under a resting pointer also reports a leave, right after its
+      // hidden event. Only keep a popup marked open if it still was; otherwise the next
+      // keyboard or controller word move would look it up again and reopen it.
+      reconcilePopupInteraction({ assumeVisible: yomitanPopupVisible });
     });
 
     window.addEventListener('focus', () => {

@@ -20,6 +20,8 @@ type ConfigHotReloadAppliedDeps = {
   invalidateTokenizationCache?: () => void;
   refreshSubtitlePrefetch?: () => void;
   refreshCurrentSubtitle?: () => void;
+  /** Re-reads the live line and re-parses the active cue list through the new filters. */
+  refreshSubtitleFilter?: () => void;
   setLogLevel?: (level: ResolvedConfig['logging']['level']) => void;
   setLogRotation?: (rotation: ResolvedConfig['logging']['rotation']) => void;
   setLogFileToggles?: (files: ResolvedConfig['logging']['files']) => void;
@@ -178,6 +180,10 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
     const ankiPatch = buildAnkiRuntimeConfigPatch(diff, config);
     if (ankiPatch) {
       deps.applyAnkiRuntimeConfigPatch(ankiPatch);
+    }
+
+    if (diff.hotReloadFields.includes('subtitleFilter')) {
+      deps.refreshSubtitleFilter?.();
     }
 
     if (hasAnnotationRuntimeHotReload(diff)) {

@@ -176,6 +176,11 @@ export type ControllerButtonBinding =
 
 export type ControllerAxisBinding = 'leftStickX' | 'leftStickY' | 'rightStickX' | 'rightStickY';
 export type ControllerTriggerInputMode = 'auto' | 'digital' | 'analog';
+/**
+ * Face button style: Xbox (A at the bottom), Nintendo (A on the right) or PlayStation
+ * (╳ at the bottom, laid out like Xbox). Decides button names and where letters land.
+ */
+export type ControllerFaceButtonLabels = 'xbox' | 'nintendo' | 'playstation';
 export type ControllerAxisDirection = 'negative' | 'positive';
 export type ControllerDpadFallback = 'none' | 'horizontal' | 'vertical';
 
@@ -237,6 +242,10 @@ export interface ControllerBindingsConfig {
   holdSecondarySub?: ControllerDiscreteBindingConfig;
   previousEntry?: ControllerDiscreteBindingConfig;
   nextEntry?: ControllerDiscreteBindingConfig;
+  previousSubtitle?: ControllerDiscreteBindingConfig;
+  nextSubtitle?: ControllerDiscreteBindingConfig;
+  replaySubtitle?: ControllerDiscreteBindingConfig;
+  playNextSubtitle?: ControllerDiscreteBindingConfig;
   leftStickHorizontal?: ControllerAxisBindingConfig;
   leftStickVertical?: ControllerAxisBindingConfig;
   rightStickHorizontal?: ControllerAxisBindingConfig;
@@ -256,6 +265,10 @@ export interface ResolvedControllerBindingsConfig {
   holdSecondarySub?: ResolvedControllerDiscreteBinding;
   previousEntry?: ResolvedControllerDiscreteBinding;
   nextEntry?: ResolvedControllerDiscreteBinding;
+  previousSubtitle?: ResolvedControllerDiscreteBinding;
+  nextSubtitle?: ResolvedControllerDiscreteBinding;
+  replaySubtitle?: ResolvedControllerDiscreteBinding;
+  playNextSubtitle?: ResolvedControllerDiscreteBinding;
   leftStickHorizontal?: ResolvedControllerAxisBinding;
   leftStickVertical?: ResolvedControllerAxisBinding;
   rightStickHorizontal?: ResolvedControllerAxisBinding;
@@ -276,16 +289,100 @@ export interface ControllerButtonIndicesConfig {
   rightTrigger?: number;
 }
 
+/** Every button on the media timing review dialog, named by what it does. */
+export type ControllerReviewAction =
+  | 'confirm'
+  | 'cancel'
+  | 'play'
+  | 'resetTiming'
+  | 'showEarlier'
+  | 'showLater'
+  | 'framePrevious'
+  | 'frameNext'
+  | 'frameReset'
+  | 'startBack'
+  | 'startForward'
+  | 'previousLineAdd'
+  | 'previousLineRemove'
+  | 'endBack'
+  | 'endForward'
+  | 'nextLineAdd'
+  | 'nextLineRemove'
+  | 'useOriginal'
+  | 'keepEditing'
+  | 'skipMedia'
+  | 'discard';
+
+/** Every button on the duplicate-card field grouping dialog, named by what it does. */
+export type ControllerFieldGroupingAction =
+  | 'selectOriginal'
+  | 'selectNew'
+  | 'toggleDeleteDuplicate'
+  | 'continue'
+  | 'cancel'
+  | 'confirmMerge'
+  | 'back'
+  | 'cancelMerge'
+  | 'toggleView'
+  | 'scrollUp'
+  | 'scrollDown';
+
+export type ControllerFaceLetter = 'a' | 'b' | 'x' | 'y';
+export type ControllerDpadDirection = 'left' | 'right' | 'up' | 'down';
+
+/**
+ * One input in a review binding. `button` and `axis` are raw indices recorded by Learn;
+ * `face` (printed letter, via `faceButtonLabels`) and `dpad` (any D-pad report) keep the
+ * defaults working on every controller layout.
+ */
+export type ControllerReviewInput =
+  | { kind: 'button'; buttonIndex: number }
+  | { kind: 'axis'; axisIndex: number; direction: ControllerAxisDirection }
+  | { kind: 'face'; letter: ControllerFaceLetter }
+  | { kind: 'dpad'; direction: ControllerDpadDirection };
+
+/** Press `press`, optionally while holding `hold`. */
+export type ControllerReviewBindingConfig =
+  | { kind: 'none' }
+  | { kind?: 'combo'; press: ControllerReviewInput; hold?: ControllerReviewInput | null };
+
+export type ResolvedControllerReviewBinding =
+  | { kind: 'none' }
+  | { kind: 'combo'; press: ControllerReviewInput; hold: ControllerReviewInput | null };
+
+export type ControllerReviewBindingsConfig = Partial<
+  Record<ControllerReviewAction, ControllerReviewBindingConfig>
+>;
+export type ResolvedControllerReviewBindings = Record<
+  ControllerReviewAction,
+  ResolvedControllerReviewBinding
+>;
+
+export type ControllerFieldGroupingBindingsConfig = Partial<
+  Record<ControllerFieldGroupingAction, ControllerReviewBindingConfig>
+>;
+export type ResolvedControllerFieldGroupingBindings = Record<
+  ControllerFieldGroupingAction,
+  ResolvedControllerReviewBinding
+>;
+
 export interface ControllerProfileConfig {
   label?: string;
+  /** Overrides `controller.faceButtonLabels` for this controller; set from Alt+C. */
+  faceButtonLabels?: ControllerFaceButtonLabels;
   buttonIndices?: ControllerButtonIndicesConfig;
   bindings?: ControllerBindingsConfig;
+  reviewBindings?: ControllerReviewBindingsConfig;
+  fieldGroupingBindings?: ControllerFieldGroupingBindingsConfig;
 }
 
 export interface ResolvedControllerProfileConfig {
   label: string;
+  faceButtonLabels: ControllerFaceButtonLabels;
   buttonIndices: Required<ControllerButtonIndicesConfig>;
   bindings: Required<ResolvedControllerBindingsConfig>;
+  reviewBindings: ResolvedControllerReviewBindings;
+  fieldGroupingBindings: ResolvedControllerFieldGroupingBindings;
 }
 
 export interface ControllerConfig {
@@ -297,11 +394,14 @@ export interface ControllerConfig {
   horizontalJumpPixels?: number;
   stickDeadzone?: number;
   triggerInputMode?: ControllerTriggerInputMode;
+  faceButtonLabels?: ControllerFaceButtonLabels;
   triggerDeadzone?: number;
   repeatDelayMs?: number;
   repeatIntervalMs?: number;
   buttonIndices?: ControllerButtonIndicesConfig;
   bindings?: ControllerBindingsConfig;
+  reviewBindings?: ControllerReviewBindingsConfig;
+  fieldGroupingBindings?: ControllerFieldGroupingBindingsConfig;
   profiles?: Record<string, ControllerProfileConfig>;
 }
 
@@ -312,6 +412,8 @@ export interface ControllerDeviceInfo {
   index: number;
   mapping: string;
   connected: boolean;
+  /** Gamepad API timestamp of the pad's last input; the newest is the one being used. */
+  timestamp?: number;
 }
 
 export interface ControllerButtonSnapshot {
@@ -507,6 +609,12 @@ export interface ElectronAPI {
   markActiveVideoWatched: () => Promise<boolean>;
   getControllerConfig: () => Promise<ResolvedControllerConfig>;
   saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;
+  /** The overlay reports which controller it is reading (null when none). */
+  reportActiveController: (gamepadId: string | null) => void;
+  /** Announces a controller status message through the configured notification surfaces. */
+  notifyControllerStatus: (message: string) => void;
+  /** The controller the overlay last reported, for Alt+C before it sees a pad itself. */
+  getActiveControllerId: () => Promise<string | null>;
   getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;
   jimakuSearchEntries: (query: JimakuSearchQuery) => Promise<JimakuApiResponse<JimakuEntry[]>>;
   jimakuListFiles: (query: JimakuFilesQuery) => Promise<JimakuApiResponse<JimakuFileEntry[]>>;
@@ -586,6 +694,13 @@ export interface ElectronAPI {
     callback: (payload: SessionNumericSelectionStartPayload) => void,
   ) => void;
   onKeyboardModeToggleRequested: (callback: () => void) => void;
+  onControllerSuspendedChanged: (callback: (suspended: boolean) => void) => void;
+  /** Alt+C saved controller settings; reload them with `getControllerConfig`. */
+  onControllerConfigChanged: (callback: () => void) => void;
+  /** macOS: a button pressed while mpv was in front, which the Gamepad API never saw. */
+  onControllerBackgroundPress: (callback: (buttonIndex: number) => void) => void;
+  /** mpv's pause property changed, from any source. */
+  onPlaybackPauseChanged: (callback: (paused: boolean) => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (path: string) => Promise<PlaylistBrowserMutationResult>;

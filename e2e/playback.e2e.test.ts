@@ -15,7 +15,7 @@ let started: Promise<Started> | undefined;
 
 function useSession(): Promise<Started> {
   started ??= (async () => {
-    const session = await startE2eSession();
+    const session = await startE2eSession({ config: { controller: { enabled: true } } });
     try {
       return { session, overlay: await session.openPage(OVERLAY_PAGE) };
     } catch (error) {
@@ -269,6 +269,64 @@ test(
       );
     } finally {
       await session.mpv.command('set_property', 'sub-delay', 0);
+    }
+  },
+);
+
+// macOS and Windows keep a hidden modal renderer alive, and hidden windows keep polling because
+// background throttling is off. A fake pad goes to every renderer, as a real pad would.
+// Linux has no such window, and under Xvfb without a window manager the overlay reports hidden,
+// so requestAnimationFrame and with it the controller poll never run. Bun's node:test ignores the
+// `skip` option, so this picks `test.skip` instead.
+const testOutsideLinux = process.platform === 'linux' ? test.skip : test;
+testOutsideLinux(
+  'one controller press toggles mpv pause once across every window',
+  { timeout: TEST_TIMEOUT_MS },
+  async () => {
+    const { session } = await useSession();
+    const START_BUTTON = 9;
+    const targets = (await listCdpTargets(session.cdpPort)).filter((target) =>
+      target.url.includes('renderer/index.html'),
+    );
+    const renderers = await Promise.all(targets.map(connectCdpPage));
+    const everyRenderer = (expression: string) =>
+      Promise.all(renderers.map((renderer) => renderer.evaluate(expression)));
+    const nextPolls = `new Promise((done) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => done(true))))`;
+    try {
+      await everyRenderer(`(() => {
+        window.__fakePadPressed = false;
+        Object.defineProperty(navigator, 'getGamepads', {
+          configurable: true,
+          value: () => [{
+            id: 'E2E Pad (STANDARD GAMEPAD)',
+            index: 0,
+            connected: true,
+            mapping: 'standard',
+            axes: [0, 0, 0, 0],
+            buttons: Array.from({ length: 17 }, (_, index) => {
+              const pressed = window.__fakePadPressed && index === ${START_BUTTON};
+              return { value: pressed ? 1 : 0, pressed, touched: pressed };
+            }),
+          }],
+        });
+        return true;
+      })()`);
+      await everyRenderer(nextPolls);
+      await session.mpv.command('set_property', 'pause', true);
+
+      await everyRenderer('window.__fakePadPressed = true');
+      await everyRenderer(nextPolls);
+      await everyRenderer('window.__fakePadPressed = false');
+      await everyRenderer(nextPolls);
+      // Long enough for a second `cycle pause` to reach mpv and cancel the first.
+      await new Promise((done) => setTimeout(done, 300));
+
+      assert.equal(await session.mpv.command('get_property', 'pause'), false);
+    } finally {
+      await everyRenderer('delete navigator.getGamepads');
+      renderers.forEach((renderer) => renderer.close());
+      await session.mpv.command('set_property', 'pause', true);
     }
   },
 );

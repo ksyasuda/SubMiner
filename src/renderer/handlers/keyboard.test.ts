@@ -538,10 +538,15 @@ function createKeyboardHandlerHarness() {
   let changelogKeydownCount = 0;
   let jimakuKeydownCount = 0;
 
+  // Synthetic pointer/mouse events dispatched on words: the lookup's fallback scan.
+  let wordEventCount = 0;
   const createWordNode = (left: number) => ({
     classList: createClassList(),
     getBoundingClientRect: () => ({ left, top: 10, width: 30, height: 20 }),
-    dispatchEvent: () => true,
+    dispatchEvent: () => {
+      wordEventCount += 1;
+      return true;
+    },
   });
   let wordNodes = [createWordNode(10), createWordNode(80), createWordNode(150)];
 
@@ -618,6 +623,7 @@ function createKeyboardHandlerHarness() {
     playlistBrowserKeydownCount: () => playlistBrowserKeydownCount,
     changelogKeydownCount: () => changelogKeydownCount,
     jimakuKeydownCount: () => jimakuKeydownCount,
+    wordEventCount: () => wordEventCount,
     setWordCount: (count: number) => {
       wordNodes = Array.from({ length: count }, (_, index) => createWordNode(10 + index * 70));
     },
@@ -2551,6 +2557,60 @@ test('controller popup entry navigation forwards Alt+Up / Alt+Down only while th
       ['ArrowUp', 'ArrowUp', ['alt']],
     ]);
   } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: leaving the mode cancels a lookup whose popup has not appeared yet', async () => {
+  const { ctx, handlers, testGlobals, wordEventCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    // Without a popup, the lookup falls back to a synthetic scan shortly after.
+    testGlobals.dispatchKeydown({ key: 'y', code: 'KeyY', ctrlKey: true });
+    await wait(100);
+    const afterFallback = wordEventCount();
+    assert.ok(afterFallback > 0, 'the fallback scan runs');
+
+    // Leaving the mode before that fallback runs must cancel it.
+    testGlobals.dispatchKeydown({ key: 'y', code: 'KeyY', ctrlKey: true });
+    handlers.handleKeyboardModeToggleRequested();
+    await wait(100);
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
+    assert.equal(wordEventCount(), afterFallback, 'no scan after the mode is off');
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: leaving the mode closes an open popup', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+  const closeEvents = () =>
+    testGlobals.commandEvents.filter(
+      (event) => event.type === 'setVisible' && event.visible === false,
+    );
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    handlers.handleKeyboardModeToggleRequested();
+    await wait(0);
+
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
+    assert.equal(closeEvents().length, 1);
+
+    // Turning the mode on again leaves a popup alone.
+    handlers.handleKeyboardModeToggleRequested();
+    await wait(0);
+    assert.equal(closeEvents().length, 1);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();
   }
 });

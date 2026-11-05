@@ -282,6 +282,19 @@ function M.create(ctx)
 		clear_overlay_loading_osd_deadline()
 	end
 
+	-- Handles the app's subminer-overlay-loading-ready message.
+	local function mark_overlay_content_ready()
+		state.overlay_content_ready_seen = true
+		stop_overlay_loading_osd()
+	end
+
+	-- Handles subminer-overlay-loading-dismissed: the app's current overlay window has no content
+	-- (hidden mid-load, or a replaced window), so earlier readiness no longer applies.
+	local function mark_overlay_content_not_ready()
+		state.overlay_content_ready_seen = false
+		stop_overlay_loading_osd()
+	end
+
 	local function start_overlay_loading_osd()
 		if state.overlay_loading_osd_active then
 			return
@@ -741,6 +754,7 @@ function M.create(ctx)
 
 					state.overlay_running = false
 					state.auto_play_ready_signal_seen = false
+					state.overlay_content_ready_seen = false
 					subminer_log("error", "process", "Overlay start failed after retries: " .. reason)
 					stop_overlay_loading_osd()
 					show_osd("Overlay start failed")
@@ -795,6 +809,7 @@ function M.create(ctx)
 		state.overlay_running = false
 		state.texthooker_running = false
 		state.auto_play_ready_signal_seen = false
+		state.overlay_content_ready_seen = false
 		stop_overlay_loading_osd()
 		disarm_auto_play_ready_gate()
 		show_osd("Stopped")
@@ -934,6 +949,7 @@ function M.create(ctx)
 			state.overlay_running = false
 			state.texthooker_running = false
 			state.auto_play_ready_signal_seen = false
+			state.overlay_content_ready_seen = false
 			state.suppress_ready_overlay_restore = false
 			state.force_ready_overlay_restore = true
 			disarm_auto_play_ready_gate({ resume_playback = false })
@@ -957,6 +973,7 @@ function M.create(ctx)
 					if not success or (result and result.status ~= 0) then
 						state.overlay_running = false
 						state.auto_play_ready_signal_seen = false
+						state.overlay_content_ready_seen = false
 						subminer_log(
 							"error",
 							"process",
@@ -1035,6 +1052,8 @@ function M.create(ctx)
 		disarm_auto_play_ready_gate = disarm_auto_play_ready_gate,
 		start_overlay_loading_osd = start_overlay_loading_osd,
 		stop_overlay_loading_osd = stop_overlay_loading_osd,
+		mark_overlay_content_ready = mark_overlay_content_ready,
+		mark_overlay_content_not_ready = mark_overlay_content_not_ready,
 	}
 end
 

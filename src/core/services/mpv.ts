@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { Config, MpvClient, MpvSubtitleRenderMetrics } from '../../types';
 import {
   dispatchMpvProtocolMessage,
+  MPV_REQUEST_ID_SUBTEXT,
   MPV_REQUEST_ID_TRACK_LIST_AUDIO,
   MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
   MpvMessage,
@@ -141,6 +142,7 @@ export class MpvIpcClient implements MpvClient {
   private hasConnectedOnce = false;
   private socketErrorWarnedForDisconnect = false;
   public currentVideoPath = '';
+  private awaitingPathChangeAfterEndFile = false;
   public currentMediaTitle: string | null = null;
   public currentTimePos = 0;
   public currentSubStart = 0;
@@ -488,9 +490,14 @@ export class MpvIpcClient implements MpvClient {
       autoLoadSecondarySubTrack: (path: string) => {
         this.autoLoadSecondarySubTrack(path);
       },
+      getCurrentVideoPath: () => this.currentVideoPath,
       setCurrentVideoPath: (value: string) => {
         this.currentVideoPath = value;
         this.currentMediaTitle = null;
+      },
+      getAwaitingPathChangeAfterEndFile: () => this.awaitingPathChangeAfterEndFile,
+      setAwaitingPathChangeAfterEndFile: (value: boolean) => {
+        this.awaitingPathChangeAfterEndFile = value;
       },
       emitSecondarySubtitleVisibility: (payload) => {
         this.emit('secondary-subtitle-visibility', payload);
@@ -583,6 +590,11 @@ export class MpvIpcClient implements MpvClient {
         }
       }, 4000);
     });
+  }
+
+  /** Re-reads `sub-text` so the current line passes through the protocol handler again. */
+  refreshSubtitleText(): void {
+    this.send({ command: ['get_property', 'sub-text'], request_id: MPV_REQUEST_ID_SUBTEXT });
   }
 
   async requestProperty(name: string): Promise<unknown> {

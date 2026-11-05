@@ -69,20 +69,22 @@ export function createOverlayModalsAssembly(deps: OverlayModalsAssemblyDeps) {
     openModal: (deps: ReturnType<typeof createOverlayHostedModalOpenDeps>) => Promise<boolean>,
     unavailableMessage: string,
     failureLogMessage: string,
-  ): void {
-    void openModal(createOverlayHostedModalOpenDeps())
+  ): Promise<boolean> {
+    return openModal(createOverlayHostedModalOpenDeps())
       .then((opened) => {
         if (!opened) {
           deps.getOverlayNotifications().showConfiguredStatusNotification(unavailableMessage, {
             variant: 'warning',
           });
         }
+        return opened;
       })
       .catch((error) => {
         logger.error(failureLogMessage, error);
         deps.getOverlayNotifications().showConfiguredStatusNotification(unavailableMessage, {
           variant: 'error',
         });
+        return false;
       });
   }
 
@@ -94,8 +96,9 @@ export function createOverlayModalsAssembly(deps: OverlayModalsAssemblyDeps) {
     );
   }
 
-  function openJimakuOverlay(): void {
-    openOverlayHostedModalWithOsd(
+  /** Resolves to whether the modal acknowledged opening; failures are already reported. */
+  function openJimakuOverlay(): Promise<boolean> {
+    return openOverlayHostedModalWithOsd(
       openJimakuModalRuntime,
       'Jimaku overlay unavailable.',
       'Failed to open Jimaku overlay.',

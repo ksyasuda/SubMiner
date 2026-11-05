@@ -17,6 +17,8 @@ import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-op
 import type { SessionActionId, SessionActionPayload } from '../../types/session-bindings';
 import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
+import { isControllerFaceButtonLabels } from '../controller-review';
+import { CONTROLLER_SCREENS, parseControllerScreenBindingsPatch } from '../controller-screens';
 
 const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -220,6 +222,10 @@ function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindin
     'holdSecondarySub',
     'previousEntry',
     'nextEntry',
+    'previousSubtitle',
+    'nextSubtitle',
+    'replaySubtitle',
+    'playNextSubtitle',
   ] as const;
   for (const key of discreteKeys) {
     if (value[key] === undefined) continue;
@@ -242,6 +248,20 @@ function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindin
   return bindings;
 }
 
+/** Copies each screen's per-action patch (`reviewBindings`, `fieldGroupingBindings`). */
+function parseControllerScreenBindingPatches(
+  source: Record<string, unknown>,
+  target: Pick<ControllerConfigUpdate, 'reviewBindings' | 'fieldGroupingBindings'>,
+): boolean {
+  for (const screen of CONTROLLER_SCREENS) {
+    if (source[screen.configKey] === undefined) continue;
+    const parsed = parseControllerScreenBindingsPatch(screen, source[screen.configKey]);
+    if (!parsed) return false;
+    (target as Record<string, unknown>)[screen.configKey] = parsed;
+  }
+  return true;
+}
+
 export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpdate | null {
   if (!isObject(value)) return null;
   const update: ControllerConfigUpdate = {};
@@ -258,6 +278,10 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
     if (typeof value.preferredGamepadLabel !== 'string') return null;
     update.preferredGamepadLabel = value.preferredGamepadLabel;
   }
+  if (value.faceButtonLabels !== undefined) {
+    if (!isControllerFaceButtonLabels(value.faceButtonLabels)) return null;
+    update.faceButtonLabels = value.faceButtonLabels;
+  }
   if (value.buttonIndices !== undefined) {
     const parsed = parseControllerButtonIndices(value.buttonIndices);
     if (!parsed) return null;
@@ -269,6 +293,7 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
     if (!parsed) return null;
     update.bindings = parsed;
   }
+  if (!parseControllerScreenBindingPatches(value, update)) return null;
 
   if (value.profiles !== undefined) {
     if (!isObject(value.profiles)) return null;
@@ -281,6 +306,10 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
         if (typeof rawProfile.label !== 'string') return null;
         profile.label = rawProfile.label;
       }
+      if (rawProfile.faceButtonLabels !== undefined) {
+        if (!isControllerFaceButtonLabels(rawProfile.faceButtonLabels)) return null;
+        profile.faceButtonLabels = rawProfile.faceButtonLabels;
+      }
       if (rawProfile.buttonIndices !== undefined) {
         const parsed = parseControllerButtonIndices(rawProfile.buttonIndices);
         if (!parsed) return null;
@@ -291,6 +320,7 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
         if (!parsed) return null;
         profile.bindings = parsed;
       }
+      if (!parseControllerScreenBindingPatches(rawProfile, profile)) return null;
       profiles[profileId] = profile;
     }
     update.profiles = profiles;

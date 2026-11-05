@@ -37,17 +37,32 @@ The file is saved next to the video (or to a temp directory for streams) and loa
 
 You can also open the modal with `subminer app --open-jimaku`, or change the shortcut with `shortcuts.openJimaku`.
 
+### Open automatically when a video has no Japanese subtitles
+
+Set `jimaku.autoOpenWhenPrimarySubtitleMissing` to `true` to skip the shortcut. When a local video loads without a subtitle track in `youtube.primarySubLanguages` (Japanese by default), SubMiner pauses playback about a second after the video loads and opens the Jimaku modal, so you can pick a subtitle before watching. Playback stays paused while the modal is open and resumes when it closes, whether or not you picked a subtitle. On a cold start it resumes once subtitle processing is ready, as usual, and a pause you made yourself before the modal opened is kept.
+
+A single unlabeled sidecar file (such as `episode.srt` next to the video) counts as a Japanese track, matching how SubMiner auto-selects local subtitles. An embedded track with no language tag does not, so the modal still opens for it. Audio files, streams, YouTube, and Jellyfin playback are not checked.
+
+```jsonc
+{
+  "jimaku": {
+    "autoOpenWhenPrimarySubtitleMissing": true,
+  },
+}
+```
+
 The file name parser understands `S01E03`, `1x03`, `E03`, `EP03`, and `Title - 03 -` patterns, and reads the season from a parent folder such as `Season 2`. It ignores bracket tags like `[SubGroup]` and year tags like `(2024)`.
 
 ## Options
 
-| Key                         | What it does                                                        |
-| --------------------------- | ------------------------------------------------------------------- |
-| `jimaku.apiKey`             | API key in plain text.                                              |
-| `jimaku.apiKeyCommand`      | Shell command that prints the API key.                              |
-| `jimaku.languagePreference` | Sorts files tagged with this language first: `ja`, `en`, or `none`. |
-| `jimaku.maxEntryResults`    | Maximum entries per search.                                         |
-| `jimaku.apiBaseUrl`         | API address. Change only for a mirror.                              |
+| Key                                         | What it does                                                         |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| `jimaku.apiKey`                             | API key in plain text.                                               |
+| `jimaku.apiKeyCommand`                      | Shell command that prints the API key.                               |
+| `jimaku.languagePreference`                 | Sorts files tagged with this language first: `ja`, `en`, or `none`.  |
+| `jimaku.maxEntryResults`                    | Maximum entries per search.                                          |
+| `jimaku.apiBaseUrl`                         | API address. Change only for a mirror.                               |
+| `jimaku.autoOpenWhenPrimarySubtitleMissing` | Pauses and opens the modal when a local video has no Japanese track. |
 
 See [Configuration](/configuration#jimaku) for defaults.
 

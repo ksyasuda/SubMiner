@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import { createRendererState } from '../state.js';
 import { createControllerDebugModal } from './controller-debug.js';
+import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
+import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -46,6 +48,7 @@ test('controller debug modal renders active controller axes, buttons, and config
       stickDeadzone: 0.2,
       triggerInputMode: 'auto',
       triggerDeadzone: 0.5,
+      faceButtonLabels: 'xbox',
       repeatDelayMs: 320,
       repeatIntervalMs: 120,
       buttonIndices: {
@@ -74,11 +77,17 @@ test('controller debug modal renders active controller axes, buttons, and config
         holdSecondarySub: { kind: 'none' },
         previousEntry: { kind: 'none' },
         nextEntry: { kind: 'none' },
+        previousSubtitle: { kind: 'none' },
+        nextSubtitle: { kind: 'none' },
+        replaySubtitle: { kind: 'none' },
+        playNextSubtitle: { kind: 'none' },
         leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
         leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
+      reviewBindings: getDefaultControllerReviewBindings(),
+      fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
       profiles: {},
     };
 
@@ -164,6 +173,7 @@ test('controller debug modal copies buttonIndices config to clipboard', async ()
       stickDeadzone: 0.2,
       triggerInputMode: 'auto',
       triggerDeadzone: 0.5,
+      faceButtonLabels: 'xbox',
       repeatDelayMs: 320,
       repeatIntervalMs: 120,
       buttonIndices: {
@@ -192,11 +202,17 @@ test('controller debug modal copies buttonIndices config to clipboard', async ()
         holdSecondarySub: { kind: 'none' },
         previousEntry: { kind: 'none' },
         nextEntry: { kind: 'none' },
+        previousSubtitle: { kind: 'none' },
+        nextSubtitle: { kind: 'none' },
+        replaySubtitle: { kind: 'none' },
+        playNextSubtitle: { kind: 'none' },
         leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
         leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
+      reviewBindings: getDefaultControllerReviewBindings(),
+      fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
       profiles: {},
     };
 
@@ -281,6 +297,7 @@ test('controller debug modal stays closed and notifies when controller support i
       stickDeadzone: 0.2,
       triggerInputMode: 'auto',
       triggerDeadzone: 0.5,
+      faceButtonLabels: 'xbox',
       repeatDelayMs: 320,
       repeatIntervalMs: 120,
       buttonIndices: {
@@ -309,11 +326,17 @@ test('controller debug modal stays closed and notifies when controller support i
         holdSecondarySub: { kind: 'none' },
         previousEntry: { kind: 'none' },
         nextEntry: { kind: 'none' },
+        previousSubtitle: { kind: 'none' },
+        nextSubtitle: { kind: 'none' },
+        replaySubtitle: { kind: 'none' },
+        playNextSubtitle: { kind: 'none' },
         leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
         leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
         rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
+      reviewBindings: getDefaultControllerReviewBindings(),
+      fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
       profiles: {},
     };
     const ctx = {

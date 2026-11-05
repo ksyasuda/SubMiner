@@ -49,7 +49,7 @@ Start here, then leave this file.
 - Build/release scripts (`scripts/**`): `bun run test:scripts`
 - Internal docs, `AGENTS.md`, or repo skills: `bun run test:docs:kb`
 - User-facing `docs-site/`: `bun run docs:test`, then `bun run docs:build`
-- macOS mpv window helper (`scripts/get-mpv-window-macos.swift`): compile it on macOS with `bun run build`
+- macOS Swift helpers (`scripts/get-mpv-window-macos.swift`, `scripts/macos-controller-watch.swift`): compile them on macOS with `bun run build`
 - Test lanes are directory-discovered via `scripts/test-lanes.ts`; never hand-list test files in `package.json`
 
 ## Docs Upkeep

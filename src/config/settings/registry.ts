@@ -7,6 +7,10 @@ import type {
 } from '../../types/settings';
 import { CONFIG_OPTION_REGISTRY, DEFAULT_CONFIG } from '../definitions';
 import {
+  SUBTITLE_FILTER_PRESET_IDS,
+  SUBTITLE_FILTER_PRESETS,
+} from '../../shared/subtitle-text-filter';
+import {
   getSubtitleCssManagedConfigPaths,
   getSubtitleCssScopeForPath,
 } from '../../settings/subtitle-style-css';
@@ -58,6 +62,8 @@ export const LEGACY_HIDDEN_CONFIG_PATHS = [
   'ankiConnect.isLapis.sentenceCardAudioField',
   'ankiConnect.fields.translation',
   'controller.bindings',
+  'controller.reviewBindings',
+  'controller.fieldGroupingBindings',
   'controller.preferredGamepadId',
   'controller.preferredGamepadLabel',
   'controller.profiles',
@@ -125,6 +131,7 @@ const SECTION_ORDER = new Map<string, number>(
     'Subtitle Sidebar Appearance',
     'Playback Behavior',
     'Subtitle Behavior',
+    'Subtitle Filters',
     'Subtitle Sidebar Behavior',
     'YouTube Playback Settings',
     'mpv Playback',
@@ -201,6 +208,7 @@ const PATH_ORDER = new Map<string, number>(
     'logging.files.app',
     'logging.files.launcher',
     'logging.files.mpv',
+    ...SUBTITLE_FILTER_PRESET_IDS.map((id) => `subtitleFilter.presets.${id}`),
   ].map((path, index) => [path, index]),
 );
 
@@ -231,6 +239,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'subtitleSidebar.pauseVideoOnHover': 'Pause Video On Hover - Sidebar',
   'subtitleStyle.autoPauseVideoOnHover': 'Pause Video On Hover - Subtitles',
   'subtitleStyle.autoPauseVideoOnYomitanPopup': 'Pause Video On Dictionary Popup',
+  'subtitleStyle.autoPauseVideoOnKeyboardMode': 'Pause Video In Keyboard-Only Mode',
   'subtitleStyle.primaryVisibleOnYomitanPopup': 'Keep Primary Visible On Dictionary Popup',
   'subtitleStyle.primaryDefaultMode': 'Primary Subtitle Visibility Mode',
   'subtitleStyle.frequencyDictionary.mode': 'Frequency Mode',
@@ -250,6 +259,12 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'ankiConnect.media.mirrorMpvVolume': 'Mirror mpv Volume',
   'ankiConnect.media.reviewTiming': 'Review Media Timing',
   'discordPresence.updateIntervalMs': 'Update Interval (ms)',
+  ...Object.fromEntries(
+    SUBTITLE_FILTER_PRESET_IDS.map((id) => [
+      `subtitleFilter.presets.${id}`,
+      SUBTITLE_FILTER_PRESETS[id].label,
+    ]),
+  ),
 };
 
 const DESCRIPTION_OVERRIDES: Record<string, string> = {
@@ -277,6 +292,8 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
     'Built-in subtitle WebSocket server mode. Auto starts the built-in server only when mpv_websocket is not detected; otherwise it defers to the plugin.',
   'discordPresence.updateIntervalMs':
     'Minimum interval between presence payload updates, in milliseconds.',
+  'subtitleFilter.customRules':
+    'Your own regex rules, applied in order after the presets. ^ and $ match each line. Leave the replacement empty to remove the match.',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -342,12 +359,16 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (
     path === 'subtitleStyle.autoPauseVideoOnHover' ||
     path === 'subtitleStyle.autoPauseVideoOnYomitanPopup' ||
+    path === 'subtitleStyle.autoPauseVideoOnKeyboardMode' ||
     path === 'subtitleSidebar.pauseVideoOnHover'
   ) {
     return { category: 'behavior', section: 'Playback Behavior' };
   }
   if (path === 'subtitleStyle.preserveLineBreaks') {
     return { category: 'behavior', section: 'Subtitle Behavior' };
+  }
+  if (path.startsWith('subtitleFilter.')) {
+    return { category: 'behavior', section: 'Subtitle Filters' };
   }
   if (
     path === 'ankiConnect.knownWords.addMinedWordsImmediately' ||
@@ -553,6 +574,7 @@ function controlForPath(path: string, value: unknown): ConfigSettingsControl {
   if (path.startsWith('subtitleStyle.jlptColors.')) return 'color';
   if (path.startsWith('subtitleStyle.knownWordMaturityColors.')) return 'color';
   if (path === 'subtitleStyle.frequencyDictionary.bandedColors') return 'color-list';
+  if (path === 'subtitleFilter.customRules') return 'subtitle-filter-rules';
   if (OPTION_BY_PATH.get(path)?.enumValues?.length) return 'select';
   if (JSON_OBJECT_FIELDS.has(path)) return 'json';
   if (Array.isArray(value)) return 'string-list';

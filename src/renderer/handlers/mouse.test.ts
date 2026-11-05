@@ -147,7 +147,7 @@ function createMouseHarness(
     /** Moves the tracked pointer onto `hovered` and fires a document mousemove. */
     move: (hovered: HoverTarget, clientX = 120, clientY = 240) => {
       harness.hovered = hovered;
-      harness.fire('document', 'mousemove', { clientX, clientY });
+      harness.fire('document', 'mousemove', { clientX, clientY, isTrusted: true });
     },
     isInteractive: () => overlayClassList.contains('interactive'),
     isSecondaryHoverActive: () =>
@@ -357,6 +357,69 @@ test('popup open pauses and popup close resumes when yomitan popup auto-pause is
   assert.deepEqual(h.mpvCommands, [PAUSE, RESUME]);
 });
 
+// The lookup's fallback scan dispatches untrusted mouse events on the selected word, and
+// those bubble to the pointer tracker while the real cursor is elsewhere.
+test('popup close resumes after a fallback scan event lands on the subtitle', async (t) => {
+  const h = createMouseHarness(t, { hoverPause: true, popupPause: true });
+  h.handlers.setupPointerTracking();
+  h.handlers.setupYomitanObserver();
+
+  h.hovered = 'primary';
+  h.fire('document', 'pointermove', { clientX: 120, clientY: 240, isTrusted: false });
+  h.fire('document', 'mousemove', { clientX: 120, clientY: 240, isTrusted: false });
+  await waitForNextTick();
+  assert.equal(h.ctx.state.isOverSubtitle, false);
+
+  h.fire('window', YOMITAN_POPUP_SHOWN_EVENT);
+  await waitForNextTick();
+  h.fire('window', YOMITAN_POPUP_HIDDEN_EVENT);
+
+  assert.deepEqual(h.mpvCommands, [PAUSE, RESUME]);
+});
+
+// Controller and keyboard pause toggles change playback without touching the hover state.
+test('popup open pauses when the user resumed playback during a hover pause', async (t) => {
+  let paused = false;
+  const h = createMouseHarness(t, {
+    hoverPause: true,
+    popupPause: true,
+    getPlaybackPaused: async () => paused,
+  });
+  h.handlers.setupYomitanObserver();
+
+  // `paused` stays false: the pause button resumed playback after this hover pause.
+  await h.handlers.handleMouseEnter();
+  assert.deepEqual(h.mpvCommands, [PAUSE]);
+
+  // The lookup event lands while the shown event's pause check is still in flight.
+  h.popupHostVisible = true;
+  h.fire('window', YOMITAN_POPUP_SHOWN_EVENT);
+  h.fire('window', YOMITAN_LOOKUP_EVENT);
+  await waitForNextTick();
+
+  assert.deepEqual(h.mpvCommands, [PAUSE, PAUSE]);
+});
+
+test('popup taking over a hover pause leaves playback paused without a second command', async (t) => {
+  let paused = false;
+  const h = createMouseHarness(t, {
+    hoverPause: true,
+    popupPause: true,
+    getPlaybackPaused: async () => paused,
+  });
+  h.handlers.setupYomitanObserver();
+
+  await h.handlers.handleMouseEnter();
+  paused = true;
+  h.fire('window', YOMITAN_POPUP_SHOWN_EVENT);
+  await waitForNextTick();
+  await h.handlers.handleMouseLeave();
+  assert.deepEqual(h.mpvCommands, [PAUSE]);
+
+  h.fire('window', YOMITAN_POPUP_HIDDEN_EVENT);
+  assert.deepEqual(h.mpvCommands, [PAUSE, RESUME]);
+});
+
 for (const c of [
   {
     name: 'nested popup close reasserts interactive state and focus when another popup remains visible on Windows',
@@ -507,6 +570,21 @@ test('popup hidden on macOS releases click-away capture back to mpv', (t) => {
   assert.equal(h.ctx.state.yomitanPopupVisible, false);
   assert.equal(h.isInteractive(), false);
   assert.deepEqual(h.ignoreCalls.at(-1), { ignore: true, forward: true });
+});
+
+test('a pointer leaving a popup that just closed does not mark it open again', (t) => {
+  const h = createMouseHarness(t, { platform: 'macos', popupHostVisible: true });
+  h.handlers.setupYomitanObserver();
+  h.fire('window', YOMITAN_POPUP_MOUSE_ENTER_EVENT);
+
+  // The popup hides under the pointer: hidden, then the leave it causes.
+  h.popupHostVisible = false;
+  h.fire('window', YOMITAN_POPUP_HIDDEN_EVENT);
+  h.fire('window', YOMITAN_POPUP_MOUSE_LEAVE_EVENT);
+
+  assert.equal(h.ctx.state.yomitanPopupVisible, false);
+  assert.equal(h.ctx.state.isOverYomitanPopup, false);
+  assert.equal(h.isInteractive(), false);
 });
 
 test('yomitan popup visibility marks primary subtitle hover hold while enabled', (t) => {

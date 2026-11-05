@@ -52,7 +52,7 @@ SubMiner watches the config file while running. When it changes, live settings a
 
 These apply live:
 
-- `subtitleStyle`, `subtitleSidebar`, `subtitleSelection`, `keybindings`, `shortcuts`
+- `subtitleStyle`, `subtitleSidebar`, `subtitleSelection`, `subtitleFilter`, `keybindings`, `shortcuts`
 - `logging.level`, `logging.rotation`, `logging.files`
 - `secondarySub.defaultMode`, `youtube.primarySubLanguages`, `youtube.subtitleSource`
 - `mpv.aniskipEnabled`, `mpv.aniskipButtonKey`, `stats.toggleKey`, `stats.markWatchedKey`
@@ -175,30 +175,31 @@ Controls how primary and secondary subtitles look and which annotations they sho
 }
 ```
 
-| Key                                              | Default      | What it does                                                                                          |
-| ------------------------------------------------ | ------------ | ----------------------------------------------------------------------------------------------------- |
-| `subtitleStyle.primaryDefaultMode`               | `"visible"`  | Primary bar at startup: `hidden`, `visible`, or `hover`                                               |
-| `subtitleStyle.css`                              | see example  | CSS for primary subtitles (font, size `35px`, color, shadow, and so on)                               |
-| `subtitleStyle.secondary.css`                    | see example  | CSS for secondary subtitles (size `24px`)                                                             |
-| `subtitleStyle.preserveLineBreaks`               | `false`      | Keep line breaks as mpv shows them instead of one line                                                |
-| `subtitleStyle.autoPauseVideoOnHover`            | `true`       | Pause while the mouse is over subtitle text                                                           |
-| `subtitleStyle.autoPauseVideoOnYomitanPopup`     | `true`       | Pause while a Yomitan popup is open                                                                   |
-| `subtitleStyle.primaryVisibleOnYomitanPopup`     | `true`       | In hover mode, keep the primary bar visible while a popup is open                                     |
-| `subtitleStyle.knownWordColor`                   | `#a6da95`    | Known-word highlight color                                                                            |
-| `subtitleStyle.knownWordMaturityColors`          | see example  | `new`, `learning`, `young`, `mature` colors, used when `ankiConnect.knownWords.maturityEnabled` is on |
-| `subtitleStyle.nPlusOneColor`                    | `#c6a0f6`    | N+1 target word color                                                                                 |
-| `subtitleStyle.enableJlpt`                       | `false`      | Underline words by JLPT level                                                                         |
-| `subtitleStyle.jlptColors`                       | see example  | Underline colors for `N1` to `N5`                                                                     |
-| `subtitleStyle.nameMatchEnabled`                 | `false`      | Sync the character dictionary and color character names                                               |
-| `subtitleStyle.nameMatchImagesEnabled`           | `false`      | Show small character portraits next to matched names                                                  |
-| `subtitleStyle.nameMatchColor`                   | `#f5bde6`    | Character-name color                                                                                  |
-| `subtitleStyle.frequencyDictionary.enabled`      | `false`      | Color words by frequency rank                                                                         |
-| `subtitleStyle.frequencyDictionary.sourcePath`   | `""`         | Folder with `term_meta_bank_*.json` files. Empty searches the default locations                       |
-| `subtitleStyle.frequencyDictionary.topX`         | `10000`      | Only color words ranked at or below this                                                              |
-| `subtitleStyle.frequencyDictionary.mode`         | `"single"`   | `single` (one color) or `banded` (five colors, common to rare)                                        |
-| `subtitleStyle.frequencyDictionary.matchMode`    | `"headword"` | Look up by `headword` (dictionary form) or `surface` (text as shown)                                  |
-| `subtitleStyle.frequencyDictionary.singleColor`  | `#f5a97f`    | Color for `single` mode                                                                               |
-| `subtitleStyle.frequencyDictionary.bandedColors` | see example  | Five colors for `banded` mode                                                                         |
+| Key                                              | Default      | What it does                                                                                                                                                                                                 |
+| ------------------------------------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `subtitleStyle.primaryDefaultMode`               | `"visible"`  | Primary bar at startup: `hidden`, `visible`, or `hover`                                                                                                                                                      |
+| `subtitleStyle.css`                              | see example  | CSS for primary subtitles (font, size `35px`, color, shadow, and so on)                                                                                                                                      |
+| `subtitleStyle.secondary.css`                    | see example  | CSS for secondary subtitles (size `24px`)                                                                                                                                                                    |
+| `subtitleStyle.preserveLineBreaks`               | `false`      | Keep line breaks as mpv shows them instead of one line                                                                                                                                                       |
+| `subtitleStyle.autoPauseVideoOnHover`            | `true`       | Pause while the mouse is over subtitle text                                                                                                                                                                  |
+| `subtitleStyle.autoPauseVideoOnYomitanPopup`     | `true`       | Pause while a Yomitan popup is open                                                                                                                                                                          |
+| `subtitleStyle.autoPauseVideoOnKeyboardMode`     | `false`      | Pause while keyboard-only mode is on (keyboard or controller toggle). Leaving resumes only a pause it made: a video that was already paused, or that you played or paused yourself meanwhile, stays as it is |
+| `subtitleStyle.primaryVisibleOnYomitanPopup`     | `true`       | In hover mode, keep the primary bar visible while a popup is open                                                                                                                                            |
+| `subtitleStyle.knownWordColor`                   | `#a6da95`    | Known-word highlight color                                                                                                                                                                                   |
+| `subtitleStyle.knownWordMaturityColors`          | see example  | `new`, `learning`, `young`, `mature` colors, used when `ankiConnect.knownWords.maturityEnabled` is on                                                                                                        |
+| `subtitleStyle.nPlusOneColor`                    | `#c6a0f6`    | N+1 target word color                                                                                                                                                                                        |
+| `subtitleStyle.enableJlpt`                       | `false`      | Underline words by JLPT level                                                                                                                                                                                |
+| `subtitleStyle.jlptColors`                       | see example  | Underline colors for `N1` to `N5`                                                                                                                                                                            |
+| `subtitleStyle.nameMatchEnabled`                 | `false`      | Sync the character dictionary and color character names                                                                                                                                                      |
+| `subtitleStyle.nameMatchImagesEnabled`           | `false`      | Show small character portraits next to matched names                                                                                                                                                         |
+| `subtitleStyle.nameMatchColor`                   | `#f5bde6`    | Character-name color                                                                                                                                                                                         |
+| `subtitleStyle.frequencyDictionary.enabled`      | `false`      | Color words by frequency rank                                                                                                                                                                                |
+| `subtitleStyle.frequencyDictionary.sourcePath`   | `""`         | Folder with `term_meta_bank_*.json` files. Empty searches the default locations                                                                                                                              |
+| `subtitleStyle.frequencyDictionary.topX`         | `10000`      | Only color words ranked at or below this                                                                                                                                                                     |
+| `subtitleStyle.frequencyDictionary.mode`         | `"single"`   | `single` (one color) or `banded` (five colors, common to rare)                                                                                                                                               |
+| `subtitleStyle.frequencyDictionary.matchMode`    | `"headword"` | Look up by `headword` (dictionary form) or `surface` (text as shown)                                                                                                                                         |
+| `subtitleStyle.frequencyDictionary.singleColor`  | `#f5a97f`    | Color for `single` mode                                                                                                                                                                                      |
+| `subtitleStyle.frequencyDictionary.bandedColors` | see example  | Five colors for `banded` mode                                                                                                                                                                                |
 
 Two CSS custom properties style the hovered word: `--subtitle-hover-token-color` (`#f4dbd6`) and `--subtitle-hover-token-background-color` (`transparent`). Set them inside `subtitleStyle.css`.
 
@@ -219,6 +220,29 @@ A scrollable cue list for the current subtitle file. It only works when SubMiner
 Sidebar custom properties: `--subtitle-sidebar-max-width` (`420px`), `--subtitle-sidebar-timestamp-color`, `--subtitle-sidebar-active-line-color`, `--subtitle-sidebar-active-background-color`, `--subtitle-sidebar-hover-background-color`. Their defaults are in the example config.
 
 If `embedded` layout places the video oddly on your system, switch back to `overlay`.
+
+### Subtitle filters {#subtitle-filters}
+
+Removes unwanted text from primary subtitles, such as speaker names, readings and sound descriptions. Filtering happens as the line arrives, so the overlay, sidebar, mined sentences and stats all see the filtered text. A line left with no words is hidden. In the settings window, find it under **Behavior → Subtitle Filters**.
+
+| Key                                    | Default | What it does                                                                                                 |
+| -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `subtitleFilter.presets.parentheses`   | `false` | Remove `（…）` and `(…)` anywhere in a line. A line wrapped entirely in parentheses (inner thoughts) is kept |
+| `subtitleFilter.presets.brackets`      | `false` | Remove `［…］`, `[…]`, `【…】` and `〔…〕`, such as sound effects                                            |
+| `subtitleFilter.presets.speakerPrefix` | `false` | Remove a short name before a colon at the start of a line, as in `山田：`                                    |
+| `subtitleFilter.presets.musicSymbols`  | `false` | Remove `♪`, `♫` and `♬`                                                                                      |
+| `subtitleFilter.customRules`           | `[]`    | Your own regex rules, applied in order after the presets                                                     |
+
+Each custom rule is `{ "name", "pattern", "replacement", "enabled" }`. Patterns are JavaScript regular expressions compiled with the `gmu` flags, so `^` and `$` match each line. An empty `replacement` removes the match.
+
+```jsonc
+{
+  "subtitleFilter": {
+    "presets": { "parentheses": true },
+    "customRules": [{ "name": "Join lines", "pattern": "\\n", "replacement": "", "enabled": true }],
+  },
+}
+```
 
 ### Subtitle position
 
@@ -290,21 +314,22 @@ Adds a modal for choosing mpv's primary and secondary subtitle tracks. Open it w
 
 ### Controller support
 
-Gamepad input for the overlay, through the browser Gamepad API. Most actions only work while keyboard-only mode is on; the toggle for that mode and the secondary subtitle hold (`controller.bindings.holdSecondarySub`) work either way. Use the `Alt+C` modal to pick a controller and learn bindings, and `Alt+Shift+C` to see raw button and axis values. Default button actions are on [Keyboard shortcuts](/shortcuts).
+Gamepad input for the overlay, through the browser Gamepad API. Most actions only work while keyboard-only mode is on; the toggle for that mode, the secondary subtitle hold (`controller.bindings.holdSecondarySub`), pause (`toggleMpvPause`) and the subtitle line actions (`previousSubtitle`, `nextSubtitle`, `replaySubtitle`, `playNextSubtitle`) work either way. Use the `Alt+C` modal to pick a controller and learn bindings, and `Alt+Shift+C` to see raw button and axis values. Default button actions are on [Keyboard shortcuts](/shortcuts).
 
-| Key                                | Default  | What it does                                                                          |
-| ---------------------------------- | -------- | ------------------------------------------------------------------------------------- |
-| `controller.enabled`               | `false`  | Enable controller support. The `Alt+C` and `Alt+Shift+C` modals stay closed while off |
-| `controller.smoothScroll`          | `true`   | Smooth popup scrolling                                                                |
-| `controller.scrollPixelsPerSecond` | `900`    | Popup scroll speed                                                                    |
-| `controller.horizontalJumpPixels`  | `160`    | Popup page-jump distance                                                              |
-| `controller.stickDeadzone`         | `0.2`    | Stick deadzone                                                                        |
-| `controller.triggerInputMode`      | `"auto"` | `auto`, `digital`, or `analog`. Use `analog` if your L2/R2 report analog values       |
-| `controller.triggerDeadzone`       | `0.5`    | Trigger threshold for `auto` and `analog`                                             |
-| `controller.repeatDelayMs`         | `320`    | Delay before a held button repeats                                                    |
-| `controller.repeatIntervalMs`      | `120`    | Repeat interval for held buttons                                                      |
+| Key                                | Default  | What it does                                                                                                                                                                                                                  |
+| ---------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `controller.enabled`               | `false`  | Enable controller support. The `Alt+C` and `Alt+Shift+C` modals stay closed while off                                                                                                                                         |
+| `controller.smoothScroll`          | `true`   | Smooth popup scrolling                                                                                                                                                                                                        |
+| `controller.scrollPixelsPerSecond` | `900`    | Popup scroll speed                                                                                                                                                                                                            |
+| `controller.horizontalJumpPixels`  | `160`    | Popup page-jump distance                                                                                                                                                                                                      |
+| `controller.stickDeadzone`         | `0.2`    | Stick deadzone                                                                                                                                                                                                                |
+| `controller.triggerInputMode`      | `"auto"` | `auto`, `digital`, or `analog`. Use `analog` if your L2/R2 report analog values                                                                                                                                               |
+| `controller.triggerDeadzone`       | `0.5`    | Trigger threshold for `auto` and `analog`                                                                                                                                                                                     |
+| `controller.faceButtonLabels`      | `"xbox"` | Face button style: `xbox`, `nintendo` (A on the right, B at the bottom; Switch-style and many 8BitDo pads) or `playstation` (╳ ○ □ △). **Button Style** in `Alt+C` sets it per controller; this is the default for the others |
+| `controller.repeatDelayMs`         | `320`    | Delay before a held button repeats                                                                                                                                                                                            |
+| `controller.repeatIntervalMs`      | `120`    | Repeat interval for held buttons                                                                                                                                                                                              |
 
-Bindings are set with `Alt+C` learn mode, which saves them per controller.
+Bindings, including the media timing review and duplicate card dialog layouts, are set with `Alt+C` learn mode, which saves them per controller.
 
 ## Anki integration
 
@@ -446,13 +471,14 @@ When SubMiner fills the sentence on a word card, it sets one card-type flag and 
 
 Search and download Japanese subtitles from [Jimaku](https://jimaku.cc). See [Jimaku integration](/jimaku-integration).
 
-| Key                         | Default               | What it does                                               |
-| --------------------------- | --------------------- | ---------------------------------------------------------- |
-| `jimaku.apiKey`             | `""`                  | API key. Optional, but raises your rate limit              |
-| `jimaku.apiKeyCommand`      | `""`                  | Shell command that prints the key. Use instead of `apiKey` |
-| `jimaku.apiBaseUrl`         | `"https://jimaku.cc"` | API base URL                                               |
-| `jimaku.languagePreference` | `"ja"`                | Preferred language: `ja`, `en`, or `none`                  |
-| `jimaku.maxEntryResults`    | `10`                  | Maximum search results                                     |
+| Key                                         | Default               | What it does                                                                      |
+| ------------------------------------------- | --------------------- | --------------------------------------------------------------------------------- |
+| `jimaku.apiKey`                             | `""`                  | API key. Optional, but raises your rate limit                                     |
+| `jimaku.apiKeyCommand`                      | `""`                  | Shell command that prints the key. Use instead of `apiKey`                        |
+| `jimaku.apiBaseUrl`                         | `"https://jimaku.cc"` | API base URL                                                                      |
+| `jimaku.languagePreference`                 | `"ja"`                | Preferred language: `ja`, `en`, or `none`                                         |
+| `jimaku.maxEntryResults`                    | `10`                  | Maximum search results                                                            |
+| `jimaku.autoOpenWhenPrimarySubtitleMissing` | `false`               | Pause and open the Jimaku modal when a local video has no Japanese subtitle track |
 
 ### TsukiHime
 

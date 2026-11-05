@@ -260,3 +260,69 @@ test('autoplay ready gate releases tokenized signals while tokenization warmup i
 
   assert.deepEqual(h.pluginSignals(), [PLUGIN_READY]);
 });
+
+test('autoplay ready gate defers readiness while held and releases it when flushed after the hold', async () => {
+  let held = true;
+  const h = createGate({ isPlaybackHeld: () => held });
+
+  // The one-shot warm release: nothing re-sends it, so it must survive the hold.
+  await h.signal('__warm__');
+  await h.runScheduled();
+  assert.deepEqual(h.pluginSignals(), []);
+  assert.equal(h.unpauseCount(), 0);
+
+  held = false;
+  h.gate.flushPendingAutoplayReadySignal();
+  await settle();
+  assert.deepEqual(h.pluginSignals(), [PLUGIN_READY]);
+  assert.equal(h.mpv.paused, false);
+});
+
+test('autoplay ready gate stops pending release retries once playback becomes held', async () => {
+  let held = false;
+  let connected = false;
+  const commands: MpvCommand[] = [];
+  const h = createGate({
+    isPlaybackHeld: () => held,
+    getMpvClient: () => ({
+      connected,
+      requestProperty: async () => true,
+      send: ({ command }) => {
+        commands.push(command);
+      },
+    }),
+  });
+
+  await h.signal('字幕');
+  held = true;
+  connected = true;
+  await h.runScheduled();
+
+  assert.equal(commands.filter(isUnpause).length, 0);
+});
+
+test('autoplay ready gate does not unpause when a hold starts while the pause read is in flight', async () => {
+  let held = false;
+  let resolvePauseRead: (paused: boolean) => void = () => {};
+  const commands: MpvCommand[] = [];
+  const h = createGate({
+    isPlaybackHeld: () => held,
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: () =>
+        new Promise<unknown>((resolve) => {
+          resolvePauseRead = resolve;
+        }),
+      send: ({ command }) => {
+        commands.push(command);
+      },
+    }),
+  });
+
+  await h.signal('字幕');
+  held = true;
+  resolvePauseRead(true);
+  await settle();
+
+  assert.equal(commands.filter(isUnpause).length, 0);
+});

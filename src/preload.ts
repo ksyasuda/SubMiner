@@ -186,6 +186,21 @@ const onSessionNumericSelectionStartEvent =
     IPC_CHANNELS.event.sessionNumericSelectionStart,
     (payload) => payload as SessionNumericSelectionStartPayload,
   );
+const onControllerSuspendedChangedEvent = createQueuedIpcListenerWithPayload<boolean>(
+  IPC_CHANNELS.event.controllerSuspendedChanged,
+  (payload) => payload === true,
+);
+const onPlaybackPauseChangedEvent = createQueuedIpcListenerWithPayload<boolean>(
+  IPC_CHANNELS.event.playbackPauseChanged,
+  (payload) => payload === true,
+);
+const onControllerConfigChangedEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.controllerConfigChanged,
+);
+const onControllerBackgroundPressEvent = createQueuedIpcListenerWithPayload<number>(
+  IPC_CHANNELS.event.controllerBackgroundPress,
+  (payload) => (typeof payload === 'number' && Number.isInteger(payload) ? payload : -1),
+);
 const onKeyboardModeToggleRequestedEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.keyboardModeToggleRequested,
 );
@@ -342,6 +357,14 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getControllerConfig),
   saveControllerConfig: (update: ControllerConfigUpdate): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.command.saveControllerConfig, update),
+  reportActiveController: (gamepadId: string | null): void => {
+    ipcRenderer.send(IPC_CHANNELS.command.reportActiveController, gamepadId);
+  },
+  notifyControllerStatus: (message: string): void => {
+    ipcRenderer.send(IPC_CHANNELS.command.notifyControllerStatus, message);
+  },
+  getActiveControllerId: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getActiveControllerId),
 
   getJimakuMediaInfo: (): Promise<JimakuMediaInfo> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.jimakuGetMediaInfo),
@@ -491,6 +514,10 @@ const electronAPI: ElectronAPI = {
   onCancelYoutubeTrackPicker: onCancelYoutubeTrackPickerEvent,
   onSessionNumericSelectionStart: onSessionNumericSelectionStartEvent,
   onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
+  onControllerSuspendedChanged: onControllerSuspendedChangedEvent,
+  onControllerConfigChanged: onControllerConfigChangedEvent,
+  onControllerBackgroundPress: onControllerBackgroundPressEvent,
+  onPlaybackPauseChanged: onPlaybackPauseChangedEvent,
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
   getPlaylistBrowserSnapshot: (): Promise<PlaylistBrowserSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getPlaylistBrowserSnapshot),

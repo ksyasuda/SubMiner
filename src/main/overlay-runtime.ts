@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron';
-import type { OverlayHostedModal } from '../shared/ipc/contracts';
+import { IPC_CHANNELS, type OverlayHostedModal } from '../shared/ipc/contracts';
 import type { WindowGeometry } from '../types';
 import type { HyprlandPlacementStatus } from '../core/services/hyprland-window-placement';
 import { applyOverlayClickThrough } from '../core/services/overlay-click-through';
@@ -83,6 +83,7 @@ export function createOverlayModalRuntimeService(
   let modalActive = false;
   let mainWindowMousePassthroughForcedByModal = false;
   let mainWindowHiddenByModal = false;
+  let mainWindowControllerSuspended = false;
   let modalWindowPrimedForImmediateShow = false;
   let pendingModalWindowReveal: BrowserWindow | null = null;
   let pendingModalWindowRevealTimeout: RevealFallbackHandle | null = null;
@@ -411,6 +412,16 @@ export function createOverlayModalRuntimeService(
     mainWindowHiddenByModal = false;
   };
 
+  // The hidden main overlay keeps polling the gamepad (background throttling is off), so
+  // tell it to stand down while the modal window owns the controller.
+  const setMainWindowControllerSuspended = (suspended: boolean): void => {
+    if (mainWindowControllerSuspended === suspended) return;
+    mainWindowControllerSuspended = suspended;
+    const mainWindow = deps.getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send(IPC_CHANNELS.event.controllerSuspendedChanged, suspended);
+  };
+
   const scheduleModalWindowReveal = (window: BrowserWindow): void => {
     pendingModalWindowReveal = window;
     if (pendingModalWindowRevealTimeout !== null) {
@@ -560,6 +571,7 @@ export function createOverlayModalRuntimeService(
       }
       mainWindowMousePassthroughForcedByModal = false;
       setMainWindowVisibilityForModal(false);
+      setMainWindowControllerSuspended(false);
       try {
         options.onFinalModalClosed?.();
       } catch {
@@ -591,6 +603,7 @@ export function createOverlayModalRuntimeService(
     const handOffMainWindowToModal = (): void => {
       setMainWindowMousePassthroughForModal(true);
       setMainWindowVisibilityForModal(true);
+      setMainWindowControllerSuspended(true);
     };
 
     if (targetIsModalWindow && deferModalRevealUntilOpened) {

@@ -252,7 +252,7 @@ test('subtitle prefetch init logs a warning when the source parses to zero cues'
   assert.match(warnings[0]!, /\[subtitle-prefetch\].*0 cues.*\/tmp\/broken\.ass/);
 });
 
-function createTrackingController(loadContent: () => string) {
+function createTrackingController(loadContent: () => string, getParseKey?: () => string) {
   let currentService: SubtitlePrefetchService | null = null;
   const events: string[] = [];
   const cueUpdates: Array<string | null> = [];
@@ -265,6 +265,7 @@ function createTrackingController(loadContent: () => string) {
     },
     loadSubtitleSourceText: async () => loadContent(),
     parseSubtitleCues: (content): SubtitleCue[] => [{ startTime: 0, endTime: 1, text: content }],
+    getParseKey,
     createSubtitlePrefetchService: () => {
       const id = ++serviceCount;
       return {
@@ -303,6 +304,20 @@ test('re-initializing a source whose content changed restarts the service', asyn
 
   await controller.initSubtitlePrefetch('track-1.srt', 0);
   content = 'second';
+  await controller.initSubtitlePrefetch('track-1.srt', 0);
+
+  assert.deepEqual(events, ['start:1', 'stop:1', 'start:2']);
+});
+
+test('re-initializing an unchanged source re-parses when the parse key changed', async () => {
+  let parseKey = 'filters-off';
+  const { controller, events } = createTrackingController(
+    () => 'content',
+    () => parseKey,
+  );
+
+  await controller.initSubtitlePrefetch('track-1.srt', 0);
+  parseKey = 'filters-on';
   await controller.initSubtitlePrefetch('track-1.srt', 0);
 
   assert.deepEqual(events, ['start:1', 'stop:1', 'start:2']);

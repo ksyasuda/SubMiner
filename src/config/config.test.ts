@@ -2190,3 +2190,145 @@ test('template generator shows built-in default keybindings in the keybindings a
 
   assert.deepEqual(parsed.keybindings, DEFAULT_KEYBINDINGS);
 });
+
+test('parses controller face button labels and warns on unknown styles', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    '{ "controller": { "faceButtonLabels": "nintendo" } }',
+    'utf-8',
+  );
+  const validService = new ConfigService(validDir);
+  assert.equal(DEFAULT_CONFIG.controller.faceButtonLabels, 'xbox');
+  assert.equal(validService.getConfig().controller.faceButtonLabels, 'nintendo');
+  assert.deepEqual(validService.getWarnings(), []);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    '{ "controller": { "faceButtonLabels": "sega" } }',
+    'utf-8',
+  );
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(invalidService.getConfig().controller.faceButtonLabels, 'xbox');
+  assert.ok(
+    invalidService.getWarnings().some((warning) => warning.path === 'controller.faceButtonLabels'),
+  );
+});
+
+test('controller profiles inherit the button style unless they set their own', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    JSON.stringify({
+      controller: {
+        faceButtonLabels: 'nintendo',
+        profiles: {
+          'pad-ps': { faceButtonLabels: 'playstation' },
+          'pad-plain': { label: 'Plain' },
+          'pad-bad': { faceButtonLabels: 'sega' },
+        },
+      },
+    }),
+    'utf-8',
+  );
+  const service = new ConfigService(dir);
+  const { profiles } = service.getConfig().controller;
+
+  assert.equal(profiles['pad-ps']!.faceButtonLabels, 'playstation');
+  assert.equal(profiles['pad-plain']!.faceButtonLabels, 'nintendo');
+  assert.equal(profiles['pad-bad']!.faceButtonLabels, 'nintendo');
+  assert.deepEqual(
+    service.getWarnings().map((warning) => warning.path),
+    ['controller.profiles.pad-bad.faceButtonLabels'],
+  );
+});
+
+test('parses controller review bindings globally and per profile, and warns on bad entries', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    JSON.stringify({
+      controller: {
+        reviewBindings: {
+          confirm: { press: { kind: 'button', buttonIndex: 9 } },
+          discard: { kind: 'none' },
+          play: { press: { kind: 'face', letter: 'q' } },
+          notAnAction: { kind: 'none' },
+        },
+        profiles: {
+          'pad-1': {
+            reviewBindings: {
+              startForward: {
+                press: { kind: 'dpad', direction: 'right' },
+                hold: { kind: 'axis', axisIndex: 2, direction: 'positive' },
+              },
+            },
+          },
+        },
+      },
+    }),
+    'utf-8',
+  );
+  const service = new ConfigService(dir);
+  const controller = service.getConfig().controller;
+
+  assert.deepEqual(controller.reviewBindings.confirm, {
+    kind: 'combo',
+    press: { kind: 'button', buttonIndex: 9 },
+    hold: null,
+  });
+  assert.deepEqual(controller.reviewBindings.discard, { kind: 'none' });
+  // Invalid entries keep the default.
+  assert.deepEqual(controller.reviewBindings.play, DEFAULT_CONFIG.controller.reviewBindings.play);
+  // Profiles start from the resolved global layout, then apply their own overrides.
+  const profile = controller.profiles['pad-1']!.reviewBindings;
+  assert.deepEqual(profile.confirm, controller.reviewBindings.confirm);
+  assert.deepEqual(profile.startForward, {
+    kind: 'combo',
+    press: { kind: 'dpad', direction: 'right' },
+    hold: { kind: 'axis', axisIndex: 2, direction: 'positive' },
+  });
+  const warnedPaths = service.getWarnings().map((warning) => warning.path);
+  assert.ok(warnedPaths.includes('controller.reviewBindings.play'));
+  assert.ok(warnedPaths.includes('controller.reviewBindings.notAnAction'));
+});
+
+test('parses duplicate card field grouping bindings globally and per profile', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    JSON.stringify({
+      controller: {
+        fieldGroupingBindings: {
+          cancelMerge: { press: { kind: 'button', buttonIndex: 8 } },
+          // A review action is not a field grouping action.
+          confirm: { kind: 'none' },
+        },
+        profiles: {
+          'pad-1': { fieldGroupingBindings: { back: { kind: 'none' } } },
+        },
+      },
+    }),
+    'utf-8',
+  );
+  const service = new ConfigService(dir);
+  const controller = service.getConfig().controller;
+
+  assert.deepEqual(controller.fieldGroupingBindings.cancelMerge, {
+    kind: 'combo',
+    press: { kind: 'button', buttonIndex: 8 },
+    hold: null,
+  });
+  assert.deepEqual(
+    controller.fieldGroupingBindings.continue,
+    DEFAULT_CONFIG.controller.fieldGroupingBindings.continue,
+  );
+  const profile = controller.profiles['pad-1']!.fieldGroupingBindings;
+  assert.deepEqual(profile.cancelMerge, controller.fieldGroupingBindings.cancelMerge);
+  assert.deepEqual(profile.back, { kind: 'none' });
+  // The review layout is untouched.
+  assert.deepEqual(controller.reviewBindings, DEFAULT_CONFIG.controller.reviewBindings);
+  const warnedPaths = service.getWarnings().map((warning) => warning.path);
+  assert.ok(warnedPaths.includes('controller.fieldGroupingBindings.confirm'));
+});

@@ -174,7 +174,7 @@ export function resolveManagedLocalSubtitleSelection(input: {
   };
 }
 
-function normalizeLocalMediaPath(mediaPath: string | null | undefined): string | null {
+export function normalizeLocalMediaPath(mediaPath: string | null | undefined): string | null {
   if (typeof mediaPath !== 'string') {
     return null;
   }

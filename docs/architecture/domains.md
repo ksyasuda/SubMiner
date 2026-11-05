@@ -44,6 +44,7 @@ Read when: you need to find the owner module for a behavior or test surface
   JLPT and frequency annotation lookups: `src/main/jlpt-runtime.ts`, `src/main/frequency-dictionary-runtime.ts`, assembled by `src/main/assemblies/dictionaries.ts`
   Annotation toggles (a cycled runtime option over its config value): `src/main/runtime/annotation-options.ts`
   Whisper subtitle generation runtime, modal and IPC: `src/main/assemblies/subtitle-generation.ts`
+  Subtitle text filters (`subtitleFilter`): `src/shared/subtitle-text-filter.ts`. Primary text is filtered at its two entry points, live `sub-text` in `mpv-protocol.ts` and parsed cues in `playback.ts`, so every consumer sees the same text and live/cue matching still works. A config change re-reads `sub-text` and re-parses the active track (the prefetch controller's parse key).
 - First-run setup: `src/main/runtime/first-run-setup-*.ts`, assembled by `src/main/assemblies/first-run-setup.ts`
 - Anki workflow: `src/anki-integration/`, `src/core/services/anki-jimaku*.ts`
   Card mining handlers, the pending lookup context, field grouping, and media timing review wiring:

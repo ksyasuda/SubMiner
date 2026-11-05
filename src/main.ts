@@ -34,6 +34,12 @@ import { createHachidoriExtensionRuntime } from './core/services/hachidori-exten
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
 import { getAppControlSocketPath } from './shared/app-control';
+import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-focus';
+import {
+  handleBackgroundControllerPress,
+  resolveMacOSControllerWatchCommand,
+  startMacOSControllerWatch,
+} from './main/runtime/macos-controller-watch';
 import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
 import {
   getDefaultPasswordStore,
@@ -265,6 +271,8 @@ const annotationOptions = createAnnotationOptions({
   isCharacterDictionaryEnabled: () => yomitan.profilePolicy.isCharacterDictionaryEnabled(),
 });
 const texthookerService = new Texthooker(() => annotationOptions.getTexthookerBootstrapSettings());
+/** The controller the overlay is reading, as it last reported; null before it sees one. */
+let activeControllerIdFromOverlay: string | null = null;
 const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler({
   platform: process.platform,
 });
@@ -824,6 +832,7 @@ const overlay = createOverlayAssembly({
     promoteStatsOverlayAbovePlayback();
   },
   getMediaTimingReviewRuntime: () => mining.mediaTimingReviewRuntime,
+  getJimakuAutoOpenRuntime: () => playback.jimakuAutoOpenRuntime,
   getSubtitleProcessingController: () => subtitleProcessingController,
   getAutoplaySubtitlePriming: () => autoplaySubtitlePrimingRuntime,
   initializeOverlayRuntime: () => startup.initializeOverlayRuntime(),
@@ -905,6 +914,10 @@ const settings = createSettingsAssembly({
     },
     refreshCurrentSubtitle: () => {
       subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+    },
+    refreshSubtitleFilter: () => {
+      appState.mpvClient?.refreshSubtitleText();
+      void subtitlePrefetchRuntime.refreshSubtitlePrefetchFromActiveTrack();
     },
     setLogLevel: (level) => {
       setLogLevel(level, 'config');
@@ -1072,6 +1085,7 @@ const {
   openAnkiCardFromNotification,
   showConfiguredPlaybackFeedback,
   maybeStartOverlayLoadingOsd,
+  reportOverlayContentReadyToPlugin,
 } = overlayNotificationsRuntime;
 
 const overlayModals = createOverlayModalsAssembly({
@@ -1368,6 +1382,7 @@ const playback = createPlaybackAssembly({
   createSubtitlePrefetchService,
   requestAppQuit: () => requestAppQuit(),
   maybeStartOverlayLoadingOsd: (mediaPath) => maybeStartOverlayLoadingOsd(mediaPath),
+  reportOverlayContentReadyToPlugin,
   flushQueuedMpvOsdNotifications: () => flushQueuedMpvOsdNotifications(),
   refreshMpvSessionBindings: () => shortcuts.refreshMpvSessionBindings(),
   ensureImmersionTrackerStarted: () => stats.ensureImmersionTrackerStarted(),
@@ -1381,6 +1396,7 @@ const playback = createPlaybackAssembly({
     annotationOptions.getRuntimeBooleanOption(id, fallback),
   onFullscreenChange: (fullscreen) => handleMpvFullscreenChange(fullscreen),
   stealAppFocus: () => app.focus({ steal: true }),
+  openJimaku: () => overlayModals.openJimakuOverlay(),
 });
 const {
   subtitleProcessingController,
@@ -1541,11 +1557,25 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getMarkWatchedKey: () => configService.getConfig().stats.markWatchedKey,
       getOverlayNotificationPosition: () => configService.getConfig().notifications.overlayPosition,
       getControllerConfig: () => configService.getConfig().controller,
+      // Alt+C opens in its own window, which cannot see a pad until a button is pressed in
+      // it; the overlay has usually seen it already, so Alt+C asks which one is in use.
+      reportActiveController: (gamepadId) => {
+        activeControllerIdFromOverlay = gamepadId;
+      },
+      getActiveControllerId: () => activeControllerIdFromOverlay,
+      notifyControllerStatus: (message) => {
+        overlayNotificationsRuntime.showConfiguredStatusNotification(message, {
+          id: 'controller-status',
+        });
+      },
       saveControllerConfig: (update) => {
         const currentRawConfig = configService.getRawConfig();
         configService.patchRawConfig({
           controller: applyControllerConfigUpdate(currentRawConfig.controller, update),
         });
+        // The overlay reads controller settings once at startup, and Alt+C runs in its own
+        // window, so remaps would otherwise only apply after a restart.
+        overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.controllerConfigChanged);
       },
       getSecondarySubMode: () => appState.secondarySubMode,
       getRuntimeOptions: () => getRuntimeOptionsStateHandler(),
@@ -1829,3 +1859,37 @@ const subtitleGeneration = createSubtitleGenerationAssembly({
 });
 subtitleGeneration.registerIpc();
 app.on('before-quit', () => subtitleGeneration.runtime.cancel());
+
+if (process.platform === 'darwin') {
+  void app.whenReady().then(() => {
+    const command = resolveMacOSControllerWatchCommand({
+      resourcesPath: process.resourcesPath,
+      mainDirname: __dirname,
+    });
+    if (!command) {
+      logger.warn('macOS controller watch helper not found; controller needs overlay focus');
+      return;
+    }
+    const controllerWatch = startMacOSControllerWatch({
+      command,
+      logger,
+      onPress: (press) =>
+        handleBackgroundControllerPress(press, {
+          isControllerEnabled: () => configService.getConfig().controller.enabled,
+          isMpvFocused: () => appState.windowTracker?.isTargetWindowFocused() ?? false,
+          getModalWindow: () => overlayManager.getModalWindow(),
+          getMainWindow: () => overlayManager.getMainWindow(),
+          focusWindow: (window) =>
+            focusMacOSOverlayWindow({
+              platform: process.platform,
+              getOverlayWindow: () => window,
+              stealAppFocus: () => app.focus({ steal: true }),
+              warn: (message, details) => logger.warn(message, details),
+            }),
+          replayPress: (window, index) =>
+            window.webContents.send(IPC_CHANNELS.event.controllerBackgroundPress, index),
+        }),
+    });
+    app.on('will-quit', () => controllerWatch.stop());
+  });
+}

@@ -18,24 +18,10 @@ export function visibleWordSql(wordAlias: string): string {
   )`;
 }
 
-export function filteredWordOccurrenceCountSql(occurrenceAlias: string, wordAlias: string): string {
-  return `CASE
-    WHEN ${occurrenceAlias}.word_id IS NOT NULL AND ${visibleWordSql(wordAlias)}
-      THEN ${occurrenceAlias}.occurrence_count
-    ELSE 0
-  END`;
-}
-
-export const SESSION_WORD_COUNTS_SELECT = `
-  SELECT
-    sl.session_id AS sessionId,
-    COUNT(DISTINCT sl.line_id) AS persistedLineCount,
-    COALESCE(SUM(${filteredWordOccurrenceCountSql('wlo', 'w')}), 0) AS filteredWordsSeen
-  FROM imm_subtitle_lines sl
-  LEFT JOIN imm_word_line_occurrences wlo ON wlo.line_id = sl.line_id
-  LEFT JOIN imm_words w ON w.id = wlo.word_id
-  GROUP BY sl.session_id
-`;
+// Hidden words are a small set, so SQLite builds this list once per statement
+// and checks occurrences against it instead of re-evaluating the term filter
+// for every occurrence row.
+const HIDDEN_WORD_IDS_SQL = `SELECT hidden_word.id FROM imm_words hidden_word WHERE NOT ${visibleWordSql('hidden_word')}`;
 
 export const ACTIVE_SESSION_METRICS_CTE = `
   WITH active_session_metrics AS (
@@ -53,28 +39,76 @@ export const ACTIVE_SESSION_METRICS_CTE = `
     JOIN imm_sessions s ON s.session_id = t.session_id
     WHERE s.ended_at_ms IS NULL
     GROUP BY t.session_id
-  ),
-  session_word_counts AS (
-    ${SESSION_WORD_COUNTS_SELECT}
   )
 `;
 
-export const SESSION_WORD_COUNTS_CTE = `
-  WITH session_word_counts AS (
-    ${SESSION_WORD_COUNTS_SELECT}
-  )
-`;
-
+/**
+ * Display word count for the session row `sessionAlias`: visible persisted word
+ * occurrences when the session has persisted subtitle lines, otherwise the raw
+ * token counter `rawTokensExpr`.
+ *
+ * The subqueries are correlated on `session_id`, so a query only reads the
+ * lines of the sessions it actually returns. Do not replace this with a CTE
+ * aggregated over every subtitle line; that costs a full scan of the
+ * occurrence table on every stats request.
+ */
 export function sessionDisplayWordsExpr(
   sessionAlias: string,
-  wordCountAlias: string,
   rawTokensExpr = `${sessionAlias}.tokens_seen`,
 ): string {
   return `CASE
-    WHEN COALESCE(${wordCountAlias}.persistedLineCount, 0) > 0 THEN COALESCE(${wordCountAlias}.filteredWordsSeen, 0)
+    WHEN EXISTS (
+      SELECT 1 FROM imm_subtitle_lines display_line
+      WHERE display_line.session_id = ${sessionAlias}.session_id
+    ) THEN (
+      SELECT COALESCE(SUM(display_occurrence.occurrence_count), 0)
+      FROM imm_subtitle_lines display_line
+      JOIN imm_word_line_occurrences display_occurrence
+        ON display_occurrence.line_id = display_line.line_id
+      WHERE display_line.session_id = ${sessionAlias}.session_id
+        AND display_occurrence.word_id NOT IN (${HIDDEN_WORD_IDS_SQL})
+    )
     ELSE COALESCE(${rawTokensExpr}, 0)
   END`;
 }
+
+/**
+ * `SUM(sessionDisplayWordsExpr(s))` over every ended session, as one scalar
+ * expression that avoids walking each session's lines: all visible
+ * occurrences, minus those on lines outside ended sessions, plus the raw token
+ * counter of ended sessions without persisted lines. Relies on occurrences
+ * cascading with their line (foreign keys are on for every connection), so
+ * every occurrence belongs to an existing line.
+ */
+export const ENDED_SESSIONS_DISPLAY_WORDS_SQL = `(
+  (SELECT COALESCE(SUM(occurrence_count), 0) FROM imm_word_line_occurrences)
+  - (
+    SELECT COALESCE(SUM(hidden_occurrence.occurrence_count), 0)
+    FROM imm_word_line_occurrences hidden_occurrence
+    WHERE hidden_occurrence.word_id IN (${HIDDEN_WORD_IDS_SQL})
+  )
+  - (
+    SELECT COALESCE(SUM(open_occurrence.occurrence_count), 0)
+    FROM imm_subtitle_lines open_line
+    JOIN imm_word_line_occurrences open_occurrence ON open_occurrence.line_id = open_line.line_id
+    WHERE (
+        open_line.session_id IS NULL
+        OR open_line.session_id NOT IN (
+          SELECT ended.session_id FROM imm_sessions ended WHERE ended.ended_at_ms IS NOT NULL
+        )
+      )
+      AND open_occurrence.word_id NOT IN (${HIDDEN_WORD_IDS_SQL})
+  )
+  + (
+    SELECT COALESCE(SUM(COALESCE(lineless.tokens_seen, 0)), 0)
+    FROM imm_sessions lineless
+    WHERE lineless.ended_at_ms IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM imm_subtitle_lines lineless_line
+        WHERE lineless_line.session_id = lineless.session_id
+      )
+  )
+)`;
 
 export function makePlaceholders(values: number[]): string {
   return values.map(() => '?').join(',');

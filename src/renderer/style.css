@@ -93,33 +93,6 @@ body:focus-visible,
   pointer-events: auto;
 }
 
-.controller-status-toast {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  max-width: min(360px, calc(100vw - 32px));
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(138, 213, 202, 0.45);
-  background: linear-gradient(135deg, rgba(10, 44, 40, 0.94), rgba(8, 28, 33, 0.94));
-  color: rgba(228, 255, 251, 0.98);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(-6px);
-  transition:
-    opacity 160ms ease,
-    transform 160ms ease;
-  z-index: 1300;
-}
-
-.controller-status-toast:not(.hidden) {
-  opacity: 1;
-  transform: translateY(0);
-}
-
 .overlay-error-toast {
   position: absolute;
   top: 16px;
@@ -2072,6 +2045,37 @@ body:focus-visible,
   text-align: center;
 }
 
+/* Controller hints: shown beside each control while controller support is on. */
+.media-timing-review-modal.controller-hints-visible button[data-controller-hint]::after,
+#kikuFieldGroupingModal.controller-hints-visible [data-controller-hint]::after {
+  content: attr(data-controller-hint);
+  text-transform: none;
+  /* Buttons use the system UI font, where ○ □ △ are small; Japanese fonts draw them (and
+     the ╳ used for the PlayStation cross) at full size, and SubMiner already expects one. */
+  font-family:
+    'M PLUS 1', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', 'DejaVu Sans', sans-serif;
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--ctp-surface1);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--ctp-mantle);
+  color: var(--ctp-subtext0);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.media-timing-review-modal.controller-hints-visible .media-timing-review-line-stepper button {
+  width: auto;
+  min-width: 24px;
+  padding: 0 5px;
+}
+
 .media-timing-review-cancel-step {
   min-height: 300px;
   padding: 44px 38px 34px;
@@ -2951,7 +2955,21 @@ iframe[id^='yomitan-popup'],
 
 .kiku-preview-toggle {
   display: inline-flex;
+  align-items: center;
   gap: 6px;
+}
+
+/* "Scroll ▲ ▼" tag in the preview header, only while controller hints show. */
+.kiku-preview-scroll-hint {
+  display: none;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ctp-subtext0);
+}
+
+#kikuFieldGroupingModal.controller-hints-visible .kiku-preview-scroll-hint[data-controller-hint] {
+  display: inline;
 }
 
 .kiku-preview-toggle button {
@@ -3443,6 +3461,8 @@ iframe[id^='yomitan-popup'],
   border-radius: 8px;
   background: rgba(24, 25, 38, 0.9);
   color: var(--ctp-text);
+  /* Selects default to the system UI font, where the PlayStation ○ is small. */
+  font-family: inherit;
 }
 
 .controller-select-summary {
@@ -3474,6 +3494,40 @@ iframe[id^='yomitan-popup'],
 
 .controller-config-group:first-child {
   margin-top: 0;
+}
+
+.controller-config-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.controller-config-group-action {
+  padding: 2px 8px;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.controller-config-subgroup {
+  padding: 10px 10px 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--ctp-subtext0);
+}
+
+.controller-config-warning {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ctp-yellow);
+}
+
+.controller-config-row.has-warning .controller-config-badge {
+  border-color: var(--ctp-yellow);
 }
 
 .controller-config-row {
@@ -3519,6 +3573,7 @@ iframe[id^='yomitan-popup'],
   padding: 2px 8px;
   border: 0;
   border-radius: 4px;
+  font-family: inherit; /* the overlay's Japanese-first fonts draw ○ □ △ at full size */
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -3554,11 +3609,28 @@ iframe[id^='yomitan-popup'],
   color: var(--ctp-overlay2);
 }
 
+/* Before Alt+C sees a controller the rows are a preview: actions look unavailable. */
+.controller-config-locked .controller-config-reset-icon,
+.controller-config-locked .controller-config-edit-icon,
+.controller-config-locked .controller-config-group-action,
+.controller-config-locked .controller-config-edit-panel button {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .controller-config-edit-panel {
+  /* The list is a height-capped flex column: without this the panel (overflow hidden, so no
+     minimum height) is squeezed to its border once the rows overflow. */
+  flex-shrink: 0;
   overflow: hidden;
   animation: configEditSlideIn 180ms ease-out;
   border-bottom: 1px solid rgba(138, 173, 244, 0.15);
   background: rgba(138, 173, 244, 0.04);
+}
+
+/* Redrawn while it stays open (after Learn, Reset, …): no slide-in again. */
+.controller-config-edit-panel-kept {
+  animation: none;
 }
 
 @keyframes configEditSlideIn {

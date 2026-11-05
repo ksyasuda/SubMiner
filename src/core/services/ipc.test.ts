@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from './ipc';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import type { SessionActionDispatchRequest, SubtitleSidebarSnapshot } from '../../types';
+import { getDefaultControllerReviewBindings } from '../../shared/controller-review';
+import { getDefaultControllerFieldGroupingBindings } from '../../shared/controller-field-grouping';
 
 interface FakeIpcRegistrar {
   on: Map<string, (event: unknown, ...args: unknown[]) => void>;
@@ -45,6 +47,7 @@ function createControllerConfigFixture() {
     stickDeadzone: 0.2,
     triggerInputMode: 'auto' as const,
     triggerDeadzone: 0.5,
+    faceButtonLabels: 'xbox' as const,
     repeatDelayMs: 220,
     repeatIntervalMs: 80,
     buttonIndices: {
@@ -73,6 +76,10 @@ function createControllerConfigFixture() {
       holdSecondarySub: { kind: 'none' as const },
       previousEntry: { kind: 'none' as const },
       nextEntry: { kind: 'none' as const },
+      previousSubtitle: { kind: 'none' as const },
+      nextSubtitle: { kind: 'none' as const },
+      replaySubtitle: { kind: 'none' as const },
+      playNextSubtitle: { kind: 'none' as const },
       leftStickHorizontal: {
         kind: 'axis' as const,
         axisIndex: 0,
@@ -82,6 +89,8 @@ function createControllerConfigFixture() {
       rightStickHorizontal: { kind: 'axis' as const, axisIndex: 3, dpadFallback: 'none' as const },
       rightStickVertical: { kind: 'axis' as const, axisIndex: 4, dpadFallback: 'none' as const },
     },
+    reviewBindings: getDefaultControllerReviewBindings(),
+    fieldGroupingBindings: getDefaultControllerFieldGroupingBindings(),
     profiles: {},
   };
 }
@@ -135,6 +144,9 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     getOverlayNotificationPosition: () => 'top-right',
     getControllerConfig: () => createControllerConfigFixture(),
     saveControllerConfig: async () => {},
+    reportActiveController: () => {},
+    getActiveControllerId: () => null,
+    notifyControllerStatus: () => {},
     getSecondarySubMode: () => 'hover',
     getCurrentSecondarySub: () => '',
     focusMainWindow: () => {},
@@ -219,6 +231,51 @@ test('registerIpcHandlers maps setIgnoreMouseEvents to overlay interaction activ
   handler?.({}, false, {});
 
   assert.deepEqual(calls, ['overlay-interaction:false', 'overlay-interaction:true']);
+});
+
+test('registerIpcHandlers stores the controller the overlay reports for Alt+C to ask', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  let active: string | null = null;
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      reportActiveController: (gamepadId) => {
+        active = gamepadId;
+      },
+      getActiveControllerId: () => active,
+    }),
+    registrar,
+  );
+
+  const report = handlers.on.get(IPC_CHANNELS.command.reportActiveController);
+  report?.({}, 'pad-1');
+  report?.({}, 42);
+  assert.equal(
+    await handlers.handle.get(IPC_CHANNELS.request.getActiveControllerId)?.({}),
+    'pad-1',
+  );
+  report?.({}, null);
+  assert.equal(await handlers.handle.get(IPC_CHANNELS.request.getActiveControllerId)?.({}), null);
+});
+
+test('registerIpcHandlers forwards controller status messages and drops invalid ones', () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const messages: string[] = [];
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      notifyControllerStatus: (message) => {
+        messages.push(message);
+      },
+    }),
+    registrar,
+  );
+
+  const notify = handlers.on.get(IPC_CHANNELS.command.notifyControllerStatus);
+  notify?.({}, 'Controller connected: pad-1');
+  notify?.({}, 42);
+  notify?.({}, '   ');
+  assert.deepEqual(messages, ['Controller connected: pad-1']);
 });
 
 test('registerIpcHandlers runs AniList update after manual mark watched succeeds', async () => {
@@ -323,6 +380,9 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       getOverlayNotificationPosition: () => 'top-right',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: () => {},
+      reportActiveController: () => {},
+      getActiveControllerId: () => null,
+      notifyControllerStatus: () => {},
       getSecondarySubMode: () => 'hover',
       getCurrentSecondarySub: () => '',
       focusMainWindow: () => {},
@@ -604,6 +664,9 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       getOverlayNotificationPosition: () => 'top-right',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: () => {},
+      reportActiveController: () => {},
+      getActiveControllerId: () => null,
+      notifyControllerStatus: () => {},
       getSecondarySubMode: () => 'hover',
       getCurrentSecondarySub: () => '',
       focusMainWindow: () => {},

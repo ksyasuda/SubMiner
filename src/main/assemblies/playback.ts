@@ -10,6 +10,7 @@ import {
   tokenizeSubtitle as tokenizeSubtitleCore,
 } from '../../core/services';
 import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
+import { filterSubtitleCues } from '../../shared/subtitle-text-filter';
 import { resolveAniSkipMetadataForFile } from '../runtime/aniskip-metadata';
 import { createAniSkipRuntime } from '../runtime/aniskip-runtime';
 import { resolveCurrentSubtitleForRenderer } from '../runtime/current-subtitle-snapshot';
@@ -24,6 +25,7 @@ import {
   markJellyfinRemotePlaybackLoaded as markJellyfinRemotePlaybackLoadedState,
   shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
 } from '../runtime/jellyfin-remote-playback';
+import { createJimakuAutoOpenRuntime } from '../runtime/jimaku-auto-open';
 import { createManagedLocalSubtitleSelectionRuntime } from '../runtime/local-subtitle-selection';
 import { focusMacOSOverlayWindow } from '../runtime/macos-overlay-window-focus';
 import { buildSubtitleTrackDiagnostics } from '../runtime/mpv-track-diagnostics';
@@ -198,6 +200,7 @@ export interface PlaybackAssemblyDeps {
   ) => SubtitlePrefetchService;
   requestAppQuit: () => void;
   maybeStartOverlayLoadingOsd: OverlayNotificationsRuntime['maybeStartOverlayLoadingOsd'];
+  reportOverlayContentReadyToPlugin: OverlayNotificationsRuntime['reportOverlayContentReadyToPlugin'];
   flushQueuedMpvOsdNotifications: OverlayNotificationsRuntime['flushQueuedMpvOsdNotifications'];
   refreshMpvSessionBindings: () => Promise<void>;
   ensureImmersionTrackerStarted: () => void;
@@ -211,6 +214,8 @@ export interface PlaybackAssemblyDeps {
   onFullscreenChange: (fullscreen: boolean) => void;
   /** Brings SubMiner to the foreground (`app.focus({ steal: true })`). */
   stealAppFocus: () => void;
+  /** Opens the Jimaku modal; resolves to whether the modal acknowledged opening. */
+  openJimaku: () => Promise<boolean>;
 }
 
 export type PlaybackAssembly = ReturnType<typeof createPlaybackAssembly>;
@@ -218,9 +223,9 @@ export type PlaybackAssembly = ReturnType<typeof createPlaybackAssembly>;
 /**
  * Owns the subtitle pipeline around mpv playback: the mpv client runtime and its event
  * handlers, subtitle tokenization and warmups, subtitle prefetch, the subtitle sidebar's cached
- * playback state, secondary subtitles, managed local subtitle selection, and the autoplay-ready
- * gate that releases mpv's startup pause with its subtitle priming. `main.ts` builds it once and
- * starts warmups and the mpv client from its startup code.
+ * playback state, secondary subtitles, managed local subtitle selection, Jimaku auto-open, and the
+ * autoplay-ready gate that releases mpv's startup pause with its subtitle priming. `main.ts` builds
+ * it once and starts warmups and the mpv client from its startup code.
  */
 export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
   const {
@@ -310,6 +315,8 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
     // Untokenized signals wait for warmup here; the target-readiness predicate below must stay
     // warmup-free so warm and tokenized releases are never deferred behind the warmup flag.
     isTokenizationReady: () => isTokenizationWarmupReady(),
+    // Deferred: jimakuAutoOpenRuntime is created right after this gate.
+    isPlaybackHeld: () => jimakuAutoOpenRuntime.isHoldingPlayback(),
     requestOverlayPointerRecovery: () => {
       if (process.platform !== 'darwin' || !overlayManager.getVisibleOverlayVisible()) {
         return;
@@ -345,6 +352,30 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
       ),
     schedule: (callback, delayMs) => setTimeout(callback, delayMs),
     logDebug: (message) => logger.debug(message),
+  });
+
+  const jimakuAutoOpenRuntime = createJimakuAutoOpenRuntime({
+    isEnabled: () => configService.getConfig().jimaku.autoOpenWhenPrimarySubtitleMissing,
+    getCurrentMediaPath: () => appState.currentMediaPath,
+    getMpvClient: () => appState.mpvClient,
+    getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
+    isPlaybackPaused: () => appState.playbackPaused,
+    pausePlayback: () => {
+      sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'yes']);
+    },
+    holdPluginAutoplayGate: () => {
+      sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-hold']);
+    },
+    endHold: ({ undoPause }) => {
+      // Readiness deferred during the hold goes through the normal release (plugin + unpause).
+      autoplayReadyGate.flushPendingAutoplayReadySignal();
+      if (undoPause) {
+        sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', 'no']);
+      }
+    },
+    openJimaku: () => deps.openJimaku(),
+    schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+    clearScheduled: (timer) => clearTimeout(timer),
   });
 
   function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
@@ -537,13 +568,21 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
     },
   });
 
+  // Primary cues get the same subtitleFilter pass as live mpv text, so the two still match.
+  const parsePrimarySubtitleCues = (content: string, filename: string) =>
+    filterSubtitleCues(
+      parseSubtitleCues(content, filename),
+      configService.getConfig().subtitleFilter,
+    );
+
   const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     getCurrentService: () => subtitlePrefetchService,
     setCurrentService: (service) => {
       subtitlePrefetchService = service;
     },
     loadSubtitleSourceText,
-    parseSubtitleCues: (content, filename) => parseSubtitleCues(content, filename),
+    parseSubtitleCues: parsePrimarySubtitleCues,
+    getParseKey: () => JSON.stringify(configService.getConfig().subtitleFilter),
     createSubtitlePrefetchService: (serviceDeps) => createSubtitlePrefetchService(serviceDeps),
     tokenizeSubtitle: async (text) =>
       tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
@@ -675,6 +714,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
       },
       onMpvConnected: () => {
         deps.maybeStartOverlayLoadingOsd();
+        deps.reportOverlayContentReadyToPlugin();
         deps.flushQueuedMpvOsdNotifications();
         secondarySubtitleTrackController.scheduleRefresh(0);
         void deps.refreshMpvSessionBindings();
@@ -758,6 +798,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
         }
         currentMediaTokenizationGate.updateCurrentMediaPath(path);
         managedLocalSubtitleSelectionRuntime.handleMediaPathChange(path);
+        jimakuAutoOpenRuntime.handleMediaPathChange(path);
         startupOsdSequencer.reset();
         subtitlePrefetchRuntime.clearScheduledSubtitlePrefetchRefresh();
         if (!preserveParsedSubtitleCues) {
@@ -1210,7 +1251,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
           }
 
           const content = await loadSubtitleSourceText(resolvedSource.path);
-          const cues = parseSubtitleCues(content, resolvedSource.path);
+          const cues = parsePrimarySubtitleCues(content, resolvedSource.path);
           appState.activeParsedSubtitleCues = cues;
           appState.activeParsedSubtitleSource = resolvedSource.sourceKey;
           appState.activeParsedSubtitleMediaPath = videoPath || null;
@@ -1234,6 +1275,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
     ipc,
     autoplayReadyGate,
     currentMediaTokenizationGate,
+    jimakuAutoOpenRuntime,
     createMpvClient,
     aniSkipRuntime,
     setSubtitleSidebarRequestedOpen: (open: boolean): void => {

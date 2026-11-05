@@ -1687,6 +1687,176 @@ do
 	)
 end
 
+local function count_live_timeouts(recorded, seconds)
+	local count = 0
+	for _, timeout in ipairs(recorded.timeout_handles) do
+		if timeout.seconds == seconds and not timeout.killed then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+-- Fire only the short plugin timers (socket retries, deferred hides), leaving the 30 s loading deadline armed.
+local function fire_short_timeouts(recorded)
+	for _, timeout in ipairs(recorded.timeout_handles) do
+		if not timeout.killed and timeout.callback and timeout.seconds < 5 then
+			timeout.killed = true
+			timeout.callback()
+		end
+	end
+end
+
+local function count_live_periodic_timers(recorded)
+	local count = 0
+	for _, timer in ipairs(recorded.periodic_timers) do
+		if not timer.killed then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+do
+	-- Issue #315: a warm playlist advance reuses an overlay whose content is already ready, so the
+	-- app never sends another overlay-loading-ready and a restarted spinner would hit its deadline.
+	local scenario = {
+		process_list = "",
+		defer_timeouts = true,
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/warm-episode-01.mkv",
+		playlist_count = 2,
+		playlist_pos = 0,
+		media_title = "Warm Episode 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for warm playlist loading OSD scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	fire_short_timeouts(recorded)
+	recorded.script_messages["subminer-overlay-loading-ready"]()
+	recorded.script_messages["subminer-autoplay-ready"]()
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/warm-episode-02.mkv"
+	scenario.media_title = "Warm Episode 2"
+	scenario.playlist_pos = 1
+	recorded.osd = {}
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	fire_short_timeouts(recorded)
+	assert_true(
+		not has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"warm playlist advance should not restart the overlay loading OSD for an already-ready overlay"
+	)
+	assert_true(
+		count_live_periodic_timers(recorded) == 0 and count_live_timeouts(recorded, 30) == 0,
+		"warm playlist advance should not leave an overlay loading spinner or deadline running"
+	)
+end
+
+do
+	-- A stop-only dismissal (overlay hidden before content loaded) clears the spinner without marking
+	-- the overlay ready, so the next file still shows the spinner.
+	local scenario = {
+		process_list = "",
+		defer_timeouts = true,
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/slow-overlay-01.mkv",
+		playlist_count = 2,
+		playlist_pos = 0,
+		media_title = "Slow Overlay 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for not-ready playlist loading OSD scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	fire_short_timeouts(recorded)
+	assert_true(
+		count_live_periodic_timers(recorded) == 1 and count_live_timeouts(recorded, 30) == 1,
+		"overlay loading OSD should still be running before the app dismisses it"
+	)
+	assert_true(
+		recorded.script_messages["subminer-overlay-loading-dismissed"] ~= nil,
+		"overlay loading dismissed script message should be registered"
+	)
+	recorded.script_messages["subminer-overlay-loading-dismissed"]()
+	assert_true(
+		count_live_periodic_timers(recorded) == 0 and count_live_timeouts(recorded, 30) == 0,
+		"overlay loading dismissed should stop the spinner and its deadline"
+	)
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/slow-overlay-02.mkv"
+	scenario.media_title = "Slow Overlay 2"
+	scenario.playlist_pos = 1
+	recorded.osd = {}
+	fire_event(recorded, "start-file")
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"a stop-only dismissal should not mark the overlay ready for the next playlist file"
+	)
+end
+
+do
+	-- A dismissal after readiness means the app's overlay window was replaced and has no content yet,
+	-- so the plugin must forget the old readiness and show the spinner on the next file.
+	local scenario = {
+		process_list = "",
+		defer_timeouts = true,
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/replaced-overlay-01.mkv",
+		playlist_count = 2,
+		playlist_pos = 0,
+		media_title = "Replaced Overlay 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for replaced overlay loading OSD scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	fire_short_timeouts(recorded)
+	recorded.script_messages["subminer-overlay-loading-ready"]()
+	recorded.script_messages["subminer-overlay-loading-dismissed"]()
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "/media/replaced-overlay-02.mkv"
+	scenario.media_title = "Replaced Overlay 2"
+	scenario.playlist_pos = 1
+	recorded.osd = {}
+	fire_event(recorded, "start-file")
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"a dismissal after readiness should make the next playlist file show the loading OSD again"
+	)
+end
+
 do
 	local recorded, err = run_plugin_scenario({
 		defer_timeouts = true,

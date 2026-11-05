@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { MpvSubtitleRenderMetrics } from '../../types';
 import {
   dispatchMpvProtocolMessage,
+  MPV_REQUEST_ID_RELOADED_PATH,
   MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
   MpvProtocolHandleMessageDeps,
   splitMpvMessagesFromBuffer,
@@ -99,7 +100,10 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       emitPauseChange: () => {},
       emitFullscreenChange: (payload) => state.events.push(payload),
       autoLoadSecondarySubTrack: () => {},
+      getCurrentVideoPath: () => '',
       setCurrentVideoPath: () => {},
+      getAwaitingPathChangeAfterEndFile: () => false,
+      setAwaitingPathChangeAfterEndFile: () => {},
       emitSecondarySubtitleVisibility: (payload) => state.events.push(payload),
       setCurrentAudioStreamIndex: () => {},
       sendCommand: (payload) => {
@@ -501,4 +505,106 @@ test('dispatchMpvProtocolMessage emits end-file with reason, entry id, and error
     { reason: 'error', playlistEntryId: 3, error: 'loading failed' },
     { reason: 'unknown', playlistEntryId: null, error: null },
   ]);
+});
+
+const CLIP = '/media/clip.mkv';
+
+// Plays a reload's message sequence against real path state. The timeline holds each path change
+// plus 'file-loaded' with the path listeners can read at that moment.
+async function playFileTransition(messages: Array<Record<string, unknown>>) {
+  const timeline: string[] = [];
+  let currentPath = CLIP;
+  let awaitingPathChange = false;
+  const { deps, state } = createDeps({
+    getCurrentVideoPath: () => currentPath,
+    setCurrentVideoPath: (value) => {
+      currentPath = value;
+    },
+    getAwaitingPathChangeAfterEndFile: () => awaitingPathChange,
+    setAwaitingPathChangeAfterEndFile: (value) => {
+      awaitingPathChange = value;
+    },
+    emitMediaPathChange: ({ path }) => timeline.push(`path:${path}`),
+    emitFileLoaded: () => timeline.push(`file-loaded:${currentPath}`),
+  });
+  for (const message of messages) {
+    await dispatchMpvProtocolMessage(message, deps);
+  }
+  const pathReads = state.commands.filter(
+    (payload) => (payload as { request_id?: number }).request_id === MPV_REQUEST_ID_RELOADED_PATH,
+  );
+  return { timeline, pathReads, currentPath };
+}
+
+const endFile = { event: 'end-file', reason: 'stop' };
+const fileLoaded = { event: 'file-loaded' };
+const pathEvent = (data: string | null) => ({ event: 'property-change', name: 'path', data });
+
+test('a reload whose path clear arrives needs no recovery', async () => {
+  const { timeline, pathReads } = await playFileTransition([
+    endFile,
+    pathEvent(null),
+    pathEvent(CLIP),
+    fileLoaded,
+  ]);
+
+  assert.deepEqual(timeline, ['path:', `path:${CLIP}`, `file-loaded:${CLIP}`]);
+  assert.equal(pathReads.length, 0);
+});
+
+test('a dropped clear is replayed and file-loaded waits for the restored path', async () => {
+  // With commands queued or a stalled reader, every queued event comes first, then the latest path.
+  const { timeline, pathReads, currentPath } = await playFileTransition([
+    endFile,
+    fileLoaded,
+    pathEvent(CLIP),
+    { request_id: MPV_REQUEST_ID_RELOADED_PATH, data: CLIP },
+  ]);
+
+  assert.deepEqual(timeline, ['path:', `path:${CLIP}`, `file-loaded:${CLIP}`]);
+  assert.equal(pathReads.length, 1);
+  assert.equal(currentPath, CLIP);
+});
+
+test('an unchanged path event before file-loaded does not hide a dropped clear', async () => {
+  const { timeline } = await playFileTransition([
+    endFile,
+    pathEvent(CLIP),
+    fileLoaded,
+    { request_id: MPV_REQUEST_ID_RELOADED_PATH, data: CLIP },
+  ]);
+
+  assert.deepEqual(timeline, [`path:${CLIP}`, 'path:', `path:${CLIP}`, `file-loaded:${CLIP}`]);
+});
+
+test('a reload with no path event at all restores the path from the read back', async () => {
+  const { timeline, currentPath } = await playFileTransition([
+    endFile,
+    fileLoaded,
+    { request_id: MPV_REQUEST_ID_RELOADED_PATH, data: CLIP },
+  ]);
+
+  assert.deepEqual(timeline, ['path:', `path:${CLIP}`, `file-loaded:${CLIP}`]);
+  assert.equal(currentPath, CLIP);
+});
+
+test('a failed path read back still delivers the deferred file-loaded', async () => {
+  const { timeline } = await playFileTransition([
+    endFile,
+    fileLoaded,
+    { request_id: MPV_REQUEST_ID_RELOADED_PATH, error: 'property unavailable' },
+  ]);
+
+  assert.deepEqual(timeline, ['path:', 'file-loaded:']);
+});
+
+test('switching files with a dropped clear stays a plain path change', async () => {
+  const { timeline, pathReads } = await playFileTransition([
+    endFile,
+    pathEvent('/media/next.mkv'),
+    fileLoaded,
+  ]);
+
+  assert.deepEqual(timeline, ['path:/media/next.mkv', 'file-loaded:/media/next.mkv']);
+  assert.equal(pathReads.length, 0);
 });

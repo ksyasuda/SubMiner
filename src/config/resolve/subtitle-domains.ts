@@ -90,6 +90,18 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         'Expected positive number.',
       );
     }
+
+    const autoOpen = asBoolean(src.jimaku.autoOpenWhenPrimarySubtitleMissing);
+    if (autoOpen !== undefined) {
+      resolved.jimaku.autoOpenWhenPrimarySubtitleMissing = autoOpen;
+    } else if (src.jimaku.autoOpenWhenPrimarySubtitleMissing !== undefined) {
+      warn(
+        'jimaku.autoOpenWhenPrimarySubtitleMissing',
+        src.jimaku.autoOpenWhenPrimarySubtitleMissing,
+        resolved.jimaku.autoOpenWhenPrimarySubtitleMissing,
+        'Expected boolean.',
+      );
+    }
   }
 
   const currentTsukihimeSource = isObject(src.tsukihime) ? src.tsukihime : null;
@@ -125,6 +137,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     const fallbackSubtitleStyleAutoPauseVideoOnHover = resolved.subtitleStyle.autoPauseVideoOnHover;
     const fallbackSubtitleStyleAutoPauseVideoOnYomitanPopup =
       resolved.subtitleStyle.autoPauseVideoOnYomitanPopup;
+    const fallbackSubtitleStyleAutoPauseVideoOnKeyboardMode =
+      resolved.subtitleStyle.autoPauseVideoOnKeyboardMode;
     const fallbackSubtitleStylePrimaryVisibleOnYomitanPopup =
       resolved.subtitleStyle.primaryVisibleOnYomitanPopup;
     const fallbackSubtitleStyleHoverTokenColor = resolved.subtitleStyle.hoverTokenColor;
@@ -270,6 +284,23 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         (src.subtitleStyle as { autoPauseVideoOnYomitanPopup?: unknown })
           .autoPauseVideoOnYomitanPopup,
         resolved.subtitleStyle.autoPauseVideoOnYomitanPopup,
+        'Expected boolean.',
+      );
+    }
+
+    const rawAutoPauseVideoOnKeyboardMode = (
+      src.subtitleStyle as { autoPauseVideoOnKeyboardMode?: unknown }
+    ).autoPauseVideoOnKeyboardMode;
+    const autoPauseVideoOnKeyboardMode = asBoolean(rawAutoPauseVideoOnKeyboardMode);
+    if (autoPauseVideoOnKeyboardMode !== undefined) {
+      resolved.subtitleStyle.autoPauseVideoOnKeyboardMode = autoPauseVideoOnKeyboardMode;
+    } else if (rawAutoPauseVideoOnKeyboardMode !== undefined) {
+      resolved.subtitleStyle.autoPauseVideoOnKeyboardMode =
+        fallbackSubtitleStyleAutoPauseVideoOnKeyboardMode;
+      warn(
+        'subtitleStyle.autoPauseVideoOnKeyboardMode',
+        rawAutoPauseVideoOnKeyboardMode,
+        resolved.subtitleStyle.autoPauseVideoOnKeyboardMode,
         'Expected boolean.',
       );
     }

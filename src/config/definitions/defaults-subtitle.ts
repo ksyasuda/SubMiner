@@ -1,6 +1,9 @@
 import { ResolvedConfig } from '../../types/config';
 
-export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'subtitleSidebar'> = {
+export const SUBTITLE_DEFAULT_CONFIG: Pick<
+  ResolvedConfig,
+  'subtitleStyle' | 'subtitleSidebar' | 'subtitleFilter'
+> = {
   subtitleStyle: {
     primaryDefaultMode: 'visible',
     css: {},
@@ -8,6 +11,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     preserveLineBreaks: false,
     autoPauseVideoOnHover: true,
     autoPauseVideoOnYomitanPopup: true,
+    autoPauseVideoOnKeyboardMode: false,
     primaryVisibleOnYomitanPopup: true,
     hoverTokenColor: '#f4dbd6',
     hoverTokenBackgroundColor: 'transparent',
@@ -92,5 +96,14 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     activeLineColor: '#f5bde6',
     activeLineBackgroundColor: 'rgba(138, 173, 244, 0.22)',
     hoverLineBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+  },
+  subtitleFilter: {
+    presets: {
+      parentheses: false,
+      brackets: false,
+      speakerPrefix: false,
+      musicSymbols: false,
+    },
+    customRules: [],
   },
 };

@@ -108,6 +108,7 @@
     "stickDeadzone": 0.2, // Deadzone applied to controller stick axes.
     "triggerInputMode": "auto", // How controller triggers are interpreted: auto, pressed-only, or thresholded analog. Values: auto | digital | analog
     "triggerDeadzone": 0.5, // Minimum analog trigger value required when trigger input uses auto or analog mode.
+    "faceButtonLabels": "xbox", // Face button style of your controller: xbox (A at the bottom), nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads) or playstation (╳ ○ □ △, laid out like xbox). Places the A/B/X/Y of the dialog layouts and names buttons in Alt+C and the dialog hints. Alt+C sets it per controller (controller.profiles.<id>.faceButtonLabels); this is the default for the others. Values: xbox | nintendo | playstation
     "repeatDelayMs": 320, // Delay before repeating held controller actions.
     "repeatIntervalMs": 120, // Repeat interval for held controller actions.
     "buttonIndices": {
@@ -158,7 +159,7 @@
       "toggleMpvPause": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 9 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for toggling mpv play/pause. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for toggling mpv play/pause. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "holdSecondarySub": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
       }, // Controller binding descriptor that shows the secondary subtitle only while held. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
@@ -168,6 +169,18 @@
       "nextEntry": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
       }, // Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "previousSubtitle": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that jumps to the previous subtitle line, like Shift+H. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "nextSubtitle": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that jumps to the next subtitle line, like Shift+L. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "replaySubtitle": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that replays the current subtitle line, then pauses, like Ctrl+Shift+H. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      "playNextSubtitle": {
+        "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
+      }, // Controller binding descriptor that plays the next subtitle line, then pauses, like Ctrl+Shift+L. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
       "leftStickHorizontal": {
         "kind": "axis", // Analog binding input source kind. Values: none | axis
         "axisIndex": 0, // Raw axis index captured for this analog controller action.
@@ -189,6 +202,288 @@
         "dpadFallback": "none" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
       } // Axis binding descriptor used for popup page jumps. Use Alt+C learn mode or set a raw axis descriptor manually.
     }, // Raw controller binding descriptors saved by Alt+C learn mode. For discrete axis bindings, kind "axis" requires axisIndex and direction.
+    "reviewBindings": {
+      "confirm": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "a" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Use this timing.
+      "cancel": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "b" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Cancel.
+      "play": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "x" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Play selection.
+      "resetTiming": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "y" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Reset timing.
+      "showEarlier": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "left" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Earlier −2s. Repeats while held.
+      "showLater": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "right" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Later +2s. Repeats while held.
+      "framePrevious": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "up" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Previous screenshot frame. Repeats while held.
+      "frameNext": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "down" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Next screenshot frame. Repeats while held.
+      "frameReset": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 5 // Raw button index.
+        }, // Input that triggers the action.
+        "hold": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 4 // Raw button index.
+        } // Optional input held while pressing; null for none.
+      }, // Review dialog: Reset screenshot frame.
+      "startBack": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "left" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 4 // Raw button index.
+        } // Optional input held while pressing; null for none.
+      }, // Review dialog: Start −0.1s. Repeats while held.
+      "startForward": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "right" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 4 // Raw button index.
+        } // Optional input held while pressing; null for none.
+      }, // Review dialog: Start +0.1s. Repeats while held.
+      "previousLineAdd": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "up" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 4 // Raw button index.
+        } // Optional input held while pressing; null for none.
+      }, // Review dialog: Add previous line. Repeats while held.
+      "previousLineRemove": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "down" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 4 // Raw button index.
+        } // Optional input held while pressing; null for none.
+      }, // Review dialog: Remove previous line. Repeats while held.
+      "endBack": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "left" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 5 // Raw button index.
+        } // Optional input held while pressing; null for none.
+      }, // Review dialog: End −0.1s. Repeats while held.
+      "endForward": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "right" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 5 // Raw button index.
+        } // Optional input held while pressing; null for none.
+      }, // Review dialog: End +0.1s. Repeats while held.
+      "nextLineAdd": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "up" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 5 // Raw button index.
+        } // Optional input held while pressing; null for none.
+      }, // Review dialog: Add next line. Repeats while held.
+      "nextLineRemove": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "down" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": {
+          "kind": "button", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "buttonIndex": 5 // Raw button index.
+        } // Optional input held while pressing; null for none.
+      }, // Review dialog: Remove next line. Repeats while held.
+      "useOriginal": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "a" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Use original timing (after cancel).
+      "keepEditing": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "b" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Keep editing (after cancel).
+      "skipMedia": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "x" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Review dialog: Without media (after cancel).
+      "discard": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "y" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      } // Review dialog: Discard card (after cancel).
+    }, // Controller layout for the media timing review dialog, one entry per action. Set it with the Review media timing group in Alt+C. Each entry is {"kind": "none"} or {"press": input, "hold": input}, where an input is {"kind": "button", "buttonIndex"}, {"kind": "axis", "axisIndex", "direction"}, {"kind": "face", "letter": "a"|"b"|"x"|"y"} (printed letter) or {"kind": "dpad", "direction": "left"|"right"|"up"|"down"}.
+    "fieldGroupingBindings": {
+      "selectOriginal": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "left" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Original card.
+      "selectNew": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "right" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: New card.
+      "toggleDeleteDuplicate": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "x" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Delete duplicate on/off.
+      "continue": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "a" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Continue.
+      "cancel": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "b" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Cancel.
+      "confirmMerge": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "a" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Confirm merge (merge preview).
+      "back": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "b" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Back (merge preview).
+      "cancelMerge": {
+        "kind": "none" // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+      }, // Duplicate card dialog: Cancel (merge preview).
+      "toggleView": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "face", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "letter": "y" // Printed face letter, placed by controller.faceButtonLabels. Values: a | b | x | y
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Compact / Full (merge preview).
+      "scrollUp": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "up" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      }, // Duplicate card dialog: Scroll up (merge preview). Repeats while held.
+      "scrollDown": {
+        "kind": "combo", // none disables the action; combo presses "press" (while holding "hold", if set). Values: none | combo
+        "press": {
+          "kind": "dpad", // Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction. Values: button | axis | face | dpad
+          "direction": "down" // D-pad direction, or axis direction for raw axis inputs. Values: left | right | up | down | negative | positive
+        }, // Input that triggers the action.
+        "hold": null // Optional input held while pressing; null for none.
+      } // Duplicate card dialog: Scroll down (merge preview). Repeats while held.
+    }, // Controller layout for the duplicate card (field grouping) dialog, one entry per action. Set it with the Duplicate card (field grouping) group in Alt+C. Each entry is {"kind": "none"} or {"press": input, "hold": input}, where an input is {"kind": "button", "buttonIndex"}, {"kind": "axis", "axisIndex", "direction"}, {"kind": "face", "letter": "a"|"b"|"x"|"y"} (printed letter) or {"kind": "dpad", "direction": "left"|"right"|"up"|"down"}.
     "profiles": {} // Per-controller binding and button-index overrides keyed by the controller id reported by the Gamepad API.
   }, // Gamepad support for the visible overlay while keyboard-only mode is active.
 
@@ -479,6 +774,7 @@
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
     "autoPauseVideoOnYomitanPopup": true, // Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes. Values: true | false
+    "autoPauseVideoOnKeyboardMode": false, // Pause mpv when keyboard-only mode turns on (from the keyboard or a controller) and resume when it turns off. Leaving the mode resumes only a pause it made: a video that was already paused, or that you played or paused yourself meanwhile, is left as it is. Values: true | false
     "primaryVisibleOnYomitanPopup": true, // Keep the primary subtitle bar visible while a Yomitan popup is open when primary subtitles are in hover mode. Values: true | false
     "nameMatchEnabled": false, // Enable character dictionary sync and subtitle token coloring for character-name matches. Values: true | false
     "nameMatchImagesEnabled": false, // Show small character portraits beside subtitle tokens matched from the SubMiner character dictionary. Values: true | false
@@ -557,6 +853,22 @@
       "--subtitle-sidebar-hover-background-color": "rgba(54, 58, 79, 0.84)" // Subtitle sidebar hover background color setting.
     } // CSS declaration object applied to the subtitle sidebar. Includes color, background-color, and all font properties.
   }, // Parsed-subtitle sidebar cue list styling, behavior, and toggle key.
+
+  // ==========================================
+  // Subtitle Filters
+  // Remove unwanted text from primary subtitles, such as speaker names, readings and sound descriptions.
+  // Applies to the overlay, sidebar, mined sentences and stats.
+  // Hot-reload: filter changes apply to the current subtitle file immediately.
+  // ==========================================
+  "subtitleFilter": {
+    "presets": {
+      "parentheses": false, // Remove text in （） and (), such as speaker names, readings and notes. A line wrapped entirely in parentheses, usually inner thoughts, is kept. Values: true | false
+      "brackets": false, // Remove text in ［］, [], 【】 and 〔〕, such as sound effects and music cues. Values: true | false
+      "speakerPrefix": false, // Remove a short name followed by a colon at the start of a line, as in 山田：元気？ Values: true | false
+      "musicSymbols": false // Remove ♪, ♫ and ♬. A line left with only symbols such as ～ is removed. Values: true | false
+    }, // Built-in filters. Each removes its matches and is off by default.
+    "customRules": [] // Your own regex rules, applied in order after the presets. Each rule is { name, pattern, replacement, enabled }; patterns use the gmu flags, so ^ and $ match per line. Leave replacement empty to remove the match.
+  }, // Remove unwanted text from primary subtitles, such as speaker names, readings and sound descriptions.
 
   // ==========================================
   // Shared AI Provider
@@ -680,7 +992,8 @@
     "apiKey": "", // Jimaku API key. Optional but recommended for higher rate limits. Get one for free at https://jimaku.cc.
     "apiKeyCommand": "", // Shell command that prints the Jimaku API key to stdout. Used instead of apiKey to avoid storing the key in plain text.
     "languagePreference": "ja", // Preferred language used in Jimaku search. Values: ja | en | none
-    "maxEntryResults": 10 // Maximum Jimaku search results returned.
+    "maxEntryResults": 10, // Maximum Jimaku search results returned.
+    "autoOpenWhenPrimarySubtitleMissing": false // Pause playback and open the Jimaku modal when a local video has no subtitle track in youtube.primarySubLanguages (Japanese by default). Values: true | false
   }, // Jimaku API configuration and defaults.
 
   // ==========================================

@@ -13,6 +13,7 @@ import { deleteMaintenanceBatch } from './query-delete-maintenance';
 import { PartOfSpeech, type MergedToken } from '../../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import { deriveStoredPartOfSpeech } from '../tokenizer/part-of-speech';
+import { isVocabularyStatsRowVisible, type VocabularyVisibilityRow } from './vocabulary-visibility';
 import {
   cleanupUnusedCoverArtBlobHash,
   findSharedCoverBlobHash,
@@ -241,6 +242,24 @@ export async function cleanupVocabularyStats(
   const deleteOccurrencesStmt = db.prepare(
     'DELETE FROM imm_word_line_occurrences WHERE word_id = ?',
   );
+  const selectVisibilityInputsStmt = db.prepare(
+    `SELECT word, headword, reading, part_of_speech AS partOfSpeech,
+       pos1, pos2, pos3, frequency_rank AS frequencyRank
+     FROM imm_words
+     WHERE id = ?`,
+  );
+  const updateVisibilityStmt = db.prepare(
+    `UPDATE imm_words SET vocabulary_visible = ? WHERE id = ? AND vocabulary_visible IS NOT ?`,
+  );
+  // Repairs rewrite the visibility predicate's inputs, and the vocabulary summary
+  // and new-word rollups read the persisted result, so re-derive it after each one.
+  const syncWordVisibility = (wordId: number): void => {
+    // The scan awaits POS resolution, so another writer may have removed the word.
+    const stored = selectVisibilityInputsStmt.get(wordId) as VocabularyVisibilityRow | null;
+    if (!stored) return;
+    const visible = isVocabularyStatsRowVisible(stored) ? 1 : 0;
+    updateVisibilityStmt.run(visible, wordId, visible);
+  };
   let kept = 0;
   let deleted = 0;
   let repaired = 0;
@@ -279,6 +298,7 @@ export async function cleanupVocabularyStats(
           row.last_seen ?? duplicate.last_seen ?? 0,
           duplicate.id,
         );
+        syncWordVisibility(duplicate.id);
         deleteStmt.run(row.id);
         repaired += 1;
         deleted += 1;
@@ -294,6 +314,7 @@ export async function cleanupVocabularyStats(
         resolvedPos.pos3,
         row.id,
       );
+      syncWordVisibility(row.id);
       repaired += 1;
     }
 

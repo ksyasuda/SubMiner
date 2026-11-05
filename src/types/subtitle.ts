@@ -84,6 +84,27 @@ export interface SecondarySubConfig {
   defaultMode?: SecondarySubMode;
 }
 
+/** Built-in subtitle text filters; `subtitle-text-filter.ts` holds their patterns. */
+export type SubtitleFilterPresetId = 'parentheses' | 'brackets' | 'speakerPrefix' | 'musicSymbols';
+
+/** A user regex rule. Patterns compile with the `gmu` flags, so `^`/`$` match per line. */
+export interface SubtitleFilterRule {
+  name: string;
+  pattern: string;
+  replacement: string;
+  enabled: boolean;
+}
+
+export interface SubtitleFilterConfig {
+  presets?: Partial<Record<SubtitleFilterPresetId, boolean>>;
+  customRules?: Partial<SubtitleFilterRule>[];
+}
+
+export interface ResolvedSubtitleFilterConfig {
+  presets: Record<SubtitleFilterPresetId, boolean>;
+  customRules: SubtitleFilterRule[];
+}
+
 export type NPlusOneMatchMode = 'headword' | 'surface';
 export type FrequencyDictionaryMatchMode = 'headword' | 'surface';
 
@@ -94,6 +115,7 @@ export interface SubtitleStyleConfig {
   preserveLineBreaks?: boolean;
   autoPauseVideoOnHover?: boolean;
   autoPauseVideoOnYomitanPopup?: boolean;
+  autoPauseVideoOnKeyboardMode?: boolean;
   primaryVisibleOnYomitanPopup?: boolean;
   hoverTokenColor?: string;
   hoverTokenBackgroundColor?: string;

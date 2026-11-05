@@ -294,15 +294,46 @@ export function createJimakuModal(
     return tag === 'input' || tag === 'textarea';
   }
 
+  // Identity of the video this modal session was opened for, so a re-open can tell whether the
+  // video changed. The file name alone repeats across seasons (`Season 2/01.mkv`).
+  let loadedMediaKey: string | null = null;
+  const mediaKey = (info: JimakuMediaInfo): string =>
+    JSON.stringify([info.filename, info.title, info.season, info.episode]);
+  // Media-info replies are tracked apart from searchGeneration: a search the user starts must not
+  // cancel a changed-video refresh or let an older load overwrite loadedMediaKey.
+  let modalSession = 0; // bumped on open and close
+  let mediaLoadToken = 0; // bumped per media-info load; only the latest load records its key
+
   function openJimakuModal(): void {
-    if (ctx.state.jimakuModalOpen) return;
+    if (ctx.state.jimakuModalOpen) {
+      refreshMediaInfoIfChanged();
+      return;
+    }
 
     ctx.state.jimakuModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.overlay.classList.add('interactive');
     ctx.dom.jimakuModal.classList.remove('hidden');
     ctx.dom.jimakuModal.setAttribute('aria-hidden', 'false');
+    modalSession += 1;
+    loadMediaInfo();
+  }
 
+  // An open request while already open (e.g. the next episode auto-opening Jimaku) must not
+  // leave the previous episode's search on screen. The same video keeps the user's search.
+  function refreshMediaInfoIfChanged(): void {
+    const session = modalSession;
+    window.electronAPI
+      .getJimakuMediaInfo()
+      .then((info: JimakuMediaInfo) => {
+        if (session !== modalSession || !ctx.state.jimakuModalOpen) return;
+        if (mediaKey(info) === loadedMediaKey) return;
+        loadMediaInfo();
+      })
+      .catch(() => {});
+  }
+
+  function loadMediaInfo(): void {
     setJimakuStatus('Loading media info...');
     resetJimakuLists();
     renderTabs();
@@ -310,9 +341,13 @@ export function createJimakuModal(
     // Media info can resolve after the user already closed the modal or
     // started their own search; a stale reply must not touch the inputs.
     const generation = searchGeneration;
+    const loadToken = ++mediaLoadToken;
     window.electronAPI
       .getJimakuMediaInfo()
       .then((info: JimakuMediaInfo) => {
+        if (loadToken !== mediaLoadToken) return;
+        // Recorded even when the user already started their own search, which skips the fill.
+        loadedMediaKey = mediaKey(info);
         if (generation !== searchGeneration) return;
         ctx.dom.jimakuTitleInput.value = info.title || '';
         ctx.dom.jimakuSeasonInput.value = info.season ? String(info.season) : '';
@@ -337,6 +372,7 @@ export function createJimakuModal(
     if (!ctx.state.jimakuModalOpen) return;
 
     ctx.state.jimakuModalOpen = false;
+    modalSession += 1;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.jimakuModal.classList.add('hidden');
     ctx.dom.jimakuModal.setAttribute('aria-hidden', 'true');

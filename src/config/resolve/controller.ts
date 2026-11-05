@@ -8,8 +8,18 @@ import type {
   ResolvedControllerBindingsConfig,
   ResolvedControllerDiscreteBinding,
 } from '../../types/runtime';
+import {
+  isControllerFaceButtonLabels,
+  isControllerScreenAction,
+  parseControllerReviewBinding,
+  type ControllerScreenBindings,
+  type ControllerScreenDefinition,
+} from '../../shared/controller-review';
+import { CONTROLLER_SCREENS } from '../../shared/controller-screens';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
+
+const FACE_BUTTON_LABELS_EXPECTED = "Expected 'xbox', 'nintendo', or 'playstation'.";
 
 const CONTROLLER_BUTTON_BINDINGS = [
   'none',
@@ -91,6 +101,10 @@ const CONTROLLER_DISCRETE_BINDING_KEYS = [
   'holdSecondarySub',
   'previousEntry',
   'nextEntry',
+  'previousSubtitle',
+  'nextSubtitle',
+  'replaySubtitle',
+  'playNextSubtitle',
 ] as const;
 
 const CONTROLLER_AXIS_BINDING_KEYS = [
@@ -268,6 +282,37 @@ function applyControllerBindings(
   }
 }
 
+function applyControllerScreenBindings(
+  screen: ControllerScreenDefinition,
+  source: unknown,
+  target: ControllerScreenBindings,
+  pathPrefix: string,
+  warn: ResolveContext['warn'],
+): void {
+  if (source === undefined) return;
+  if (!isObject(source)) {
+    warn(pathPrefix, source, target, `Expected an object keyed by ${screen.describe} action.`);
+    return;
+  }
+  for (const [action, value] of Object.entries(source)) {
+    if (!isControllerScreenAction(screen, action)) {
+      warn(`${pathPrefix}.${action}`, value, undefined, `Unknown ${screen.describe} action.`);
+      continue;
+    }
+    const parsed = parseControllerReviewBinding(value);
+    if (parsed) {
+      target[action] = parsed;
+    } else {
+      warn(
+        `${pathPrefix}.${action}`,
+        value,
+        target[action],
+        'Expected {"kind": "none"} or {"press": input, "hold"?: input} with button, axis, face or dpad inputs.',
+      );
+    }
+  }
+}
+
 export function applyControllerConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
   if (!isObject(src.controller)) return;
@@ -322,6 +367,18 @@ export function applyControllerConfig(context: ResolveContext): void {
     );
   }
 
+  const faceButtonLabels = src.controller.faceButtonLabels;
+  if (isControllerFaceButtonLabels(faceButtonLabels)) {
+    resolved.controller.faceButtonLabels = faceButtonLabels;
+  } else if (faceButtonLabels !== undefined) {
+    warn(
+      'controller.faceButtonLabels',
+      faceButtonLabels,
+      resolved.controller.faceButtonLabels,
+      FACE_BUTTON_LABELS_EXPECTED,
+    );
+  }
+
   const boundedNumberKeys = [
     'scrollPixelsPerSecond',
     'horizontalJumpPixels',
@@ -370,6 +427,15 @@ export function applyControllerConfig(context: ResolveContext): void {
     'controller.bindings',
     warn,
   );
+  for (const screen of CONTROLLER_SCREENS) {
+    applyControllerScreenBindings(
+      screen,
+      src.controller[screen.configKey],
+      resolved.controller[screen.configKey],
+      `controller.${screen.configKey}`,
+      warn,
+    );
+  }
 
   if (isObject(src.controller.profiles)) {
     for (const [profileId, rawProfile] of Object.entries(src.controller.profiles)) {
@@ -406,7 +472,21 @@ export function applyControllerConfig(context: ResolveContext): void {
         label: label ?? profileId,
         buttonIndices: structuredClone(resolved.controller.buttonIndices),
         bindings: structuredClone(resolved.controller.bindings),
+        faceButtonLabels: resolved.controller.faceButtonLabels,
+        reviewBindings: structuredClone(resolved.controller.reviewBindings),
+        fieldGroupingBindings: structuredClone(resolved.controller.fieldGroupingBindings),
       };
+      // Set per controller from Alt+C; falls back to controller.faceButtonLabels.
+      if (isControllerFaceButtonLabels(rawProfile.faceButtonLabels)) {
+        profile.faceButtonLabels = rawProfile.faceButtonLabels;
+      } else if (rawProfile.faceButtonLabels !== undefined) {
+        warn(
+          `controller.profiles.${profileId}.faceButtonLabels`,
+          rawProfile.faceButtonLabels,
+          profile.faceButtonLabels,
+          FACE_BUTTON_LABELS_EXPECTED,
+        );
+      }
       applyControllerButtonIndices(
         rawProfile.buttonIndices,
         profile.buttonIndices,
@@ -420,6 +500,15 @@ export function applyControllerConfig(context: ResolveContext): void {
         `controller.profiles.${profileId}.bindings`,
         warn,
       );
+      for (const screen of CONTROLLER_SCREENS) {
+        applyControllerScreenBindings(
+          screen,
+          rawProfile[screen.configKey],
+          profile[screen.configKey],
+          `controller.profiles.${profileId}.${screen.configKey}`,
+          warn,
+        );
+      }
       resolved.controller.profiles[profileId] = profile;
     }
   }

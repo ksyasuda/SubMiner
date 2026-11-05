@@ -26,16 +26,21 @@ import type {
   ControllerConfig,
   ResolvedControllerProfileConfig,
   ControllerTriggerInputMode,
+  ControllerFaceButtonLabels,
   Keybinding,
   ResolvedControllerBindingsConfig,
+  ResolvedControllerFieldGroupingBindings,
+  ResolvedControllerReviewBindings,
 } from './runtime';
 import type {
   FrequencyDictionaryMatchMode,
   FrequencyDictionaryMode,
   NPlusOneMatchMode,
+  ResolvedSubtitleFilterConfig,
   ResolvedSubtitleSidebarConfig,
   SecondarySubConfig,
   SubtitlePosition,
+  SubtitleFilterConfig,
   SubtitleSidebarConfig,
   SubtitleStyleConfig,
 } from './subtitle';
@@ -167,6 +172,7 @@ export interface Config {
   startupWarmups?: StartupWarmupsConfig;
   subtitleStyle?: SubtitleStyleConfig;
   subtitleSidebar?: SubtitleSidebarConfig;
+  subtitleFilter?: SubtitleFilterConfig;
   auto_start_overlay?: boolean;
   jimaku?: JimakuConfig;
   /** @deprecated Use tsukihime. */
@@ -221,11 +227,14 @@ export interface ResolvedConfig {
     horizontalJumpPixels: number;
     stickDeadzone: number;
     triggerInputMode: ControllerTriggerInputMode;
+    faceButtonLabels: ControllerFaceButtonLabels;
     triggerDeadzone: number;
     repeatDelayMs: number;
     repeatIntervalMs: number;
     buttonIndices: Required<ControllerButtonIndicesConfig>;
     bindings: Required<ResolvedControllerBindingsConfig>;
+    reviewBindings: ResolvedControllerReviewBindings;
+    fieldGroupingBindings: ResolvedControllerFieldGroupingBindings;
     profiles: Record<string, ResolvedControllerProfileConfig>;
   };
   ankiConnect: AnkiConnectConfig & {
@@ -338,11 +347,13 @@ export interface ResolvedConfig {
     };
   };
   subtitleSidebar: ResolvedSubtitleSidebarConfig;
+  subtitleFilter: ResolvedSubtitleFilterConfig;
   auto_start_overlay: boolean;
   jimaku: JimakuConfig & {
     apiBaseUrl: string;
     languagePreference: JimakuLanguagePreference;
     maxEntryResults: number;
+    autoOpenWhenPrimarySubtitleMissing: boolean;
   };
   tsukihime: TsukihimeConfig & {
     apiBaseUrl: string;

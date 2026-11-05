@@ -1,9 +1,48 @@
+import type { ControllerFieldGroupingStep } from '../../shared/controller-field-grouping';
 import type {
+  ControllerFieldGroupingAction,
   KikuDuplicateCardInfo,
   KikuFieldGroupingChoice,
   KikuMergePreviewResponse,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import type { RendererDom } from '../utils/dom';
+
+/** Pixels the merge preview moves per controller scroll step (repeats while held). */
+export const KIKU_CONTROLLER_SCROLL_STEP_PX = 48;
+
+/**
+ * Where each controller action's hint tag is drawn. The two scroll actions share one
+ * "Scroll" tag in the preview header instead.
+ */
+export const KIKU_CONTROLLER_HINT_TARGETS: Record<
+  Exclude<ControllerFieldGroupingAction, 'scrollUp' | 'scrollDown'>,
+  keyof RendererDom
+> = {
+  selectOriginal: 'kikuCard1Label',
+  selectNew: 'kikuCard2Label',
+  toggleDeleteDuplicate: 'kikuDeleteToggle',
+  continue: 'kikuConfirmButton',
+  cancel: 'kikuCancelButton',
+  confirmMerge: 'kikuFinalConfirmButton',
+  back: 'kikuBackButton',
+  cancelMerge: 'kikuFinalCancelButton',
+  toggleView: 'kikuPreviewToggle',
+};
+
+/** One tag for both scroll directions, e.g. `▲ ▼`; null when neither is bound. */
+export function formatKikuScrollHint(up: string | null, down: string | null): string | null {
+  if (up && down) return `${up} ${down}`;
+  return up ?? down ?? null;
+}
+
+function setHint(element: HTMLElement, hint: string | null | undefined): void {
+  if (hint === null || hint === undefined) {
+    if (element.dataset.controllerHint !== undefined) delete element.dataset.controllerHint;
+  } else if (element.dataset.controllerHint !== hint) {
+    element.dataset.controllerHint = hint;
+  }
+}
 
 export function createKikuModal(
   ctx: RendererContext,
@@ -176,6 +215,78 @@ export function createKikuModal(
     setKikuModalStep('select');
   }
 
+  function getControllerStep(): ControllerFieldGroupingStep {
+    return ctx.state.kikuModalStep;
+  }
+
+  function selectCard(card: 1 | 2): void {
+    ctx.state.kikuSelectedCard = card;
+    updateKikuCardSelection();
+  }
+
+  /** Runs a controller action with the same guards as the matching click or key. */
+  function handleControllerAction(action: ControllerFieldGroupingAction): boolean {
+    if (!ctx.state.kikuModalOpen) return false;
+    const onPreview = ctx.state.kikuModalStep === 'preview';
+    switch (action) {
+      case 'selectOriginal':
+      case 'selectNew':
+        if (onPreview) return false;
+        selectCard(action === 'selectOriginal' ? 1 : 2);
+        return true;
+      case 'toggleDeleteDuplicate':
+        if (onPreview) return false;
+        ctx.dom.kikuDeleteDuplicateCheckbox.checked = !ctx.dom.kikuDeleteDuplicateCheckbox.checked;
+        return true;
+      case 'continue':
+        // Disabled while the merge preview is being built.
+        if (onPreview || ctx.dom.kikuConfirmButton.disabled) return false;
+        void confirmKikuSelection();
+        return true;
+      case 'cancel':
+      case 'cancelMerge':
+        if (onPreview !== (action === 'cancelMerge')) return false;
+        cancelKikuFieldGrouping();
+        return true;
+      case 'confirmMerge':
+        if (!onPreview) return false;
+        confirmKikuMerge();
+        return true;
+      case 'back':
+        if (!onPreview) return false;
+        goBackFromKikuPreview();
+        return true;
+      case 'toggleView':
+        if (!onPreview) return false;
+        ctx.state.kikuPreviewMode = ctx.state.kikuPreviewMode === 'compact' ? 'full' : 'compact';
+        renderKikuPreview();
+        return true;
+      case 'scrollUp':
+      case 'scrollDown':
+        if (!onPreview) return false;
+        ctx.dom.kikuPreviewJson.scrollTop +=
+          action === 'scrollUp' ? -KIKU_CONTROLLER_SCROLL_STEP_PX : KIKU_CONTROLLER_SCROLL_STEP_PX;
+        return true;
+    }
+  }
+
+  /**
+   * Hint tags are drawn by CSS from `data-controller-hint`. Unbound actions show no tag;
+   * only changed attributes are written, since this runs every frame.
+   */
+  function setControllerHints(hints: Record<ControllerFieldGroupingAction, string | null>): void {
+    for (const [action, domKey] of Object.entries(KIKU_CONTROLLER_HINT_TARGETS) as Array<
+      [keyof typeof KIKU_CONTROLLER_HINT_TARGETS, keyof RendererDom]
+    >) {
+      setHint(ctx.dom[domKey] as HTMLElement, hints[action]);
+    }
+    setHint(ctx.dom.kikuPreviewScrollHint, formatKikuScrollHint(hints.scrollUp, hints.scrollDown));
+  }
+
+  function setControllerHintsVisible(visible: boolean): void {
+    ctx.dom.kikuModal.classList.toggle('controller-hints-visible', visible);
+  }
+
   function cancelKikuFieldGrouping(): void {
     const choice: KikuFieldGroupingChoice = {
       keepNoteId: 0,
@@ -292,7 +403,11 @@ export function createKikuModal(
   return {
     cancelKikuFieldGrouping,
     closeKikuFieldGroupingModal,
+    getControllerStep,
+    handleControllerAction,
     handleKikuKeydown,
+    setControllerHints,
+    setControllerHintsVisible,
     openKikuFieldGroupingModal,
     wireDomEvents,
   };

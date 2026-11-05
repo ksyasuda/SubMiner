@@ -468,6 +468,13 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Maximum Jimaku search results returned.',
     },
     {
+      path: 'jimaku.autoOpenWhenPrimarySubtitleMissing',
+      kind: 'boolean',
+      defaultValue: defaultConfig.jimaku.autoOpenWhenPrimarySubtitleMissing,
+      description:
+        'Pause playback and open the Jimaku modal when a local video has no subtitle track in youtube.primarySubLanguages (Japanese by default).',
+    },
+    {
       path: 'tsukihime.apiBaseUrl',
       kind: 'string',
       defaultValue: defaultConfig.tsukihime.apiBaseUrl,

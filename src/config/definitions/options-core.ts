@@ -1,10 +1,18 @@
+import { CONTROLLER_SCREENS, type ControllerScreenId } from '../../shared/controller-screens';
 import { ResolvedConfig } from '../../types/config';
+import type { ControllerReviewInput, ResolvedControllerReviewBinding } from '../../types/runtime';
 import {
   NOTIFICATION_TYPE_VALUES,
   OVERLAY_NOTIFICATION_POSITION_VALUES,
   SETTINGS_NOTIFICATION_TYPE_VALUES,
 } from '../../types/notification';
 import { ConfigOptionRegistryEntry } from './shared';
+
+const CONTROLLER_SCREEN_INTROS: Record<ControllerScreenId, string> = {
+  review: 'Controller layout for the media timing review dialog, one entry per action.',
+  fieldGrouping:
+    'Controller layout for the duplicate card (field grouping) dialog, one entry per action.',
+};
 
 export function buildCoreConfigOptionRegistry(
   defaultConfig: ResolvedConfig,
@@ -53,7 +61,8 @@ export function buildCoreConfigOptionRegistry(
     {
       id: 'toggleMpvPause',
       defaultValue: defaultConfig.controller.bindings.toggleMpvPause,
-      description: 'Controller binding descriptor for toggling mpv play/pause.',
+      description:
+        'Controller binding descriptor for toggling mpv play/pause. Works with or without keyboard-only mode.',
     },
     {
       id: 'holdSecondarySub',
@@ -72,6 +81,30 @@ export function buildCoreConfigOptionRegistry(
       defaultValue: defaultConfig.controller.bindings.nextEntry,
       description:
         'Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry.',
+    },
+    {
+      id: 'previousSubtitle',
+      defaultValue: defaultConfig.controller.bindings.previousSubtitle,
+      description:
+        'Controller binding descriptor that jumps to the previous subtitle line, like Shift+H. Works with or without keyboard-only mode.',
+    },
+    {
+      id: 'nextSubtitle',
+      defaultValue: defaultConfig.controller.bindings.nextSubtitle,
+      description:
+        'Controller binding descriptor that jumps to the next subtitle line, like Shift+L. Works with or without keyboard-only mode.',
+    },
+    {
+      id: 'replaySubtitle',
+      defaultValue: defaultConfig.controller.bindings.replaySubtitle,
+      description:
+        'Controller binding descriptor that replays the current subtitle line, then pauses, like Ctrl+Shift+H. Works with or without keyboard-only mode.',
+    },
+    {
+      id: 'playNextSubtitle',
+      defaultValue: defaultConfig.controller.bindings.playNextSubtitle,
+      description:
+        'Controller binding descriptor that plays the next subtitle line, then pauses, like Ctrl+Shift+L. Works with or without keyboard-only mode.',
     },
   ] as const;
 
@@ -225,6 +258,14 @@ export function buildCoreConfigOptionRegistry(
         'How controller triggers are interpreted: auto, pressed-only, or thresholded analog.',
     },
     {
+      path: 'controller.faceButtonLabels',
+      kind: 'enum',
+      enumValues: ['xbox', 'nintendo', 'playstation'],
+      defaultValue: defaultConfig.controller.faceButtonLabels,
+      description:
+        'Face button style of your controller: xbox (A at the bottom), nintendo (A on the right, B at the bottom; Switch-style and many 8BitDo pads) or playstation (╳ ○ □ △, laid out like xbox). Places the A/B/X/Y of the dialog layouts and names buttons in Alt+C and the dialog hints. Alt+C sets it per controller (controller.profiles.<id>.faceButtonLabels); this is the default for the others.',
+    },
+    {
       path: 'controller.triggerDeadzone',
       kind: 'number',
       defaultValue: defaultConfig.controller.triggerDeadzone,
@@ -330,6 +371,96 @@ export function buildCoreConfigOptionRegistry(
       description:
         'Per-controller binding and button-index overrides keyed by the controller id reported by the Gamepad API.',
     },
+    ...CONTROLLER_SCREENS.flatMap((screen) => {
+      const defaults = defaultConfig.controller[screen.configKey] as Record<
+        string,
+        ResolvedControllerReviewBinding
+      >;
+      const stepLabels = new Map(screen.steps.map((step, index) => [step.id, index]));
+      return [
+        {
+          path: `controller.${screen.configKey}`,
+          kind: 'object' as const,
+          defaultValue: defaults,
+          description: `${CONTROLLER_SCREEN_INTROS[screen.id]} Set it with the ${screen.title} group in Alt+C. Each entry is {"kind": "none"} or {"press": input, "hold": input}, where an input is {"kind": "button", "buttonIndex"}, {"kind": "axis", "axisIndex", "direction"}, {"kind": "face", "letter": "a"|"b"|"x"|"y"} (printed letter) or {"kind": "dpad", "direction": "left"|"right"|"up"|"down"}.`,
+        },
+        ...screen.actions.flatMap((action): ConfigOptionRegistryEntry[] => {
+          const path = `controller.${screen.configKey}.${action.id}`;
+          const binding = defaults[action.id]!;
+          const press = binding.kind === 'combo' ? binding.press : undefined;
+          const hold = binding.kind === 'combo' ? binding.hold : undefined;
+          // Steps after the first are named, e.g. "(after Cancel)".
+          const stepNote =
+            (stepLabels.get(action.step) ?? 0) > 0
+              ? ` (${screen.steps.find((step) => step.id === action.step)!.label.toLowerCase()})`
+              : '';
+          const inputFields = (
+            name: 'press' | 'hold',
+            input: ControllerReviewInput | null | undefined,
+          ): ConfigOptionRegistryEntry[] => [
+            {
+              path: `${path}.${name}.kind`,
+              kind: 'enum',
+              enumValues: ['button', 'axis', 'face', 'dpad'],
+              defaultValue: input?.kind,
+              description:
+                'Input kind: a raw button or axis recorded by Alt+C, a printed face letter, or a D-pad direction.',
+            },
+            {
+              path: `${path}.${name}.buttonIndex`,
+              kind: 'number',
+              defaultValue: input?.kind === 'button' ? input.buttonIndex : undefined,
+              description: 'Raw button index.',
+            },
+            {
+              path: `${path}.${name}.letter`,
+              kind: 'enum',
+              enumValues: ['a', 'b', 'x', 'y'],
+              defaultValue: input?.kind === 'face' ? input.letter : undefined,
+              description: 'Printed face letter, placed by controller.faceButtonLabels.',
+            },
+            {
+              path: `${path}.${name}.direction`,
+              kind: 'enum',
+              enumValues: ['left', 'right', 'up', 'down', 'negative', 'positive'],
+              defaultValue:
+                input?.kind === 'dpad' || input?.kind === 'axis' ? input.direction : undefined,
+              description: 'D-pad direction, or axis direction for raw axis inputs.',
+            },
+          ];
+          return [
+            {
+              path,
+              kind: 'object',
+              defaultValue: binding,
+              description: `${screen.describe}: ${action.label}${stepNote}.${action.repeat ? ' Repeats while held.' : ''}`,
+            },
+            {
+              path: `${path}.kind`,
+              kind: 'enum',
+              enumValues: ['none', 'combo'],
+              defaultValue: binding.kind,
+              description:
+                'none disables the action; combo presses "press" (while holding "hold", if set).',
+            },
+            {
+              path: `${path}.press`,
+              kind: 'object',
+              defaultValue: press,
+              description: 'Input that triggers the action.',
+            },
+            {
+              path: `${path}.hold`,
+              kind: 'object',
+              defaultValue: hold,
+              description: 'Optional input held while pressing; null for none.',
+            },
+            ...inputFields('press', press),
+            ...inputFields('hold', hold),
+          ];
+        }),
+      ];
+    }),
     ...discreteBindings.flatMap((binding) => [
       {
         path: `controller.bindings.${binding.id}`,
