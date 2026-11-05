@@ -1136,6 +1136,33 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 400);
   });
 
+  it('GET /api/stats/vocabulary/occurrences finds all forms of legacy words missing text', async () => {
+    const seenHeadwords: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getWordOccurrences: async (...args: unknown[]) => {
+          seenHeadwords.push(args[0]);
+          return OCCURRENCES;
+        },
+      }),
+    );
+    const request = (params: string) =>
+      app.request(`/api/stats/vocabulary/occurrences?allForms=true&${params}`);
+
+    assert.equal((await request('headword=&word=%E7%8C%AB&reading=')).status, 200);
+    assert.equal((await request('headword=%E7%8A%AC&word=&reading=')).status, 200);
+    assert.equal((await request('headword=&word=&reading=%E3%81%AD%E3%81%93')).status, 200);
+    assert.deepEqual(seenHeadwords, ['猫', '犬', 'ねこ']);
+
+    assert.equal((await request('headword=%20&word=&reading=')).status, 400);
+  });
+
+  it('GET /api/stats/vocabulary/occurrences needs a headword and form for an exact lookup', async () => {
+    const app = createStatsApp(createMockTracker());
+    const res = await app.request('/api/stats/vocabulary/occurrences?headword=&word=%E7%8C%AB');
+    assert.equal(res.status, 400);
+  });
+
   it('PUT /api/stats/excluded-words replaces tracker exclusion rows', async () => {
     let seenWords: unknown = null;
     const app = createStatsApp(

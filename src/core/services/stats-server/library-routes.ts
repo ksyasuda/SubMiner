@@ -93,14 +93,17 @@ export function registerStatsLibraryRoutes(
     const headword = (c.req.query('headword') ?? '').trim();
     const word = (c.req.query('word') ?? '').trim();
     const reading = (c.req.query('reading') ?? '').trim();
-    if (!headword || !word) {
+    const allForms = c.req.query('allForms') === 'true';
+    // Legacy rows can lack a headword or form, so an all-forms lookup falls back the same
+    // way the word list does. An exact lookup can only match a row that has both.
+    const dictionaryWord = headword || word || reading;
+    if (allForms ? !dictionaryWord : !headword || !word) {
       return c.json(statsJson('wordOccurrences', []), 400);
     }
     const limit = parseIntQuery(c.req.query('limit'), 50, 500);
     const offset = parseIntQuery(c.req.query('offset'), 0, 10_000);
-    const allForms = c.req.query('allForms') === 'true';
     const occurrences = await tracker.getWordOccurrences(
-      headword,
+      dictionaryWord,
       word,
       reading,
       limit,

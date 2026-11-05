@@ -12,6 +12,7 @@ import type {
 import type { DatabaseSync } from './sqlite';
 import {
   databaseWriteVersion,
+  DICTIONARY_WORD_KEY_SQL,
   getExcludedWordIds,
   isProperNounPos2,
   mergeFormsByWord,
@@ -20,7 +21,6 @@ import {
 import { forEachIdChunk, makePlaceholders } from './query-shared';
 import { nowMs } from './time';
 
-const DICTIONARY_WORD_KEY_SQL = `COALESCE(NULLIF(TRIM(headword), ''), NULLIF(TRIM(word), ''), TRIM(reading))`;
 const MAX_FORMS_PER_ROW = 8;
 // Counting titles for every word walks every occurrence (about 900ms on 500k rows),
 // and playback writes constantly, so that count tolerates being this stale.

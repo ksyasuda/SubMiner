@@ -27,6 +27,9 @@ import { isVocabularyStatsRowVisible } from './vocabulary-visibility';
 const PROPER_NOUN_TAG = '固有名詞';
 const NOT_A_NAME_SQL = `COALESCE(pos2, '') NOT LIKE '%${PROPER_NOUN_TAG}%'`;
 
+/** The dictionary word an `imm_words` row belongs to. Legacy rows can lack a headword or form. */
+export const DICTIONARY_WORD_KEY_SQL = `COALESCE(NULLIF(TRIM(headword), ''), NULLIF(TRIM(word), ''), TRIM(reading))`;
+
 /** True for lines from a stream: only local videos have a path to cut clips from. */
 export const NO_LOCAL_FILE_SQL = `TRIM(COALESCE(v.source_path, '')) = ''`;
 
@@ -291,7 +294,7 @@ export function getNewWordFirstSeenRows(db: DatabaseSync): NewWordFirstSeenRow[]
             MIN(CASE WHEN ${NOT_A_NAME_SQL} THEN frequency_rank END) AS rank
           FROM imm_words
           WHERE vocabulary_visible = 1 AND first_seen IS NOT NULL ${exclusion}
-          GROUP BY COALESCE(NULLIF(TRIM(headword), ''), NULLIF(TRIM(word), ''), TRIM(reading))
+          GROUP BY ${DICTIONARY_WORD_KEY_SQL}
         )
         SELECT
           ${localEpochDaySql('firstSeen')} AS firstSeenDay,
@@ -493,7 +496,7 @@ export function getWordOccurrences(
   allForms = false,
 ): WordOccurrenceRow[] {
   const wordFilter = allForms
-    ? 'w.headword = ?'
+    ? `w.id IN (SELECT id FROM imm_words WHERE ${DICTIONARY_WORD_KEY_SQL} = ?)`
     : 'w.headword = ? AND w.word = ? AND w.reading = ?';
   const wordParams = allForms ? [headword] : [headword, word, reading];
   const rows = db
@@ -817,37 +820,39 @@ export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): S
 
   if (clauses.length === 0) return [];
 
-  const orderBy =
+  const readingMatch =
     reading !== ''
-      ? 'MAX(CASE WHEN reading = ? THEN 1 ELSE 0 END) DESC, totalSeen DESC'
-      : 'totalSeen DESC';
-  const orderParams = reading !== '' ? [word.reading] : [];
+      ? 'MAX(CASE WHEN reading = ? THEN 1 ELSE 0 END) OVER (PARTITION BY headword)'
+      : '0';
+  const readingMatchParams = reading !== '' ? [word.reading] : [];
 
-  // MAX(frequency) makes SQLite take the bare columns from each word's most seen form.
+  // One form matching is enough to relate a word, but its total and the form it shows
+  // come from all its visible forms, so a rare form with the same reading can't stand in.
   return db
     .prepare(
       `
-    SELECT id AS wordId, headword, word, reading, MAX(frequency) AS topFormSeen,
-           SUM(frequency) AS totalSeen
-    FROM imm_words
-    WHERE headword != ? AND vocabulary_visible = 1
-    AND (${clauses.join(' OR ')})
-    GROUP BY headword
-    ORDER BY ${orderBy}
+    WITH related AS (
+      SELECT DISTINCT headword
+      FROM imm_words
+      WHERE headword != ? AND vocabulary_visible = 1
+      AND (${clauses.join(' OR ')})
+    ),
+    forms AS (
+      SELECT id, headword, word, reading,
+             SUM(frequency) OVER (PARTITION BY headword) AS totalSeen,
+             ${readingMatch} AS readingMatch,
+             ROW_NUMBER() OVER (PARTITION BY headword ORDER BY frequency DESC, id) AS formOrder
+      FROM imm_words
+      WHERE vocabulary_visible = 1 AND headword IN (SELECT headword FROM related)
+    )
+    SELECT id AS wordId, headword, word, reading, totalSeen AS frequency
+    FROM forms
+    WHERE formOrder = 1
+    ORDER BY readingMatch DESC, totalSeen DESC, headword
     LIMIT ?
   `,
     )
-    .all(word.headword, ...params, ...orderParams, limit)
-    .map((row) => {
-      const similar = row as SimilarWordRow & { totalSeen: number };
-      return {
-        wordId: similar.wordId,
-        headword: similar.headword,
-        word: similar.word,
-        reading: similar.reading,
-        frequency: similar.totalSeen,
-      };
-    });
+    .all(word.headword, ...params, ...readingMatchParams, limit) as SimilarWordRow[];
 }
 
 export function getKanjiDetail(db: DatabaseSync, kanjiId: number): KanjiDetailRow | null {

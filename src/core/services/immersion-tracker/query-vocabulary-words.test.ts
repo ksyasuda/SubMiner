@@ -66,6 +66,13 @@ function addWord(db: DatabaseSync, word: WordFixture): number {
   return Number(result.lastInsertRowid);
 }
 
+function getIdOf(db: DatabaseSync, headword: string): number {
+  const row = db.prepare('SELECT id FROM imm_words WHERE headword = ?').get(headword) as {
+    id: number;
+  };
+  return row.id;
+}
+
 function addOccurrence(
   db: DatabaseSync,
   wordId: number,
@@ -467,5 +474,74 @@ test("related words leave out a word's own forms and show one entry per word", (
       [['見える', 7]],
     );
     assert.equal(similar[0]?.word, '見えた');
+  });
+});
+
+test('a reading match ranks a related word without choosing the form it shows', () => {
+  withDb((db) => {
+    const form = addWord(db, { headword: '見る', word: '見て', reading: 'みて', seen: 10 });
+    // Matches on the kanji with every form, and on the reading with its minor form.
+    const kanjiAndReading = addWord(db, {
+      headword: '見える',
+      word: '見えた',
+      reading: 'みえた',
+      seen: 9,
+    });
+    addWord(db, { headword: '見える', word: '見えて', reading: 'みて', seen: 2 });
+    // Matches only on the reading of its minor form, so its other forms must still count.
+    const readingOnly = addWord(db, {
+      headword: '満ちる',
+      word: '満ちた',
+      reading: 'みちた',
+      seen: 7,
+    });
+    addWord(db, { headword: '満ちる', word: '満ちて', reading: 'みて', seen: 1 });
+    // More seen, but no reading match, so it still ranks after both.
+    addWord(db, { headword: '見物', word: '見物', reading: 'けんぶつ', seen: 100 });
+    // A hidden form supplies neither the shown form nor the total.
+    const hidden = addWord(db, { headword: '満ちる', word: '満ち', reading: 'みち', seen: 50 });
+    db.prepare('UPDATE imm_words SET vocabulary_visible = 0 WHERE id = ?').run(hidden);
+
+    assert.deepEqual(
+      getSimilarWords(db, form).map((row) => [row.wordId, row.word, row.reading, row.frequency]),
+      [
+        [kanjiAndReading, '見えた', 'みえた', 11],
+        [readingOnly, '満ちた', 'みちた', 8],
+        [getIdOf(db, '見物'), '見物', 'けんぶつ', 100],
+      ],
+    );
+  });
+});
+
+test('related words show the same form when a word has tied top forms', () => {
+  withDb((db) => {
+    const form = addWord(db, { headword: '見る', word: '見て', reading: 'みて', seen: 10 });
+    const first = addWord(db, { headword: '見える', word: '見えた', reading: 'みえた', seen: 5 });
+    addWord(db, { headword: '見える', word: '見えて', reading: 'みえて', seen: 5 });
+
+    assert.equal(getSimilarWords(db, form)[0]?.wordId, first);
+  });
+});
+
+test('all-forms examples include legacy rows stored without a headword', () => {
+  withDb((db) => {
+    const insert = db.prepare(
+      `INSERT INTO imm_words (headword, word, reading, first_seen, last_seen, frequency)
+       VALUES (?, ?, ?, 1700000000, 1700000000, 1)`,
+    );
+    const titlesFor = (headword: string): string[] =>
+      getWordOccurrences(db, headword, '', '', 10, 0, true)
+        .map((row) => row.videoTitle)
+        .sort();
+
+    addOccurrence(db, Number(insert.run('猫', '猫', 'ねこ').lastInsertRowid), 'Headword');
+    addOccurrence(db, Number(insert.run(null, '猫', 'ねこ').lastInsertRowid), 'Null headword');
+    addOccurrence(db, Number(insert.run('  ', '猫', 'ねこ').lastInsertRowid), 'Blank headword');
+    addOccurrence(db, Number(insert.run(null, null, 'いぬ').lastInsertRowid), 'Reading only');
+    addOccurrence(db, Number(insert.run('犬', '猫', 'いぬ').lastInsertRowid), 'Other headword');
+
+    assert.deepEqual(titlesFor('猫'), ['Blank headword', 'Headword', 'Null headword']);
+    assert.deepEqual(titlesFor('いぬ'), ['Reading only']);
+    assert.deepEqual(titlesFor('犬'), ['Other headword']);
   });
 });
