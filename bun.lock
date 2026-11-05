@@ -28,9 +28,6 @@
       },
     },
   },
-  "patchedDependencies": {
-    "@discordjs/rest@2.6.1": "patches/@discordjs%2Frest@2.6.1.patch",
-  },
   "overrides": {
     "@xmldom/xmldom": "0.8.15",
     "app-builder-lib": "26.16.1",

@@ -287,8 +287,5 @@
     "printWidth": 100,
     "singleQuote": true,
     "trailingComma": "all"
-  },
-  "patchedDependencies": {
-    "@discordjs/rest@2.6.1": "patches/@discordjs%2Frest@2.6.1.patch"
   }
 }
