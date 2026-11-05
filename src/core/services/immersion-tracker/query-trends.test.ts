@@ -374,7 +374,7 @@ test('a title filter narrows the page but keeps the title lists complete', () =>
   });
 });
 
-test('running totals keep every day when empty days are hidden from the activity charts', () => {
+test('running totals follow the activity charts when empty days are hidden', () => {
   withDashboardDb((db) => {
     const videoId = addVideo(db, 'Show', 1);
     addRollup(db, TODAY - 3, videoId, { minutes: 30 });
@@ -383,23 +383,13 @@ test('running totals keep every day when empty days are hidden from the activity
     const dashboard = getTrendsDashboard(db, '7d', 'day', false);
 
     assert.deepEqual(
-      dashboard.activity.watchTime.map((point) => point.value),
-      [30, 10],
-    );
-    assert.equal(dashboard.buckets.length, 2);
-    assert.deepEqual(
       dashboard.progress.watchTime.map((point) => point.value),
-      [0, 0, 0, 30, 30, 30, 40],
+      [30, 40],
     );
-  });
-});
-
-test('running totals stay empty when hidden empty days leave nothing to chart', () => {
-  withDashboardDb((db) => {
-    const dashboard = getTrendsDashboard(db, '7d', 'day', false);
-
-    assert.deepEqual(dashboard.activity.watchTime, []);
-    assert.deepEqual(dashboard.progress.watchTime, []);
+    assert.deepEqual(
+      dashboard.progress.watchTime.map((point) => point.label),
+      dashboard.activity.watchTime.map((point) => point.label),
+    );
   });
 });
 

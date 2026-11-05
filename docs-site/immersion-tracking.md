@@ -70,7 +70,7 @@ Pick a date range (or set **Custom** dates), group by day, week, or month, and t
 - **Activity**: watch time, cards, words, and finished episodes. Click a bar to open that period's sessions.
 - **Learning**: new words per 1,000 words seen, and how common those new words are. Conjugations of a word count once, and names are left out.
 - **Efficiency**: words per minute, cards per hour, and lookups per 100 words. Daily views use a rolling 7 days, and gaps mean too little data to rate.
-- **Running total**: one chart with a switcher for each metric, climbing from zero at the start of the range. It always shows every day, so flat stretches mark time you didn't watch, even with empty days hidden.
+- **Running total**: one chart with a switcher for each metric, climbing from zero at the start of the range.
 - **Patterns**: a day and hour heatmap of when you watch.
 - **Titles**: a timeline of what you watched when, and a sortable summary table. Click a title, or use the filter box, to narrow the page to it. **↗** opens the title.
 
