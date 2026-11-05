@@ -2282,6 +2282,26 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
     0 0 18px rgba(120, 188, 255, 0.45);
 }
 
+/* Character navigation in keyboard-only mode: the cursor box sits on one character, in
+   orange so it reads apart from the blue word box. */
+#subtitleRoot .keyboard-selected-char {
+  outline: 2px solid rgba(245, 169, 127, 0.95);
+  outline-offset: 2px;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 2px rgba(12, 18, 28, 0.68),
+    0 0 18px rgba(245, 169, 127, 0.45);
+}
+
+/* A lookup on a character selects from it to the end of the line; keep that selection from
+   recolouring the text (the doubled id outranks the selection colours below). */
+#subtitleRoot#subtitleRoot.keyboard-character-navigation::selection,
+#subtitleRoot#subtitleRoot.keyboard-character-navigation ::selection {
+  background: transparent !important;
+  color: currentcolor !important;
+  -webkit-text-fill-color: currentcolor !important;
+}
+
 #subtitleRoot .word[data-frequency-rank]::before {
   content: attr(data-frequency-rank);
   position: absolute;

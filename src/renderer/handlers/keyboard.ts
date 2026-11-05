@@ -13,6 +13,12 @@ import {
   isYomitanPopupVisible,
   isYomitanPopupIframe,
 } from '../yomitan-popup.js';
+import {
+  KEYBOARD_CHARACTER_NAVIGATION_CLASS,
+  createDomCharacterCursorPainter,
+  moveCharacterCursor,
+  type CharacterCursorPainter,
+} from './keyboard-character-cursor.js';
 
 export function createKeyboardHandlers(
   ctx: RendererContext,
@@ -44,8 +50,15 @@ export function createKeyboardHandlers(
     /** Keyboard-only mode turned on or off (keyboard shortcut or controller). */
     onKeyboardDrivenModeChanged?: (enabled: boolean) => void;
     toggleSubtitleSidebarModal?: () => void;
+    /** Marks the character cursor in the subtitle; replaced in tests. */
+    characterCursor?: CharacterCursorPainter;
   },
 ) {
+  const characterCursor = options.characterCursor ?? createDomCharacterCursorPainter();
+  /** The marked character of the character cursor, while it is shown. */
+  let characterCursorMarker: HTMLElement | null = null;
+  /** Re-syncs the selection when the subtitle changes; set up with the other listeners. */
+  let subtitleMutationObserver: MutationObserver | null = null;
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
   const CHORD_TIMEOUT_MS = 1000;
   const MPV_INPUT_FORWARDING_CONFIG_LOAD_TIMEOUT_MS = 50;
@@ -502,9 +515,29 @@ export function createKeyboardHandlers(
     ctx.dom.subtitleRoot.classList.remove('has-selection');
   }
 
+  function isCharacterNavigationActive(): boolean {
+    return ctx.state.keyboardDrivenModeEnabled && ctx.state.keyboardCharacterNavigation;
+  }
+
   function syncKeyboardTokenSelection(): void {
+    // Marking a character edits the subtitle, which the observer below answers with another
+    // sync; drop the notifications for our own edits so the two do not loop.
+    if (applyKeyboardTokenSelection()) subtitleMutationObserver?.takeRecords();
+  }
+
+  /** Shows the word box or the character cursor; true if the subtitle markup changed. */
+  function applyKeyboardTokenSelection(): boolean {
     const wordNodes = getSubtitleWordNodes();
     clearKeyboardSelectedWordClasses(wordNodes);
+    const clearedCursor = characterCursor.clear(ctx.dom.subtitleRoot);
+    characterCursorMarker = null;
+    // Lookups select from the character to the end of the line; this class keeps that
+    // selection from recolouring the rest of the line, so only the cursor box shows.
+    if (isCharacterNavigationActive()) {
+      ctx.dom.subtitleRoot.classList.add(KEYBOARD_CHARACTER_NAVIGATION_CLASS);
+    } else {
+      ctx.dom.subtitleRoot.classList.remove(KEYBOARD_CHARACTER_NAVIGATION_CLASS);
+    }
 
     if (!ctx.state.keyboardDrivenModeEnabled || wordNodes.length === 0) {
       ctx.state.keyboardSelectedWordIndex = null;
@@ -515,12 +548,14 @@ export function createKeyboardHandlers(
         resetSelectionToStartOnNextSubtitleSync = false;
         clearNativeSubtitleSelection();
       }
-      return;
+      return clearedCursor;
     }
 
     if (pendingSelectionAnchorAfterSubtitleSeek) {
       ctx.state.keyboardSelectedWordIndex =
         pendingSelectionAnchorAfterSubtitleSeek === 'start' ? 0 : wordNodes.length - 1;
+      ctx.state.keyboardSelectedCharIndex =
+        pendingSelectionAnchorAfterSubtitleSeek === 'start' ? 0 : Number.MAX_SAFE_INTEGER;
       ctx.state.keyboardSelectionVisible = true;
       pendingSelectionAnchorAfterSubtitleSeek = null;
       resetSelectionToStartOnNextSubtitleSync = false;
@@ -536,6 +571,7 @@ export function createKeyboardHandlers(
 
     if (resetSelectionToStartOnNextSubtitleSync) {
       ctx.state.keyboardSelectedWordIndex = 0;
+      ctx.state.keyboardSelectedCharIndex = 0;
       ctx.state.keyboardSelectionVisible = true;
       resetSelectionToStartOnNextSubtitleSync = false;
     }
@@ -546,9 +582,21 @@ export function createKeyboardHandlers(
     );
     ctx.state.keyboardSelectedWordIndex = selectedIndex;
     const selectedWordNode = wordNodes[selectedIndex];
-    if (selectedWordNode && ctx.state.keyboardSelectionVisible) {
+    if (!selectedWordNode || !ctx.state.keyboardSelectionVisible) return clearedCursor;
+    if (!isCharacterNavigationActive()) {
       selectedWordNode.classList.add(KEYBOARD_SELECTED_WORD_CLASS);
+      return clearedCursor;
     }
+    const length = characterCursor.getLength(selectedWordNode);
+    ctx.state.keyboardSelectedCharIndex = Math.min(
+      Math.max(ctx.state.keyboardSelectedCharIndex, 0),
+      Math.max(length - 1, 0),
+    );
+    characterCursorMarker =
+      length > 0
+        ? characterCursor.paint(selectedWordNode, ctx.state.keyboardSelectedCharIndex)
+        : null;
+    return clearedCursor || characterCursorMarker !== null;
   }
 
   function setKeyboardDrivenModeEnabled(enabled: boolean): void {
@@ -557,6 +605,9 @@ export function createKeyboardHandlers(
     ctx.state.keyboardSelectionVisible = enabled;
     if (!enabled) {
       ctx.state.keyboardSelectedWordIndex = null;
+      // Character navigation itself stays on, but like the word cursor it restarts at the
+      // beginning of the line next time.
+      ctx.state.keyboardSelectedCharIndex = 0;
       pendingSelectionAnchorAfterSubtitleSeek = null;
       pendingLookupRefreshAfterSubtitleSeek = false;
       resetSelectionToStartOnNextSubtitleSync = false;
@@ -581,6 +632,24 @@ export function createKeyboardHandlers(
       ctx.state.keyboardSelectedWordIndex = null;
       syncKeyboardTokenSelection();
       return 'no-words';
+    }
+
+    if (isCharacterNavigationActive()) {
+      const { position, result } = moveCharacterCursor(
+        wordNodes.map((wordNode) => characterCursor.getLength(wordNode)),
+        {
+          wordIndex: ctx.state.keyboardSelectedWordIndex ?? 0,
+          charIndex: ctx.state.keyboardSelectedCharIndex,
+        },
+        delta,
+      );
+      if (result === 'moved') {
+        ctx.state.keyboardSelectedWordIndex = position.wordIndex;
+        ctx.state.keyboardSelectedCharIndex = position.charIndex;
+        ctx.state.keyboardSelectionVisible = true;
+        syncKeyboardTokenSelection();
+      }
+      return result;
     }
 
     const currentIndex = Math.min(
@@ -679,13 +748,38 @@ export function createKeyboardHandlers(
   }
 
   function selectWordNodeText(wordNode: HTMLElement): void {
-    const selection = window.getSelection();
-    if (!selection) return;
     const range = document.createRange();
     range.selectNodeContents(wordNode);
+    selectSubtitleRange(range);
+  }
+
+  function selectSubtitleRange(range: Range): void {
+    const selection = window.getSelection();
+    if (!selection) return;
     selection.removeAllRanges();
     selection.addRange(range);
     ctx.dom.subtitleRoot.classList.add('has-selection');
+  }
+
+  /**
+   * Switches keyboard-only mode between moving by word and by character (`C`, or the
+   * controller binding). The cursor starts on the first character of the selected word, and
+   * switching back selects the word holding the character. Kept until toggled back.
+   */
+  function toggleCharacterNavigation(): boolean {
+    if (!ctx.state.keyboardDrivenModeEnabled) return false;
+    ctx.state.keyboardCharacterNavigation = !ctx.state.keyboardCharacterNavigation;
+    ctx.state.keyboardSelectedCharIndex = 0;
+    ctx.state.keyboardSelectionVisible = true;
+    syncKeyboardTokenSelection();
+    if (isLookupPopupOpen(ctx.state, document)) triggerLookupForSelectedWord();
+    return true;
+  }
+
+  function isCharacterNavigationToggle(e: KeyboardEvent): boolean {
+    if (!ctx.state.keyboardDrivenModeEnabled || ctx.state.chordPending) return false;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false;
+    return e.code === 'KeyC';
   }
 
   function triggerLookupForSelectedWord(): boolean {
@@ -704,9 +798,18 @@ export function createKeyboardHandlers(
 
     ctx.state.keyboardSelectionVisible = true;
     syncKeyboardTokenSelection();
-    selectWordNodeText(selectedWordNode);
+    // On a character, search from it to the end of the line: Yomitan takes the longest word
+    // that starts there, whatever the word boxes say.
+    const marker = characterCursorMarker;
+    const lastWordNode = wordNodes[wordNodes.length - 1];
+    const scanTarget = marker ?? selectedWordNode;
+    if (marker && lastWordNode) {
+      selectSubtitleRange(characterCursor.rangeToEnd(marker, lastWordNode));
+    } else {
+      selectWordNodeText(selectedWordNode);
+    }
 
-    const rect = selectedWordNode.getBoundingClientRect();
+    const rect = scanTarget.getBoundingClientRect();
     const clientX = rect.left + rect.width / 2;
     const clientY = rect.top + rect.height / 2;
 
@@ -727,7 +830,7 @@ export function createKeyboardHandlers(
       }
       // Dispatch directly on the selected token span; when overlay pointer-events are disabled,
       // elementFromPoint may resolve to the underlying video surface instead.
-      emitLookupScanFallback(selectedWordNode, clientX, clientY);
+      emitLookupScanFallback(scanTarget, clientX, clientY);
     }, 60);
     return true;
   }
@@ -1113,7 +1216,7 @@ export function createKeyboardHandlers(
     });
     document.addEventListener('keyup', importedMpvBindings.keyup, true);
 
-    const subtitleMutationObserver = new MutationObserver(() => {
+    subtitleMutationObserver = new MutationObserver(() => {
       syncKeyboardTokenSelection();
     });
     subtitleMutationObserver.observe(ctx.dom.subtitleRoot, {
@@ -1291,6 +1394,13 @@ export function createKeyboardHandlers(
         return;
       }
 
+      // Before popup keybinds, so it also works while the popup is open.
+      if (isCharacterNavigationToggle(e)) {
+        e.preventDefault();
+        if (!e.repeat) toggleCharacterNavigation();
+        return;
+      }
+
       if (isLookupPopupOpen(ctx.state, document)) {
         if (handleYomitanPopupKeybind(e)) {
           e.preventDefault();
@@ -1413,6 +1523,7 @@ export function createKeyboardHandlers(
     handleLookupWindowToggleRequested,
     closeLookupWindow,
     moveSelectionForController,
+    toggleCharacterNavigationForController: toggleCharacterNavigation,
     forwardPopupKeydownForController,
     mineSelectedFromController,
     cyclePopupAudioSourceForController,

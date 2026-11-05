@@ -576,6 +576,7 @@ function startControllerPolling(): void {
             holdSecondarySub: { kind: 'none' },
             previousEntry: { kind: 'none' },
             nextEntry: { kind: 'none' },
+            toggleCharacterNavigation: { kind: 'none' },
             previousSubtitle: { kind: 'none' },
             nextSubtitle: { kind: 'none' },
             replaySubtitle: { kind: 'none' },
@@ -634,6 +635,9 @@ function startControllerPolling(): void {
     },
     nextEntry: () => {
       keyboardHandlers.movePopupEntryForController(1);
+    },
+    toggleCharacterNavigation: () => {
+      keyboardHandlers.toggleCharacterNavigationForController();
     },
     toggleMpvPause: () => {
       window.electronAPI.sendMpvCommand(['cycle', 'pause']);

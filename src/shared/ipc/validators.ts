@@ -222,6 +222,7 @@ function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindin
     'holdSecondarySub',
     'previousEntry',
     'nextEntry',
+    'toggleCharacterNavigation',
     'previousSubtitle',
     'nextSubtitle',
     'replaySubtitle',

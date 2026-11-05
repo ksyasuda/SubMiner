@@ -242,6 +242,7 @@ export interface ControllerBindingsConfig {
   holdSecondarySub?: ControllerDiscreteBindingConfig;
   previousEntry?: ControllerDiscreteBindingConfig;
   nextEntry?: ControllerDiscreteBindingConfig;
+  toggleCharacterNavigation?: ControllerDiscreteBindingConfig;
   previousSubtitle?: ControllerDiscreteBindingConfig;
   nextSubtitle?: ControllerDiscreteBindingConfig;
   replaySubtitle?: ControllerDiscreteBindingConfig;
@@ -265,6 +266,7 @@ export interface ResolvedControllerBindingsConfig {
   holdSecondarySub?: ResolvedControllerDiscreteBinding;
   previousEntry?: ResolvedControllerDiscreteBinding;
   nextEntry?: ResolvedControllerDiscreteBinding;
+  toggleCharacterNavigation?: ResolvedControllerDiscreteBinding;
   previousSubtitle?: ResolvedControllerDiscreteBinding;
   nextSubtitle?: ResolvedControllerDiscreteBinding;
   replaySubtitle?: ResolvedControllerDiscreteBinding;

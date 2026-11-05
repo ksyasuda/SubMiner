@@ -101,6 +101,7 @@ const CONTROLLER_DISCRETE_BINDING_KEYS = [
   'holdSecondarySub',
   'previousEntry',
   'nextEntry',
+  'toggleCharacterNavigation',
   'previousSubtitle',
   'nextSubtitle',
   'replaySubtitle',
