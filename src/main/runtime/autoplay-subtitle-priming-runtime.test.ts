@@ -465,3 +465,121 @@ test('prefetch stays paused until tokenization of an uncached line completes', a
     'prefetch:resume',
   ]);
 });
+
+/** Deps whose calls append to `calls`; tests override what they exercise. */
+function makeRecordingDeps(
+  calls: string[],
+  overrides: Partial<Parameters<typeof createAutoplaySubtitlePrimingRuntime>[0]> = {},
+): Parameters<typeof createAutoplaySubtitlePrimingRuntime>[0] {
+  let currentSubText = '';
+  return {
+    getCurrentMediaPath: () => '/media/video.mkv',
+    getMpvClient: () => null,
+    setCurrentSubText: (text) => {
+      currentSubText = text;
+      calls.push(`set:${text}`);
+    },
+    getCurrentSubText: () => currentSubText,
+    getCurrentSubtitleData: () => null,
+    getActiveParsedSubtitleCues: () => [],
+    setActiveParsedSubtitleMediaPath: (mediaPath) => calls.push(`tag:${mediaPath}`),
+    subtitleProcessingController: {
+      consumeCachedSubtitle: (text) => {
+        calls.push(`consume:${text}`);
+        return null;
+      },
+      onSubtitleChange: (text) => {
+        calls.push(`change:${text}`);
+        return true;
+      },
+      refreshCurrentSubtitle: (text) => {
+        calls.push(`refresh:${text}`);
+        return true;
+      },
+      notePlainSubtitleEmitted: () => {},
+    },
+    emitSubtitlePayload: (payload) =>
+      calls.push(`emit:${payload.text}:${payload.tokens ? 'annotated' : 'raw'}`),
+    getSubtitlePrefetchService: () => null,
+    getLastObservedTimePos: () => 12,
+    getVisibleOverlayVisible: () => true,
+    emitSecondarySubtitle: () => {},
+    initSubtitlePrefetch: async (sourcePath) => {
+      calls.push(`init:${sourcePath}`);
+    },
+    refreshSubtitlePrefetchFromActiveTrack: async () => {},
+    logDebug: () => {},
+    ...overrides,
+  };
+}
+
+test('a cached line primes with its annotated payload and never paints it raw first', async () => {
+  const calls: string[] = [];
+  const mediaPath = '/media/video.mkv';
+  const cached: SubtitleData = { text: '起動字幕', tokens: [] };
+  const runtime = createAutoplaySubtitlePrimingRuntime(
+    makeRecordingDeps(calls, {
+      getMpvClient: () => ({
+        connected: true,
+        currentVideoPath: mediaPath,
+        requestProperty: async (name) => (name === 'sub-text' ? '起動字幕' : null),
+      }),
+      subtitleProcessingController: {
+        consumeCachedSubtitle: (text) => {
+          calls.push(`consume:${text}`);
+          return cached;
+        },
+        onSubtitleChange: (text) => {
+          calls.push(`change:${text}`);
+          return false;
+        },
+        refreshCurrentSubtitle: () => true,
+        notePlainSubtitleEmitted: () => {},
+      },
+    }),
+  );
+
+  await runtime.primeCurrentSubtitleForAutoplay(mediaPath);
+
+  assert.deepEqual(calls, [
+    'set:起動字幕',
+    // Consumed before the controller hears about the line, which would otherwise schedule
+    // its own tokenization of it.
+    'consume:起動字幕',
+    'change:起動字幕',
+    'emit:起動字幕:annotated',
+  ]);
+});
+
+test('the subtitle sidebar tags its media path only once prefetch has loaded the source', async () => {
+  const calls: string[] = [];
+  const runtime = createAutoplaySubtitlePrimingRuntime(makeRecordingDeps(calls));
+
+  await runtime.refreshSubtitleSidebarFromSource('/subs/episode.srt', '  /media/other.mkv ');
+  await runtime.refreshSubtitleSidebarFromSource('/subs/episode.srt');
+
+  assert.deepEqual(calls, [
+    'init:/subs/episode.srt',
+    'tag:/media/other.mkv',
+    'init:/subs/episode.srt',
+    // Without an explicit media path the tag falls back to the current media.
+    'tag:/media/video.mkv',
+  ]);
+});
+
+test('a failed subtitle sidebar prefetch leaves the media path untagged', async () => {
+  const calls: string[] = [];
+  const runtime = createAutoplaySubtitlePrimingRuntime(
+    makeRecordingDeps(calls, {
+      initSubtitlePrefetch: async () => {
+        throw new Error('unreadable subtitle file');
+      },
+    }),
+  );
+
+  await assert.rejects(
+    runtime.refreshSubtitleSidebarFromSource('/subs/episode.srt', '/media/other.mkv'),
+    /unreadable subtitle file/,
+  );
+  assert.deepEqual(calls, []);
+});

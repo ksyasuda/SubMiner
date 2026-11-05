@@ -3,7 +3,7 @@
 # Subtitle Overlay Priming
 
 Status: active
-Last verified: 2026-08-19
+Last verified: 2026-11-01
 Owner: Kyle Yasuda
 Read when: debugging subtitle state or blank Linux/X11 overlay windows when the visible overlay is shown or recreated
 
@@ -19,13 +19,14 @@ subtitles do not draw.
 
 ## Entry Points
 
-- `src/main.ts` calls `primeCurrentSubtitleForVisibleOverlay()` when manual visible-overlay show
-  paths run.
-- `src/main.ts` calls `restoreVisibleOverlayWindowShapeForShow()` before visible-overlay show
-  actions on Linux, and `resetVisibleOverlayInputState()` restores a full shape instead of applying
-  an empty shape.
-- `src/main.ts` also restores the Linux/X11 shape after applying mpv overlay bounds, so a newly
-  created 800x600 hidden Electron window cannot keep clipping after it is resized to mpv geometry.
+- The overlay assembly (`src/main/assemblies/overlay.ts`) calls
+  `primeCurrentSubtitleForVisibleOverlay()` when manual visible-overlay show paths run.
+- It calls `restoreVisibleOverlayWindowShapeForShow()` before visible-overlay show actions on
+  Linux, and `resetVisibleOverlayInputState()` restores a full shape instead of applying an empty
+  shape (both in `src/main/runtime/visible-overlay-interaction-runtime.ts`).
+- `src/main/runtime/overlay-geometry-runtime.ts` also restores the Linux/X11 shape after applying
+  mpv overlay bounds, so a newly created 800x600 hidden Electron window cannot keep clipping after
+  it is resized to mpv geometry.
 - `primeCurrentSubtitleForVisibleOverlay()` delegates to
   `primeVisibleOverlaySubtitleFromMpv()` in `src/main/runtime/current-subtitle-snapshot.ts`.
 - `restoreVisibleOverlayWindowShapeForShow()` delegates to `restoreLinuxOverlayWindowShape()` in
@@ -54,7 +55,7 @@ Both `onSubtitleChange` and `refreshCurrentSubtitle` pause `subtitlePrefetchServ
 the matching `subtitleProcessingController` method, giving the visible overlay priority over
 background prefetch work. Prefetch is not re-centered here: restarting the run per line
 (`onSeek`) discarded the in-flight tokenization every time the subtitle changed, so only real
-seeks restart it (see `onTimePosUpdate` in `src/main.ts`).
+seeks restart it (see the time-pos handling in `src/main/assemblies/playback.ts`).
 
 On an uncached autoplay prime the raw payload is emitted here and reported to the controller with
 `notePlainSubtitleEmitted`, so the controller skips its own plain emit for that line and the

@@ -17,14 +17,9 @@ import { SubtitleTimingTracker } from '../../subtitle-timing-tracker';
 import type { SecondarySubMode, WindowGeometry } from '../../types';
 import { mergeAiConfig } from '../../ai/config';
 import type { OverlayModalRuntime } from '../overlay-runtime';
-import {
-  composeAppReadyRuntime,
-  type AppReadyComposerOptions,
-  type composeOverlayVisibilityRuntime,
-} from '../runtime/composers';
+import { composeAppReadyRuntime, type AppReadyComposerOptions } from '../runtime/composers';
 import type { createConfigDerivedRuntime } from '../runtime/domains/startup';
 import { shouldAutoOpenFirstRunSetup } from '../runtime/first-run-setup-service';
-import type { createOverlayGeometryRuntime } from '../runtime/overlay-geometry-runtime';
 import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notifications-runtime';
 import { createOverlayRuntimeBootstrapHandlers } from '../runtime/overlay-runtime-bootstrap-handlers';
 import {
@@ -32,7 +27,6 @@ import {
   shouldHandleInitialArgsBeforeDeferredOverlayWarmup,
   shouldRefreshAnilistOnConfigReload,
 } from '../runtime/startup-mode-flags';
-import type { VisibleOverlayInteractionRuntime } from '../runtime/visible-overlay-interaction-runtime';
 import type { AppState } from '../state';
 import type { AnilistAssembly } from './anilist';
 import type { FirstRunSetupAssembly } from './first-run-setup';
@@ -82,7 +76,6 @@ export interface StartupAssemblyDeps {
   hasMpvWebsocketPlugin: () => boolean;
   loadSubtitlePosition: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
-  syncOverlayMpvSubtitleSuppression: () => void;
   yomitan: Pick<YomitanAssembly, 'loadExtension' | 'ensureExtensionLoaded'>;
   stats: Pick<StatsAssembly, 'ensureImmersionTrackerStarted' | 'immersionTrackerStartupDeps'>;
   firstRunSetup: Pick<FirstRunSetupAssembly, 'service' | 'openWindow'>;
@@ -98,7 +91,18 @@ export interface StartupAssemblyDeps {
     | 'createMainWindow'
     | 'setVisibleOverlayVisible'
     | 'ensureOverlayWindowsReadyForVisibilityActions'
-  >;
+    | 'syncOverlayMpvSubtitleSuppression'
+  > & {
+    visibilityComposer: Pick<
+      OverlayAssembly['visibilityComposer'],
+      'broadcastRuntimeOptionsChanged'
+    >;
+    interaction: Pick<
+      OverlayAssembly['interaction'],
+      'createOverlayWindowTracker' | 'bindVisibleOverlayOwner' | 'releaseVisibleOverlayOwner'
+    >;
+    geometry: Pick<OverlayAssembly['geometry'], 'updateVisibleOverlayBounds'>;
+  };
   shortcuts: Pick<
     ShortcutsAssembly,
     | 'overlayShortcutsRuntime'
@@ -124,19 +128,6 @@ export interface StartupAssemblyDeps {
   getOverlayNotifications: () => Pick<
     ReturnType<typeof createOverlayNotificationsRuntime>,
     'showOverlayNotification' | 'dismissOverlayNotification'
-  >;
-  getOverlayVisibilityComposer: () => Pick<
-    ReturnType<typeof composeOverlayVisibilityRuntime>,
-    'broadcastRuntimeOptionsChanged'
-  >;
-  /** Pointer interaction and geometry stay in `main.ts`: both import Electron at module load. */
-  getVisibleOverlayInteraction: () => Pick<
-    VisibleOverlayInteractionRuntime,
-    'createOverlayWindowTracker' | 'bindVisibleOverlayOwner' | 'releaseVisibleOverlayOwner'
-  >;
-  getOverlayGeometry: () => Pick<
-    ReturnType<typeof createOverlayGeometryRuntime>,
-    'updateVisibleOverlayBounds'
   >;
   /** Runs the CLI command the app was launched with. */
   handleInitialArgs: () => void;
@@ -167,7 +158,7 @@ export function createStartupAssembly(deps: StartupAssemblyDeps) {
         const playback = deps.getPlayback();
         playback.subtitleProcessingController.invalidateTokenizationCache();
         playback.getSubtitlePrefetchService()?.onSeek(playback.getLastObservedTimePos());
-        deps.getOverlayVisibilityComposer().broadcastRuntimeOptionsChanged();
+        deps.overlay.visibilityComposer.broadcastRuntimeOptionsChanged();
         deps.shortcuts.refreshOverlayShortcuts();
       },
     });
@@ -233,13 +224,11 @@ export function createStartupAssembly(deps: StartupAssemblyDeps) {
           deps.shortcuts.registerGlobalShortcuts();
         },
         createWindowTracker: (override, targetMpvSocketPath) =>
-          deps
-            .getVisibleOverlayInteraction()
-            .createOverlayWindowTracker(override, targetMpvSocketPath),
+          deps.overlay.interaction.createOverlayWindowTracker(override, targetMpvSocketPath),
         updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
-          deps.getOverlayGeometry().updateVisibleOverlayBounds(geometry),
-        bindOverlayOwner: () => deps.getVisibleOverlayInteraction().bindVisibleOverlayOwner(),
-        releaseOverlayOwner: () => deps.getVisibleOverlayInteraction().releaseVisibleOverlayOwner(),
+          deps.overlay.geometry.updateVisibleOverlayBounds(geometry),
+        bindOverlayOwner: () => deps.overlay.interaction.bindVisibleOverlayOwner(),
+        releaseOverlayOwner: () => deps.overlay.interaction.releaseVisibleOverlayOwner(),
         getOverlayWindows: () => deps.overlayManager.getOverlayWindows(),
         getResolvedConfig: () => configService.getConfig(),
         showDesktopNotification,
@@ -280,7 +269,7 @@ export function createStartupAssembly(deps: StartupAssemblyDeps) {
     if (appState.ankiIntegration) {
       deps.mining.attachToAnkiIntegration(appState.ankiIntegration);
     }
-    deps.syncOverlayMpvSubtitleSuppression();
+    deps.overlay.syncOverlayMpvSubtitleSuppression();
   }
 
   /** Creates whatever overlay commands need that app-ready skipped on a deferred start. */

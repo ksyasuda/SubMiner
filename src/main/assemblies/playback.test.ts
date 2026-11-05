@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DEFAULT_CONFIG } from '../../config/definitions';
+import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from '../../core/services/overlay-window-flags';
 import type { SubtitlePrefetchService } from '../../core/services/subtitle-prefetch';
-import type { SubtitleData } from '../../types';
+import type { OverlayContentMeasurement, SubtitleData } from '../../types';
 import { createAppState } from '../state';
 import { createPlaybackAssembly, type PlaybackAssemblyDeps } from './playback';
 
@@ -53,31 +54,19 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
     overlayManager: {
       broadcastToOverlayWindows: spy('overlay.broadcast', noop),
       getVisibleOverlayVisible: spy('overlay.getVisibleOverlayVisible', () => false),
+      getMainWindow: spy('overlay.getMainWindow', () => null),
+    },
+    overlayContentMeasurementStore: {
+      getLatestByLayer: spy('measurement.getLatest', () => null),
     },
     subtitleWsService: { broadcast: spy('subtitleWs.broadcast', noop) },
     annotationSubtitleWsService: { broadcast: spy('annotationWs.broadcast', noop) },
-    autoplayReadyGate: {
-      maybeSignalPluginAutoplayReady: spy('autoplay.maybeSignal', noop),
-      flushPendingAutoplayReadySignal: spy('autoplay.flushPending', noop),
-      invalidatePendingAutoplayReadyFallbacks: spy('autoplay.invalidateFallbacks', noop),
-    },
-    currentMediaTokenizationGate: {
-      updateCurrentMediaPath: spy('tokenizationGate.updateCurrentMediaPath', noop),
-      markReady: spy('tokenizationGate.markReady', noop),
-    },
     startupOsdSequencer: {
       reset: spy('startupOsd.reset', noop),
       markTokenizationReady: spy('startupOsd.markTokenizationReady', noop),
       showTokenizationLoading: spy('startupOsd.showTokenizationLoading', noop),
       showAnnotationLoading: spy('startupOsd.showAnnotationLoading', noop),
       markAnnotationLoadingComplete: spy('startupOsd.markAnnotationLoadingComplete', noop),
-    },
-    managedLocalSubtitleSelectionRuntime: {
-      handleMediaPathChange: spy('localSubtitles.handleMediaPathChange', noop),
-      handleSubtitleTrackListChange: spy('localSubtitles.handleSubtitleTrackListChange', noop),
-    },
-    jimakuAutoOpenRuntime: {
-      handleMediaPathChange: spy('jimakuAutoOpen.handleMediaPathChange', noop),
     },
     mediaTimingReviewRuntime: {
       deferPlaybackResume: spy('timingReview.deferPlaybackResume', () => false),
@@ -103,6 +92,7 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
         handleMediaPathChange: spy('youtube.notification.handleMediaPathChange', noop),
         handleSubtitleTrackChange: spy('youtube.notification.handleSubtitleTrackChange', noop),
         handleSubtitleTrackListChange: spy('youtube.notification.handleTrackListChange', noop),
+        isAppOwnedFlowInFlight: spy('youtube.notification.isAppOwnedFlowInFlight', () => false),
       },
       mediaCachePlayback: { handleMediaPathChange: spy('youtube.mediaCache', resolved) },
       browserPlayback: {
@@ -168,6 +158,8 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
     // Every annotation off, so tokenization warmups need no MeCab or dictionaries.
     getRuntimeBooleanOption: spy('getRuntimeBooleanOption', () => false),
     onFullscreenChange: spy('onFullscreenChange', noop),
+    stealAppFocus: spy('stealAppFocus', noop),
+    openJimaku: spy('overlayModals.openJimaku', async () => false),
   };
 }
 
@@ -186,10 +178,32 @@ function bindMpvEvents(playback: ReturnType<typeof createPlaybackAssembly>) {
   };
 }
 
-function setup(overrides: Partial<PlaybackAssemblyDeps> = {}) {
+/**
+ * Replaces the assembly's autoplay-ready and tokenization gates with recording stubs, so tests
+ * pin playback's calls into them. Playback looks these methods up at call time.
+ */
+function stubGates(recorder: Recorder, playback: ReturnType<typeof createPlaybackAssembly>) {
+  const { spy } = recorder;
+  const noop = () => {};
+  Object.assign(playback.autoplayReadyGate, {
+    maybeSignalPluginAutoplayReady: spy('autoplay.maybeSignal', noop),
+    flushPendingAutoplayReadySignal: spy('autoplay.flushPending', noop),
+    invalidatePendingAutoplayReadyFallbacks: spy('autoplay.invalidateFallbacks', noop),
+  } satisfies Partial<typeof playback.autoplayReadyGate>);
+  Object.assign(playback.currentMediaTokenizationGate, {
+    updateCurrentMediaPath: spy('tokenizationGate.updateCurrentMediaPath', noop),
+    markReady: spy('tokenizationGate.markReady', noop),
+  } satisfies Partial<typeof playback.currentMediaTokenizationGate>);
+}
+
+function setup(
+  overrides: Partial<PlaybackAssemblyDeps> = {},
+  options: { realGates?: boolean } = {},
+) {
   const recorder = createRecorder();
   const deps = { ...makeDeps(recorder), ...overrides };
   const playback = createPlaybackAssembly(deps);
+  if (!options.realGates) stubGates(recorder, playback);
   const emit = bindMpvEvents(playback);
   return { recorder, deps, appState: deps.appState, playback, emit };
 }
@@ -450,4 +464,81 @@ test('sidebar snapshot falls back to cached cues while mpv is disconnected', asy
   assert.equal(snapshot.cues, cues);
   assert.equal(snapshot.config, DEFAULT_CONFIG.subtitleSidebar);
   assert.equal(recorder.names().includes('loadSubtitleSourceText'), false);
+});
+
+/**
+ * Real autoplay gate over a paused, connected mpv client. `overlayVisible` and `measurement`
+ * control the visible-overlay readiness the gate waits for.
+ */
+function setupAutoplayGate(fixture: {
+  overlayVisible: boolean;
+  measurement?: OverlayContentMeasurement | null;
+}) {
+  const overlayWindow = {
+    isDestroyed: () => false,
+    // Focused already, so the macOS pointer recovery on release does not steal focus.
+    isVisible: () => true,
+    isFocused: () => true,
+    [OVERLAY_WINDOW_CONTENT_READY_FLAG]: true,
+  };
+  const ctx = setup(
+    {
+      overlayManager: {
+        broadcastToOverlayWindows: () => {},
+        getVisibleOverlayVisible: () => fixture.overlayVisible,
+        getMainWindow: () => overlayWindow as unknown as Electron.BrowserWindow,
+      },
+      overlayContentMeasurementStore: { getLatestByLayer: () => fixture.measurement ?? null },
+    },
+    { realGates: true },
+  );
+  let paused = true;
+  const scriptMessages: string[] = [];
+  ctx.appState.currentMediaPath = '/videos/a.mkv';
+  ctx.appState.mpvClient = {
+    connected: true,
+    requestProperty: async (name: string) => (name === 'pause' ? paused : null),
+    send: ({ command }: { command: unknown[] }) => {
+      if (command[0] === 'script-message') scriptMessages.push(String(command[1]));
+      if (command[0] === 'set_property' && command[1] === 'pause') paused = command[2] === true;
+    },
+  } as unknown as typeof ctx.appState.mpvClient;
+  const released = () => scriptMessages.includes('subminer-autoplay-ready');
+  return { ...ctx, released };
+}
+
+const TOKENIZED_LINE: SubtitleData = { text: '一行目', tokens: [] };
+
+test('autoplay stays paused until the visible overlay has measured the subtitle', () => {
+  const fixture: { overlayVisible: boolean; measurement: OverlayContentMeasurement | null } = {
+    overlayVisible: true,
+    measurement: null,
+  };
+  const { playback, released } = setupAutoplayGate(fixture);
+
+  playback.autoplayReadyGate.maybeSignalPluginAutoplayReady(TOKENIZED_LINE);
+  assert.equal(released(), false);
+
+  fixture.measurement = {
+    layer: 'visible',
+    measuredAtMs: Date.now() + 1_000,
+    viewport: { width: 1920, height: 1080 },
+    contentRect: { x: 100, y: 900, width: 600, height: 60 },
+  } as OverlayContentMeasurement;
+  playback.autoplayReadyGate.flushPendingAutoplayReadySignal();
+  assert.equal(released(), true);
+});
+
+// Untokenized lines (startup priming, tokenizer fallbacks) must not release the startup pause
+// while tokenization warms up; a tokenized line must not wait on the warmup flag.
+test('autoplay ignores an untokenized line during tokenization warmup but releases a tokenized one', () => {
+  const { playback, released } = setupAutoplayGate({ overlayVisible: false });
+  assert.equal(playback.isTokenizationWarmupReady(), false);
+
+  playback.autoplayReadyGate.maybeSignalPluginAutoplayReady({ text: '一行目', tokens: null });
+  playback.autoplayReadyGate.flushPendingAutoplayReadySignal();
+  assert.equal(released(), false);
+
+  playback.autoplayReadyGate.maybeSignalPluginAutoplayReady(TOKENIZED_LINE);
+  assert.equal(released(), true);
 });

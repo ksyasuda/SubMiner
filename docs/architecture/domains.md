@@ -3,7 +3,7 @@
 # Domain Ownership
 
 Status: active
-Last verified: 2026-10-31
+Last verified: 2026-11-01
 Owner: Kyle Yasuda
 Read when: you need to find the owner module for a behavior or test surface
 
@@ -23,19 +23,27 @@ Read when: you need to find the owner module for a behavior or test surface
 - App startup: app-ready sequence, headless known-word refresh, overlay startup prerequisites and
   overlay runtime bootstrap: `src/main/assemblies/startup.ts`
 - Overlay/window state: `src/core/services/overlay-*`, `src/main/overlay-*.ts`
-  Overlay windows, visibility, Linux fullscreen handling, and the overlay-window IPC handlers
-  (modal open/close, pointer interaction, content measurement): `src/main/assemblies/overlay.ts`
+  Overlay windows, visibility, geometry and pointer interaction, Linux fullscreen handling, mpv
+  subtitle suppression while the overlay shows, and the overlay-window IPC handlers (modal
+  open/close, pointer interaction, content measurement): `src/main/assemblies/overlay.ts`
   Overlay-hosted modal openers: `src/main/assemblies/overlay-modals.ts`
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
-  mpv client creation, mpv event wiring, AniSkip, subtitle prefetch, and subtitle sidebar state: `src/main/assemblies/playback.ts`
+  mpv client creation, mpv event wiring, AniSkip, the autoplay-ready gate that releases mpv's
+  startup pause, managed local subtitle selection, subtitle prefetch, and subtitle sidebar state:
+  `src/main/assemblies/playback.ts`
 - Keyboard input outside the renderer (overlay, global and numeric shortcuts, session bindings):
   `src/main/assemblies/shortcuts.ts`
+- Session actions (the dispatcher behind shortcuts, controller buttons, CLI commands and plugin
+  actions), the secondary-subtitle mode cycle, and the overlay renderer's mpv commands:
+  `src/main/assemblies/session-actions.ts`
 - System tray: `src/main/assemblies/tray.ts`
 - Yomitan/Hachidori extension loading, parser runtime deps, and dictionary settings windows:
   `src/main/assemblies/yomitan.ts`
   Windows executable lookup and detached process creation are shared in `src/main/runtime/mpv-process.ts`. The Windows launcher and Jellyfin handlers retain their own playback and connection workflows.
 - Subtitle/token pipeline: `src/core/services/subtitle-*.ts`, `src/core/services/tokenizer*`, `src/core/services/tokenizer/`, `src/subsync/`
   JLPT and frequency annotation lookups: `src/main/jlpt-runtime.ts`, `src/main/frequency-dictionary-runtime.ts`, assembled by `src/main/assemblies/dictionaries.ts`
+  Annotation toggles (a cycled runtime option over its config value): `src/main/runtime/annotation-options.ts`
+  Whisper subtitle generation runtime, modal and IPC: `src/main/assemblies/subtitle-generation.ts`
   Subtitle text filters (`subtitleFilter`): `src/shared/subtitle-text-filter.ts`. Primary text is filtered at its two entry points, live `sub-text` in `mpv-protocol.ts` and parsed cues in `playback.ts`, so every consumer sees the same text and live/cue matching still works. A config change re-reads `sub-text` and re-parses the active track (the prefetch controller's parse key).
 - First-run setup: `src/main/runtime/first-run-setup-*.ts`, assembled by `src/main/assemblies/first-run-setup.ts`
 - Anki workflow: `src/anki-integration/`, `src/core/services/anki-jimaku*.ts`
@@ -55,7 +63,7 @@ Read when: you need to find the owner module for a behavior or test surface
   assembled by `src/main/assemblies/jellyfin.ts`
 - YouTube playback, subtitles, media cache, and in-app browser: `src/core/services/youtube/`,
   `src/main/runtime/youtube-*`, assembled by `src/main/assemblies/youtube.ts`
-- User plugins: `src/core/services/plugins/` (host, `ctx`, `exec`), `src/main/runtime/plugin-panel-runtime.ts` (panel modal), `src/main/runtime/plugin-window-runtime.ts` (plugin windows), `src/renderer/modals/plugin-panel*.ts`; examples in `assets/plugins/`
+- User plugins: `src/core/services/plugins/` (host, `ctx`, `exec`), `src/main/runtime/plugin-panel-runtime.ts` (panel modal), `src/main/runtime/plugin-window-runtime.ts` (plugin windows), assembled by `src/main/assemblies/plugins.ts`; `src/renderer/modals/plugin-panel*.ts`; examples in `assets/plugins/`
 - Window trackers: `src/window-trackers/`
 - Stats HTTP app: `src/core/services/stats-server.ts`, with route groups and shared route support
   in `src/core/services/stats-server/`

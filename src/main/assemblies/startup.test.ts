@@ -43,7 +43,6 @@ function makeDeps(overrides: Partial<StartupAssemblyDeps> = {}): StartupAssembly
     hasMpvWebsocketPlugin: lazy('hasMpvWebsocketPlugin'),
     loadSubtitlePosition: lazy('loadSubtitlePosition'),
     setSecondarySubMode: lazy('setSecondarySubMode'),
-    syncOverlayMpvSubtitleSuppression: lazy('syncOverlayMpvSubtitleSuppression'),
     yomitan: thrower('yomitan'),
     stats: { ensureImmersionTrackerStarted: lazy('ensureImmersionTrackerStarted') } as never,
     firstRunSetup: thrower('firstRunSetup'),
@@ -57,9 +56,6 @@ function makeDeps(overrides: Partial<StartupAssemblyDeps> = {}): StartupAssembly
     getPlayback: lazy('getPlayback'),
     getPluginHost: lazy('getPluginHost'),
     getOverlayNotifications: lazy('getOverlayNotifications'),
-    getOverlayVisibilityComposer: lazy('getOverlayVisibilityComposer'),
-    getVisibleOverlayInteraction: lazy('getVisibleOverlayInteraction'),
-    getOverlayGeometry: lazy('getOverlayGeometry'),
     handleInitialArgs: lazy('handleInitialArgs'),
     ...overrides,
   };
@@ -89,9 +85,11 @@ function makePrereqDeps(calls: string[]): Partial<StartupAssemblyDeps> {
         getSubtitlePrefetchService: () => ({ onSeek: record('prefetch.onSeek') }),
         getLastObservedTimePos: () => 12,
       }) as unknown as ReturnType<StartupAssemblyDeps['getPlayback']>,
-    getOverlayVisibilityComposer: () => ({
-      broadcastRuntimeOptionsChanged: record('broadcastRuntimeOptionsChanged'),
-    }),
+    overlay: {
+      visibilityComposer: {
+        broadcastRuntimeOptionsChanged: record('broadcastRuntimeOptionsChanged'),
+      },
+    } as unknown as StartupAssemblyDeps['overlay'],
   };
 }
 

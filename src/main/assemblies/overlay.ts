@@ -1,8 +1,11 @@
 import type { BrowserWindow, Screen, Session } from 'electron';
 import {
+  broadcastRuntimeOptionsChangedRuntime,
   type createOverlayContentMeasurementStore,
   type createOverlayWindow as createOverlayWindowCoreFn,
   sendMpvCommandRuntime,
+  setMpvSubVisibilityRuntime,
+  setOverlayDebugVisualizationEnabledRuntime,
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
   type createOverlayManager,
 } from '../../core/services';
@@ -14,7 +17,7 @@ import type { createOverlayShortcutsRuntimeService } from '../overlay-shortcuts-
 import type { OverlayModalRuntime } from '../overlay-runtime';
 import { createOverlayVisibilityRuntimeService } from '../overlay-visibility-runtime';
 import type { createAutoplayReadyGate } from '../runtime/autoplay-ready-gate';
-import type { composeOverlayVisibilityRuntime } from '../runtime/composers';
+import { composeOverlayVisibilityRuntime } from '../runtime/composers';
 import { createOverlayVisibilityRuntime } from '../runtime/domains/overlay';
 import {
   type CancelLinuxMpvFullscreenOverlayRefreshBurst,
@@ -27,10 +30,14 @@ import { focusMacOSOverlayWindow } from '../runtime/macos-overlay-window-focus';
 import type { createMediaTimingReviewRuntime } from '../runtime/media-timing-review';
 import type { createJimakuAutoOpenRuntime } from '../runtime/jimaku-auto-open';
 import type { createOverlayModalInputState } from '../runtime/overlay-modal-input-state';
-import type { createOverlayGeometryRuntime } from '../runtime/overlay-geometry-runtime';
+import {
+  createEnsureOverlayMpvSubtitlesHiddenHandler,
+  createRestoreOverlayMpvSubtitlesHandler,
+} from '../runtime/overlay-mpv-sub-visibility';
+import { createOverlayGeometryRuntime } from '../runtime/overlay-geometry-runtime';
 import type { createOverlayNotificationsRuntime } from '../runtime/overlay-notifications-runtime';
 import { createOverlayWindowRuntimeHandlers } from '../runtime/overlay-window-runtime-handlers';
-import type { VisibleOverlayInteractionRuntime } from '../runtime/visible-overlay-interaction-runtime';
+import { createVisibleOverlayInteractionRuntime } from '../runtime/visible-overlay-interaction-runtime';
 import type { AppState } from '../state';
 import type { PlaybackAssembly } from './playback';
 import type { IpcSlice } from './slices';
@@ -55,6 +62,8 @@ export interface OverlayAssemblyDeps {
     | 'setVisibleOverlayVisible'
     | 'setOverlayWindowBounds'
     | 'setModalWindowBounds'
+    | 'getOverlayWindows'
+    | 'broadcastToOverlayWindows'
   >;
   overlayModalInputState: Pick<
     ReturnType<typeof createOverlayModalInputState>,
@@ -62,55 +71,35 @@ export interface OverlayAssemblyDeps {
   >;
   overlayModalRuntime: Pick<
     OverlayModalRuntime,
-    'notifyOverlayModalOpened' | 'handleOverlayModalClosed'
+    | 'notifyOverlayModalOpened'
+    | 'handleOverlayModalClosed'
+    | 'sendToActiveOverlayWindow'
+    | 'openRuntimeOptionsPalette'
   >;
   overlayContentMeasurementStore: Pick<
     ReturnType<typeof createOverlayContentMeasurementStore>,
-    'report'
+    'report' | 'clear' | 'getLatestByLayer'
   >;
-  autoplayReadyGate: Pick<
+  getAutoplayReadyGate: () => Pick<
     ReturnType<typeof createAutoplayReadyGate>,
     'markCurrentMediaAutoplayReady' | 'flushPendingAutoplayReadySignal'
   >;
-  screen: Pick<Screen, 'getCursorScreenPoint' | 'getDisplayNearestPoint'>;
+  screen: Pick<
+    Screen,
+    'getCursorScreenPoint' | 'getDisplayNearestPoint' | 'getDisplayMatching' | 'screenToDipPoint'
+  >;
   isDev: boolean;
   /** Builds an Electron overlay window; injected so the assembly stays free of Electron calls. */
   createOverlayWindowCore: typeof createOverlayWindowCoreFn;
   getYomitanSession: () => Session | null;
-  /** Pointer interaction and geometry stay in `main.ts`: both import Electron at module load. */
-  getVisibleOverlayInteraction: () => Pick<
-    VisibleOverlayInteractionRuntime,
-    | 'getLinuxOverlayInputShapeActive'
-    | 'getMacOSVisibleOverlayForegroundProbeActive'
-    | 'getVisibleOverlayInteractionActive'
-    | 'setVisibleOverlayInteractionActive'
-    | 'setLinuxOverlayInteractiveHint'
-    | 'applyLinuxOverlayInputShapeFromLatestMeasurement'
-    | 'tickLinuxOverlayPointerInteractionNow'
-    | 'tickWindowsOverlayPointerInteractionNow'
-    | 'getWindowsNativeWindowHandleNumber'
-    | 'primeLinuxOverlayPointerInteractionAfterFirstMeasurement'
-    | 'requestLinuxOverlayZOrderFollow'
-    | 'requestWindowsVisibleOverlayZOrderSync'
-    | 'resetLinuxVisibleOverlayStartupInputPrimer'
-    | 'resetVisibleOverlayInputState'
-    | 'restoreVisibleOverlayWindowShapeForShow'
-    | 'scheduleVisibleOverlayBlurRefresh'
-    | 'startLinuxVisibleOverlayStartupInputGrace'
-  >;
-  getOverlayGeometry: () => Pick<
-    ReturnType<typeof createOverlayGeometryRuntime>,
-    | 'enforceOverlayLayerOrder'
-    | 'ensureOverlayWindowLevel'
-    | 'getCurrentOverlayGeometry'
-    | 'getCurrentTrackedOverlayGeometry'
-    | 'syncPrimaryOverlayWindowLayer'
-    | 'updateVisibleOverlayBounds'
-  >;
   getOverlayShortcuts: () => Pick<
     ReturnType<typeof createOverlayShortcutsRuntimeService>,
     'syncOverlayShortcuts' | 'tryHandleOverlayShortcutLocalFallback'
   >;
+  /** Settings/setup windows the overlay must not raise above. */
+  getOverlayForegroundSeparateWindows: () => BrowserWindow[];
+  /** Keeps the stats window above playback after the overlay re-asserts its level. */
+  promoteStatsOverlayAbovePlayback: () => void;
   getOverlayNotifications: () => Pick<
     ReturnType<typeof createOverlayNotificationsRuntime>,
     | 'showOverlayLoadingStatusNotification'
@@ -118,9 +107,11 @@ export interface OverlayAssemblyDeps {
     | 'flushQueuedOverlayNotifications'
     | 'maybeStartOverlayLoadingOsd'
   >;
-  getOverlayVisibilityComposer: () => Pick<
-    ReturnType<typeof composeOverlayVisibilityRuntime>,
-    'broadcastRuntimeOptionsChanged' | 'setOverlayDebugVisualizationEnabled'
+  /** Runtime option snapshot broadcast to overlay windows when an option changes. */
+  getRuntimeOptionsState: () => ReturnType<
+    Parameters<
+      typeof composeOverlayVisibilityRuntime
+    >[0]['broadcastRuntimeOptionsChangedMainDeps']['getRuntimeOptionsState']
   >;
   getMediaTimingReviewRuntime: () => Pick<
     ReturnType<typeof createMediaTimingReviewRuntime>,
@@ -146,20 +137,19 @@ export interface OverlayAssemblyDeps {
   setSubtitleSidebarRequestedOpen: (open: boolean) => void;
   /** Brings SubMiner to the foreground (`app.focus({ steal: true })`). */
   stealAppFocus: () => void;
-  ensureOverlayMpvSubtitlesHidden: () => Promise<void>;
-  syncOverlayMpvSubtitleSuppression: () => void;
   initializeOverlayRuntime: () => void;
 }
 
 export type OverlayAssembly = ReturnType<typeof createOverlayAssembly>;
 
 /**
- * Owns overlay core: the visible/modal windows, their visibility, the Linux fullscreen window
- * mode and refresh burst, and the show/hide paths. `main.ts` builds it once and reaches the
- * runtimes through the result; overlay bootstrap, pointer interaction and geometry stay there.
+ * Owns overlay core: the visible/modal windows, their visibility, geometry and pointer
+ * interaction, the Linux fullscreen window mode and refresh burst, mpv subtitle suppression
+ * while the overlay shows, and the show/hide paths. `main.ts` builds it once and reaches the
+ * runtimes through the result; overlay bootstrap stays in the startup assembly.
  */
 export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
-  const { appState, logger, overlayManager, overlayModalInputState, autoplayReadyGate } = deps;
+  const { appState, logger, overlayManager, overlayModalInputState } = deps;
 
   let cancelLinuxMpvFullscreenOverlayRefreshBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null =
     null;
@@ -169,14 +159,14 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     getWindow: () => overlayManager.getMainWindow(),
     clearWindow: () => overlayManager.setMainWindow(null),
     createWindow: () => {
-      deps.getVisibleOverlayInteraction().resetVisibleOverlayInputState();
+      interaction.resetVisibleOverlayInputState();
       createMainWindow();
     },
     refreshWindow: () => {
-      const trackedGeometry = deps.getOverlayGeometry().getCurrentTrackedOverlayGeometry();
+      const trackedGeometry = geometry.getCurrentTrackedOverlayGeometry();
       if (trackedGeometry) overlayManager.setOverlayWindowBounds(trackedGeometry);
       overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-      void deps.ensureOverlayMpvSubtitlesHidden();
+      void ensureOverlayMpvSubtitlesHidden();
       if (appState.currentSubText.trim()) {
         deps.getSubtitleProcessingController().refreshCurrentSubtitle(appState.currentSubText);
       }
@@ -195,31 +185,28 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
     getNonNativeInputRegionActive: () =>
-      process.platform === 'linux' &&
-      deps.getVisibleOverlayInteraction().getLinuxOverlayInputShapeActive(),
+      process.platform === 'linux' && interaction.getLinuxOverlayInputShapeActive(),
     getSuspendVisibleOverlay: () => appState.statsOverlayVisible,
-    getOverlayInteractionActive: () =>
-      deps.getVisibleOverlayInteraction().getVisibleOverlayInteractionActive(),
+    getOverlayInteractionActive: () => interaction.getVisibleOverlayInteractionActive(),
     getWindowTracker: () => appState.windowTracker,
-    getMacOSForegroundProbeActive: () =>
-      deps.getVisibleOverlayInteraction().getMacOSVisibleOverlayForegroundProbeActive(),
+    getMacOSForegroundProbeActive: () => interaction.getMacOSVisibleOverlayForegroundProbeActive(),
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
       appState.trackerNotReadyWarningShown = shown;
     },
-    updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
-      deps.getOverlayGeometry().updateVisibleOverlayBounds(geometry),
+    updateVisibleOverlayBounds: (bounds: WindowGeometry) =>
+      geometry.updateVisibleOverlayBounds(bounds),
     ensureOverlayWindowLevel: (window) => {
-      deps.getOverlayGeometry().ensureOverlayWindowLevel(window);
+      geometry.ensureOverlayWindowLevel(window);
     },
     syncWindowsOverlayToMpvZOrder: (_window) => {
-      deps.getVisibleOverlayInteraction().requestWindowsVisibleOverlayZOrderSync();
+      interaction.requestWindowsVisibleOverlayZOrderSync();
     },
     syncPrimaryOverlayWindowLayer: (layer) => {
-      deps.getOverlayGeometry().syncPrimaryOverlayWindowLayer(layer);
+      geometry.syncPrimaryOverlayWindowLayer(layer);
     },
     enforceOverlayLayerOrder: () => {
-      deps.getOverlayGeometry().enforceOverlayLayerOrder();
+      geometry.enforceOverlayLayerOrder();
     },
     syncOverlayShortcuts: () => {
       deps.getOverlayShortcuts().syncOverlayShortcuts();
@@ -254,16 +241,14 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
       return existingWindow;
     }
     const window = createModalWindowHandler();
-    overlayManager.setModalWindowBounds(deps.getOverlayGeometry().getCurrentOverlayGeometry());
+    overlayManager.setModalWindowBounds(geometry.getCurrentOverlayGeometry());
     return window;
   }
 
   function createMainWindow(): BrowserWindow {
     const window = createMainWindowHandler();
     if (process.platform === 'win32') {
-      const overlayHwnd = deps
-        .getVisibleOverlayInteraction()
-        .getWindowsNativeWindowHandleNumber(window);
+      const overlayHwnd = interaction.getWindowsNativeWindowHandleNumber(window);
       if (!ensureWindowsOverlayTransparency(overlayHwnd)) {
         logger.warn('Failed to eagerly extend Windows overlay transparency via koffi');
       }
@@ -292,12 +277,10 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
       createOverlayWindowDeps: {
         createOverlayWindowCore: (kind, options) => deps.createOverlayWindowCore(kind, options),
         isDev: deps.isDev,
-        ensureOverlayWindowLevel: (window) =>
-          deps.getOverlayGeometry().ensureOverlayWindowLevel(window),
-        onRuntimeOptionsChanged: () =>
-          deps.getOverlayVisibilityComposer().broadcastRuntimeOptionsChanged(),
+        ensureOverlayWindowLevel: (window) => geometry.ensureOverlayWindowLevel(window),
+        onRuntimeOptionsChanged: () => visibilityComposer.broadcastRuntimeOptionsChanged(),
         setOverlayDebugVisualizationEnabled: (enabled) =>
-          deps.getOverlayVisibilityComposer().setOverlayDebugVisualizationEnabled(enabled),
+          visibilityComposer.setOverlayDebugVisualizationEnabled(enabled),
         isOverlayVisible: (windowKind) =>
           windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
         getYomitanSession: () => deps.getYomitanSession(),
@@ -308,10 +291,8 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
           shouldRunLinuxOverlayZOrderKeepAlive() &&
           linuxOverlayModeRuntime.fullscreen &&
           linuxOverlayModeRuntime.mode === 'fullscreen-override',
-        onVisibleWindowBlurred: () =>
-          deps.getVisibleOverlayInteraction().scheduleVisibleOverlayBlurRefresh(),
-        onVisibleWindowFocused: () =>
-          deps.getVisibleOverlayInteraction().requestLinuxOverlayZOrderFollow(),
+        onVisibleWindowBlurred: () => interaction.scheduleVisibleOverlayBlurRefresh(),
+        onVisibleWindowFocused: () => interaction.requestLinuxOverlayZOrderFollow(),
         onWindowDidFinishLoad: () => {
           deps.getOverlayNotifications().flushQueuedOverlayNotifications();
         },
@@ -319,10 +300,8 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
           deps.getOverlayNotifications().dismissOverlayLoadingStatusNotification();
           deps.getOverlayNotifications().flushQueuedOverlayNotifications();
           overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-          deps
-            .getVisibleOverlayInteraction()
-            .primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
-          autoplayReadyGate.flushPendingAutoplayReadySignal();
+          interaction.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
+          deps.getAutoplayReadyGate().flushPendingAutoplayReadySignal();
         },
         onWindowClosed: (windowKind, window) => {
           if (windowKind === 'visible') {
@@ -371,22 +350,22 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     ensureOverlayWindowsReadyForVisibilityActions();
     if (!visible) {
       deps.getOverlayNotifications().dismissOverlayLoadingStatusNotification();
-      autoplayReadyGate.markCurrentMediaAutoplayReady();
+      deps.getAutoplayReadyGate().markCurrentMediaAutoplayReady();
       deps.getAutoplaySubtitlePriming().cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
       cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
-      deps.getVisibleOverlayInteraction().resetVisibleOverlayInputState();
+      interaction.resetVisibleOverlayInputState();
     }
     if (visible) {
       deps.getOverlayNotifications().maybeStartOverlayLoadingOsd();
-      deps.getVisibleOverlayInteraction().resetLinuxVisibleOverlayStartupInputPrimer();
-      deps.getVisibleOverlayInteraction().startLinuxVisibleOverlayStartupInputGrace();
-      deps.getVisibleOverlayInteraction().restoreVisibleOverlayWindowShapeForShow();
-      void deps.ensureOverlayMpvSubtitlesHidden();
+      interaction.resetLinuxVisibleOverlayStartupInputPrimer();
+      interaction.startLinuxVisibleOverlayStartupInputGrace();
+      interaction.restoreVisibleOverlayWindowShapeForShow();
+      void ensureOverlayMpvSubtitlesHidden();
       void deps.getAutoplaySubtitlePriming().primeCurrentSubtitleForVisibleOverlay();
     }
     setVisibleOverlayVisibleHandler(visible);
     notifyMpvPluginVisibleOverlayVisibility(visible);
-    deps.syncOverlayMpvSubtitleSuppression();
+    syncOverlayMpvSubtitleSuppression();
   }
 
   function toggleVisibleOverlay(): void {
@@ -394,41 +373,41 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     const nextVisible = !overlayManager.getVisibleOverlayVisible();
     if (!nextVisible) {
       deps.getOverlayNotifications().dismissOverlayLoadingStatusNotification();
-      autoplayReadyGate.markCurrentMediaAutoplayReady();
+      deps.getAutoplayReadyGate().markCurrentMediaAutoplayReady();
       deps.getAutoplaySubtitlePriming().cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
       cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
-      deps.getVisibleOverlayInteraction().resetVisibleOverlayInputState();
+      interaction.resetVisibleOverlayInputState();
     } else {
       deps.getOverlayNotifications().maybeStartOverlayLoadingOsd();
-      deps.getVisibleOverlayInteraction().resetLinuxVisibleOverlayStartupInputPrimer();
-      deps.getVisibleOverlayInteraction().startLinuxVisibleOverlayStartupInputGrace();
-      deps.getVisibleOverlayInteraction().restoreVisibleOverlayWindowShapeForShow();
-      void deps.ensureOverlayMpvSubtitlesHidden();
+      interaction.resetLinuxVisibleOverlayStartupInputPrimer();
+      interaction.startLinuxVisibleOverlayStartupInputGrace();
+      interaction.restoreVisibleOverlayWindowShapeForShow();
+      void ensureOverlayMpvSubtitlesHidden();
       void deps.getAutoplaySubtitlePriming().primeCurrentSubtitleForVisibleOverlay();
     }
     toggleVisibleOverlayHandler();
     notifyMpvPluginVisibleOverlayVisibility(nextVisible);
-    deps.syncOverlayMpvSubtitleSuppression();
+    syncOverlayMpvSubtitleSuppression();
   }
   function setOverlayVisible(visible: boolean): void {
     if (!visible) {
       deps.getOverlayNotifications().dismissOverlayLoadingStatusNotification();
       deps.getAutoplaySubtitlePriming().cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
-      deps.getVisibleOverlayInteraction().resetVisibleOverlayInputState();
-      autoplayReadyGate.markCurrentMediaAutoplayReady();
+      interaction.resetVisibleOverlayInputState();
+      deps.getAutoplayReadyGate().markCurrentMediaAutoplayReady();
       cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
     }
     if (visible) {
       deps.getOverlayNotifications().maybeStartOverlayLoadingOsd();
-      deps.getVisibleOverlayInteraction().resetLinuxVisibleOverlayStartupInputPrimer();
-      deps.getVisibleOverlayInteraction().startLinuxVisibleOverlayStartupInputGrace();
-      deps.getVisibleOverlayInteraction().restoreVisibleOverlayWindowShapeForShow();
-      void deps.ensureOverlayMpvSubtitlesHidden();
+      interaction.resetLinuxVisibleOverlayStartupInputPrimer();
+      interaction.startLinuxVisibleOverlayStartupInputGrace();
+      interaction.restoreVisibleOverlayWindowShapeForShow();
+      void ensureOverlayMpvSubtitlesHidden();
       void deps.getAutoplaySubtitlePriming().primeCurrentSubtitleForVisibleOverlay();
     }
     setOverlayVisibleHandler(visible);
     notifyMpvPluginVisibleOverlayVisibility(visible);
-    deps.syncOverlayMpvSubtitleSuppression();
+    syncOverlayMpvSubtitleSuppression();
   }
 
   function handleMpvFullscreenChange(fullscreen: boolean): void {
@@ -443,10 +422,9 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
         syncVisibleOverlayMpvFullscreenMode: (nextFullscreen) =>
           linuxOverlayModeRuntime.sync(nextFullscreen),
         getOverlayInteractionActive: () =>
-          deps.getVisibleOverlayInteraction().getVisibleOverlayInteractionActive() ||
-          deps.getVisibleOverlayInteraction().getLinuxOverlayInputShapeActive(),
-        ensureOverlayWindowLevel: (window) =>
-          deps.getOverlayGeometry().ensureOverlayWindowLevel(window),
+          interaction.getVisibleOverlayInteractionActive() ||
+          interaction.getLinuxOverlayInputShapeActive(),
+        ensureOverlayWindowLevel: (window) => geometry.ensureOverlayWindowLevel(window),
       },
       cancelLinuxMpvFullscreenOverlayRefreshBurst,
     );
@@ -457,6 +435,162 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     linuxOverlayModeRuntime.cancelPendingTransition();
     cancelLinuxMpvFullscreenOverlayRefreshBurst = null;
     clearLinuxMpvFullscreenOverlayRefreshTimeouts();
+  }
+
+  const geometry = createOverlayGeometryRuntime({
+    screen: deps.screen,
+    promoteStatsOverlayAbovePlayback: () => deps.promoteStatsOverlayAbovePlayback(),
+    overlayManager: {
+      getMainWindow: () => overlayManager.getMainWindow(),
+      getModalWindow: () => overlayManager.getModalWindow(),
+      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      setOverlayWindowBounds: (bounds) => overlayManager.setOverlayWindowBounds(bounds),
+      setModalWindowBounds: (bounds) => overlayManager.setModalWindowBounds(bounds),
+    },
+    getTrackedWindowGeometry: () => appState.windowTracker?.getGeometry() ?? null,
+    getTrackedWindowMediaSourceId: () => appState.windowTracker?.getTargetWindowMediaSourceId?.(),
+    getTrackedWindowNativeId: () => appState.windowTracker?.getTargetWindowNativeId?.(),
+    getStatsOverlayVisible: () => appState.statsOverlayVisible,
+    getOverlayForegroundSeparateWindows: () => deps.getOverlayForegroundSeparateWindows(),
+    getLinuxVisibleOverlayWindowMode: () => linuxOverlayModeRuntime.mode,
+    getLinuxTrackedMpvFullscreen: () => linuxOverlayModeRuntime.fullscreen,
+    getLinuxTrackedMpvFullscreenChangedAtMs: () => linuxOverlayModeRuntime.fullscreenChangedAtMs,
+    syncLinuxVisibleOverlayMpvFullscreenMode: (fullscreen) =>
+      linuxOverlayModeRuntime.sync(fullscreen),
+    getLinuxVisibleOverlayOwnerBindingKey: () => linuxOverlayModeRuntime.ownerBindingKey,
+    setLinuxVisibleOverlayOwnerBindingKey: (key) => {
+      linuxOverlayModeRuntime.ownerBindingKey = key;
+    },
+    clearVisibleOverlayX11OwnerBinding: (window) =>
+      interaction.clearVisibleOverlayX11OwnerBinding(window),
+    getNativeWindowHandleDecimal: (window) => interaction.getNativeWindowHandleDecimal(window),
+    enqueueVisibleOverlayX11OwnerBindingOperation: (window, args, onError) =>
+      interaction.enqueueVisibleOverlayX11OwnerBindingOperation(window, args, onError),
+    scheduleWindowsVisibleOverlayZOrderSyncBurst: () =>
+      interaction.scheduleWindowsVisibleOverlayZOrderSyncBurst(),
+    logDebug: (message, ...args) => logger.debug(message, ...args),
+  });
+
+  // Starts the Windows foreground poll and Linux z-order keep-alive loops on those platforms.
+  const interaction = createVisibleOverlayInteractionRuntime({
+    screen: deps.screen,
+    overlayManager: {
+      getMainWindow: () => overlayManager.getMainWindow(),
+      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    },
+    overlayContentMeasurementStore: {
+      clear: (layer) => deps.overlayContentMeasurementStore.clear(layer),
+      getLatestByLayer: (layer) => deps.overlayContentMeasurementStore.getLatestByLayer(layer),
+    },
+    logger: {
+      info: (message, ...args) => logger.info(message, ...args),
+      warn: (message, ...args) => logger.warn(message, ...args),
+      debug: (message, ...args) => logger.debug(message, ...args),
+    },
+    updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+    getModalInputExclusive: () => overlayModalInputState.getModalInputExclusive(),
+    getStatsOverlayVisible: () => appState.statsOverlayVisible,
+    setStatsOverlayVisible: (visible) => {
+      appState.statsOverlayVisible = visible;
+    },
+    getWindowTracker: () => appState.windowTracker,
+    setWindowTracker: (tracker) => {
+      appState.windowTracker = tracker;
+    },
+    setTrackerNotReadyWarningShown: (shown) => {
+      appState.trackerNotReadyWarningShown = shown;
+    },
+    getMpvSocketPath: () => appState.mpvSocketPath,
+    getBackendOverride: () => appState.backendOverride,
+    getInitialArgs: () => appState.initialArgs,
+    getOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    getLinuxVisibleOverlayWindowMode: () => linuxOverlayModeRuntime.mode,
+    setLinuxVisibleOverlayOwnerBindingKey: (key) => {
+      linuxOverlayModeRuntime.ownerBindingKey = key;
+    },
+    bindVisibleOverlayToTrackedX11Window: (window) =>
+      geometry.bindVisibleOverlayToTrackedX11Window(window),
+    updateVisibleOverlayBounds: (bounds) => geometry.updateVisibleOverlayBounds(bounds),
+    refreshCurrentSubtitle: () => {
+      deps.getSubtitleProcessingController().refreshCurrentSubtitle(appState.currentSubText);
+    },
+    getOverlayWindows: () => overlayManager.getOverlayWindows(),
+    syncOverlayShortcuts: () => deps.getOverlayShortcuts().syncOverlayShortcuts(),
+    resetLastOverlayWindowGeometry: () => geometry.resetLastOverlayWindowGeometry(),
+    enforceOverlayLayerOrder: () => {
+      geometry.enforceOverlayLayerOrder();
+    },
+    getOverlayForegroundSeparateWindows: () => deps.getOverlayForegroundSeparateWindows(),
+  });
+
+  const visibilityComposer = composeOverlayVisibilityRuntime({
+    overlayVisibilityRuntime,
+    restorePreviousSecondarySubVisibilityMainDeps: {
+      getMpvClient: () => appState.mpvClient,
+    },
+    broadcastRuntimeOptionsChangedMainDeps: {
+      broadcastRuntimeOptionsChangedRuntime,
+      getRuntimeOptionsState: () => deps.getRuntimeOptionsState(),
+      broadcastToOverlayWindows: (channel, ...args) =>
+        overlayManager.broadcastToOverlayWindows(channel, ...args),
+    },
+    sendToActiveOverlayWindowMainDeps: {
+      sendToActiveOverlayWindowRuntime: (channel, payload, runtimeOptions) =>
+        deps.overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+    },
+    setOverlayDebugVisualizationEnabledMainDeps: {
+      setOverlayDebugVisualizationEnabledRuntime,
+      getCurrentEnabled: () => appState.overlayDebugVisualizationEnabled,
+      setCurrentEnabled: (next) => {
+        appState.overlayDebugVisualizationEnabled = next;
+      },
+    },
+    openRuntimeOptionsPaletteMainDeps: {
+      openRuntimeOptionsPaletteRuntime: () => deps.overlayModalRuntime.openRuntimeOptionsPalette(),
+    },
+  });
+
+  // mpv's own subtitles stay hidden while the visible overlay shows and come back when it hides.
+  const ensureOverlayMpvSubtitlesHidden = createEnsureOverlayMpvSubtitlesHiddenHandler({
+    getMpvClient: () => appState.mpvClient,
+    getSavedSubVisibility: () => appState.overlaySavedMpvSubVisibility,
+    setSavedSubVisibility: (visible) => {
+      appState.overlaySavedMpvSubVisibility = visible;
+    },
+    getRevision: () => appState.overlayMpvSubVisibilityRevision,
+    setRevision: (revision) => {
+      appState.overlayMpvSubVisibilityRevision = revision;
+    },
+    setMpvSubVisibility: (visible) => {
+      setMpvSubVisibilityRuntime(appState.mpvClient, visible);
+    },
+    logWarn: (message, error) => {
+      logger.warn(message, error);
+    },
+  });
+  const restoreOverlayMpvSubtitles = createRestoreOverlayMpvSubtitlesHandler({
+    getSavedSubVisibility: () => appState.overlaySavedMpvSubVisibility,
+    setSavedSubVisibility: (visible) => {
+      appState.overlaySavedMpvSubVisibility = visible;
+    },
+    getRevision: () => appState.overlayMpvSubVisibilityRevision,
+    setRevision: (revision) => {
+      appState.overlayMpvSubVisibilityRevision = revision;
+    },
+    isMpvConnected: () => Boolean(appState.mpvClient?.connected),
+    shouldKeepSuppressedFromVisibleOverlayBinding: () => overlayManager.getVisibleOverlayVisible(),
+    setMpvSubVisibility: (visible) => {
+      setMpvSubVisibilityRuntime(appState.mpvClient, visible);
+    },
+  });
+
+  function syncOverlayMpvSubtitleSuppression(): void {
+    if (overlayManager.getVisibleOverlayVisible()) {
+      void ensureOverlayMpvSubtitlesHidden();
+      return;
+    }
+
+    restoreOverlayMpvSubtitles();
   }
 
   /** Renderer reports about overlay windows: focus, modal lifecycle, pointer and measurement. */
@@ -490,14 +624,14 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     activatePlaybackWindowForOverlayInteraction: async () => {
       try {
         const raised = (await appState.windowTracker?.raiseTargetWindow?.()) ?? false;
-        deps.getOverlayGeometry().enforceOverlayLayerOrder();
+        geometry.enforceOverlayLayerOrder();
         return raised;
       } catch (error) {
         logger.debug(
           'Failed to raise tracked mpv window for overlay interaction:',
           error instanceof Error ? error.message : String(error),
         );
-        deps.getOverlayGeometry().enforceOverlayLayerOrder();
+        geometry.enforceOverlayLayerOrder();
         return false;
       }
     },
@@ -545,7 +679,6 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
       if (!mainWindow || senderWindow !== mainWindow) {
         return;
       }
-      const interaction = deps.getVisibleOverlayInteraction();
       const previousActive = interaction.getVisibleOverlayInteractionActive();
       interaction.setVisibleOverlayInteractionActive(active);
       if (previousActive === active) {
@@ -561,7 +694,6 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
       if (!mainWindow || senderWindow !== mainWindow) {
         return;
       }
-      const interaction = deps.getVisibleOverlayInteraction();
       interaction.setLinuxOverlayInteractiveHint(interactive);
       interaction.applyLinuxOverlayInputShapeFromLatestMeasurement();
     },
@@ -569,11 +701,10 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
     // then schedules the first-paint subtitle refresh.
     reportOverlayContentBounds: (payload: unknown) => {
       if (deps.overlayContentMeasurementStore.report(payload)) {
-        const interaction = deps.getVisibleOverlayInteraction();
         interaction.tickLinuxOverlayPointerInteractionNow();
         interaction.tickWindowsOverlayPointerInteractionNow();
         interaction.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
-        deps.autoplayReadyGate.flushPendingAutoplayReadySignal();
+        deps.getAutoplayReadyGate().flushPendingAutoplayReadySignal();
         deps.getAutoplaySubtitlePriming().scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
       }
     },
@@ -581,6 +712,11 @@ export function createOverlayAssembly(deps: OverlayAssemblyDeps) {
 
   return {
     ipc,
+    geometry,
+    interaction,
+    visibilityComposer,
+    restoreOverlayMpvSubtitles,
+    syncOverlayMpvSubtitleSuppression,
     linuxOverlayModeRuntime,
     overlayVisibilityRuntime,
     createMainWindow,

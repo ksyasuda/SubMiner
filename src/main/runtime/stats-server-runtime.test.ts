@@ -73,7 +73,10 @@ function createRuntimeHarness(
   return { runtime, appStateValues };
 }
 
-test('dashboard word mining keeps the configured proxy as Hachidori Anki endpoint', async () => {
+/** Mines a word from the stats dashboard; returns the Anki settings sent to Hachidori. */
+async function mineDashboardWord(
+  ankiConnect: Partial<(typeof DEFAULT_CONFIG)['ankiConnect']>,
+): Promise<Record<string, unknown>> {
   const settings: unknown[] = [];
   const context = vm.createContext({
     chrome: {},
@@ -95,25 +98,40 @@ test('dashboard word mining keeps the configured proxy as Hachidori Anki endpoin
       ...createDeps(async (script) => structuredClone(await vm.runInContext(script, context))),
       getResolvedConfig: () => ({
         ...DEFAULT_CONFIG,
-        ankiConnect: {
-          ...DEFAULT_CONFIG.ankiConnect,
-          enabled: true,
-          url: 'http://127.0.0.1:8765',
-          proxy: {
-            ...DEFAULT_CONFIG.ankiConnect.proxy,
-            enabled: true,
-            host: '127.0.0.1',
-            port: 8766,
-          },
-        },
+        ankiConnect: { ...DEFAULT_CONFIG.ankiConnect, ...ankiConnect },
       }),
     },
   );
   await runtime.ensureStatsServerStarted();
   assert.equal(await configs[0]?.addYomitanNote?.('入れる'), 123);
-  assert.ok(settings[0] && typeof settings[0] === 'object' && 'server' in settings[0]);
-  assert.equal(settings[0].server, 'http://127.0.0.1:8766');
   await runtime.stopStatsServer();
+  const sent = settings[0];
+  assert.ok(sent && typeof sent === 'object');
+  return sent as Record<string, unknown>;
+}
+
+test('dashboard word mining keeps the configured proxy as Hachidori Anki endpoint', async () => {
+  const sent = await mineDashboardWord({
+    enabled: true,
+    url: 'http://127.0.0.1:8765',
+    proxy: { ...DEFAULT_CONFIG.ankiConnect.proxy, enabled: true, host: '127.0.0.1', port: 8766 },
+  });
+
+  assert.equal(sent.server, 'http://127.0.0.1:8766');
+  assert.equal(sent.forceOverride, true);
+});
+
+// Without the proxy SubMiner does not own the endpoint, so a server the user set in
+// Yomitan/Hachidori must survive dashboard mining.
+test('dashboard word mining without the proxy does not override the Hachidori Anki server', async () => {
+  const sent = await mineDashboardWord({
+    enabled: true,
+    url: 'http://127.0.0.1:8765',
+    proxy: { ...DEFAULT_CONFIG.ankiConnect.proxy, enabled: false },
+  });
+
+  assert.equal(sent.server, 'http://127.0.0.1:8765');
+  assert.equal(sent.forceOverride, false);
 });
 
 test('stopBackgroundStatsServer clears stale state when daemon identity mismatches', async () => {
