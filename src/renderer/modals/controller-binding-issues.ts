@@ -1,3 +1,4 @@
+import { controllerReviewInputSourceKey } from '../../shared/controller-review';
 import { DPAD_AXIS_INDEX, DPAD_BUTTON_INDEX } from '../handlers/gamepad-controller.js';
 import type {
   ControllerDpadFallback,
@@ -31,10 +32,14 @@ const buttonKey = (buttonIndex: number) => `button:${buttonIndex}`;
 const axisKey = (axisIndex: number, direction: 'negative' | 'positive') =>
   `axis:${axisIndex}:${direction}`;
 
+/**
+ * A combo counts as one input, apart from its hold and press alone: a plain action on the hold
+ * button waits for release, and a combo keeps its press away from plain actions and stick rows.
+ */
 function discreteInputs(binding: ResolvedControllerDiscreteBinding): string[] {
   if (binding.kind === 'none') return [];
-  if ('buttonIndex' in binding) return [buttonKey(binding.buttonIndex)];
-  return [axisKey(binding.axisIndex, binding.direction)];
+  const press = controllerReviewInputSourceKey(binding);
+  return [binding.hold ? `${controllerReviewInputSourceKey(binding.hold)}+${press}` : press];
 }
 
 function stickInputs(binding: ResolvedControllerAxisBinding): string[] {
@@ -74,6 +79,8 @@ export function findControllerBindingIssues(
   definitions: readonly ControllerBindingIssueDefinition[],
   bindings: ControllerBindings,
 ): Partial<Record<string, string>> {
+  const issues: Partial<Record<string, string>> = {};
+  const holdActions = new Map<string, string>();
   const rows: { key: string; label: string; inputs: string[] }[] = [];
   for (const definition of definitions) {
     if (INACTIVE_BINDINGS.has(definition.id)) continue;
@@ -92,15 +99,30 @@ export function findControllerBindingIssues(
         inputs: dpadInputs(axisBinding.kind === 'none' ? 'none' : axisBinding.dpadFallback),
       });
     } else {
+      const discreteBinding = binding as ResolvedControllerDiscreteBinding;
       rows.push({
         key: definition.id,
         label: definition.label,
-        inputs: discreteInputs(binding as ResolvedControllerDiscreteBinding),
+        inputs: discreteInputs(discreteBinding),
       });
+      if (discreteBinding.kind !== 'none' && discreteBinding.hold) {
+        const holdKey = controllerReviewInputSourceKey(discreteBinding.hold);
+        if (holdKey === controllerReviewInputSourceKey(discreteBinding)) {
+          issues[definition.id] = 'Hold and press are the same button';
+        } else if (!holdActions.has(holdKey)) {
+          holdActions.set(holdKey, definition.label);
+        }
+      }
     }
   }
 
-  const issues: Partial<Record<string, string>> = {};
+  // Everything else on a hold button can wait for release. This one shows while held.
+  const secondaryHold = bindings.holdSecondarySub;
+  if (secondaryHold.kind !== 'none' && !secondaryHold.hold) {
+    const comboLabel = holdActions.get(controllerReviewInputSourceKey(secondaryHold));
+    if (comboLabel) issues.holdSecondarySub = `Also the hold button of ${comboLabel}`;
+  }
+
   for (const row of rows) {
     const inputs = new Set(row.inputs);
     const clashes = rows

@@ -329,7 +329,11 @@ Gamepad input for the overlay, through the browser Gamepad API. Most actions onl
 | `controller.repeatDelayMs`         | `320`    | Delay before a held button repeats                                                                                                                                                                                            |
 | `controller.repeatIntervalMs`      | `120`    | Repeat interval for held buttons                                                                                                                                                                                              |
 
-Bindings, including the media timing review and duplicate card dialog layouts, are set with `Alt+C` learn mode, which saves them per controller.
+Bindings, including the media timing review and duplicate card dialog layouts, are set with `Alt+C` learn mode, which saves them per controller. Learn can also record a [combo](/usage#controller-support), saved on the binding as an optional `hold` input in the same form:
+
+```jsonc
+"nextAudio": { "kind": "button", "buttonIndex": 15, "hold": { "kind": "button", "buttonIndex": 4 } }
+```
 
 ## Anki integration
 

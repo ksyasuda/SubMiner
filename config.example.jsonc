@@ -128,62 +128,62 @@
       "toggleLookup": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 0 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for toggling lookup. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for toggling lookup. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "closeLookup": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 1 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for closing lookup. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for closing lookup. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "toggleKeyboardOnlyMode": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 3 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for toggling keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for toggling keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "mineCard": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 2 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for mining the active card. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for mining the active card. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "quitMpv": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 6 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for quitting mpv. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for quitting mpv. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "previousAudio": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-      }, // Controller binding descriptor for previous Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for previous Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "nextAudio": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 5 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for next Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for next Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "playCurrentAudio": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 4 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for playing the current Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for playing the current Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "toggleMpvPause": {
         "kind": "button", // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
         "buttonIndex": 9 // Raw button index captured for this discrete controller action.
-      }, // Controller binding descriptor for toggling mpv play/pause. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor for toggling mpv play/pause. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "holdSecondarySub": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-      }, // Controller binding descriptor that shows the secondary subtitle only while held. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor that shows the secondary subtitle only while held. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "previousEntry": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-      }, // Controller binding descriptor that selects the previous word entry in the open Yomitan popup. Mine Card mines the selected entry. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor that selects the previous word entry in the open Yomitan popup. Mine Card mines the selected entry. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "nextEntry": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-      }, // Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor that selects the next word entry in the open Yomitan popup. Mine Card mines the selected entry. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "toggleCharacterNavigation": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-      }, // Controller binding descriptor that switches keyboard-only mode between moving by word and moving by character, like C. A lookup on a character searches from that character, which reaches words the subtitle split cuts in two. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor that switches keyboard-only mode between moving by word and moving by character, like C. A lookup on a character searches from that character, which reaches words the subtitle split cuts in two. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "previousSubtitle": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-      }, // Controller binding descriptor that jumps to the previous subtitle line, like Shift+H. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor that jumps to the previous subtitle line, like Shift+H. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "nextSubtitle": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-      }, // Controller binding descriptor that jumps to the next subtitle line, like Shift+L. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor that jumps to the next subtitle line, like Shift+L. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "replaySubtitle": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-      }, // Controller binding descriptor that replays the current subtitle line, then pauses, like Ctrl+Shift+H. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor that replays the current subtitle line, then pauses, like Ctrl+Shift+H. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "playNextSubtitle": {
         "kind": "none" // Discrete binding input source kind. When kind is "axis", set both axisIndex and direction. Values: none | button | axis
-      }, // Controller binding descriptor that plays the next subtitle line, then pauses, like Ctrl+Shift+L. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.
+      }, // Controller binding descriptor that plays the next subtitle line, then pauses, like Ctrl+Shift+L. Works with or without keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.
       "leftStickHorizontal": {
         "kind": "axis", // Analog binding input source kind. Values: none | axis
         "axisIndex": 0, // Raw axis index captured for this analog controller action.

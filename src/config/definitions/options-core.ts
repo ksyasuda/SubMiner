@@ -472,7 +472,7 @@ export function buildCoreConfigOptionRegistry(
         path: `controller.bindings.${binding.id}`,
         kind: 'object' as const,
         defaultValue: binding.defaultValue,
-        description: `${binding.description} Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.`,
+        description: `${binding.description} Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required. Alt+C can also learn a combo, saved as an optional "hold" input.`,
       },
       {
         path: `controller.bindings.${binding.id}.kind`,
@@ -504,6 +504,13 @@ export function buildCoreConfigOptionRegistry(
           binding.defaultValue.kind === 'axis' ? binding.defaultValue.direction : undefined,
         description:
           'Axis direction captured for this discrete controller action. Required when kind is "axis".',
+      },
+      {
+        path: `controller.bindings.${binding.id}.hold`,
+        kind: 'object' as const,
+        defaultValue: undefined,
+        description:
+          'Optional button or axis input, in the same form, that must be held down while pressing this one.',
       },
     ]),
     ...axisBindings.flatMap((binding) => [

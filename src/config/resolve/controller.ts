@@ -1,6 +1,5 @@
 import type {
   ControllerAxisBinding,
-  ControllerAxisDirection,
   ControllerButtonBinding,
   ControllerButtonIndicesConfig,
   ControllerDpadFallback,
@@ -11,6 +10,7 @@ import type {
 import {
   isControllerFaceButtonLabels,
   isControllerScreenAction,
+  parseControllerDiscreteBinding,
   parseControllerReviewBinding,
   type ControllerScreenBindings,
   type ControllerScreenDefinition,
@@ -120,10 +120,6 @@ const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'pr
 type ControllerBindingsTarget = Required<ResolvedControllerBindingsConfig>;
 type ControllerButtonIndicesTarget = Required<ControllerButtonIndicesConfig>;
 
-function isControllerAxisDirection(value: unknown): value is ControllerAxisDirection {
-  return value === 'negative' || value === 'positive';
-}
-
 function isControllerDpadFallback(value: unknown): value is ControllerDpadFallback {
   return value === 'none' || value === 'horizontal' || value === 'vertical';
 }
@@ -150,29 +146,6 @@ function resolveLegacyAxisBinding(
     axisIndex: CONTROLLER_AXIS_INDEX_BY_BINDING[value],
     dpadFallback: CONTROLLER_AXIS_FALLBACK_BY_SLOT[slot],
   };
-}
-
-function parseDiscreteBindingObject(value: unknown): ResolvedControllerDiscreteBinding | null {
-  if (!isObject(value) || typeof value.kind !== 'string') return null;
-  if (value.kind === 'none') {
-    return { kind: 'none' };
-  }
-  if (value.kind === 'button') {
-    return typeof value.buttonIndex === 'number' &&
-      Number.isInteger(value.buttonIndex) &&
-      value.buttonIndex >= 0
-      ? { kind: 'button', buttonIndex: value.buttonIndex }
-      : null;
-  }
-  if (value.kind === 'axis') {
-    return typeof value.axisIndex === 'number' &&
-      Number.isInteger(value.axisIndex) &&
-      value.axisIndex >= 0 &&
-      isControllerAxisDirection(value.direction)
-      ? { kind: 'axis', axisIndex: value.axisIndex, direction: value.direction }
-      : null;
-  }
-  return null;
 }
 
 function parseAxisBindingObject(
@@ -242,7 +215,7 @@ function applyControllerBindings(
       );
       continue;
     }
-    const parsedObject = parseDiscreteBindingObject(bindingValue);
+    const parsedObject = parseControllerDiscreteBinding(bindingValue);
     if (parsedObject) {
       target[key] = parsedObject;
     } else if (bindingValue !== undefined) {
@@ -250,7 +223,7 @@ function applyControllerBindings(
         `${pathPrefix}.${key}`,
         bindingValue,
         target[key],
-        "Expected legacy controller button name or binding object with kind 'none', 'button', or 'axis'.",
+        "Expected legacy controller button name or binding object with kind 'none', 'button', or 'axis', and an optional button or axis 'hold'.",
       );
     }
   }

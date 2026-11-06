@@ -1,3 +1,4 @@
+import type { ConfigService } from '../config/service';
 import type { ControllerConfigUpdate, RawConfig } from '../types';
 
 type RawControllerConfig = NonNullable<RawConfig['controller']>;
@@ -94,6 +95,21 @@ function mergeControllerProfile(
   mergeScreenBindingPatches(currentProfile, updateProfile, nextProfile);
 
   return nextProfile;
+}
+
+/**
+ * Saves an Alt+C update to the config file. The controller section is replaced, not patched:
+ * `patchRawConfig` deep-merges, so a combo rebound to one button would keep its old `hold`.
+ */
+export function saveControllerConfigUpdate(
+  configService: Pick<ConfigService, 'getRawConfig' | 'saveRawConfig'>,
+  update: ControllerConfigUpdate,
+): void {
+  const rawConfig = configService.getRawConfig();
+  configService.saveRawConfig({
+    ...rawConfig,
+    controller: applyControllerConfigUpdate(rawConfig.controller, update),
+  });
 }
 
 export function applyControllerConfigUpdate(

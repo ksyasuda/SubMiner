@@ -17,7 +17,7 @@ import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-op
 import type { SessionActionId, SessionActionPayload } from '../../types/session-bindings';
 import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
-import { isControllerFaceButtonLabels } from '../controller-review';
+import { isControllerFaceButtonLabels, parseControllerDiscreteBinding } from '../controller-review';
 import { CONTROLLER_SCREENS, parseControllerScreenBindingsPatch } from '../controller-screens';
 
 const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -142,23 +142,6 @@ export function parseSubtitlePosition(value: unknown): SubtitlePosition | null {
   };
 }
 
-function parseDiscreteBinding(value: unknown) {
-  if (!isObject(value) || typeof value.kind !== 'string') return null;
-  if (value.kind === 'none') {
-    return { kind: 'none' };
-  }
-  if (value.kind === 'button') {
-    if (!isInteger(value.buttonIndex) || value.buttonIndex < 0) return null;
-    return { kind: 'button', buttonIndex: value.buttonIndex };
-  }
-  if (value.kind === 'axis') {
-    if (!isInteger(value.axisIndex) || value.axisIndex < 0) return null;
-    if (value.direction !== 'negative' && value.direction !== 'positive') return null;
-    return { kind: 'axis', axisIndex: value.axisIndex, direction: value.direction };
-  }
-  return null;
-}
-
 function parseAxisBinding(value: unknown) {
   if (isObject(value) && value.kind === 'none') {
     return { kind: 'none' };
@@ -230,7 +213,7 @@ function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindin
   ] as const;
   for (const key of discreteKeys) {
     if (value[key] === undefined) continue;
-    const parsed = parseDiscreteBinding(value[key]);
+    const parsed = parseControllerDiscreteBinding(value[key]);
     if (!parsed) return null;
     bindings[key] = parsed as NonNullable<ControllerConfigUpdate['bindings']>[typeof key];
   }

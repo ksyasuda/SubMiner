@@ -294,6 +294,9 @@ test('controller select modal learn mode captures fresh button input and persist
     }));
     state.controllerRawButtons[11] = { value: 1, pressed: true, touched: true };
     modal.updateDevices();
+    // A lone button is only final once released: it could still become a combo's hold.
+    state.controllerRawButtons[11] = { value: 0, pressed: false, touched: false };
+    modal.updateDevices();
 
     await Promise.resolve();
 
@@ -423,6 +426,9 @@ test('controller select modal binding badge starts learn mode and persists bindi
     }));
     state.controllerRawButtons[11] = { value: 1, pressed: true, touched: true };
     modal.updateDevices();
+    // A lone button is only final once released: it could still become a combo's hold.
+    state.controllerRawButtons[11] = { value: 0, pressed: false, touched: false };
+    modal.updateDevices();
 
     await Promise.resolve();
 
@@ -542,6 +548,9 @@ test('controller select modal edit control starts learn mode and persists bindin
       touched: false,
     }));
     state.controllerRawButtons[11] = { value: 1, pressed: true, touched: true };
+    modal.updateDevices();
+    // A lone button is only final once released: it could still become a combo's hold.
+    state.controllerRawButtons[11] = { value: 0, pressed: false, touched: false };
     modal.updateDevices();
 
     await Promise.resolve();
@@ -731,6 +740,68 @@ test('controller select modal learns a review combo and saves it to the controll
       press: { kind: 'button', buttonIndex: 0 },
       hold: { kind: 'button', buttonIndex: 6 },
     });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal learns a combo for a main action', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+      notifyControllerDisabled: () => {},
+    });
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const firstBadge = () => dom.controllerConfigList.children[1].children[1].children[0];
+    firstBadge().dispatch('click');
+
+    const buttons = (pressed: number[]) =>
+      Array.from({ length: 17 }, (_, index) => ({
+        value: pressed.includes(index) ? 1 : 0,
+        pressed: pressed.includes(index),
+        touched: pressed.includes(index),
+      }));
+
+    // Hold L1, then press D-pad right.
+    state.controllerRawButtons = buttons([4]);
+    modal.updateDevices();
+    assert.equal(firstBadge().textContent, 'LB / L1 + \u2026');
+    state.controllerRawButtons = buttons([4, 15]);
+    modal.updateDevices();
+
+    // Let the save finish so the row re-renders with the saved combo.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const binding = {
+      kind: 'button',
+      buttonIndex: 15,
+      hold: { kind: 'button', buttonIndex: 4 },
+    };
+    assert.deepEqual(saved.at(-1), {
+      profiles: { 'pad-1': { bindings: { toggleLookup: binding } } },
+    });
+    assert.deepEqual(state.controllerConfig?.profiles['pad-1']?.bindings.toggleLookup, binding);
+    assert.equal(firstBadge().textContent, 'LB / L1 + D-pad Right');
   } finally {
     domHandle.restore();
   }

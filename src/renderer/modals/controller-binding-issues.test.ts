@@ -39,6 +39,44 @@ test('a button on the D-pad clashes with a D-pad row that is still on', () => {
   );
 });
 
+const L1_DPAD_RIGHT = {
+  kind: 'button',
+  buttonIndex: 15,
+  hold: { kind: 'button', buttonIndex: 4 },
+} as const;
+
+test('a combo does not clash with its hold or press used elsewhere on their own', () => {
+  // L1 is Play Current Audio by default; the D-pad is still on Token Move.
+  assert.deepEqual(issuesWith({ nextAudio: L1_DPAD_RIGHT }), {});
+});
+
+test('two actions on the same combo both warn', () => {
+  assert.deepEqual(issuesWith({ nextAudio: L1_DPAD_RIGHT, nextEntry: L1_DPAD_RIGHT }), {
+    nextAudio: 'Same as Next Entry',
+    nextEntry: 'Same as Next Audio',
+  });
+});
+
+test('a combo holding and pressing the same button warns', () => {
+  assert.deepEqual(
+    issuesWith({
+      nextEntry: { kind: 'button', buttonIndex: 7, hold: { kind: 'button', buttonIndex: 7 } },
+    }),
+    { nextEntry: 'Hold and press are the same button' },
+  );
+});
+
+test('the secondary subtitle hold warns on a hold button, since it cannot wait for release', () => {
+  assert.deepEqual(
+    issuesWith({
+      playCurrentAudio: { kind: 'none' },
+      nextAudio: L1_DPAD_RIGHT,
+      holdSecondarySub: { kind: 'button', buttonIndex: 4 },
+    }),
+    { holdSecondarySub: 'Also the hold button of Next Audio' },
+  );
+});
+
 test('a D-pad reported as a hat axis also counts as the D-pad', () => {
   assert.deepEqual(
     issuesWith({ previousEntry: { kind: 'axis', axisIndex: 7, direction: 'negative' } }),

@@ -1,4 +1,4 @@
-import type { ControllerReviewInput, ResolvedControllerReviewBinding } from '../../types';
+import type { ControllerRawInput } from '../../types';
 
 type ControllerButtonState = {
   value: number;
@@ -13,19 +13,23 @@ type ControllerSnapshot = {
 
 export type ControllerComboCaptureState =
   | { status: 'waiting' }
-  | { status: 'holding'; hold: ControllerReviewInput }
-  | { status: 'done'; binding: ResolvedControllerReviewBinding };
+  | { status: 'holding'; hold: ControllerRawInput }
+  | { status: 'done'; binding: ControllerCapturedCombo };
 
-type RawInput = Extract<ControllerReviewInput, { kind: 'button' | 'axis' }>;
+export type ControllerCapturedCombo = {
+  kind: 'combo';
+  press: ControllerRawInput;
+  hold: ControllerRawInput | null;
+};
 
-function inputKey(input: RawInput): string {
+function inputKey(input: ControllerRawInput): string {
   return input.kind === 'button'
     ? `button:${input.buttonIndex}`
     : `axis:${input.axisIndex}:${input.direction}`;
 }
 
 /**
- * Learn for review bindings. Waits for a first input; letting go of it records it alone,
+ * Learn for discrete and dialog bindings. Waits for a first input; letting go of it records it alone,
  * while pressing a second input during the hold records "hold first + press second".
  * Buttons already down when learning starts are ignored until released. Axis directions
  * active at the start stay ignored for the whole capture: some pads rest a trigger axis at
@@ -37,10 +41,10 @@ export function createControllerComboCapture(options: {
 }) {
   const blocked = new Set<string>();
   const restingAxes = new Set<string>();
-  let first: RawInput | null = null;
+  let first: ControllerRawInput | null = null;
 
-  function activeInputs(snapshot: ControllerSnapshot): RawInput[] {
-    const inputs: RawInput[] = [];
+  function activeInputs(snapshot: ControllerSnapshot): ControllerRawInput[] {
+    const inputs: ControllerRawInput[] = [];
     snapshot.buttons.forEach((button, buttonIndex) => {
       if (button && (Boolean(button.pressed) || button.value >= options.triggerDeadzone)) {
         inputs.push({ kind: 'button', buttonIndex });
@@ -77,6 +81,11 @@ export function createControllerComboCapture(options: {
       const next = fresh[0];
       if (!next) return { status: 'waiting' };
       first = next;
+      // Axes crossing the threshold in the same poll are one movement, such as a diagonal push.
+      // Buttons sort first, so an axis here means every other fresh input is an axis too.
+      if (next.kind === 'axis') {
+        for (const input of fresh.slice(1)) blocked.add(inputKey(input));
+      }
       return { status: 'holding', hold: first };
     }
 

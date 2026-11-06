@@ -1,8 +1,4 @@
-import type {
-  ControllerDpadFallback,
-  ResolvedControllerAxisBinding,
-  ResolvedControllerDiscreteBinding,
-} from '../../types';
+import type { ControllerDpadFallback, ResolvedControllerAxisBinding } from '../../types';
 
 type ControllerButtonState = {
   value: number;
@@ -15,11 +11,8 @@ type ControllerBindingCaptureSnapshot = {
   buttons: readonly ControllerButtonState[];
 };
 
+/** Learn for stick rows and their D-pad rows; discrete rows use the combo capture. */
 type ControllerBindingCaptureTarget =
-  | {
-      actionId: string;
-      bindingType: 'discrete';
-    }
   | {
       actionId: string;
       bindingType: 'axis';
@@ -31,11 +24,6 @@ type ControllerBindingCaptureTarget =
     };
 
 type ControllerBindingCaptureResult =
-  | {
-      actionId: string;
-      bindingType: 'discrete';
-      binding: ResolvedControllerDiscreteBinding;
-    }
   | {
       actionId: string;
       bindingType: 'axis';
@@ -134,34 +122,11 @@ export function createControllerBindingCapture(options: {
 
         const dpadDirection: ControllerDpadFallback =
           index === 12 || index === 13 ? 'vertical' : 'horizontal';
+        const { actionId } = target;
         cancel();
-        return {
-          actionId: target.actionId,
-          bindingType: 'dpad' as const,
-          dpadDirection,
-        };
+        return { actionId, bindingType: 'dpad', dpadDirection };
       }
       return null;
-    }
-
-    // After dpad early-return, only 'discrete' | 'axis' remain
-    const narrowedTarget: Extract<
-      ControllerBindingCaptureTarget,
-      { bindingType: 'discrete' | 'axis' }
-    > = target;
-
-    for (let index = 0; index < snapshot.buttons.length; index += 1) {
-      if (!isActiveButton(snapshot.buttons[index], options.triggerDeadzone)) continue;
-      if (blockedButtons.has(index)) continue;
-      if (narrowedTarget.bindingType === 'axis') continue;
-
-      const result: ControllerBindingCaptureResult = {
-        actionId: narrowedTarget.actionId,
-        bindingType: 'discrete',
-        binding: { kind: 'button', buttonIndex: index },
-      };
-      cancel();
-      return result;
     }
 
     for (let index = 0; index < snapshot.axes.length; index += 1) {
@@ -170,22 +135,11 @@ export function createControllerBindingCapture(options: {
       const directionKey = `${index}:${direction}`;
       if (blockedAxisDirections.has(directionKey)) continue;
 
-      const result: ControllerBindingCaptureResult =
-        narrowedTarget.bindingType === 'discrete'
-          ? {
-              actionId: narrowedTarget.actionId,
-              bindingType: 'discrete',
-              binding: { kind: 'axis', axisIndex: index, direction },
-            }
-          : {
-              actionId: narrowedTarget.actionId,
-              bindingType: 'axis',
-              binding: {
-                kind: 'axis',
-                axisIndex: index,
-                dpadFallback: narrowedTarget.dpadFallback,
-              },
-            };
+      const result: ControllerBindingCaptureResult = {
+        actionId: target.actionId,
+        bindingType: 'axis',
+        binding: { kind: 'axis', axisIndex: index, dpadFallback: target.dpadFallback },
+      };
       cancel();
       return result;
     }
