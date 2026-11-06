@@ -17,12 +17,6 @@ export type ControllerBindingIssueDefinition = {
   bindingType: 'discrete' | 'axis';
 };
 
-/**
- * Rows that do nothing in SubMiner: no action reads `rightStickHorizontal`, so it cannot
- * clash with anything.
- */
-const INACTIVE_BINDINGS: ReadonlySet<ControllerBindingActionId> = new Set(['rightStickHorizontal']);
-
 /** Row key of a stick binding's D-pad row in Alt+C. */
 export function getControllerDpadRowKey(actionId: ControllerBindingActionId): string {
   return `${actionId}:dpad`;
@@ -83,7 +77,6 @@ export function findControllerBindingIssues(
   const holdActions = new Map<string, string>();
   const rows: { key: string; label: string; inputs: string[] }[] = [];
   for (const definition of definitions) {
-    if (INACTIVE_BINDINGS.has(definition.id)) continue;
     const binding = bindings[definition.id];
     if (!binding) continue;
     if (definition.bindingType === 'axis') {

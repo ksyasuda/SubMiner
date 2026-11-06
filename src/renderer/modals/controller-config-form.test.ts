@@ -31,7 +31,6 @@ const BINDINGS: ResolvedControllerConfig['bindings'] = {
   playNextSubtitle: { kind: 'none' },
   leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
   leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
-  rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
   rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
 };
 
@@ -188,15 +187,13 @@ test('controller config form renders grouped rows with friendly binding labels',
       ['Token Move (D-pad)', 'D-pad ↔'],
       ['Popup Scroll (Stick)', 'Left Stick Y'],
       ['Popup Scroll (D-pad)', 'D-pad ↕'],
-      ['Alt Horizontal (Stick)', 'Right Stick X'],
-      ['Alt Horizontal (D-pad)', 'None'],
       ['Popup Jump (Stick)', 'Right Stick Y'],
       ['Popup Jump (D-pad)', 'None'],
     ],
   );
   assert.deepEqual(
     findAll(container, 'disabled').map((badge) => badge.textContent),
-    ['None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None'],
+    ['None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None'],
   );
   assert.deepEqual(findAll(container, 'expanded'), []);
   assert.deepEqual(findAll(container, 'controller-config-edit-panel'), []);

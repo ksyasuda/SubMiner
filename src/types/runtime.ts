@@ -253,7 +253,6 @@ export interface ControllerBindingsConfig {
   playNextSubtitle?: ControllerDiscreteBindingConfig;
   leftStickHorizontal?: ControllerAxisBindingConfig;
   leftStickVertical?: ControllerAxisBindingConfig;
-  rightStickHorizontal?: ControllerAxisBindingConfig;
   rightStickVertical?: ControllerAxisBindingConfig;
 }
 
@@ -277,7 +276,6 @@ export interface ResolvedControllerBindingsConfig {
   playNextSubtitle?: ResolvedControllerDiscreteBinding;
   leftStickHorizontal?: ResolvedControllerAxisBinding;
   leftStickVertical?: ResolvedControllerAxisBinding;
-  rightStickHorizontal?: ResolvedControllerAxisBinding;
   rightStickVertical?: ResolvedControllerAxisBinding;
 }
 

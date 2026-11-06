@@ -87,7 +87,6 @@ function createControllerConfigFixture() {
         dpadFallback: 'horizontal' as const,
       },
       leftStickVertical: { kind: 'axis' as const, axisIndex: 1, dpadFallback: 'vertical' as const },
-      rightStickHorizontal: { kind: 'axis' as const, axisIndex: 3, dpadFallback: 'none' as const },
       rightStickVertical: { kind: 'axis' as const, axisIndex: 4, dpadFallback: 'none' as const },
     },
     reviewBindings: getDefaultControllerReviewBindings(),

@@ -179,13 +179,6 @@ export const CONTROLLER_BINDING_DEFINITIONS: ControllerBindingDefinition[] = [
     defaultBinding: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
   },
   {
-    id: 'rightStickHorizontal',
-    label: 'Alt Horizontal',
-    group: 'Navigation',
-    bindingType: 'axis',
-    defaultBinding: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
-  },
-  {
     id: 'rightStickVertical',
     label: 'Popup Jump',
     group: 'Navigation',

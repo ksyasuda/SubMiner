@@ -1297,7 +1297,6 @@ test('parses controller settings with logical bindings and tuning knobs', () => 
           "toggleMpvPause": "leftStickPress",
           "leftStickHorizontal": "rightStickX",
           "leftStickVertical": "rightStickY",
-          "rightStickHorizontal": "leftStickX",
           "rightStickVertical": "leftStickY"
         }
       }

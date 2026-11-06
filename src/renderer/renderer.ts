@@ -590,7 +590,6 @@ function startControllerPolling(): void {
             playNextSubtitle: { kind: 'none' },
             leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
             leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
-            rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
             rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
           },
           reviewBindings: getDefaultControllerReviewBindings(),

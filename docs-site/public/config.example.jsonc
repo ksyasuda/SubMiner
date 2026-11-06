@@ -194,11 +194,6 @@
         "axisIndex": 1, // Raw axis index captured for this analog controller action.
         "dpadFallback": "vertical" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
       }, // Axis binding descriptor used for primary popup scrolling. Use Alt+C learn mode or set a raw axis descriptor manually.
-      "rightStickHorizontal": {
-        "kind": "axis", // Analog binding input source kind. Values: none | axis
-        "axisIndex": 3, // Raw axis index captured for this analog controller action.
-        "dpadFallback": "none" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
-      }, // Axis binding descriptor reserved for alternate right-stick mappings. Use Alt+C learn mode or set a raw axis descriptor manually.
       "rightStickVertical": {
         "kind": "axis", // Analog binding input source kind. Values: none | axis
         "axisIndex": 4, // Raw axis index captured for this analog controller action.

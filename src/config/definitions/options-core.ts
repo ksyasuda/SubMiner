@@ -126,11 +126,6 @@ export function buildCoreConfigOptionRegistry(
       description: 'Axis binding descriptor used for primary popup scrolling.',
     },
     {
-      id: 'rightStickHorizontal',
-      defaultValue: defaultConfig.controller.bindings.rightStickHorizontal,
-      description: 'Axis binding descriptor reserved for alternate right-stick mappings.',
-    },
-    {
       id: 'rightStickVertical',
       defaultValue: defaultConfig.controller.bindings.rightStickVertical,
       description: 'Axis binding descriptor used for popup page jumps.',

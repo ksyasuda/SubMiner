@@ -217,12 +217,7 @@ function parseControllerBindings(value: unknown): ControllerConfigUpdate['bindin
     if (!parsed) return null;
     bindings[key] = parsed as NonNullable<ControllerConfigUpdate['bindings']>[typeof key];
   }
-  const axisKeys = [
-    'leftStickHorizontal',
-    'leftStickVertical',
-    'rightStickHorizontal',
-    'rightStickVertical',
-  ] as const;
+  const axisKeys = ['leftStickHorizontal', 'leftStickVertical', 'rightStickVertical'] as const;
   for (const key of axisKeys) {
     if (value[key] === undefined) continue;
     const parsed = parseAxisBinding(value[key]);

@@ -70,7 +70,6 @@ const CONTROLLER_BUTTON_INDEX_KEY_BY_BINDING: Record<
 const CONTROLLER_AXIS_FALLBACK_BY_SLOT = {
   leftStickHorizontal: 'horizontal',
   leftStickVertical: 'vertical',
-  rightStickHorizontal: 'none',
   rightStickVertical: 'none',
 } as const satisfies Record<string, ControllerDpadFallback>;
 
@@ -111,7 +110,6 @@ const CONTROLLER_DISCRETE_BINDING_KEYS = [
 const CONTROLLER_AXIS_BINDING_KEYS = [
   'leftStickHorizontal',
   'leftStickVertical',
-  'rightStickHorizontal',
   'rightStickVertical',
 ] as const;
 

@@ -118,14 +118,6 @@ test('two stick actions on the same stick both warn', () => {
   );
 });
 
-test('Alt Horizontal does nothing, so it never clashes', () => {
-  // On standard pads the right stick's vertical axis is 3, the default of Alt Horizontal.
-  assert.deepEqual(
-    issuesWith({ rightStickVertical: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' } }),
-    {},
-  );
-});
-
 test('a row shared by several actions lists them all', () => {
   assert.equal(
     issuesWith({
