@@ -73,3 +73,32 @@ test('combo capture never records a trigger axis resting position', () => {
     hold: { kind: 'axis', axisIndex: 2, direction: 'positive' },
   });
 });
+
+test('combo capture records one axis from a diagonal push, not a hold and a press', () => {
+  const capture = createCapture();
+  capture.arm(snapshot());
+  const diagonal = snapshot([], [0.9, 0.9, 0, 0]);
+
+  const hold = { kind: 'axis', axisIndex: 0, direction: 'positive' } as const;
+  assert.deepEqual(capture.poll(diagonal), { status: 'holding', hold });
+  assert.deepEqual(capture.poll(diagonal), { status: 'holding', hold });
+  assert.deepEqual(capture.poll(snapshot()), {
+    status: 'done',
+    binding: { kind: 'combo', press: hold, hold: null },
+  });
+});
+
+test('combo capture still records a second axis pressed after the first', () => {
+  const capture = createCapture();
+  capture.arm(snapshot());
+
+  capture.poll(snapshot([], [0.9, 0, 0, 0]));
+  assert.deepEqual(capture.poll(snapshot([], [0.9, 0.9, 0, 0])), {
+    status: 'done',
+    binding: {
+      kind: 'combo',
+      press: { kind: 'axis', axisIndex: 1, direction: 'positive' },
+      hold: { kind: 'axis', axisIndex: 0, direction: 'positive' },
+    },
+  });
+});
