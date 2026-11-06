@@ -1,6 +1,61 @@
 # Changelog
 
-## v0.21.1 (2026-10-26)
+## v0.22.0 (2026-11-06)
+
+**Added**
+- **Plugins**:
+  - JavaScript plugins load at startup from `<config dir>/plugins/<id>/` and are enabled under `plugins` in the config.
+  - Plugins can react to playback and mined cards, add bindable actions, run programs, and show results in overlay panels or their own windows.
+  - Example plugins cover AI line explanations (`ai-explain`), AnkiWeb sync (`anki-sync`), and show and episode tags on mined cards (`episode-tags`).
+  - Plugin authors get a versioned API with standalone types.
+- **Subtitle Filters**: Remove text in parentheses, sound descriptions, speaker names, music notes, or custom regex matches from primary subtitles. Configure them in Settings under Behavior → Subtitle Filters.
+- **Controller Combos**: Controller actions can now be combos, such as holding `L1` and pressing D-pad right. Click **Learn** in `Alt+C`, then hold one button and press another.
+- **Controller Actions**: New bindings cover previous, next, replay, and play-next subtitle, hold-to-show secondary subtitle, and previous or next Yomitan entry. All are unbound by default and can be assigned in `Alt+C`.
+- **Controller Dialog Layouts**: The media timing review and duplicate card dialogs can now be used with a controller and show button hints while one is connected. Remap both layouts per controller in `Alt+C`.
+- **Controller Button Style**: Choose Xbox, Nintendo, or PlayStation button names per controller in `Alt+C`, or set a default with `controller.faceButtonLabels`.
+- **Controller Clash Warnings**: `Alt+C` now warns when two actions share the same input.
+- **Keyboard-Only Mode**:
+  - Press `C` or use the new controller binding to move by character, reaching words split by the subtitle parser.
+  - The new **Pause Video In Keyboard-Only Mode** setting pauses on entry and resumes on exit.
+- **Jimaku Auto-Open**: Set `jimaku.autoOpenWhenPrimarySubtitleMissing` to pause and open Jimaku when a local video has no Japanese subtitle track. Reopening Jimaku after the video changes now refreshes the title and episode.
+
+**Changed**
+- **Stats Trends and Vocabulary**:
+  - Trends adds a learning section, heatmap, title timeline, custom date ranges, and a page-wide title filter.
+  - Vocabulary now has one searchable word table, known words by frequency band, a growth chart, and a full kanji view.
+  - New word counts now count dictionary words, so a word's conjugations count once and totals are lower than before.
+  - Stats now explains when streamed words or lines can't be mined.
+- **Bundled Hachidori**: Updated to upstream 0.4.0, adding every pitch accent in popup entries, per-kanji headword furigana, and Yomitan-style definition tags.
+- **Controller Behavior**: **Toggle MPV Pause** now works outside keyboard-only mode. Connected and disabled messages now follow your `ankiConnect.behavior.notificationType` setting.
+- **Dictionary Popup**: Turning keyboard-only mode off now also closes the popup.
+
+**Fixed**
+- **Controller Settings (`Alt+C`)**:
+  - Remaps now apply right away, and Learn works on **(D-pad)** rows.
+  - Clicking a row shows **Learn**, **Clear**, and **Reset** again.
+  - The window previews your bindings until a press, then selects the pressed controller.
+  - Button names are now correct on standard-layout controllers.
+- **Controller Input on macOS and Windows**: One press no longer runs its action twice. On macOS, buttons now work while mpv is in front.
+- **Dictionary Popup**: Keyboard and controller lookups now pause and resume playback reliably. Moving between words right after closing a popup no longer reopens it.
+- **Playback**: Reloading the current file no longer leaves playback paused. The "Overlay loading" message no longer sticks or turns into a false error when a playlist advances.
+- **Stats**:
+  - The dashboard, Vocabulary tab, and sentence search load much faster on large databases, and Trends downloads far less data.
+  - Trends now counts each finished episode once, and its Library totals match the selected range.
+  - Word totals, readings, Hide Names, and rate charts are now accurate.
+  - Date handling is now correct in time zones ahead of UTC.
+- **AniList**: Progress sync now adds a missing show to Watching, or Completed on the final episode, when the title matches exactly or is pinned. Entries marked Completed, Paused, Dropped, or Rewatching are still never changed.
+- **Anki Sentence Audio**: Generated sentence audio no longer overwrites Yomitan's word audio on default configs. If you relied on the old default, set `ankiConnect.fields.audio` to `ExpressionAudio`.
+- **AppImage**: Fixed "Service Crash" notifications on quit on Ubuntu 26.04 and newer.
+
+**Docs**
+- **Keyboard and Controller Reference**: Keyboard shortcuts now list the keyboard-only `C` key, and the configuration reference points to Controller support for default button actions.
+
+## Previous Versions
+
+<details>
+<summary>v0.21.x</summary>
+
+<h2>v0.21.1 (2026-10-26)</h2>
 
 **Changed**
 - **Stats Session View**: Redesigned the expanded session view in the stats dashboard.
@@ -23,7 +78,7 @@
 
 </details>
 
-## v0.21.0 (2026-10-24)
+<h2>v0.21.0 (2026-10-24)</h2>
 
 **Added**
 - **Hachidori Dictionary Backend**:
@@ -68,7 +123,7 @@
 
 </details>
 
-## Previous Versions
+</details>
 
 <details>
 <summary>v0.20.x</summary>

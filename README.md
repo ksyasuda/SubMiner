@@ -104,7 +104,7 @@ A stats dashboard tracks watch time, vocabulary growth, mining throughput, sessi
   </tr>
   <tr>
     <td><b>Plugins</b></td>
-    <td>Load your own JavaScript at startup to react to playback, run timers, add key-bound actions, and show results in an overlay panel. The bundled example explains the current line with Codex. <a href="https://docs.subminer.moe/plugins">Plugin guide</a></td>
+    <td>Load your own JavaScript at startup to react to playback, run timers, add key-bound actions, and show results in an overlay panel. Bundled examples explain the current line with Codex, sync Anki to AnkiWeb, and tag mined cards by episode. <a href="https://docs.subminer.moe/plugins">Plugin guide</a></td>
   </tr>
 </table>
 
