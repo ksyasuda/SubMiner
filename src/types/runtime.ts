@@ -191,12 +191,16 @@ export interface ControllerNoneBinding {
 export interface ControllerButtonInputBinding {
   kind: 'button';
   buttonIndex: number;
+  /** Makes this a combo: it fires when this input is pressed while `hold` is down. */
+  hold?: ControllerRawInput;
 }
 
 export interface ControllerAxisDirectionInputBinding {
   kind: 'axis';
   axisIndex: number;
   direction: ControllerAxisDirection;
+  /** Makes this a combo: it fires when this input is pressed while `hold` is down. */
+  hold?: ControllerRawInput;
 }
 
 export interface ControllerAxisInputBinding {
@@ -342,6 +346,9 @@ export type ControllerReviewInput =
   | { kind: 'axis'; axisIndex: number; direction: ControllerAxisDirection }
   | { kind: 'face'; letter: ControllerFaceLetter }
   | { kind: 'dpad'; direction: ControllerDpadDirection };
+
+/** An input as Learn records it: a raw button index or a raw axis direction. */
+export type ControllerRawInput = Extract<ControllerReviewInput, { kind: 'button' | 'axis' }>;
 
 /** Press `press`, optionally while holding `hold`. */
 export type ControllerReviewBindingConfig =

@@ -216,7 +216,7 @@ test('controller config form expands the learning row with a listening edit pane
   assert.equal(panel.classList.contains('controller-config-edit-panel'), true);
 
   const hint = findOne(panel, 'controller-config-edit-hint');
-  assert.equal(hint.textContent, 'Press a button, trigger, or move a stick…');
+  assert.equal(hint.textContent, 'Press a button, or hold one and press another for a combo…');
   assert.equal(hint.classList.contains('learning'), true);
   assert.equal(findOne(panel, 'btn-learn').textContent, 'Listening…');
 });

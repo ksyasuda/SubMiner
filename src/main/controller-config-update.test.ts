@@ -1,7 +1,79 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
-import { applyControllerConfigUpdate } from './controller-config-update.js';
+import { ConfigService } from '../config/service';
+import { parseControllerConfigUpdate } from '../shared/ipc/validators';
+import {
+  applyControllerConfigUpdate,
+  saveControllerConfigUpdate,
+} from './controller-config-update.js';
+
+const L1 = { kind: 'button', buttonIndex: 4 } as const;
+const L2 = { kind: 'button', buttonIndex: 6 } as const;
+const DPAD_LEFT = { kind: 'button', buttonIndex: 14 } as const;
+const DPAD_RIGHT = { kind: 'button', buttonIndex: 15 } as const;
+
+/** One Alt+C save for a profile, through the same validator and merge as the real IPC handler. */
+function createSaveHarness() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-controller-save-'));
+  const service = new ConfigService(dir);
+  return {
+    service,
+    save: (action: string, binding: unknown) => {
+      const update = parseControllerConfigUpdate({
+        profiles: { 'pad-1': { bindings: { [action]: binding } } },
+      });
+      assert.ok(update, 'the validator accepts the update');
+      saveControllerConfigUpdate(service, update);
+    },
+    savedBinding: (action: 'nextAudio' | 'previousAudio' | 'nextEntry') =>
+      service.getConfig().controller.profiles['pad-1']?.bindings[action],
+    cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
+  };
+}
+
+test('combos sharing a hold button or a press button all survive later saves', () => {
+  const harness = createSaveHarness();
+  try {
+    harness.save('nextAudio', { ...DPAD_LEFT, hold: L1 });
+    harness.save('previousAudio', { ...DPAD_RIGHT, hold: L1 });
+    harness.save('nextEntry', { ...DPAD_LEFT, hold: L2 });
+
+    assert.deepEqual(harness.savedBinding('nextAudio'), { ...DPAD_LEFT, hold: L1 });
+    assert.deepEqual(harness.savedBinding('previousAudio'), { ...DPAD_RIGHT, hold: L1 });
+    assert.deepEqual(harness.savedBinding('nextEntry'), { ...DPAD_LEFT, hold: L2 });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('rebinding a combo to one button drops its hold', () => {
+  const harness = createSaveHarness();
+  try {
+    harness.save('nextAudio', { ...DPAD_LEFT, hold: L1 });
+    harness.save('nextAudio', DPAD_RIGHT);
+
+    assert.deepEqual(harness.savedBinding('nextAudio'), DPAD_RIGHT);
+    assert.deepEqual(
+      harness.service.getRawConfig().controller?.profiles?.['pad-1']?.bindings?.nextAudio,
+      DPAD_RIGHT,
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('the validator rejects an invalid hold instead of saving a plain press', () => {
+  assert.equal(
+    parseControllerConfigUpdate({
+      bindings: { nextAudio: { ...DPAD_LEFT, hold: { kind: 'face' } } },
+    }),
+    null,
+  );
+});
 
 test('applyControllerConfigUpdate replaces binding descriptors instead of deep-merging them', () => {
   const next = applyControllerConfigUpdate(

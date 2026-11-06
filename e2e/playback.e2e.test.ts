@@ -331,6 +331,35 @@ testOutsideLinux(
   },
 );
 
+test(
+  'controller combos survive the real save path and can be rebound to one button',
+  { timeout: TEST_TIMEOUT_MS },
+  async () => {
+    const { overlay } = await useSession();
+    const L1 = { kind: 'button', buttonIndex: 4 };
+    const DPAD_LEFT = { kind: 'button', buttonIndex: 14 };
+    const DPAD_RIGHT = { kind: 'button', buttonIndex: 15 };
+    const save = (bindings: Record<string, unknown>) =>
+      overlay.evaluate<Record<string, unknown>>(
+        `(async () => {
+          await window.electronAPI.saveControllerConfig(${JSON.stringify({ bindings })});
+          return (await window.electronAPI.getControllerConfig()).bindings;
+        })()`,
+      );
+
+    await save({ previousEntry: { ...DPAD_LEFT, hold: L1 } });
+    const bothCombos = await save({ nextEntry: { ...DPAD_RIGHT, hold: L1 } });
+    assert.deepEqual(bothCombos.previousEntry, { ...DPAD_LEFT, hold: L1 });
+    assert.deepEqual(bothCombos.nextEntry, { ...DPAD_RIGHT, hold: L1 });
+
+    const rebound = await save({ previousEntry: DPAD_LEFT, nextEntry: { kind: 'none' } });
+    assert.deepEqual(rebound.previousEntry, DPAD_LEFT);
+    assert.deepEqual(rebound.nextEntry, { kind: 'none' });
+
+    await save({ previousEntry: { kind: 'none' } });
+  },
+);
+
 // Runs last: it leaves the lookup popup open over the overlay.
 test(
   'holding Shift over a word opens the Yomitan popup with its dictionary entry',

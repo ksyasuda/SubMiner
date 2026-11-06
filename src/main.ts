@@ -29,7 +29,7 @@ import {
   dialog,
   screen,
 } from 'electron';
-import { applyControllerConfigUpdate } from './main/controller-config-update.js';
+import { saveControllerConfigUpdate } from './main/controller-config-update.js';
 import { createHachidoriExtensionRuntime } from './core/services/hachidori-extension';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
@@ -1569,10 +1569,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         });
       },
       saveControllerConfig: (update) => {
-        const currentRawConfig = configService.getRawConfig();
-        configService.patchRawConfig({
-          controller: applyControllerConfigUpdate(currentRawConfig.controller, update),
-        });
+        saveControllerConfigUpdate(configService, update);
         // The overlay reads controller settings once at startup, and Alt+C runs in its own
         // window, so remaps would otherwise only apply after a restart.
         overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.controllerConfigChanged);

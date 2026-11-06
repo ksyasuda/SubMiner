@@ -919,3 +919,261 @@ test('gamepad controller pauses mpv outside keyboard-only mode, but not under a 
 
   assert.deepEqual(harness.calls, ['toggleMpvPause']);
 });
+
+/** Harness driven frame by frame: `pads(4, 15)` polls once with those buttons down. */
+function createComboHarness(
+  bindings: Partial<Bindings>,
+  deps: Partial<ControllerOptions> = {},
+  extraConfig: Partial<ResolvedControllerConfig> = {},
+) {
+  let pressed: number[] = [];
+  let now = 0;
+  const harness = createHarness({
+    gamepads: () => [
+      createGamepad('pad-1', {
+        buttons: Object.fromEntries(pressed.map((index) => [index, PRESSED])),
+      }),
+    ],
+    config: createControllerConfig({ ...extraConfig, bindings }),
+    deps: { getLookupWindowOpen: () => true, ...deps },
+  });
+  return {
+    ...harness,
+    pads: (...buttons: number[]) => {
+      pressed = buttons;
+      now += 16;
+      harness.poll(now);
+    },
+  };
+}
+
+const L1 = 4;
+const R1 = 5;
+const DPAD_UP = 12;
+const DPAD_RIGHT = 15;
+const L1_DPAD_RIGHT = {
+  kind: 'button',
+  buttonIndex: DPAD_RIGHT,
+  hold: { kind: 'button', buttonIndex: L1 },
+} as const;
+
+test('holding L1 and pressing D-pad right twice fires the combo twice and nothing else', () => {
+  // L1 keeps its default Play Current Audio, and the D-pad keeps moving between words.
+  const harness = createComboHarness({ nextAudio: L1_DPAD_RIGHT });
+
+  harness.pads();
+  harness.pads(L1);
+  harness.pads(L1, DPAD_RIGHT);
+  harness.pads(L1);
+  harness.pads(L1, DPAD_RIGHT);
+  harness.pads(L1);
+  harness.pads();
+
+  assert.deepEqual(harness.calls, ['nextAudio', 'nextAudio']);
+});
+
+test('a plain button that is also a hold button fires when tapped, on release', () => {
+  const harness = createComboHarness({ nextAudio: L1_DPAD_RIGHT });
+
+  harness.pads();
+  harness.pads(L1);
+  assert.deepEqual(harness.calls, []);
+  harness.pads();
+  assert.deepEqual(harness.calls, ['playCurrentAudio']);
+
+  // The next tap is unaffected by a combo used on an earlier hold.
+  harness.pads(L1);
+  harness.pads(L1, DPAD_RIGHT);
+  harness.pads();
+  harness.pads(L1);
+  harness.pads();
+  assert.deepEqual(harness.calls, ['playCurrentAudio', 'nextAudio', 'playCurrentAudio']);
+});
+
+test('a plain button stays on press while no combo holds it', () => {
+  const harness = createComboHarness({ nextAudio: { kind: 'button', buttonIndex: R1 } });
+
+  harness.pads();
+  harness.pads(L1);
+
+  assert.deepEqual(harness.calls, ['playCurrentAudio']);
+});
+
+test('a tap on a hold button also fires outside keyboard-only mode', () => {
+  const harness = createComboHarness(
+    {
+      previousSubtitle: { kind: 'button', buttonIndex: L1 },
+      nextSubtitle: { kind: 'button', buttonIndex: R1, hold: { kind: 'button', buttonIndex: L1 } },
+    },
+    { getKeyboardModeEnabled: () => false },
+  );
+
+  harness.pads();
+  harness.pads(L1);
+  harness.pads();
+
+  assert.deepEqual(harness.calls, ['previousSubtitle']);
+});
+
+test('a tap on a hold button is dropped if its action stops applying before the release', () => {
+  let lookupOpen = true;
+  const harness = createComboHarness(
+    { nextAudio: L1_DPAD_RIGHT },
+    { getLookupWindowOpen: () => lookupOpen },
+  );
+
+  harness.pads();
+  harness.pads(L1);
+  lookupOpen = false;
+  harness.pads(L1);
+  lookupOpen = true;
+  harness.pads(L1);
+  harness.pads();
+
+  assert.deepEqual(harness.calls, []);
+});
+
+test('pressing a plain binding during a hold does nothing and cancels the tap', () => {
+  const harness = createComboHarness({ nextAudio: L1_DPAD_RIGHT });
+
+  harness.pads();
+  harness.pads(L1);
+  harness.pads(L1, 2); // X is Mine Card; there is no L1 + X.
+  harness.pads();
+
+  assert.deepEqual(harness.calls, []);
+});
+
+test('letting go of the hold first does not fire the plain binding on the same input', () => {
+  const harness = createComboHarness({
+    playCurrentAudio: { kind: 'none' },
+    nextAudio: L1_DPAD_RIGHT,
+    nextEntry: { kind: 'button', buttonIndex: DPAD_RIGHT },
+    leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'none' },
+  });
+
+  harness.pads();
+  harness.pads(L1);
+  harness.pads(L1, DPAD_RIGHT);
+  harness.pads(DPAD_RIGHT);
+  harness.pads();
+  assert.deepEqual(harness.calls, ['nextAudio']);
+
+  harness.pads(DPAD_RIGHT);
+  assert.deepEqual(harness.calls, ['nextAudio', 'nextEntry']);
+});
+
+test('a combo needs its hold down first, and two holds at once match nothing', () => {
+  const harness = createComboHarness({
+    playCurrentAudio: { kind: 'none' },
+    nextAudio: L1_DPAD_RIGHT,
+    previousAudio: {
+      kind: 'button',
+      buttonIndex: DPAD_RIGHT,
+      hold: { kind: 'button', buttonIndex: R1 },
+    },
+  });
+
+  harness.pads();
+  harness.pads(DPAD_RIGHT);
+  harness.pads(L1, DPAD_RIGHT);
+  harness.pads();
+  harness.pads(L1, R1);
+  harness.pads(L1, R1, DPAD_RIGHT);
+
+  // Only the first press of the D-pad moves a word; the combos never fire.
+  assert.deepEqual(harness.calls, ['moveSelection:1']);
+});
+
+test('a combo keeps the D-pad from driving its stick row until the D-pad is released', () => {
+  const harness = createComboHarness({
+    playCurrentAudio: { kind: 'none' },
+    nextAudio: L1_DPAD_RIGHT,
+    nextEntry: {
+      kind: 'button',
+      buttonIndex: DPAD_UP,
+      hold: { kind: 'button', buttonIndex: L1 },
+    },
+  });
+
+  harness.pads();
+  harness.pads(L1);
+  harness.pads(L1, DPAD_RIGHT);
+  harness.pads(L1, DPAD_UP);
+  harness.pads(DPAD_UP);
+  harness.pads();
+  assert.deepEqual(harness.calls, ['nextAudio', 'nextEntry']);
+
+  // L1 with a direction no combo uses still moves between words.
+  harness.pads(L1);
+  harness.pads(L1, 14);
+  assert.deepEqual(harness.calls, ['nextAudio', 'nextEntry', 'moveSelection:-1']);
+});
+
+test('L1 and L2 can each hold the same press for different actions', () => {
+  const L2 = 6;
+  const DPAD_LEFT = 14;
+  const harness = createComboHarness({
+    // L2 keeps its default Quit MPV, so this also pins that a combo never quits on release.
+    playCurrentAudio: { kind: 'none' },
+    nextAudio: {
+      kind: 'button',
+      buttonIndex: DPAD_LEFT,
+      hold: { kind: 'button', buttonIndex: L1 },
+    },
+    nextEntry: {
+      kind: 'button',
+      buttonIndex: DPAD_LEFT,
+      hold: { kind: 'button', buttonIndex: L2 },
+    },
+  });
+
+  harness.pads();
+  harness.pads(L1);
+  harness.pads(L1, DPAD_LEFT);
+  harness.pads();
+  harness.pads(L2);
+  harness.pads(L2, DPAD_LEFT);
+  harness.pads();
+
+  assert.deepEqual(harness.calls, ['nextAudio', 'nextEntry']);
+});
+
+test('the secondary subtitle hold can be a combo', () => {
+  const harness = createComboHarness({
+    playCurrentAudio: { kind: 'none' },
+    holdSecondarySub: {
+      kind: 'button',
+      buttonIndex: R1,
+      hold: { kind: 'button', buttonIndex: L1 },
+    },
+    nextAudio: { kind: 'none' },
+  });
+
+  harness.pads();
+  harness.pads(R1);
+  harness.pads();
+  harness.pads(L1);
+  harness.pads(L1, R1);
+  harness.pads(L1);
+
+  assert.deepEqual(harness.secondarySubHeld, [true, false]);
+});
+
+test('a dialog owning the pad keeps combos from firing and from leaving a tap behind', () => {
+  let suspended = false;
+  const harness = createComboHarness(
+    { nextAudio: L1_DPAD_RIGHT },
+    { getSuspended: () => suspended },
+  );
+
+  harness.pads();
+  harness.pads(L1);
+  suspended = true;
+  harness.pads(L1, DPAD_RIGHT);
+  suspended = false;
+  harness.pads(L1, DPAD_RIGHT);
+  harness.pads();
+
+  assert.deepEqual(harness.calls, []);
+});

@@ -8,6 +8,8 @@ import type {
   ControllerReviewInput,
   ResolvedControllerReviewBinding,
   ResolvedControllerReviewBindings,
+  ControllerRawInput,
+  ResolvedControllerDiscreteBinding,
 } from '../types/runtime';
 
 /**
@@ -214,6 +216,26 @@ export function parseControllerReviewInput(value: unknown): ControllerReviewInpu
     default:
       return null;
   }
+}
+
+function parseControllerRawInput(value: unknown): ControllerRawInput | null {
+  const input = parseControllerReviewInput(value);
+  return input?.kind === 'button' || input?.kind === 'axis' ? input : null;
+}
+
+/**
+ * One main-list binding, as read from the config file and from Alt+C saves over IPC. An invalid
+ * `hold` rejects the whole binding, so a broken combo never becomes a plain press.
+ */
+export function parseControllerDiscreteBinding(
+  value: unknown,
+): ResolvedControllerDiscreteBinding | null {
+  if (!isRecord(value)) return null;
+  if (value.kind === 'none') return { kind: 'none' };
+  const press = parseControllerRawInput(value);
+  if (!press || value.hold === undefined || value.hold === null) return press;
+  const hold = parseControllerRawInput(value.hold);
+  return hold ? { ...press, hold } : null;
 }
 
 /** Accepts `{ "kind": "none" }` or `{ "press": …, "hold"?: … }` (`kind: "combo"` optional). */
