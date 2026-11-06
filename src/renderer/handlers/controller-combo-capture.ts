@@ -82,8 +82,9 @@ export function createControllerComboCapture(options: {
       if (!next) return { status: 'waiting' };
       first = next;
       // Axes crossing the threshold in the same poll are one movement, such as a diagonal push.
-      for (const input of fresh) {
-        if (input !== next && input.kind === 'axis') blocked.add(inputKey(input));
+      // Buttons sort first, so an axis here means every other fresh input is an axis too.
+      if (next.kind === 'axis') {
+        for (const input of fresh.slice(1)) blocked.add(inputKey(input));
       }
       return { status: 'holding', hold: first };
     }

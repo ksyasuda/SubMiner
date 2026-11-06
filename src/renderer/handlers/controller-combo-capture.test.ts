@@ -102,3 +102,20 @@ test('combo capture still records a second axis pressed after the first', () => 
     },
   });
 });
+
+test('combo capture records a button and an axis activated in the same poll as a combo', () => {
+  const capture = createCapture();
+  capture.arm(snapshot());
+  const both = snapshot([4], [0.9, 0, 0, 0]);
+
+  const hold = { kind: 'button', buttonIndex: 4 } as const;
+  assert.deepEqual(capture.poll(both), { status: 'holding', hold });
+  assert.deepEqual(capture.poll(both), {
+    status: 'done',
+    binding: {
+      kind: 'combo',
+      press: { kind: 'axis', axisIndex: 0, direction: 'positive' },
+      hold,
+    },
+  });
+});
