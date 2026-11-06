@@ -543,8 +543,10 @@ test('launchAppBackgroundDetached starts background child directly', async () =>
 
     launchAppBackgroundDetached(appPath, 'info');
 
+    // The shell creates each file before writing to it, so wait for content, not existence.
+    const hasContent = (file: string) => fs.existsSync(file) && fs.statSync(file).size > 0;
     const deadline = Date.now() + 1000;
-    while ((!fs.existsSync(argsPath) || !fs.existsSync(envPath)) && Date.now() < deadline) {
+    while ((!hasContent(argsPath) || !hasContent(envPath)) && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
