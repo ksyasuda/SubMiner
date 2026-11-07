@@ -34,7 +34,8 @@ Read when: you need to find the owner module for a behavior or test surface
   names remain supported because matching uses the IPC PID.
   `src/core/services/overlay-visibility-diagnostics.ts` watches requested Windows overlays:
   after five seconds hidden or transparent it logs a warn-level snapshot, repeating at most
-  every 30 seconds. Intentional hiding and minimization suppress these warnings. PID lookup
+  every 30 seconds. Intentional hiding, minimization and having no mpv answer on the socket
+  yet suppress these warnings; an identified mpv whose window never matches does not. PID lookup
   failures and native ownership/transparency failures also log at warn, including recovery.
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
   mpv client creation, mpv event wiring, AniSkip, the autoplay-ready gate that releases mpv's

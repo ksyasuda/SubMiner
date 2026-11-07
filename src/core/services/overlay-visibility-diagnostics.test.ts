@@ -2,8 +2,43 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createOverlayVisibilityDiagnostics,
+  readOverlayVisibilitySnapshot,
   type OverlayVisibilitySnapshot,
 } from './overlay-visibility-diagnostics';
+
+type SnapshotArgs = Parameters<typeof readOverlayVisibilitySnapshot>[0];
+
+function snapshotFor(
+  options: {
+    tracking?: boolean;
+    targetPid?: number | null;
+    minimized?: boolean;
+    window?: Record<string, unknown>;
+    noTracker?: boolean;
+  } & Pick<SnapshotArgs, 'modalActive' | 'suspendVisibleOverlay'> & {
+      visibleOverlayVisible?: boolean;
+    } = {},
+) {
+  const tracker = {
+    isTracking: () => options.tracking ?? false,
+    getGeometry: () => null,
+    isTargetWindowFocused: () => false,
+    isTargetWindowMinimized: () => options.minimized ?? false,
+    getDiagnosticState: () => ({ targetPid: options.targetPid ?? null, socketPath: '/tmp/mpv' }),
+  };
+  return readOverlayVisibilitySnapshot({
+    mainWindow: {
+      isDestroyed: () => false,
+      isVisible: () => false,
+      getOpacity: () => 0,
+      ...options.window,
+    } as unknown as SnapshotArgs['mainWindow'],
+    windowTracker: options.noTracker ? null : (tracker as unknown as SnapshotArgs['windowTracker']),
+    visibleOverlayVisible: options.visibleOverlayVisible ?? true,
+    modalActive: options.modalActive,
+    suspendVisibleOverlay: options.suspendVisibleOverlay,
+  });
+}
 
 function harness() {
   let now = 0;
@@ -108,4 +143,34 @@ test('visibility watchdog stays quiet after fast startup, intentional hide or wi
     assert.deepEqual(h.warnings, []);
     assert.equal(h.scheduled(), false);
   }
+});
+
+test('overlay snapshot expects visibility only once an mpv has been identified', () => {
+  // Requested before any mpv exists: auto_start_overlay, tray or --show-visible-overlay.
+  assert.equal(snapshotFor()?.expectedVisible, false);
+  assert.equal(snapshotFor({ noTracker: true })?.expectedVisible, false);
+  // mpv answered on the socket but its window never matched, so tracking never started.
+  assert.equal(snapshotFor({ targetPid: 4242 })?.expectedVisible, true);
+  // A tracker with no target socket matches windows without ever learning a PID.
+  assert.equal(snapshotFor({ tracking: true })?.expectedVisible, true);
+});
+
+test('overlay snapshot does not expect an intentionally hidden overlay', () => {
+  const identified = { targetPid: 4242, tracking: true };
+  assert.equal(snapshotFor(identified)?.expectedVisible, true);
+  assert.equal(snapshotFor({ ...identified, modalActive: true })?.expectedVisible, false);
+  assert.equal(snapshotFor({ ...identified, suspendVisibleOverlay: true })?.expectedVisible, false);
+  assert.equal(snapshotFor({ ...identified, minimized: true })?.expectedVisible, false);
+  assert.equal(
+    snapshotFor({ ...identified, visibleOverlayVisible: false })?.expectedVisible,
+    false,
+  );
+});
+
+test('overlay snapshot carries tracker state, defaults opacity and ends with the window', () => {
+  const snapshot = snapshotFor({ targetPid: 4242, window: { getOpacity: undefined } });
+  assert.equal(snapshot?.targetPid, 4242);
+  assert.equal(snapshot?.socketPath, '/tmp/mpv');
+  assert.equal(snapshot?.opacity, 1);
+  assert.equal(snapshotFor({ window: { isDestroyed: () => true } }), null);
 });

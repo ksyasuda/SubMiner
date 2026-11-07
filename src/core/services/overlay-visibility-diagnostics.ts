@@ -90,13 +90,54 @@ const diagnosticsByWindow = new WeakMap<
   ReturnType<typeof createOverlayVisibilityDiagnostics>
 >();
 
-export function watchWindowsOverlayVisibility(args: {
+type OverlayVisibilityWatchArgs = {
   mainWindow: BrowserWindow;
   windowTracker: BaseWindowTracker | null;
   visibleOverlayVisible: boolean;
   modalActive?: boolean;
   suspendVisibleOverlay?: boolean;
-}): void {
+};
+
+export function readOverlayVisibilitySnapshot(
+  args: OverlayVisibilityWatchArgs,
+): OverlayVisibilitySnapshot | null {
+  const window = args.mainWindow;
+  if (window.isDestroyed()) return null;
+  const tracker = args.windowTracker as
+    | (BaseWindowTracker & {
+        getDiagnosticState?: () => { targetPid?: number | null } & Record<string, unknown>;
+      })
+    | null;
+  const trackerState = tracker?.getDiagnosticState?.();
+  const flags = window as unknown as Record<string, unknown>;
+  const minimized = tracker?.isTargetWindowMinimized?.() ?? false;
+  const tracking = tracker?.isTracking() ?? false;
+  // The overlay may be requested with no mpv to attach to (auto_start_overlay, tray,
+  // --show-visible-overlay), so it only counts as stalled once an mpv has answered on the
+  // socket. That still covers an mpv whose window never matches, which never starts tracking.
+  const mpvIdentified = tracking || (trackerState?.targetPid ?? null) !== null;
+  return {
+    ...trackerState,
+    expectedVisible:
+      args.visibleOverlayVisible &&
+      mpvIdentified &&
+      !args.modalActive &&
+      !args.suspendVisibleOverlay &&
+      !minimized,
+    visible: window.isVisible(),
+    opacity: window.getOpacity?.() ?? 1,
+    contentReady: flags[OVERLAY_WINDOW_CONTENT_READY_FLAG] === true,
+    documentLoaded: flags[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] === true,
+    rendererLoading: window.webContents?.isLoading?.() ?? null,
+    tracking,
+    trackerInitialized: tracker !== null,
+    geometry: tracker?.getGeometry() ?? null,
+    focused: tracker?.isTargetWindowFocused?.() ?? false,
+    minimized,
+  };
+}
+
+export function watchWindowsOverlayVisibility(args: OverlayVisibilityWatchArgs): void {
   const window = args.mainWindow;
   let diagnostics = diagnosticsByWindow.get(window);
   if (!diagnostics) {
@@ -108,30 +149,5 @@ export function watchWindowsOverlayVisibility(args: {
     });
     diagnosticsByWindow.set(window, diagnostics);
   }
-  diagnostics.update(() => {
-    if (window.isDestroyed()) return null;
-    const tracker = args.windowTracker as
-      | (BaseWindowTracker & { getDiagnosticState?: () => Record<string, unknown> })
-      | null;
-    const flags = window as unknown as Record<string, unknown>;
-    const minimized = tracker?.isTargetWindowMinimized?.() ?? false;
-    return {
-      ...tracker?.getDiagnosticState?.(),
-      expectedVisible:
-        args.visibleOverlayVisible &&
-        !args.modalActive &&
-        !args.suspendVisibleOverlay &&
-        !minimized,
-      visible: window.isVisible(),
-      opacity: window.getOpacity?.() ?? 1,
-      contentReady: flags[OVERLAY_WINDOW_CONTENT_READY_FLAG] === true,
-      documentLoaded: flags[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] === true,
-      rendererLoading: window.webContents?.isLoading?.() ?? null,
-      tracking: tracker?.isTracking() ?? false,
-      trackerInitialized: tracker !== null,
-      geometry: tracker?.getGeometry() ?? null,
-      focused: tracker?.isTargetWindowFocused?.() ?? false,
-      minimized,
-    };
-  });
+  diagnostics.update(() => readOverlayVisibilitySnapshot(args));
 }

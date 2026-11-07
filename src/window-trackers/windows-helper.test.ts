@@ -1,7 +1,79 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findWindowsMpvTargetWindowHandle } from './windows-helper';
+import { createWindowsOverlayOperations, findWindowsMpvTargetWindowHandle } from './windows-helper';
 import type { MpvPollResult } from './win32';
+
+function overlayOperationsHarness() {
+  let nowMs = 0;
+  let failing = true;
+  const warnings: Array<{ message: string; operation: unknown }> = [];
+  const nativeCall = () => {
+    if (failing) throw new Error('native failure');
+  };
+  const operations = createWindowsOverlayOperations({
+    loadWin32: () => ({
+      setOverlayOwner: nativeCall,
+      ensureOverlayTransparency: nativeCall,
+      bindOverlayAboveMpv: nativeCall,
+      clearOverlayOwner: nativeCall,
+    }),
+    warn: (message, details) => warnings.push({ message, operation: details.operation }),
+    now: () => nowMs,
+  });
+  return {
+    operations,
+    warnings,
+    setNow: (value: number) => {
+      nowMs = value;
+    },
+    setFailing: (value: boolean) => {
+      failing = value;
+    },
+  };
+}
+
+for (const [operation, call] of [
+  ['set-owner', (ops) => ops.setOwner(1, 2)],
+  ['transparency', (ops) => ops.ensureTransparency(1)],
+  ['bind-above-mpv', (ops) => ops.bindAboveMpv(1, 2)],
+  ['clear-owner', (ops) => ops.clearOwner(1)],
+] as const satisfies ReadonlyArray<
+  readonly [string, (ops: ReturnType<typeof createWindowsOverlayOperations>) => boolean]
+>) {
+  test(`${operation} reports failure, rate limits warnings and records recovery`, () => {
+    const h = overlayOperationsHarness();
+    const failed = { message: 'Windows native overlay operation failed', operation };
+
+    assert.equal(call(h.operations), false);
+    assert.deepEqual(h.warnings, [failed]);
+
+    h.setNow(29_999);
+    assert.equal(call(h.operations), false);
+    assert.deepEqual(h.warnings, [failed]);
+
+    h.setNow(30_000);
+    assert.equal(call(h.operations), false);
+    assert.deepEqual(h.warnings, [failed, failed]);
+
+    h.setFailing(false);
+    const recovered = { message: 'Windows native overlay operation recovered', operation };
+    assert.equal(call(h.operations), true);
+    assert.deepEqual(h.warnings, [failed, failed, recovered]);
+
+    assert.equal(call(h.operations), true);
+    assert.equal(h.warnings.length, 3);
+  });
+}
+
+test('native overlay operations rate limit independently', () => {
+  const h = overlayOperationsHarness();
+  h.operations.setOwner(1, 2);
+  h.operations.clearOwner(1);
+  assert.deepEqual(
+    h.warnings.map((warning) => warning.operation),
+    ['set-owner', 'clear-owner'],
+  );
+});
 
 test('findWindowsMpvTargetWindowHandle prefers the focused mpv window', () => {
   const result: MpvPollResult = {

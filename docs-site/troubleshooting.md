@@ -56,7 +56,9 @@ When `connect ENOENT /tmp/subminer-socket` follows a cast in the app log, SubMin
   `Windows overlay is not visible after startup or tracking loss` with its PID, native window
   handle, tracking state, geometry, opacity, and renderer readiness. The `reason` distinguishes
   a missing mpv window, an unready renderer, a hidden window, and a transparent window.
-  PID lookup failures and native ownership or transparency errors also appear at `warn`.
+  This warning waits until mpv has answered on its IPC socket, so a requested overlay with no
+  mpv running stays quiet. PID lookup failures and native ownership or transparency errors also
+  appear at `warn`, and a PID lookup failure is the only trace if mpv never answers.
   Repeated visibility/native-operation warnings are limited to one every 30 seconds; recovery
   is recorded too. These logs diagnose attachment and readiness, but cannot prove that pixels
   were drawn correctly by the graphics driver.
