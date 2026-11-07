@@ -19,27 +19,33 @@
 import { BaseWindowTracker } from './base-tracker';
 import type { WindowGeometry } from '../types';
 import type { MpvPollResult } from './win32';
+import { queryMpvProcessId } from './mpv-process-id';
 import { createLogger } from '../logger';
 
 const log = createLogger('tracker').child('windows');
 
+const MPV_PID_LOOKUP_INTERVAL_MS = 1_000;
+const NO_MPV_WINDOW: MpvPollResult = { matches: [], focusState: false, windowState: 'not-found' };
+
 type WindowsTrackerDeps = {
-  pollMpvWindows?: () => MpvPollResult;
+  pollMpvWindows?: (targetPid: number | null) => MpvPollResult;
+  queryMpvProcessId?: (socketPath: string) => Promise<number>;
   maxConsecutiveMisses?: number;
   trackingLossGraceMs?: number;
   minimizedTrackingLossGraceMs?: number;
   now?: () => number;
 };
 
-function defaultPollMpvWindows(_targetMpvSocketPath?: string | null): MpvPollResult {
+function defaultPollMpvWindows(targetPid: number | null): MpvPollResult {
   const win32 = require('./win32') as typeof import('./win32');
-  return win32.findMpvWindows(_targetMpvSocketPath);
+  return win32.findMpvWindows(targetPid);
 }
 
 export class WindowsWindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private pollInFlight = false;
-  private readonly pollMpvWindows: () => MpvPollResult;
+  private readonly pollMpvWindows: (targetPid: number | null) => MpvPollResult;
+  private readonly queryMpvProcessId: (socketPath: string) => Promise<number>;
   private readonly maxConsecutiveMisses: number;
   private readonly trackingLossGraceMs: number;
   private readonly minimizedTrackingLossGraceMs: number;
@@ -51,12 +57,16 @@ export class WindowsWindowTracker extends BaseWindowTracker {
   private targetWindowMinimized = false;
   private readonly targetMpvSocketPath: string | null;
   private currentTargetWindowHwnd: number | null = null;
+  private targetMpvPid: number | null = null;
+  private pidLookupInFlight = false;
+  private lastPidLookupAtMs: number | null = null;
+  private pidLookupFailureLogged = false;
 
   constructor(_targetMpvSocketPath?: string, deps: WindowsTrackerDeps = {}) {
     super();
     this.targetMpvSocketPath = _targetMpvSocketPath?.trim() || null;
-    this.pollMpvWindows =
-      deps.pollMpvWindows ?? (() => defaultPollMpvWindows(this.targetMpvSocketPath));
+    this.pollMpvWindows = deps.pollMpvWindows ?? defaultPollMpvWindows;
+    this.queryMpvProcessId = deps.queryMpvProcessId ?? queryMpvProcessId;
     this.maxConsecutiveMisses = Math.max(1, Math.floor(deps.maxConsecutiveMisses ?? 2));
     this.trackingLossGraceMs = Math.max(0, Math.floor(deps.trackingLossGraceMs ?? 1_500));
     this.minimizedTrackingLossGraceMs = Math.max(
@@ -142,12 +152,63 @@ export class WindowsWindowTracker extends BaseWindowTracker {
     };
   }
 
+  // Asks the mpv on the target socket which process it is. Runs in the background so a slow
+  // answer never stalls the poll, which shares the main thread with the mouse hook.
+  private refreshTargetMpvPid(socketPath: string): void {
+    const nowMs = this.now();
+    if (
+      this.pidLookupInFlight ||
+      (this.lastPidLookupAtMs !== null &&
+        nowMs - this.lastPidLookupAtMs < MPV_PID_LOOKUP_INTERVAL_MS)
+    ) {
+      return;
+    }
+
+    this.pidLookupInFlight = true;
+    this.lastPidLookupAtMs = nowMs;
+    this.queryMpvProcessId(socketPath)
+      .then(
+        (pid) => {
+          this.targetMpvPid = pid;
+          this.pidLookupFailureLogged = false;
+        },
+        (error: unknown) => {
+          // The overlay stays hidden until mpv is identified, so leave a trace of why it isn't.
+          // A failure with a known PID is normal: mpv has just exited.
+          if (this.targetMpvPid !== null || this.pidLookupFailureLogged) return;
+          this.pidLookupFailureLogged = true;
+          log.warn('Could not get the process ID of mpv, so the overlay cannot attach to it', {
+            socketPath,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        },
+      )
+      .finally(() => {
+        this.pidLookupInFlight = false;
+      });
+  }
+
+  private pollTargetWindows(): MpvPollResult {
+    const socketPath = this.targetMpvSocketPath;
+    if (!socketPath) return this.pollMpvWindows(null);
+
+    if (this.targetMpvPid === null) {
+      this.refreshTargetMpvPid(socketPath);
+      return NO_MPV_WINDOW;
+    }
+
+    const result = this.pollMpvWindows(this.targetMpvPid);
+    // A new mpv may have taken over the socket after the known process exited.
+    if (result.windowState === 'not-found') this.refreshTargetMpvPid(socketPath);
+    return result;
+  }
+
   private pollGeometry(): void {
     if (this.pollInFlight) return;
     this.pollInFlight = true;
 
     try {
-      const result = this.pollMpvWindows();
+      const result = this.pollTargetWindows();
       const best = this.selectBestMatch(result);
 
       if (best) {

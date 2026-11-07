@@ -27,6 +27,8 @@ Read when: you need to find the owner module for a behavior or test surface
   subtitle suppression while the overlay shows, and the overlay-window IPC handlers (modal
   open/close, pointer interaction, content measurement): `src/main/assemblies/overlay.ts`
   Overlay-hosted modal openers: `src/main/assemblies/overlay-modals.ts`
+  Windows window tracking: `src/window-trackers/windows-tracker.ts` queries the target mpv IPC
+  socket for its PID through `mpv-process-id.ts`, then `win32.ts` matches native windows by PID.
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
   mpv client creation, mpv event wiring, AniSkip, the autoplay-ready gate that releases mpv's
   startup pause, managed local subtitle selection, subtitle prefetch, and subtitle sidebar state:
