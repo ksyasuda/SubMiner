@@ -25,6 +25,8 @@ import { createLogger } from '../logger';
 const log = createLogger('tracker').child('windows');
 
 const MPV_PID_LOOKUP_INTERVAL_MS = 1_000;
+const MPV_PID_REVALIDATE_INTERVAL_MS = 10_000;
+const MPV_PID_MAX_AGE_MS = 30_000;
 const NO_MPV_WINDOW: MpvPollResult = { matches: [], focusState: false, windowState: 'not-found' };
 
 type WindowsTrackerDeps = {
@@ -60,6 +62,7 @@ export class WindowsWindowTracker extends BaseWindowTracker {
   private targetMpvPid: number | null = null;
   private pidLookupInFlight = false;
   private lastPidLookupAtMs: number | null = null;
+  private lastPidConfirmedAtMs: number | null = null;
   private pidLookupFailureLogged = false;
 
   constructor(_targetMpvSocketPath?: string, deps: WindowsTrackerDeps = {}) {
@@ -94,6 +97,16 @@ export class WindowsWindowTracker extends BaseWindowTracker {
 
   getTargetWindowHandle(): number | null {
     return this.currentTargetWindowHwnd;
+  }
+
+  getDiagnosticState() {
+    return {
+      socketPath: this.targetMpvSocketPath,
+      targetPid: this.targetMpvPid,
+      targetHwnd: this.currentTargetWindowHwnd,
+      pidLookupPending: this.pidLookupInFlight,
+      pidAgeMs: this.lastPidConfirmedAtMs === null ? null : this.now() - this.lastPidConfirmedAtMs,
+    };
   }
 
   private maybeLogPollError(error: Error): void {
@@ -154,12 +167,11 @@ export class WindowsWindowTracker extends BaseWindowTracker {
 
   // Asks the mpv on the target socket which process it is. Runs in the background so a slow
   // answer never stalls the poll, which shares the main thread with the mouse hook.
-  private refreshTargetMpvPid(socketPath: string): void {
+  private refreshTargetMpvPid(socketPath: string, intervalMs = MPV_PID_LOOKUP_INTERVAL_MS): void {
     const nowMs = this.now();
     if (
       this.pidLookupInFlight ||
-      (this.lastPidLookupAtMs !== null &&
-        nowMs - this.lastPidLookupAtMs < MPV_PID_LOOKUP_INTERVAL_MS)
+      (this.lastPidLookupAtMs !== null && nowMs - this.lastPidLookupAtMs < intervalMs)
     ) {
       return;
     }
@@ -170,15 +182,18 @@ export class WindowsWindowTracker extends BaseWindowTracker {
       .then(
         (pid) => {
           this.targetMpvPid = pid;
+          this.lastPidConfirmedAtMs = this.now();
+          if (this.pidLookupFailureLogged) {
+            log.warn('Windows mpv PID lookup recovered', this.getDiagnosticState());
+          }
           this.pidLookupFailureLogged = false;
         },
         (error: unknown) => {
           // The overlay stays hidden until mpv is identified, so leave a trace of why it isn't.
-          // A failure with a known PID is normal: mpv has just exited.
-          if (this.targetMpvPid !== null || this.pidLookupFailureLogged) return;
+          if (this.pidLookupFailureLogged) return;
           this.pidLookupFailureLogged = true;
-          log.warn('Could not get the process ID of mpv, so the overlay cannot attach to it', {
-            socketPath,
+          log.warn('Windows mpv PID lookup failed; overlay attachment may be unavailable', {
+            ...this.getDiagnosticState(),
             error: error instanceof Error ? error.message : String(error),
           });
         },
@@ -192,6 +207,15 @@ export class WindowsWindowTracker extends BaseWindowTracker {
     const socketPath = this.targetMpvSocketPath;
     if (!socketPath) return this.pollMpvWindows(null);
 
+    // Windows can reuse a PID for an unrelated visible window. A cached match must
+    // remain tied to the process answering on our socket, even while it is visible.
+    if (
+      this.lastPidConfirmedAtMs !== null &&
+      this.now() - this.lastPidConfirmedAtMs >= MPV_PID_MAX_AGE_MS
+    ) {
+      this.targetMpvPid = null;
+    }
+
     if (this.targetMpvPid === null) {
       this.refreshTargetMpvPid(socketPath);
       return NO_MPV_WINDOW;
@@ -199,7 +223,12 @@ export class WindowsWindowTracker extends BaseWindowTracker {
 
     const result = this.pollMpvWindows(this.targetMpvPid);
     // A new mpv may have taken over the socket after the known process exited.
-    if (result.windowState === 'not-found') this.refreshTargetMpvPid(socketPath);
+    this.refreshTargetMpvPid(
+      socketPath,
+      result.windowState === 'not-found'
+        ? MPV_PID_LOOKUP_INTERVAL_MS
+        : MPV_PID_REVALIDATE_INTERVAL_MS,
+    );
     return result;
   }
 

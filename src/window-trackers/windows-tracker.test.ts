@@ -356,11 +356,19 @@ test('WindowsWindowTracker retries a failed lookup at a limited rate', async () 
 test('WindowsWindowTracker moves to the new process when mpv restarts on the same socket', async () => {
   let currentPid = 1111;
   let now = 1_000;
+  let queries = 0;
+  const polledPids: Array<number | null> = [];
   const tracker = new WindowsWindowTracker(SOCKET_PATH, {
     now: () => now,
-    queryMpvProcessId: async () => currentPid,
+    queryMpvProcessId: async () => {
+      queries += 1;
+      return currentPid;
+    },
     // Only the live process still owns a window.
-    pollMpvWindows: (targetPid) => (targetPid === currentPid ? mpvVisible() : mpvNotFound),
+    pollMpvWindows: (targetPid) => {
+      polledPids.push(targetPid);
+      return targetPid === currentPid ? mpvVisible() : mpvNotFound;
+    },
   });
 
   pollOnce(tracker);
@@ -375,4 +383,71 @@ test('WindowsWindowTracker moves to the new process when mpv restarts on the sam
   pollOnce(tracker);
   assert.equal(tracker.isTracking(), true);
   assert.deepEqual(tracker.getGeometry(), { x: 0, y: 0, width: 1280, height: 720 });
+  assert.equal(polledPids.at(-1), 2222);
+  assert.equal(queries, 2);
+});
+
+test('WindowsWindowTracker revalidates a PID even while its window remains visible', async () => {
+  let currentPid = 1111;
+  let now = 0;
+  const polledPids: Array<number | null> = [];
+  const tracker = new WindowsWindowTracker(SOCKET_PATH, {
+    now: () => now,
+    queryMpvProcessId: async () => currentPid,
+    // Simulates PID reuse: the old PID still has a visible, unrelated window.
+    pollMpvWindows: (pid) => {
+      polledPids.push(pid);
+      return mpvVisible();
+    },
+  });
+  pollOnce(tracker);
+  await flushPromises();
+  pollOnce(tracker);
+  currentPid = 2222;
+  now = 10_000;
+  pollOnce(tracker);
+  await flushPromises();
+  pollOnce(tracker);
+  assert.equal(polledPids.at(-1), 2222);
+});
+
+test('WindowsWindowTracker expires an unvalidated PID and recovers after IPC returns', async () => {
+  let available = true;
+  let now = 0;
+  const polledPids: Array<number | null> = [];
+  const tracker = new WindowsWindowTracker(SOCKET_PATH, {
+    now: () => now,
+    queryMpvProcessId: async () => {
+      if (!available) throw new Error('IPC unavailable');
+      return 4242;
+    },
+    pollMpvWindows: (pid) => {
+      polledPids.push(pid);
+      return mpvVisible();
+    },
+    trackingLossGraceMs: 0,
+    maxConsecutiveMisses: 1,
+  });
+  pollOnce(tracker);
+  await flushPromises();
+  pollOnce(tracker);
+  assert.equal(tracker.isTracking(), true);
+  available = false;
+  now = 10_000;
+  pollOnce(tracker);
+  await flushPromises();
+  assert.equal(tracker.isTracking(), true);
+  polledPids.length = 0;
+  now = 30_000;
+  pollOnce(tracker);
+  await flushPromises();
+  assert.equal(tracker.isTracking(), false);
+  assert.deepEqual(polledPids, []);
+  available = true;
+  now += 1_000;
+  pollOnce(tracker);
+  await flushPromises();
+  pollOnce(tracker);
+  assert.equal(tracker.isTracking(), true);
+  assert.equal(polledPids.at(-1), 4242);
 });

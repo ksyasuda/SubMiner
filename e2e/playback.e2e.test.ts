@@ -133,13 +133,17 @@ testOnWindows('visible overlay window appears over mpv', { timeout: TEST_TIMEOUT
             (w) => w.webContents.getURL().includes(${JSON.stringify(OVERLAY_PAGE)}));
           if (!overlay?.isVisible() || overlay.getOpacity() !== 1 ||
               overlay.__subminerOverlayContentReady !== true) return false;
-          const koffi = process.mainModule.require('koffi');
+          // The inspector's mainModule can be Electron's bootstrap module. Resolve app
+          // dependencies from the repository instead of that module's search paths.
+          const appRequire = process.mainModule.require('node:module').createRequire(
+            process.mainModule.require('node:path').resolve('package.json'));
+          const koffi = appRequire('koffi');
           const getWindow = koffi.load('user32.dll').func(
             'intptr __stdcall GetWindow(intptr hwnd, uint uCmd)');
           const handle = overlay.getNativeWindowHandle();
           const hwnd = handle.length >= 8 ? Number(handle.readBigUInt64LE(0)) : handle.readUInt32LE(0);
           const owner = getWindow(hwnd, 4); // GW_OWNER
-          const win32 = process.mainModule.require(
+          const win32 = appRequire(
             process.mainModule.require('node:path').resolve('dist/window-trackers/win32.js'));
           return win32.findMpvWindows(${JSON.stringify(mpvPid)}).matches.some(
             (match) => match.hwnd === owner);

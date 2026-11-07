@@ -3,6 +3,7 @@ import { BaseWindowTracker } from '../../window-trackers';
 import { WindowGeometry } from '../../types';
 import { applyOverlayClickThrough } from './overlay-click-through';
 import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
+import { watchWindowsOverlayVisibility } from './overlay-visibility-diagnostics';
 
 const WINDOWS_OVERLAY_REVEAL_DELAY_MS = 48;
 const pendingWindowsOverlayRevealTimeoutByWindow = new WeakMap<
@@ -65,7 +66,7 @@ function isOverlayWindowContentReady(window: BrowserWindow): boolean {
   );
 }
 
-export function updateVisibleOverlayVisibility(args: {
+function applyVisibleOverlayVisibility(args: {
   visibleOverlayVisible: boolean;
   modalActive?: boolean;
   forceMousePassthrough?: boolean;
@@ -451,6 +452,15 @@ export function updateVisibleOverlayVisibility(args: {
   }
   mainWindow.hide();
   args.syncOverlayShortcuts();
+}
+
+export function updateVisibleOverlayVisibility(
+  args: Parameters<typeof applyVisibleOverlayVisibility>[0],
+): void {
+  applyVisibleOverlayVisibility(args);
+  if (args.isWindowsPlatform && args.mainWindow && !args.mainWindow.isDestroyed()) {
+    watchWindowsOverlayVisibility({ ...args, mainWindow: args.mainWindow });
+  }
 }
 
 export function setVisibleOverlayVisible(options: {

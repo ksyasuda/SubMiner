@@ -17,6 +17,35 @@
 */
 
 import type { MpvPollResult } from './win32';
+import { createLogger } from '../logger';
+
+const log = createLogger('overlay:windows');
+const nativeFailures = new Map<string, number>();
+
+function runNativeOverlayOperation(
+  operation: string,
+  handles: { overlayHwnd: number; mpvHwnd?: number },
+  run: () => void,
+): boolean {
+  try {
+    run();
+    if (nativeFailures.delete(operation)) {
+      log.warn('Windows native overlay operation recovered', { operation, ...handles });
+    }
+    return true;
+  } catch (error) {
+    const lastWarning = nativeFailures.get(operation);
+    if (lastWarning === undefined || Date.now() - lastWarning >= 30_000) {
+      log.warn('Windows native overlay operation failed', {
+        operation,
+        ...handles,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      nativeFailures.set(operation, Date.now());
+    }
+    return false;
+  }
+}
 
 function loadWin32(): typeof import('./win32') {
   return require('./win32') as typeof import('./win32');
@@ -32,41 +61,29 @@ export function findWindowsMpvTargetWindowHandle(result?: MpvPollResult): number
 }
 
 export function setWindowsOverlayOwner(overlayHwnd: number, mpvHwnd: number): boolean {
-  try {
+  return runNativeOverlayOperation('set-owner', { overlayHwnd, mpvHwnd }, () => {
     loadWin32().setOverlayOwner(overlayHwnd, mpvHwnd);
-    return true;
-  } catch {
-    return false;
-  }
+  });
 }
 
 export function ensureWindowsOverlayTransparency(overlayHwnd: number): boolean {
-  try {
+  return runNativeOverlayOperation('transparency', { overlayHwnd }, () => {
     loadWin32().ensureOverlayTransparency(overlayHwnd);
-    return true;
-  } catch {
-    return false;
-  }
+  });
 }
 
 export function bindWindowsOverlayAboveMpv(overlayHwnd: number, mpvHwnd: number): boolean {
-  try {
+  return runNativeOverlayOperation('bind-above-mpv', { overlayHwnd, mpvHwnd }, () => {
     const win32 = loadWin32();
     win32.bindOverlayAboveMpv(overlayHwnd, mpvHwnd);
     win32.ensureOverlayTransparency(overlayHwnd);
-    return true;
-  } catch {
-    return false;
-  }
+  });
 }
 
 export function clearWindowsOverlayOwner(overlayHwnd: number): boolean {
-  try {
+  return runNativeOverlayOperation('clear-owner', { overlayHwnd }, () => {
     loadWin32().clearOverlayOwner(overlayHwnd);
-    return true;
-  } catch {
-    return false;
-  }
+  });
 }
 
 export function getWindowsForegroundProcessName(): string | null {
