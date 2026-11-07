@@ -589,6 +589,34 @@ runScenarios([
   },
 ]);
 
+test('only a live Windows overlay reads visibility diagnostics', () => {
+  const diagnosticReads = (platform: Platform, overrides: Partial<VisibilityArgs> = {}): number => {
+    let reads = 0;
+    createHarness({ platform, tracker: tracked() }).run({
+      windowTracker: {
+        isTracking: () => true,
+        getGeometry: () => GEOMETRY,
+        getDiagnosticState: () => {
+          reads += 1;
+          return { targetPid: 4242 };
+        },
+      } as unknown as VisibilityArgs['windowTracker'],
+      ...overrides,
+    });
+    return reads;
+  };
+
+  assert.equal(diagnosticReads('windows'), 1);
+  assert.equal(diagnosticReads('linux'), 0);
+  assert.equal(diagnosticReads('macos'), 0);
+  assert.equal(
+    diagnosticReads('windows', {
+      mainWindow: { isDestroyed: () => true } as unknown as VisibilityArgs['mainWindow'],
+    }),
+    0,
+  );
+});
+
 test('Windows visible overlay restores opacity and rebinds after the deferred reveal delay', async () => {
   const h = createHarness({ platform: 'windows', tracker: tracked() });
   assertOutcome(h.run(), { opacity: 0, zOrderSyncs: 1 });

@@ -27,6 +27,16 @@ Read when: you need to find the owner module for a behavior or test surface
   subtitle suppression while the overlay shows, and the overlay-window IPC handlers (modal
   open/close, pointer interaction, content measurement): `src/main/assemblies/overlay.ts`
   Overlay-hosted modal openers: `src/main/assemblies/overlay-modals.ts`
+  Windows window tracking: `src/window-trackers/windows-tracker.ts` queries the target mpv IPC
+  socket for its PID through `mpv-process-id.ts`, then `win32.ts` matches native windows by PID.
+  Visible matches are revalidated every 10 seconds; a PID expires after 30 seconds without a
+  successful IPC response. Missing windows retry at one-second intervals. Custom executable
+  names remain supported because matching uses the IPC PID.
+  `src/core/services/overlay-visibility-diagnostics.ts` watches requested Windows overlays:
+  after five seconds hidden or transparent it logs a warn-level snapshot, repeating at most
+  every 30 seconds. Intentional hiding, minimization and having no mpv answer on the socket
+  yet suppress these warnings; an identified mpv whose window never matches does not. PID lookup
+  failures and native ownership/transparency failures also log at warn, including recovery.
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
   mpv client creation, mpv event wiring, AniSkip, the autoplay-ready gate that releases mpv's
   startup pause, managed local subtitle selection, subtitle prefetch, and subtitle sidebar state:

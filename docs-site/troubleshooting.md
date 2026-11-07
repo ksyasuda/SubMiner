@@ -51,6 +51,17 @@ When `connect ENOENT /tmp/subminer-socket` follows a cast in the app log, SubMin
 - Confirm SubMiner is running (`SubMiner.AppImage --start`, or check for the process).
 - Linux: Hyprland and Sway work natively. Any other compositor needs mpv and SubMiner under X11 or Xwayland, with `xdotool`, `xprop`, and `xwininfo` installed. See [KDE Plasma and other Wayland compositors](#kde-plasma-and-other-wayland-compositors).
 - macOS: grant Accessibility permission. See [macOS](#macos).
+- Windows: leave the affected mpv window open for at least five seconds, then collect the daily
+  app log from the directory above. No debug setting is required: a stalled overlay logs
+  `Windows overlay is not visible after startup or tracking loss` with its PID, native window
+  handle, tracking state, geometry, opacity, and renderer readiness. The `reason` distinguishes
+  a missing mpv window, an unready renderer, a hidden window, and a transparent window.
+  This warning waits until mpv has answered on its IPC socket, so a requested overlay with no
+  mpv running stays quiet. PID lookup failures and native ownership or transparency errors also
+  appear at `warn`, and a PID lookup failure is the only trace if mpv never answers.
+  Repeated visibility/native-operation warnings are limited to one every 30 seconds; recovery
+  is recorded too. These logs diagnose attachment and readiness, but cannot prove that pixels
+  were drawn correctly by the graphics driver.
 
 ## Overlay is on the wrong monitor or position
 
