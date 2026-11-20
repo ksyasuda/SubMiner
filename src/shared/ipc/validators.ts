@@ -14,7 +14,12 @@ import type {
   SubsyncManualRunRequest,
 } from '../../types/runtime';
 import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-options';
-import type { SessionActionId, SessionActionPayload } from '../../types/session-bindings';
+import type {
+  MpvKeyForwardBlock,
+  SessionActionId,
+  SessionActionPayload,
+  UnforwardedMpvKeyReport,
+} from '../../types/session-bindings';
 import type { SubtitlePosition } from '../../types/subtitle';
 import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
 import { isControllerFaceButtonLabels, parseControllerDiscreteBinding } from '../controller-review';
@@ -363,6 +368,26 @@ export function parseMpvCommand(value: unknown): Array<string | number> | null {
   return value.every((entry) => typeof entry === 'string' || typeof entry === 'number')
     ? (value as Array<string | number>)
     : null;
+}
+
+// A Record so a new MpvKeyForwardBlock member fails typecheck until it is listed here.
+const MPV_KEY_FORWARD_BLOCKS: Record<MpvKeyForwardBlock, true> = {
+  'config-loading': true,
+  modal: true,
+  'lookup-popup': true,
+  'interactive-target': true,
+  'no-imported-bindings': true,
+};
+
+function isMpvKeyForwardBlock(value: unknown): value is MpvKeyForwardBlock {
+  return typeof value === 'string' && Object.hasOwn(MPV_KEY_FORWARD_BLOCKS, value);
+}
+
+export function parseUnforwardedMpvKeyReport(value: unknown): UnforwardedMpvKeyReport | null {
+  if (!isObject(value)) return null;
+  const { key, reason } = value;
+  if (typeof key !== 'string' || key.length === 0 || key.length > 64) return null;
+  return isMpvKeyForwardBlock(reason) ? { key, reason } : null;
 }
 
 export function parseOptionalForwardingOptions(value: unknown): {

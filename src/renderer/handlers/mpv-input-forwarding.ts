@@ -4,7 +4,13 @@ import {
   normalizeMpvInputKey,
   wheelEventToMpvWheel,
 } from '../../shared/mpv-input-bindings';
-import type { MpvInputBindingsSnapshot } from '../../types/session-bindings';
+import type {
+  MpvInputBindingsSnapshot,
+  MpvKeyForwardBlock,
+  UnforwardedMpvKeyReport,
+} from '../../types/session-bindings';
+
+const MODIFIER_ONLY_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'AltGraph']);
 
 type ModifierState = Pick<KeyboardEvent, 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'>;
 type ForwardedKeyEvent = Parameters<typeof keyboardEventToMpvKey>[0] &
@@ -31,25 +37,26 @@ export function createMpvInputForwarding(deps: {
     heldKeys.clear();
   }
 
+  // Every window focus refreshes, so the current list keeps forwarding until the reload
+  // settles; a key pressed mid-reload would otherwise be dropped.
   function refresh(): Promise<void> {
     if (disposed) return Promise.resolve();
     generation += 1;
-    keys.clear();
-    blockedKeys = [];
     releaseAll();
     if (pending) return pending;
     pending = (async () => {
       let requestedGeneration: number;
       do {
         requestedGeneration = generation;
+        let snapshot: MpvInputBindingsSnapshot | null = null;
         try {
-          const snapshot = await deps.load();
-          if (!disposed && requestedGeneration === generation) {
-            keys = new Set(snapshot.keys);
-            blockedKeys = snapshot.blockedKeys;
-          }
+          snapshot = await deps.load();
         } catch {
-          // Discovery is optional. Keep the existing overlay controls available.
+          // Discovery is optional: SubMiner's own bindings keep working without it.
+        }
+        if (!disposed && requestedGeneration === generation) {
+          keys = new Set(snapshot?.keys ?? []);
+          blockedKeys = snapshot?.blockedKeys ?? [];
         }
       } while (!disposed && requestedGeneration !== generation);
     })().finally(() => {
@@ -96,6 +103,23 @@ export function createMpvInputForwarding(deps: {
     deps.send(['keydown', key]);
     event.preventDefault();
     return true;
+  }
+
+  /**
+   * The debug report for a key the overlay kept from mpv, or null when mpv does not bind
+   * it. With nothing imported yet, every nameable key is reported as such.
+   */
+  function unforwardedReport(
+    event: ForwardedKeyEvent,
+    reason: MpvKeyForwardBlock,
+  ): UnforwardedMpvKeyReport | null {
+    if (disposed || event.repeat || MODIFIER_ONLY_KEYS.has(event.key)) return null;
+    const key = keyboardEventToMpvKey(event);
+    if (!key) return null;
+    if (keys.size === 0) return { key, reason: 'no-imported-bindings' };
+    if (reason === 'no-imported-bindings') return null;
+    if (isBlocked(event.code, event) || !keys.has(key)) return null;
+    return { key, reason };
   }
 
   function keyup(event: Pick<KeyboardEvent, 'code' | 'preventDefault'>): void {
@@ -154,5 +178,15 @@ export function createMpvInputForwarding(deps: {
     releaseAll();
   }
 
-  return { refresh, keydown, keyup, wheel, mousedown, mouseup, releaseAll, dispose };
+  return {
+    refresh,
+    keydown,
+    keyup,
+    wheel,
+    mousedown,
+    mouseup,
+    releaseAll,
+    dispose,
+    unforwardedReport,
+  };
 }

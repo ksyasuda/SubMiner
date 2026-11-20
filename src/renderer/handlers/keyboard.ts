@@ -1,4 +1,5 @@
 import type { CompiledSessionBinding, PrimarySubMode, ShortcutsConfig } from '../../types';
+import type { MpvKeyForwardBlock } from '../../types/session-bindings';
 import type { RendererContext } from '../context';
 import { createMpvInputForwarding } from './mpv-input-forwarding';
 import { MPV_MOUSE_BUTTON_BY_BUTTON, wheelEventToMpvWheel } from '../../shared/mpv-input-bindings';
@@ -141,14 +142,24 @@ export function createKeyboardHandlers(
   // Imported mpv bindings only run when no SubMiner UI could be the input's target.
   // The subtitle sidebar is a side panel over playback, so only input inside it (a
   // `.modal` target) stays with SubMiner.
+  // Why imported mpv input must stay in the overlay right now, or null when it may forward.
+  // SubMiner's own keybindings never pass through here.
+  function getMpvForwardBlock(target: EventTarget | null): MpvKeyForwardBlock | null {
+    if (!keyboardConfigLoaded) return 'config-loading';
+    if (ctx.state.playlistBrowserModalOpen || ctx.state.youtubePickerModalOpen) return 'modal';
+    if (isLookupPopupOpen(ctx.state, document)) return 'lookup-popup';
+    if (isInteractiveTarget(target)) return 'interactive-target';
+    return null;
+  }
+
   function canForwardToMpv(target: EventTarget | null): boolean {
-    return (
-      keyboardConfigLoaded &&
-      !ctx.state.playlistBrowserModalOpen &&
-      !ctx.state.youtubePickerModalOpen &&
-      !isLookupPopupOpen(ctx.state, document) &&
-      !isInteractiveTarget(target)
-    );
+    return getMpvForwardBlock(target) === null;
+  }
+
+  // Debug breadcrumb for "my mpv key does nothing": the main process logs it at debug level.
+  function reportUnforwardedMpvKey(e: KeyboardEvent, reason: MpvKeyForwardBlock): void {
+    const report = importedMpvBindings.unforwardedReport(e, reason);
+    if (report) window.electronAPI.reportUnforwardedMpvKey(report);
   }
 
   // Scrolling over subtitles still reaches mpv; only scrollable overlay UI keeps the wheel.
@@ -1403,6 +1414,7 @@ export function createKeyboardHandlers(
 
       if (isLookupPopupOpen(ctx.state, document)) {
         if (handleYomitanPopupKeybind(e)) {
+          reportUnforwardedMpvKey(e, 'lookup-popup');
           e.preventDefault();
           return;
         }
@@ -1469,7 +1481,13 @@ export function createKeyboardHandlers(
         e.preventDefault();
         return;
       }
-      if (canForwardToMpv(e.target)) importedMpvBindings.keydown(e);
+      const forwardBlock = getMpvForwardBlock(e.target);
+      if (forwardBlock) {
+        reportUnforwardedMpvKey(e, forwardBlock);
+      } else if (!importedMpvBindings.keydown(e)) {
+        // Reports only while nothing is imported; an unbound key is not worth a line.
+        reportUnforwardedMpvKey(e, 'no-imported-bindings');
+      }
     });
 
     document.addEventListener('mousedown', (e: MouseEvent) => {

@@ -125,11 +125,13 @@ export function isHachidoriPopupOpen(root: ParentNode | null | undefined = docum
  * (the shown event and the host's visible marker) also covers a plain press.
  */
 export function isLookupPopupOpen(
-  state: { yomitanPopupVisible: boolean; hachidoriReaderSeen: boolean },
+  state: { hachidoriReaderSeen: boolean },
   root: ParentNode | null | undefined = document,
 ): boolean {
   if (state.hachidoriReaderSeen) return isHachidoriPopupOpen(root);
-  return state.yomitanPopupVisible || isYomitanPopupVisible(root);
+  // The fork marks the host before it fires the shown event, so the DOM is authoritative.
+  // The cached yomitanPopupVisible flag can lag a close (#331) and would keep stealing keys.
+  return isYomitanPopupVisible(root);
 }
 
 export function isYomitanPopupVisible(root: ParentNode | null | undefined = document): boolean {

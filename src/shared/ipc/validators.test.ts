@@ -4,7 +4,7 @@ import test from 'node:test';
 import { DEFAULT_CONFIG, DEFAULT_KEYBINDINGS } from '../../config/definitions';
 import { compileSessionBindings } from '../../core/services/session-bindings';
 import { resolveConfiguredShortcuts } from '../../core/utils/shortcut-config';
-import { parseSessionActionDispatchRequest } from './validators';
+import { parseSessionActionDispatchRequest, parseUnforwardedMpvKeyReport } from './validators';
 
 // Regression guard: SESSION_ACTION_IDS in validators.ts is a hand-maintained mirror of the
 // SessionActionId union. If a new shortcut-backed action is added to the union/defaults but not to
@@ -35,4 +35,14 @@ test('every default session-action binding is accepted by parseSessionActionDisp
       `validator rejected session action: ${binding.actionId}`,
     );
   }
+});
+
+test('unforwarded mpv key reports accept known reasons only', () => {
+  assert.deepEqual(parseUnforwardedMpvKeyReport({ key: 'LEFT', reason: 'lookup-popup' }), {
+    key: 'LEFT',
+    reason: 'lookup-popup',
+  });
+  assert.equal(parseUnforwardedMpvKeyReport({ key: 'LEFT', reason: 'toString' }), null);
+  assert.equal(parseUnforwardedMpvKeyReport({ key: '', reason: 'modal' }), null);
+  assert.equal(parseUnforwardedMpvKeyReport(null), null);
 });

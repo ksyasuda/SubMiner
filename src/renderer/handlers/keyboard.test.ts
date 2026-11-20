@@ -150,6 +150,7 @@ function installKeyboardTestGlobals() {
   let markActiveVideoWatchedCalls = 0;
   let statsToggleOverlayCalls = 0;
   const openedModalNotifications: string[] = [];
+  const unforwardedMpvKeys: Array<{ key: string; reason: string }> = [];
   let selectionClearCount = 0;
   let selectionAddCount = 0;
   let mutationRecordsTaken = 0;
@@ -251,6 +252,9 @@ function installKeyboardTestGlobals() {
         getConfiguredShortcuts: async () => configuredShortcuts,
         sendMpvCommand: (command: Array<string | number>) => {
           mpvCommands.push(command);
+        },
+        reportUnforwardedMpvKey: (report: { key: string; reason: string }) => {
+          unforwardedMpvKeys.push(report);
         },
         dispatchSessionAction: async (actionId: string, payload?: unknown) => {
           sessionActions.push({ actionId, payload });
@@ -518,6 +522,7 @@ function installKeyboardTestGlobals() {
     markActiveVideoWatchedCalls: () => markActiveVideoWatchedCalls,
     statsToggleOverlayCalls: () => statsToggleOverlayCalls,
     openedModalNotifications,
+    unforwardedMpvKeys,
     getPlaybackPaused: async () => playbackPausedResponse,
     setPlaybackPausedResponse: (value: boolean | null) => {
       playbackPausedResponse = value;
@@ -2565,6 +2570,27 @@ test('discovered mpv keys only run after SubMiner controls and stay out of sessi
     testGlobals.setPopupVisible(false);
     testGlobals.dispatchKeydown({ key: 'r', code: 'KeyR', target: { closest: () => ({}) } });
     assert.equal(testGlobals.mpvCommands.length, before);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('imported mpv keys forward once the popup closes, even if the cached popup flag lags', async () => {
+  const { handlers, testGlobals, ctx } = createKeyboardHandlerHarness();
+  try {
+    testGlobals.setGetMpvInputBindings(async () => ({ keys: ['r'], blockedKeys: [] }));
+    await handlers.setupMpvInputForwarding();
+    await wait(0);
+    testGlobals.setPopupVisible(true);
+    testGlobals.dispatchKeydown({ key: 'r', code: 'KeyR' });
+    assert.deepEqual(testGlobals.mpvCommands, []);
+    assert.deepEqual(testGlobals.unforwardedMpvKeys, [{ key: 'r', reason: 'lookup-popup' }]);
+
+    // #331: the popup closed, but a late popup event left the cached flag set.
+    testGlobals.setPopupVisible(false);
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.dispatchKeydown({ key: 'r', code: 'KeyR' });
+    assert.deepEqual(testGlobals.mpvCommands, [['keydown', 'r']]);
   } finally {
     testGlobals.restore();
   }
