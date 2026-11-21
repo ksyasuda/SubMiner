@@ -190,6 +190,10 @@ Another app or your desktop already uses `Alt+Shift+Y` (Yomitan settings). Free 
 
 Overlay shortcuts only work while the overlay has focus. Click the overlay, or press `Alt+Shift+O` with mpv or the overlay focused.
 
+## An mpv key does nothing over the overlay
+
+Keys from `input.conf` reach mpv through the overlay only in some cases (see [automatic mpv bindings](/shortcuts#automatic-mpv-bindings)). Run with `--log-level debug` and press the key: an `Overlay kept an mpv-bound key` line names the reason. To make a key work everywhere, add it to [`keybindings`](/configuration#keybindings) instead.
+
 ## Update checks
 
 **"Update check failed"**: GitHub could not be reached. Check your connection and retry from the tray menu or with `subminer -u`.

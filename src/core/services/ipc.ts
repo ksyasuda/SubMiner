@@ -40,9 +40,13 @@ import {
   parseSessionActionDispatchRequest,
   parseSubtitlePosition,
   parseSubsyncManualRunRequest,
+  parseUnforwardedMpvKeyReport,
   parseYoutubePickerResolveRequest,
 } from '../../shared/ipc/validators';
+import { createLogger } from '../../logger';
 import { applyOverlayClickThrough } from './overlay-click-through';
+
+const overlayInputLogger = createLogger('overlay:input');
 
 const { ipcMain } = electron;
 
@@ -639,6 +643,12 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       return await deps.resolveMediaTimingReview(request);
     },
   );
+
+  // Shows, at --log-level debug, why an mpv input.conf key never reached mpv.
+  ipc.on(IPC_CHANNELS.command.reportUnforwardedMpvKey, (_event: unknown, payload: unknown) => {
+    const report = parseUnforwardedMpvKeyReport(payload);
+    if (report) overlayInputLogger.debug('Overlay kept an mpv-bound key', report);
+  });
 
   ipc.on(IPC_CHANNELS.command.recordYomitanLookup, (_event: unknown, payload: unknown) => {
     try {

@@ -175,3 +175,50 @@ test('focus loss releases held keys and failed refresh clears stale bindings', a
   await forwarding.refresh();
   assert.equal(forwarding.keydown(keyEvent()), false);
 });
+
+test('a reload keeps forwarding the current keys until it settles', async () => {
+  let resolveReload: (snapshot: MpvInputBindingsSnapshot) => void = () => {};
+  let loads = 0;
+  const forwarding = createMpvInputForwarding({
+    load: () => {
+      loads += 1;
+      if (loads === 1) return Promise.resolve({ keys: ['r'], blockedKeys: [] });
+      return new Promise((resolve) => {
+        resolveReload = resolve;
+      });
+    },
+    send: () => {},
+  });
+  await forwarding.refresh();
+  const reload = forwarding.refresh();
+  assert.equal(forwarding.keydown(keyEvent()), true);
+  forwarding.keyup(keyEvent());
+  resolveReload({ keys: ['t'], blockedKeys: [] });
+  await reload;
+  assert.equal(forwarding.keydown(keyEvent()), false);
+  assert.equal(forwarding.keydown(keyEvent({ key: 't', code: 'KeyT' })), true);
+});
+
+test('unforwarded reports name keys mpv binds, or any key while nothing is imported', async () => {
+  let snapshot: MpvInputBindingsSnapshot = { keys: [], blockedKeys: [] };
+  const forwarding = createMpvInputForwarding({ load: async () => snapshot, send: () => {} });
+  await forwarding.refresh();
+  assert.deepEqual(forwarding.unforwardedReport(keyEvent(), 'lookup-popup'), {
+    key: 'r',
+    reason: 'no-imported-bindings',
+  });
+  assert.equal(
+    forwarding.unforwardedReport(keyEvent({ key: 'Shift', code: 'ShiftLeft' }), 'lookup-popup'),
+    null,
+  );
+
+  snapshot = { keys: ['r', 't'], blockedKeys: [{ code: 'KeyT', modifiers: [] }] };
+  await forwarding.refresh();
+  assert.deepEqual(forwarding.unforwardedReport(keyEvent(), 'interactive-target'), {
+    key: 'r',
+    reason: 'interactive-target',
+  });
+  assert.equal(forwarding.unforwardedReport(keyEvent(), 'no-imported-bindings'), null);
+  assert.equal(forwarding.unforwardedReport(keyEvent({ key: 't', code: 'KeyT' }), 'modal'), null);
+  assert.equal(forwarding.unforwardedReport(keyEvent({ key: 'z', code: 'KeyZ' }), 'modal'), null);
+});

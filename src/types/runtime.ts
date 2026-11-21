@@ -1,4 +1,4 @@
-import type { MpvInputBindingsSnapshot } from './session-bindings';
+import type { MpvInputBindingsSnapshot, UnforwardedMpvKeyReport } from './session-bindings';
 import type {
   KikuFieldGroupingChoice,
   KikuFieldGroupingRequestData,
@@ -600,6 +600,8 @@ export interface ElectronAPI {
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   reportOverlayInteractive: (interactive: boolean) => void;
   recordYomitanLookup: (context?: SubtitleMiningContext | null) => void;
+  /** Debug-only: the overlay kept a key that mpv binds. */
+  reportUnforwardedMpvKey: (report: UnforwardedMpvKeyReport) => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
   sendMpvCommand: (command: (string | number)[]) => void;

@@ -19,6 +19,7 @@
 import { clipboard, contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron';
 import { resolveOverlayLayerFromArgv } from './preload-args';
 import { createIpcListenerFactories } from './preload-ipc-listeners';
+import type { UnforwardedMpvKeyReport } from './types/session-bindings';
 import {
   DICTIONARY_EXTERNAL_LINK_CHANNEL,
   parseDictionaryExternalUrl,
@@ -327,6 +328,10 @@ const electronAPI: ElectronAPI = {
 
   recordYomitanLookup: (context?: SubtitleMiningContext | null) => {
     ipcRenderer.send(IPC_CHANNELS.command.recordYomitanLookup, context ?? null);
+  },
+
+  reportUnforwardedMpvKey: (report: UnforwardedMpvKeyReport) => {
+    ipcRenderer.send(IPC_CHANNELS.command.reportUnforwardedMpvKey, report);
   },
 
   getSubtitlePosition: (): Promise<SubtitlePosition | null> =>

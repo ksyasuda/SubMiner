@@ -27,6 +27,7 @@ export const IPC_CHANNELS = {
     setIgnoreMouseEvents: 'set-ignore-mouse-events',
     overlayModalClosed: 'overlay:modal-closed',
     recordYomitanLookup: 'record-yomitan-lookup',
+    reportUnforwardedMpvKey: 'overlay:unforwarded-mpv-key',
     youtubePickerResolve: 'youtube:picker-resolve',
     toggleDevTools: 'toggle-dev-tools',
     saveSubtitlePosition: 'save-subtitle-position',
