@@ -198,7 +198,7 @@ function renderFfmpegCard(ffmpeg: FfmpegSetupStatus): string {
       <div class="card-head">
         <div>
           <strong>FFmpeg</strong>
-          <div class="meta">Used for card audio and screenshots, subtitle sync, and subtitle generation.</div>
+          <div class="meta">Used for card audio and screenshots, and subtitle generation.</div>
           ${lines.map((line) => `<div class="meta">${escapeHtml(line)}</div>`).join('')}
         </div>
         ${badge}

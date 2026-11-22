@@ -152,11 +152,8 @@ export async function detectFfmpeg(options: {
     path.resolve(path.dirname(filePath)) === path.resolve(options.managedDir);
 
   const found = await Promise.all(FFMPEG_TOOLS.map((tool) => findOnPath([tool], env)));
-  const missing = FFMPEG_TOOLS.filter((_, index) => !found[index]);
-  if (missing.length > 0) return { kind: 'missing', missing, downloadable };
-
-  const [ffmpegPath, ffprobePath] = found as [string, string];
-  for (const executablePath of [ffmpegPath, ffprobePath]) {
+  // Check what was found before reporting gaps: a broken system tool shadows any download.
+  for (const executablePath of found.filter(Boolean)) {
     try {
       await runVersionCheck(executablePath);
     } catch (error) {
@@ -169,6 +166,10 @@ export async function detectFfmpeg(options: {
       };
     }
   }
+  const missing = FFMPEG_TOOLS.filter((_, index) => !found[index]);
+  if (missing.length > 0) return { kind: 'missing', missing, downloadable };
+
+  const [ffmpegPath, ffprobePath] = found as [string, string];
   return {
     kind: 'ready',
     source: isManaged(ffmpegPath) || isManaged(ffprobePath) ? 'managed' : 'system',

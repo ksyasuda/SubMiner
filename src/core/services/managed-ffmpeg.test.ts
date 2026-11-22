@@ -99,6 +99,39 @@ test('detectFfmpeg reports a tool that is found but fails to run', async () => {
   });
 });
 
+test('detectFfmpeg reports a broken system tool before offering a download for its companion', async () => {
+  await withTempDirs(async ({ system, managed }) => {
+    await writeExecutable(system, 'ffmpeg');
+    const detect = (runVersionCheck: (executablePath: string) => Promise<void>) =>
+      detectFfmpeg({
+        managedDir: managed,
+        env: { PATH: system },
+        platform: 'linux',
+        arch: 'x64',
+        runVersionCheck,
+      });
+
+    // A download would only add ffprobe; the broken system ffmpeg would still shadow it.
+    assert.deepEqual(
+      await detect(async () => {
+        throw new Error('exit 127');
+      }),
+      {
+        kind: 'broken',
+        path: path.join(system, 'ffmpeg'),
+        message: 'exit 127',
+        managed: false,
+        downloadable: true,
+      },
+    );
+    assert.deepEqual(await detect(passVersionCheck), {
+      kind: 'missing',
+      missing: ['ffprobe'],
+      downloadable: true,
+    });
+  });
+});
+
 test('installManagedFfmpeg rejects unsupported platforms and never publishes a failed download', async () => {
   await withTempDirs(async ({ managed }) => {
     await assert.rejects(
