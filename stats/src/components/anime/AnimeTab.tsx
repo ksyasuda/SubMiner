@@ -161,6 +161,13 @@ export function AnimeTab({
     0,
   );
   const selectedGroup = groups.find((group) => group.groupKey === selectedGroupKey) ?? null;
+  // A franchise that no longer has several parts closes, so a later refresh
+  // cannot reopen it on its own. Only loaded results count; while a part is
+  // open, the franchise stays its back target.
+  useEffect(() => {
+    if (loading || selectedGroupKey === null || selectedAnimeId !== null) return;
+    if (!selectedGroup || selectedGroup.parts.length < 2) setSelectedGroupKey(null);
+  }, [loading, selectedGroupKey, selectedAnimeId, selectedGroup]);
   const checkedEntries = checkedAnimeIds
     .map((animeId) => anime.find((entry) => entry.animeId === animeId))
     .filter((entry): entry is (typeof anime)[number] => entry !== undefined);

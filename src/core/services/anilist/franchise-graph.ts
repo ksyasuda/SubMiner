@@ -154,6 +154,8 @@ export interface FranchiseWalkOptions {
   maxDepth: number;
   /** Most entries fetched in one walk; the rest wait for the next walk. */
   maxFetch: number;
+  /** When true, the walk starts no further request and drops an in-flight result. */
+  isCancelled?: () => boolean;
 }
 
 export interface FranchiseWalkResult {
@@ -174,9 +176,12 @@ export async function walkFranchiseRelations(
 ): Promise<FranchiseWalkResult> {
   const { known } = options;
   const visited = new Set<number>();
-  let frontier: Array<{ id: number; from: number | null }> = [...new Set(options.seeds)].map(
-    (id) => ({ id, from: null }),
-  );
+  // `from` lists every entry the walk reached this one through at this depth
+  // (empty for a seed), so the order seeds are given in cannot change the result.
+  let frontier: Array<{ id: number; from: number[] }> = [...new Set(options.seeds)].map((id) => ({
+    id,
+    from: [],
+  }));
   let fetched = 0;
   let truncated = false;
 
@@ -193,10 +198,11 @@ export async function walkFranchiseRelations(
     if (allowed.length < stale.length) truncated = true;
 
     for (let start = 0; start < allowed.length; start += FETCH_CHUNK_SIZE) {
+      if (options.isCancelled?.()) return { fetched, truncated: true };
       const chunk = allowed.slice(start, start + FETCH_CHUNK_SIZE);
-      const found = new Map(
-        (await options.fetchNodes(chunk)).map((node) => [node.anilistId, node] as const),
-      );
+      const fetchedNodes = await options.fetchNodes(chunk);
+      if (options.isCancelled?.()) return { fetched, truncated: true };
+      const found = new Map(fetchedNodes.map((node) => [node.anilistId, node] as const));
       const fetchedAtMs = options.now();
       const batch = chunk.map((id): AnilistMediaNode => {
         const node = found.get(id);
@@ -222,21 +228,22 @@ export async function walkFranchiseRelations(
 
     if (depth >= options.maxDepth) break;
 
-    const next: Array<{ id: number; from: number | null }> = [];
-    const queued = new Set<number>();
+    const next = new Map<number, number[]>();
     for (const step of frontier) {
       const node = known.get(step.id);
       if (!node) continue;
-      // Reached through a link the entry itself rejects (a spin-off's original):
-      // it is not part of the franchise, so its own links are not followed.
-      if (step.from !== null && vetoes(node, step.from)) continue;
+      // Reached only through links the entry itself rejects (a spin-off's
+      // original): it is not part of the franchise, so its own links are not
+      // followed. One accepted incoming link is enough.
+      if (step.from.length > 0 && step.from.every((fromId) => vetoes(node, fromId))) continue;
       for (const targetId of franchiseTargets(node)) {
-        if (visited.has(targetId) || queued.has(targetId)) continue;
-        queued.add(targetId);
-        next.push({ id: targetId, from: node.anilistId });
+        if (visited.has(targetId)) continue;
+        const from = next.get(targetId);
+        if (from) from.push(node.anilistId);
+        else next.set(targetId, [node.anilistId]);
       }
     }
-    frontier = next;
+    frontier = [...next].map(([id, from]) => ({ id, from }));
   }
 
   return { fetched, truncated };

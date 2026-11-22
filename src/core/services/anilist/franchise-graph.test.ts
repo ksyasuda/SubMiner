@@ -172,6 +172,53 @@ test('walk does not follow the links of an entry that vetoes how it was reached'
   assert.deepEqual(asked, [[2], [1]]);
 });
 
+test('walk follows an entry reached through any link it accepts, whatever the seed order', async () => {
+  const nodes = [
+    entry(1, 'TV', 20100101, [['SEQUEL', 3]]),
+    entry(2, 'TV', 20110101, [['SEQUEL', 3]]),
+    // Rejects seed 1 but accepts seed 2, so its own links are still followed.
+    entry(3, 'TV', 20120101, [
+      ['SPIN_OFF', 1],
+      ['PREQUEL', 2],
+      ['PARENT', 4],
+    ]),
+    entry(4, 'TV', 20000101),
+  ];
+  for (const seeds of [
+    [1, 2],
+    [2, 1],
+  ]) {
+    const { asked, options } = walkHarness(nodes, { seeds });
+    await walkFranchiseRelations(options);
+    assert.deepEqual(asked, [[1, 2], [3], [4]]);
+  }
+});
+
+test('a cancelled walk starts no further request and drops the in-flight result', async () => {
+  const seeds = Array.from({ length: 51 }, (_, index) => index + 1);
+  let cancelled = false;
+  const batches: number[] = [];
+  const { asked, known, options } = walkHarness(
+    seeds.map((id) => entry(id, 'TV', 20200101)),
+    {
+      seeds,
+      isFresh: () => false,
+      onBatch: (nodes) => batches.push(nodes.length),
+      isCancelled: () => cancelled,
+    },
+  );
+  const fetchNodes = options.fetchNodes;
+  options.fetchNodes = async (ids) => {
+    cancelled = true;
+    return fetchNodes(ids);
+  };
+  const result = await walkFranchiseRelations(options);
+  assert.equal(asked.length, 1);
+  assert.deepEqual(batches, []);
+  assert.equal(known.size, 0);
+  assert.equal(result.truncated, true);
+});
+
 test('walk respects the depth and fetch bounds', async () => {
   const chain = Array.from({ length: 10 }, (_, i) =>
     entry(i + 1, 'TV', 20000101 + i, i < 9 ? [['SEQUEL', i + 2]] : []),

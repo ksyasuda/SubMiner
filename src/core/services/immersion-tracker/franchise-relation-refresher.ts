@@ -64,9 +64,8 @@ export function createFranchiseRelationRefresher(
       known,
       isFresh: (node) => now() - node.fetchedAtMs < FRANCHISE_RELATION_STALE_MS,
       fetchNodes: (ids) => deps.fetcher.fetchMedia(ids),
-      onBatch: (nodes) => {
-        if (!stopped) writeAnilistRelationNodes(deps.db, nodes);
-      },
+      onBatch: (nodes) => writeAnilistRelationNodes(deps.db, nodes),
+      isCancelled: () => stopped,
       now,
       maxDepth: FRANCHISE_WALK_MAX_DEPTH,
       maxFetch: FRANCHISE_WALK_MAX_FETCH,

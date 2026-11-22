@@ -132,3 +132,47 @@ test('a franchise card opens its parts in release order, and a part can stand al
     uninstallDom();
   }
 });
+
+test('a franchise left with one part closes and does not reopen on a later refresh', async () => {
+  const uninstallDom = installDom();
+  const original = { ...apiClient };
+  const [movie, season] = overlord.parts as [AnimeLibraryGroupPart, AnimeLibraryGroupPart];
+  const split: AnimeLibraryGroup[] = [
+    { ...overlord, parts: [movie], coverAnimeId: movie.animeId },
+    { ...overlord, groupKey: 1, title: season.canonicalTitle, parts: [season], coverAnimeId: 1 },
+  ];
+  let library: AnimeLibraryGroup[] = [overlord];
+  apiClient.getAnimeLibraryGroups = async () => library;
+  apiClient.getAnimeMergeRecommendations = async () => ({ recommendations: [] });
+  apiClient.getAnimeDetail = async () => detailData();
+  apiClient.getAnimeWords = async () => [];
+  apiClient.getAnimeRollups = async () => [];
+  apiClient.getAnimeKnownWordsSummary = async () => ({ totalUniqueWords: 0, knownWordCount: 0 });
+  apiClient.setAnimeGroupOverride = async () => {
+    library = split;
+  };
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<AnimeTab />));
+    await act(async () => findButton(container, 'Overlord').click());
+    await act(async () => findButton(container, 'Overlord II').click());
+    await act(async () => findButton(container, 'Show On Its Own').click());
+    await act(async () => findButton(container, 'Back to Overlord').click());
+    assert.doesNotMatch(container.textContent ?? '', /Seasons and Movies/);
+
+    // The franchise gets its second part back; the library must stay where it is.
+    library = [overlord];
+    await act(async () => {
+      window.dispatchEvent(new window.Event('focus'));
+    });
+    assert.match(findButton(container, 'Overlord').textContent ?? '', /2 parts/);
+    assert.doesNotMatch(container.textContent ?? '', /Seasons and Movies/);
+  } finally {
+    await act(async () => root.unmount());
+    Object.assign(apiClient, original);
+    uninstallDom();
+  }
+});
