@@ -46,7 +46,11 @@ function executableNames(name: string, env: NodeJS.ProcessEnv): string[] {
   return [name, ...extensions.map((extension) => `${name}${extension}`)];
 }
 
-async function findOnPath(names: readonly string[], env: NodeJS.ProcessEnv): Promise<string> {
+/** First executable on `env.PATH` matching any of `names` (PATHEXT-aware on Windows), or ''. */
+export async function findOnPath(
+  names: readonly string[],
+  env: NodeJS.ProcessEnv,
+): Promise<string> {
   const directories = (env.PATH ?? '')
     .split(path.delimiter)
     .map((entry) => entry.trim())

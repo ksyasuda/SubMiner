@@ -18,12 +18,12 @@ export async function downloadSubtitleGenerationArtifact(input: {
   const temporaryDirectory = await mkdtemp(
     path.join(path.dirname(input.destination), '.download-'),
   );
-  const temporaryPath = path.join(temporaryDirectory, 'model.bin');
+  const temporaryPath = path.join(temporaryDirectory, 'artifact.bin');
   input.onProgress?.({ stage: 'download', percent: 0, message: `Downloading ${input.label}...` });
   try {
     const response = await fetch(input.url, { signal: input.signal });
     if (!response.ok || !response.body) {
-      throw new Error(`Model download failed: HTTP ${response.status}`);
+      throw new Error(`${input.label} download failed: HTTP ${response.status}`);
     }
     const file = await open(temporaryPath, 'wx');
     const reader = response.body.getReader();
@@ -36,7 +36,8 @@ export async function downloadSubtitleGenerationArtifact(input: {
         const { done, value } = await reader.read();
         if (done) break;
         received += value.byteLength;
-        if (received > input.size) throw new Error('Downloaded model exceeds expected size.');
+        if (received > input.size)
+          throw new Error(`Downloaded ${input.label} exceeds expected size.`);
         digest.update(value);
         await file.writeFile(value);
         const percent = Math.min(99, Math.floor((received / input.size) * 100));
@@ -50,7 +51,9 @@ export async function downloadSubtitleGenerationArtifact(input: {
         }
       }
       if (received !== input.size || digest.digest('hex') !== input.sha256) {
-        throw new Error('Downloaded model failed integrity verification. Try downloading again.');
+        throw new Error(
+          `Downloaded ${input.label} failed integrity verification. Try downloading again.`,
+        );
       }
       await file.sync();
     } finally {

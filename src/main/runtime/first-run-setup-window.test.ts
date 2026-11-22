@@ -7,6 +7,14 @@ import {
   parseFirstRunSetupSubmissionUrl,
 } from './first-run-setup-window';
 import type { CommandLineLauncherSnapshot } from './command-line-launcher';
+import type { FfmpegSetupStatus } from '../../core/services/managed-ffmpeg';
+
+const READY_FFMPEG: FfmpegSetupStatus = {
+  kind: 'ready',
+  source: 'system',
+  ffmpegPath: '/usr/bin/ffmpeg',
+  ffprobePath: '/usr/bin/ffprobe',
+};
 
 function createCommandLineLauncherSnapshot(
   overrides: Partial<CommandLineLauncherSnapshot> = {},
@@ -52,6 +60,7 @@ test('buildFirstRunSetupHtml shows legacy mpv plugin removal action with confirm
       desktopInstalled: false,
       status: 'optional',
     },
+    ffmpeg: READY_FFMPEG,
     commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
@@ -90,6 +99,7 @@ test('buildFirstRunSetupHtml marks an invalid configured mpv path as invalid', (
       desktopInstalled: false,
       status: 'optional',
     },
+    ffmpeg: READY_FFMPEG,
     commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
@@ -117,6 +127,7 @@ test('buildFirstRunSetupHtml explains the config blocker when setup is missing c
       desktopInstalled: false,
       status: 'optional',
     },
+    ffmpeg: READY_FFMPEG,
     commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
@@ -146,6 +157,7 @@ test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish ena
       desktopInstalled: false,
       status: 'optional',
     },
+    ffmpeg: READY_FFMPEG,
     commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
@@ -221,6 +233,7 @@ test('buildFirstRunSetupHtml reports a broken included runtime in the optional l
       desktopInstalled: false,
       status: 'optional',
     },
+    ffmpeg: READY_FFMPEG,
     commandLineLauncher: createCommandLineLauncherSnapshot({
       bun: {
         status: 'failed',
@@ -275,6 +288,7 @@ test('buildFirstRunSetupHtml labels a missing launcher without error-message wor
       desktopInstalled: false,
       status: 'optional',
     },
+    ffmpeg: READY_FFMPEG,
     commandLineLauncher: createCommandLineLauncherSnapshot({
       bun: {
         status: 'ready',
@@ -310,6 +324,7 @@ test('buildFirstRunSetupHtml disables launcher install when no target is install
       desktopInstalled: false,
       status: 'optional',
     },
+    ffmpeg: READY_FFMPEG,
     commandLineLauncher: createCommandLineLauncherSnapshot({
       launcher: {
         status: 'not_installable',
@@ -403,6 +418,7 @@ test('opening first-run setup shows and focuses window after content loads', asy
         desktopInstalled: false,
         status: 'optional',
       },
+      ffmpeg: READY_FFMPEG,
       commandLineLauncher: createCommandLineLauncherSnapshot(),
       message: null,
     }),
@@ -469,6 +485,7 @@ test('opening first-run setup skips rendering if window is destroyed after snaps
           desktopInstalled: false,
           status: 'optional',
         },
+        ffmpeg: READY_FFMPEG,
         commandLineLauncher: createCommandLineLauncherSnapshot(),
         message: null,
       };
@@ -538,6 +555,7 @@ test('first-run setup action can skip rerender after launching another window', 
         desktopInstalled: false,
         status: 'optional',
       },
+      ffmpeg: READY_FFMPEG,
       commandLineLauncher: createCommandLineLauncherSnapshot(),
       message: null,
     }),
@@ -620,6 +638,7 @@ test('closing incomplete first-run setup quits app outside background mode', asy
         desktopInstalled: false,
         status: 'optional',
       },
+      ffmpeg: READY_FFMPEG,
       commandLineLauncher: createCommandLineLauncherSnapshot(),
       message: null,
     }),
@@ -692,6 +711,7 @@ test('closing completed first-run setup quits app when completion policy allows 
         desktopInstalled: false,
         status: 'optional',
       },
+      ffmpeg: READY_FFMPEG,
       commandLineLauncher: createCommandLineLauncherSnapshot(),
       message: null,
     }),
@@ -747,6 +767,7 @@ test('Hachidori setup names the active dictionary backend', () => {
       desktopInstalled: false,
       status: 'optional',
     },
+    ffmpeg: READY_FFMPEG,
     commandLineLauncher: createCommandLineLauncherSnapshot(),
     message: null,
   });
@@ -773,5 +794,57 @@ test('setup parses link and unlink actions without losing the host address', () 
   assert.deepEqual(
     parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=unlink-hachidori-host'),
     { action: 'unlink-hachidori-host' },
+  );
+});
+
+test('FFmpeg card offers a download only when one would be used', () => {
+  const render = (ffmpeg: FfmpegSetupStatus) =>
+    buildFirstRunSetupHtml({
+      configReady: true,
+      dictionaryCount: 1,
+      canFinish: true,
+      externalYomitanConfigured: false,
+      pluginStatus: 'installed',
+      pluginInstallPathSummary: null,
+      mpvExecutablePath: '',
+      mpvExecutablePathStatus: 'blank',
+      windowsMpvShortcuts: {
+        supported: false,
+        startMenuEnabled: false,
+        desktopEnabled: false,
+        startMenuInstalled: false,
+        desktopInstalled: false,
+        status: 'optional',
+      },
+      ffmpeg,
+      commandLineLauncher: createCommandLineLauncherSnapshot(),
+      message: null,
+    });
+
+  const system = render(READY_FFMPEG);
+  assert.match(system, /Found on your system\. Nothing to do\./);
+  assert.match(system, /\/usr\/bin\/ffprobe/);
+  assert.doesNotMatch(system, /action=install-ffmpeg/);
+
+  const missing = render({ kind: 'missing', missing: ['ffprobe'], downloadable: true });
+  assert.match(missing, /Not found on PATH: ffprobe\./);
+  assert.match(missing, /action=install-ffmpeg/);
+
+  const unsupported = render({ kind: 'missing', missing: ['ffmpeg'], downloadable: false });
+  assert.match(unsupported, /No download is available for this platform/);
+  assert.doesNotMatch(unsupported, /action=install-ffmpeg/);
+
+  const broken = {
+    kind: 'broken',
+    path: '/x/ffmpeg',
+    message: 'exit 127',
+    downloadable: true,
+  } as const;
+  assert.doesNotMatch(render({ ...broken, managed: false }), /action=install-ffmpeg/);
+  assert.match(render({ ...broken, managed: true }), /Download FFmpeg again/);
+
+  assert.deepEqual(
+    parseFirstRunSetupSubmissionUrl('subminer://first-run-setup?action=install-ffmpeg'),
+    { action: 'install-ffmpeg' },
   );
 });

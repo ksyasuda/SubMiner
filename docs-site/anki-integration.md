@@ -8,7 +8,7 @@ For the day-to-day flow, see [Mining workflow](/mining-workflow). Every key on t
 
 1. Install [Anki](https://apps.ankiweb.net/).
 2. Install AnkiConnect (add-on code `2055492159`).
-3. Install FFmpeg and make sure it is on your `PATH`. SubMiner uses it for audio and images.
+3. Install FFmpeg and make sure it is on your `PATH`, or download it from first-run setup. SubMiner uses it for audio and images.
 4. Keep Anki running while you mine.
 
 If you changed AnkiConnect's port, set `ankiConnect.url` to match.

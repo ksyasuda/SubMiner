@@ -30,6 +30,7 @@ function makeDeps(configDir: string): FirstRunSetupAssemblyDeps {
     ensureYomitanExtensionLoaded: lazy('ensureYomitanExtensionLoaded'),
     getYomitanParserRuntimeDeps: lazy('getYomitanParserRuntimeDeps'),
     createCommandLineLauncherRuntimeOptions: lazy('createCommandLineLauncherRuntimeOptions'),
+    waitForLoginShellPath: lazy('waitForLoginShellPath'),
     getAppPath: lazy('getAppPath'),
     trashItem: lazy('trashItem'),
     writeShortcutLink: lazy('writeShortcutLink'),
