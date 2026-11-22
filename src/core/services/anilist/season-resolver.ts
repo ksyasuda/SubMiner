@@ -620,7 +620,13 @@ export function pickByAirOrder(
   // spells it "<season> Part 1" is kept.
   const seasons = franchise.filter((entry) => {
     if (entry.id === anchor.id) return true;
-    return !franchise.some((other) => other.id !== entry.id && isSeasonContinuation(other, entry));
+    // The anchor is season 1 here, which lets the continuation check reject an entry
+    // naming another season even when the anchor's own titles name none.
+    return !franchise.some(
+      (other) =>
+        other.id !== entry.id &&
+        isSeasonContinuation(other, entry, other.id === anchor.id ? 1 : null),
+    );
   });
   if (seasons.length < season) return null;
 

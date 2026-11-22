@@ -623,6 +623,25 @@ test('a sequel naming its own season is not a back half, even with a part synony
   assert.equal(unnamed.result?.id, 2);
 });
 
+test('air order keeps a sequel naming its own season despite a part synonym', () => {
+  const anchor: AnilistSeasonMedia = {
+    id: 1,
+    episodes: 12,
+    format: 'TV',
+    seasonYear: 2020,
+    title: { english: 'Air Order Show' },
+  };
+  const sequel: AnilistSeasonMedia = {
+    id: 2,
+    episodes: 12,
+    format: 'TV',
+    seasonYear: 2022,
+    title: { english: 'Air Order Show Season 2' },
+    synonyms: ['Air Order Show Part 2'],
+  };
+  assert.equal(pickByAirOrder(anchor, 2, [anchor, sequel])?.id, 2);
+});
+
 test('a season 1 episode past its length does not move to a longer later season', async () => {
   const { result } = await resolveInChain(
     [
