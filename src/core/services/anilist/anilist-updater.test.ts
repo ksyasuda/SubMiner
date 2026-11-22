@@ -585,6 +585,11 @@ test('updateAnilistPostWatchProgress resolves later seasons through the sequel c
       });
     }
     if (call === 3) {
+      // Looks one season past the count for an entry naming season 2; there is none.
+      assert.equal(body.variables?.id, 202);
+      return createJsonResponse({ data: { Media: { relations: { edges: [] } } } });
+    }
+    if (call === 4) {
       assert.equal(body.variables?.mediaId, 202);
       return createJsonResponse({
         data: {
@@ -608,7 +613,68 @@ test('updateAnilistPostWatchProgress resolves later seasons through the sequel c
     assert.deepEqual(searchTerms, ['Demo Show']);
     assert.equal(result.status, 'updated');
     assert.match(result.message, /Demo Show Sequel/);
-    assert.equal(call, 4);
+    assert.equal(call, 5);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress writes a split-cour episode to the part that airs it', async () => {
+  const originalFetch = globalThis.fetch;
+  const saved: Array<Record<string, unknown> | undefined> = [];
+  globalThis.fetch = (async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as {
+      query: string;
+      variables?: Record<string, unknown>;
+    };
+    if (body.query.includes('Page(')) {
+      return createJsonResponse({
+        data: {
+          Page: {
+            media: [{ id: 101, episodes: 11, format: 'TV', title: { english: 'Demo Show' } }],
+          },
+        },
+      });
+    }
+    if (body.query.includes('relations')) {
+      assert.equal(body.variables?.id, 101);
+      return createJsonResponse({
+        data: {
+          Media: {
+            relations: {
+              edges: [
+                {
+                  relationType: 'SEQUEL',
+                  node: {
+                    id: 202,
+                    type: 'ANIME',
+                    episodes: 12,
+                    format: 'TV',
+                    title: { english: 'Demo Show Cour 2' },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      });
+    }
+    if (body.query.includes('SaveMediaListEntry')) {
+      saved.push(body.variables);
+      return createJsonResponse({ data: { SaveMediaListEntry: { progress: 4 } } });
+    }
+    assert.equal(body.variables?.mediaId, 202);
+    return createJsonResponse({
+      data: { Media: { id: 202, mediaListEntry: { progress: 3, status: 'CURRENT' } } },
+    });
+  }) as typeof fetch;
+
+  try {
+    // Episode 15 of an 11 + 12 season is episode 4 of the second cour's entry.
+    const result = await updateAnilistPostWatchProgress('token', 'Demo Show', 15, { season: 1 });
+    assert.equal(result.status, 'updated');
+    assert.match(result.message, /Demo Show Cour 2.*episode 4/);
+    assert.deepEqual(saved, [{ mediaId: 202, progress: 4, status: 'CURRENT' }]);
   } finally {
     globalThis.fetch = originalFetch;
   }

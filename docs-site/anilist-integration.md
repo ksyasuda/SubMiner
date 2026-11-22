@@ -26,8 +26,8 @@ On Linux, the token is stored with `gnome-libsecret` by default. If your keyring
 An episode counts as watched after 85% of its length and at least 10 minutes of playback. SubMiner then:
 
 1. Reads the title, season, and episode from the file name and folder. Install [guessit](https://github.com/guessit-io/guessit) for better parsing. A folder named `Season 2` is a strong season hint.
-2. Finds the matching AniList entry. For season 2 and later, it follows the show's sequels.
-3. Sets your progress to that episode and marks the entry Watching, or Completed on the final episode.
+2. Finds the matching AniList entry. For season 2 and later, it follows the show's sequels. Specials, movies, and the second half of a split season ("Part 2", "Cour 2") do not count as seasons, and an entry whose title names the season ("Season 3", "III") wins.
+3. Sets your progress to that episode and marks the entry Watching, or Completed on the final episode. AniList lists the second half of a split season as its own entry, so an episode past the first half goes there: episode 15 of a season split 11 + 12 is episode 4 of the second entry.
 
 If the show is not on your list yet, SubMiner adds it as Watching, but only when the file title exactly matches an AniList title or you pinned the entry with the character dictionary's AniList override. For a looser match, add the show to Planning or Watching yourself. SubMiner never changes entries marked Completed, Paused, Dropped, or Rewatching, and it never lowers your progress.
 
@@ -37,7 +37,9 @@ Failed updates are saved and retried in the background, up to 8 times with growi
 
 If a cover or title in the stats Library is wrong, open the title and use **Change AniList Entry**.
 
-If SubMiner cannot find a later season, it skips the update rather than writing progress to season 1. Pin the right entry with the character dictionary's AniList override. See [Character dictionary](/character-dictionary).
+If SubMiner cannot find a later season, it skips the update rather than writing progress to season 1. Pin the right entry with the character dictionary's AniList override. See [Character dictionary](/character-dictionary). The override is also the fix when AniList splits a season without marking the second half in any title.
+
+Library entries matched by older versions keep their match after an update. If one points at the wrong season, use **Change AniList Entry**.
 
 ## Commands
 
