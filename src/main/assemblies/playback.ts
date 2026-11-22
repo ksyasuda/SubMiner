@@ -1118,7 +1118,8 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
       aniskipEnabled: configService.getConfig().mpv.aniskipEnabled,
       aniskipButtonKey: configService.getConfig().mpv.aniskipButtonKey,
     }),
-    resolveMetadataForFile: (mediaPath) => resolveAniSkipMetadataForFile(mediaPath),
+    resolveMetadataForFile: (mediaPath, episodeLength) =>
+      resolveAniSkipMetadataForFile(mediaPath, { episodeLength }),
     sendMpvCommand: (command) => {
       appState.mpvClient?.send({ command });
     },
@@ -1163,6 +1164,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
     });
     client.on('connection-change', aniSkipRuntime.handleConnectionChange);
     client.on('media-path-change', aniSkipRuntime.handleMediaPathChange);
+    client.on('duration-change', aniSkipRuntime.handleDurationChange);
     client.on('time-pos-change', aniSkipRuntime.handleTimePosChange);
     client.on('client-message', aniSkipRuntime.handleClientMessage);
     deps.getPluginHost().attachMpvClient(client);

@@ -634,8 +634,8 @@ Settings for mpv instances that SubMiner starts, and for the bundled mpv plugin.
 | `mpv.autoStartSubMiner`      | `true`            | Start SubMiner in the background when mpv loads a file                                                  |
 | `mpv.pauseUntilOverlayReady` | `true`            | Keep mpv paused until subtitles are ready, up to 30 seconds                                             |
 | `mpv.subminerBinaryPath`     | `""`              | SubMiner app path for the plugin. Empty uses the detected path                                          |
-| `mpv.aniskipEnabled`         | `true`            | Detect intros with AniSkip and show a skip prompt                                                       |
-| `mpv.aniskipButtonKey`       | `"TAB"`           | mpv key that skips the intro while the prompt is shown                                                  |
+| `mpv.aniskipEnabled`         | `true`            | Detect intros and outros (file chapters, then AniSkip) and show a skip prompt                           |
+| `mpv.aniskipButtonKey`       | `"TAB"`           | mpv key that skips the intro or outro while it plays                                                    |
 
 ### YouTube playback settings
 
