@@ -39,6 +39,9 @@ function createHarness(options?: {
     duration: options?.duration === undefined ? 1440 : options.duration,
     timePos: 0,
     chapterList: options?.chapterList ?? [],
+    chapterListFails: false,
+    // When set, chapter-list reads wait for it before answering.
+    chapterGate: null as Promise<void> | null,
   };
 
   const deps = {
@@ -57,7 +60,11 @@ function createHarness(options?: {
       state.commands.push(command);
     },
     requestMpvProperty: async (name) => {
-      if (name === 'chapter-list') return state.chapterList;
+      if (name === 'chapter-list') {
+        if (state.chapterGate) await state.chapterGate;
+        if (state.chapterListFails) throw new Error('property unavailable');
+        return state.chapterList;
+      }
       if (name === 'duration') {
         if (state.duration === null) throw new Error('property unavailable');
         return state.duration;
@@ -393,4 +400,128 @@ test('disconnect clears bindings so reconnect rebinds the skip key', () => {
     ['keybind', 'TAB', 'script-message subminer-skip-intro'],
     ['keybind', 'TAB', 'script-message subminer-skip-intro'],
   ]);
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+test('a failed chapter-list read leaves the file chapters untouched', async () => {
+  const harness = createHarness({
+    chapterList: [{ time: 0, title: 'Prologue' }],
+    metadata: async () => {
+      harness.state.chapterListFails = true;
+      return readyMetadata();
+    },
+  });
+  harness.runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+
+  assert.equal(harness.runtime.getSkipWindows().intro?.source, 'aniskip');
+  assert.equal(chapterListCommands(harness.state.commands).length, 0);
+});
+
+test('markers are not written into a file that replaced the one being read', async () => {
+  const gate = deferred<void>();
+  let calls = 0;
+  const harness = createHarness({
+    metadata: async () => {
+      calls += 1;
+      if (calls === 1) {
+        harness.state.chapterGate = gate.promise;
+        return readyMetadata();
+      }
+      return readyMetadata({ ...NO_SKIP_TIMES, lookupStatus: 'missing_payload' });
+    },
+  });
+  harness.runtime.handleMediaPathChange({ path: '/media/a.mkv' });
+  await flushAsync();
+  // The marker write for a.mkv is waiting on its chapter-list read.
+  harness.runtime.handleMediaPathChange({ path: '/media/b.mkv' });
+  harness.state.chapterGate = null;
+  gate.resolve();
+  await flushAsync();
+  await flushAsync();
+
+  assert.deepEqual(harness.state.resolveCalls, ['/media/a.mkv', '/media/b.mkv']);
+  assert.equal(chapterListCommands(harness.state.commands).length, 0);
+});
+
+test('a file-chapter intro is usable while the AniSkip lookup is still running', async () => {
+  const lookup = deferred<AniSkipMetadata>();
+  const { runtime, state } = createHarness({
+    chapterList: [
+      { time: 0, title: 'Opening' },
+      { time: 90, title: 'Episode' },
+    ],
+    metadata: () => lookup.promise,
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+
+  assert.deepEqual(runtime.getSkipWindows(), {
+    intro: { start: 0, end: 90, source: 'chapters' },
+    outro: null,
+  });
+  runtime.handleTimePosChange({ time: 1 });
+  assert.equal(state.osd.length, 1);
+
+  lookup.resolve(
+    readyMetadata({ intro: { start: 3, end: 93 }, outro: { start: 1330, end: 1420 } }),
+  );
+  await flushAsync();
+
+  assert.deepEqual(runtime.getSkipWindows(), {
+    intro: { start: 0, end: 90, source: 'chapters' },
+    outro: { start: 1330, end: 1420, source: 'aniskip' },
+  });
+  // The intro prompt already shown is not shown again.
+  runtime.handleTimePosChange({ time: 1.5 });
+  assert.equal(state.osd.length, 1);
+});
+
+test('a lookup superseded by a refresh does not overwrite the cache', async () => {
+  const first = deferred<AniSkipMetadata>();
+  let calls = 0;
+  const { runtime, state } = createHarness({
+    metadata: () => {
+      calls += 1;
+      return calls === 1 ? first.promise : Promise.resolve(readyMetadata());
+    },
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  runtime.handleClientMessage({ args: ['subminer-aniskip-refresh'] });
+  await flushAsync();
+  first.resolve(readyMetadata({ ...NO_SKIP_TIMES, lookupStatus: 'missing_payload' }));
+  await flushAsync();
+
+  runtime.handleMediaPathChange({ path: '/media/other.mkv' });
+  await flushAsync();
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  assert.deepEqual(state.resolveCalls, ['/media/show.mkv', '/media/show.mkv', '/media/other.mkv']);
+  assert.deepEqual(runtime.getSkipWindows().intro, { start: 10, end: 95.5, source: 'aniskip' });
+});
+
+test('a same-media reload retries a transient lookup failure', async () => {
+  let calls = 0;
+  const { runtime, state } = createHarness({
+    metadata: async () => {
+      calls += 1;
+      return readyMetadata(calls === 1 ? { ...NO_SKIP_TIMES, lookupStatus: 'lookup_failed' } : {});
+    },
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  assert.deepEqual(runtime.getSkipWindows(), NO_SKIP_TIMES);
+
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  assert.equal(state.resolveCalls.length, 2);
+  assert.deepEqual(runtime.getSkipWindows().intro, { start: 10, end: 95.5, source: 'aniskip' });
 });

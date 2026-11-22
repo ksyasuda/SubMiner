@@ -81,6 +81,8 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
   let currentDuration: number | null = null;
   // True once resolution for the current media has started (or finished).
   let resolutionStarted = false;
+  // True when the last AniSkip lookup for the current media failed in a retryable way.
+  let lastLookupFailed = false;
   let windows: AniSkipWindows = { intro: null, outro: null };
   const promptShown: Record<SkipWindowKind, boolean> = { intro: false, outro: false };
   let boundButtonKey: string | null = null;
@@ -142,8 +144,15 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
     }
   }
 
+  /** True while the given request generation still owns the given media. */
+  function ownsPlayback(generation: number, mediaPath: string): boolean {
+    return generation === requestGeneration && mediaPath === currentMediaPath;
+  }
+
   /** Replaces SubMiner's marker chapters with ones for the AniSkip-sourced windows. */
   async function setSkipChapters(): Promise<void> {
+    const generation = requestGeneration;
+    const mediaPath = currentMediaPath;
     const markers: MpvChapter[] = [];
     for (const kind of ['intro', 'outro'] as const) {
       const window = windows[kind];
@@ -153,7 +162,10 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
       markers.push({ time: window.end, title: `${ANISKIP_CHAPTER_PREFIX}${label} End` });
     }
     if (markers.length === 0) return;
-    const existing = (await readChapterList()) ?? [];
+    const existing = await readChapterList();
+    // A failed read must not wipe the file's chapters, and a read that finished
+    // after the media changed must not write into the next file.
+    if (!existing || !ownsPlayback(generation, mediaPath)) return;
     const chapters = existing.filter((chapter) => !isAniSkipChapter(chapter)).concat(markers);
     chapters.sort((a, b) => {
       const aTime = typeof a.time === 'number' ? a.time : 0;
@@ -165,8 +177,10 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
 
   async function removeSkipChapters(): Promise<void> {
     if (!deps.isMpvConnected()) return;
+    const generation = requestGeneration;
+    const mediaPath = currentMediaPath;
     const existing = await readChapterList();
-    if (!existing) return;
+    if (!existing || !ownsPlayback(generation, mediaPath)) return;
     const filtered = existing.filter((chapter) => !isAniSkipChapter(chapter));
     if (filtered.length !== existing.length) {
       deps.sendMpvCommand(['set_property', 'chapter-list', filtered]);
@@ -176,31 +190,57 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
   function clearState(): void {
     requestGeneration += 1;
     resolutionStarted = false;
+    lastLookupFailed = false;
     windows = { intro: null, outro: null };
     promptShown.intro = false;
     promptShown.outro = false;
   }
 
-  async function applyWindows(next: AniSkipWindows, malId: number | null): Promise<void> {
+  function logWindow(kind: SkipWindowKind, window: AniSkipWindow, malId: number | null): void {
+    deps.logInfo(
+      `AniSkip ${kind} window ${window.start.toFixed(3)} -> ${window.end.toFixed(3)} (source=${
+        window.source
+      }, MAL ${malId ?? '-'})`,
+    );
+  }
+
+  /** Installs the file-chapter windows, resetting the prompts. */
+  function applyChapterWindows(next: AniSkipWindows): void {
     windows = next;
     promptShown.intro = false;
     promptShown.outro = false;
-    await setSkipChapters();
     for (const kind of ['intro', 'outro'] as const) {
       const window = next[kind];
-      if (!window) continue;
-      deps.logInfo(
-        `AniSkip ${kind} window ${window.start.toFixed(3)} -> ${window.end.toFixed(3)} (source=${
-          window.source
-        }, MAL ${malId ?? '-'})`,
-      );
+      if (window) logWindow(kind, window, null);
     }
+  }
+
+  /**
+   * Fills the windows the chapters lacked from AniSkip, leaving the chapter
+   * windows (and whether their prompt was shown) untouched.
+   */
+  async function mergeAniSkipWindows(lookup: AniSkipLookupResult): Promise<void> {
+    const added: SkipWindowKind[] = [];
+    for (const kind of ['intro', 'outro'] as const) {
+      const interval = lookup[kind];
+      if (windows[kind] || !interval) continue;
+      windows = { ...windows, [kind]: { ...interval, source: 'aniskip' } };
+      promptShown[kind] = false;
+      added.push(kind);
+    }
+    if (added.length === 0) return;
+    for (const kind of added) {
+      const window = windows[kind];
+      if (window) logWindow(kind, window, lookup.malId);
+    }
+    await setSkipChapters();
   }
 
   /** Looks up AniSkip, using the cache for definitive answers. Null means a retryable failure. */
   async function lookUpAniSkip(
     mediaPath: string,
     duration: number,
+    generation: number,
   ): Promise<AniSkipLookupResult | null> {
     const cached = lookupCache.get(mediaPath);
     if (cached) return cached;
@@ -221,8 +261,9 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
       deps.logInfo(`AniSkip lookup failed for "${metadata.title}"; will retry on next load`);
       return null;
     }
-    // Every other status is definitive (a 404 or an unmatched title), so cache it.
-    lookupCache.set(mediaPath, result);
+    // Every other status is definitive (a 404 or an unmatched title), so cache it,
+    // unless a refresh or media change superseded this lookup while it ran.
+    if (generation === requestGeneration) lookupCache.set(mediaPath, result);
     if (metadata.lookupStatus !== 'ready') {
       deps.logInfo(
         `AniSkip: no skip times for "${metadata.title}" (status=${metadata.lookupStatus ?? 'unknown'})`,
@@ -242,21 +283,18 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
       intro: fromChapters.intro ? { ...fromChapters.intro, source: 'chapters' } : null,
       outro: fromChapters.outro ? { ...fromChapters.outro, source: 'chapters' } : null,
     };
-    if (next.intro && next.outro) {
-      await applyWindows(next, null);
-      return;
-    }
+    // Chapter windows work right away; AniSkip only fills what they lack.
+    applyChapterWindows(next);
+    if (next.intro && next.outro) return;
     if (isRemoteMediaPath(mediaPath)) {
       deps.logDebug('AniSkip lookup skipped for remote media; using file chapters only');
-      await applyWindows(next, null);
       return;
     }
 
-    const lookup = await lookUpAniSkip(mediaPath, duration);
+    const lookup = await lookUpAniSkip(mediaPath, duration, generation);
     if (isStale()) return;
-    if (!next.intro && lookup?.intro) next.intro = { ...lookup.intro, source: 'aniskip' };
-    if (!next.outro && lookup?.outro) next.outro = { ...lookup.outro, source: 'aniskip' };
-    await applyWindows(next, lookup?.malId ?? null);
+    lastLookupFailed = lookup === null;
+    if (lookup) await mergeAniSkipWindows(lookup);
   }
 
   /** Starts resolution once the current media has both a path and a known duration. */
@@ -342,6 +380,12 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
   function handleMediaPathChange({ path }: { path: string }): void {
     const nextPath = typeof path === 'string' ? path : '';
     if (nextPath === currentMediaPath && resolutionStarted) {
+      if (lastLookupFailed) {
+        // The last lookup failed transiently; a reload is the retry.
+        clearState();
+        maybeStartResolution();
+        return;
+      }
       // Same-media reload: mpv rebuilt the chapter list, so re-apply markers.
       void setSkipChapters().catch(() => {});
       return;

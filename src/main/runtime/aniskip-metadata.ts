@@ -315,15 +315,21 @@ async function fetchJson(url: string): Promise<unknown> {
 }
 
 let lastAniSkipRequestAt = 0;
+let aniSkipRequestQueue: Promise<void> = Promise.resolve();
 
-async function waitForAniSkipRequestSlot(): Promise<void> {
-  const waitMs = lastAniSkipRequestAt + ANISKIP_MIN_REQUEST_GAP_MS - Date.now();
-  if (waitMs > 0) {
-    lastAniSkipRequestAt += ANISKIP_MIN_REQUEST_GAP_MS;
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-    return;
-  }
-  lastAniSkipRequestAt = Date.now();
+/**
+ * Resolves when the caller may send its AniSkip request. Callers are released
+ * one at a time, each at least ANISKIP_MIN_REQUEST_GAP_MS after the previous
+ * release, so timers that fire late cannot release a burst.
+ */
+function waitForAniSkipRequestSlot(): Promise<void> {
+  const slot = aniSkipRequestQueue.then(async () => {
+    const waitMs = lastAniSkipRequestAt + ANISKIP_MIN_REQUEST_GAP_MS - Date.now();
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    lastAniSkipRequestAt = Date.now();
+  });
+  aniSkipRequestQueue = slot;
+  return slot;
 }
 
 async function resolveMalIdFromTitle(title: string, season: number | null): Promise<number | null> {
