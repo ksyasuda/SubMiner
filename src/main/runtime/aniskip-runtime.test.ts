@@ -525,3 +525,35 @@ test('a same-media reload retries a transient lookup failure', async () => {
   assert.equal(state.resolveCalls.length, 2);
   assert.deepEqual(runtime.getSkipWindows().intro, { start: 10, end: 95.5, source: 'aniskip' });
 });
+
+test('a failed chapter-list read is retried on the next duration change or reload', async () => {
+  const stream = 'https://jellyfin.example/Videos/1/stream.mkv';
+  const chapters = [
+    { time: 0, title: 'OP' },
+    { time: 90, title: 'Episode' },
+  ];
+  for (const retry of ['duration', 'reload'] as const) {
+    const { runtime, state } = createHarness({ chapterList: chapters });
+    state.chapterListFails = true;
+    runtime.handleMediaPathChange({ path: stream });
+    await flushAsync();
+    assert.deepEqual(runtime.getSkipWindows(), NO_SKIP_TIMES);
+
+    state.chapterListFails = false;
+    if (retry === 'duration') runtime.handleDurationChange({ duration: 1440 });
+    else runtime.handleMediaPathChange({ path: stream });
+    await flushAsync();
+    assert.deepEqual(runtime.getSkipWindows().intro, { start: 0, end: 90, source: 'chapters' });
+  }
+});
+
+test('a successful empty chapter list is not read again on a duration change', async () => {
+  const { runtime, state } = createHarness({
+    metadata: readyMetadata({ ...NO_SKIP_TIMES, lookupStatus: 'missing_payload' }),
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  runtime.handleDurationChange({ duration: 1441 });
+  await flushAsync();
+  assert.equal(state.resolveCalls.length, 1);
+});

@@ -81,8 +81,10 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
   let currentDuration: number | null = null;
   // True once resolution for the current media has started (or finished).
   let resolutionStarted = false;
-  // True when the last AniSkip lookup for the current media failed in a retryable way.
-  let lastLookupFailed = false;
+  // True when resolution for the current media hit a retryable failure (the
+  // chapter-list read or the AniSkip lookup), so a reload or duration change
+  // runs it again.
+  let retryResolution = false;
   let windows: AniSkipWindows = { intro: null, outro: null };
   const promptShown: Record<SkipWindowKind, boolean> = { intro: false, outro: false };
   let boundButtonKey: string | null = null;
@@ -190,7 +192,7 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
   function clearState(): void {
     requestGeneration += 1;
     resolutionStarted = false;
-    lastLookupFailed = false;
+    retryResolution = false;
     windows = { intro: null, outro: null };
     promptShown.intro = false;
     promptShown.outro = false;
@@ -277,8 +279,11 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
     const generation = requestGeneration;
     const isStale = () => generation !== requestGeneration || mediaPath !== currentMediaPath;
 
-    const fromChapters = classifyChapterSkipIntervals(await readChapterList(), duration);
+    const chapterList = await readChapterList();
     if (isStale()) return;
+    // A failed read is retried later; a successful empty list is a final answer.
+    if (chapterList === null) retryResolution = true;
+    const fromChapters = classifyChapterSkipIntervals(chapterList ?? [], duration);
     const next: AniSkipWindows = {
       intro: fromChapters.intro ? { ...fromChapters.intro, source: 'chapters' } : null,
       outro: fromChapters.outro ? { ...fromChapters.outro, source: 'chapters' } : null,
@@ -293,7 +298,7 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
 
     const lookup = await lookUpAniSkip(mediaPath, duration, generation);
     if (isStale()) return;
-    lastLookupFailed = lookup === null;
+    if (lookup === null) retryResolution = true;
     if (lookup) await mergeAniSkipWindows(lookup);
   }
 
@@ -374,14 +379,15 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
   function handleDurationChange({ duration }: { duration: number }): void {
     if (!isUsableDuration(duration) || !currentMediaPath) return;
     currentDuration = duration;
+    if (retryResolution) clearState();
     maybeStartResolution();
   }
 
   function handleMediaPathChange({ path }: { path: string }): void {
     const nextPath = typeof path === 'string' ? path : '';
     if (nextPath === currentMediaPath && resolutionStarted) {
-      if (lastLookupFailed) {
-        // The last lookup failed transiently; a reload is the retry.
+      if (retryResolution) {
+        // The last resolution failed transiently; a reload is the retry.
         clearState();
         maybeStartResolution();
         return;
