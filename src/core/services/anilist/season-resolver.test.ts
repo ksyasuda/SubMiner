@@ -581,6 +581,72 @@ test('an episode past a season with no continuation is not moved into the next s
   assert.equal(result?.episodeEntry, null);
 });
 
+test('a sequel naming its own season is not a back half, even with a part synonym', async () => {
+  const sequel: AnilistSeasonMedia = {
+    id: 2,
+    episodes: 12,
+    format: 'TV',
+    seasonYear: 2022,
+    title: { english: 'Part Synonym Show Season 2' },
+    synonyms: ['Part Synonym Show Part 2'],
+  };
+  // The anchor names season 1 itself...
+  const named = await resolveInChain(
+    [
+      {
+        id: 1,
+        episodes: 12,
+        format: 'TV',
+        seasonYear: 2020,
+        title: { english: 'Part Synonym Show' },
+        synonyms: ['Part Synonym Show Season 1'],
+      },
+      sequel,
+    ],
+    { title: 'Part Synonym Show', season: 2 },
+  );
+  assert.equal(named.result?.id, 2);
+  // ...or is season 1 because the walk starts there.
+  const unnamed = await resolveInChain(
+    [
+      {
+        id: 1,
+        episodes: 12,
+        format: 'TV',
+        seasonYear: 2020,
+        title: { english: 'Part Synonym Show' },
+      },
+      sequel,
+    ],
+    { title: 'Part Synonym Show', season: 2 },
+  );
+  assert.equal(unnamed.result?.id, 2);
+});
+
+test('a season 1 episode past its length does not move to a longer later season', async () => {
+  const { result } = await resolveInChain(
+    [
+      {
+        id: 1,
+        episodes: 12,
+        format: 'TV',
+        seasonYear: 2020,
+        title: { english: 'Long Later Show' },
+      },
+      {
+        id: 2,
+        episodes: 24,
+        format: 'TV',
+        seasonYear: 2022,
+        title: { english: 'Long Later Show Season 2' },
+      },
+    ],
+    { title: 'Long Later Show', season: 1, episode: 20 },
+  );
+  assert.equal(result?.id, 1);
+  assert.equal(result?.episodeEntry, null);
+});
+
 test('a sequel that repeats its predecessor name is still a new season', async () => {
   // No part marker, so the identical title must not be read as a continuation.
   const chain: AnilistSeasonMedia[] = [

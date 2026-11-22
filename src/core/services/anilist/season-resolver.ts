@@ -342,12 +342,29 @@ function formatRank(media: AnilistSeasonMedia): number {
  * AniList did not number. "Part 1" never marks a back half, and a season's own marker is
  * only stripped when it is "Part 1" (AoT season 3 carries "... ภาค 3 Part 1"); stripping
  * any number would read JoJo's "Part 6" as a continuation of its "Part 5".
+ *
+ * An entry naming a season never continues a different one: "Show Season 2" with the
+ * synonym "Show Part 2" is season 2, not a back half of "Show". The season `seasonStart`
+ * stands for is taken from its own titles, else from `startSeason` when the caller
+ * knows it (the chain walk counts it, the episode remap was asked for it).
  */
-function isSeasonContinuation(seasonStart: AnilistSeasonMedia, next: AnilistSeasonMedia): boolean {
+function isSeasonContinuation(
+  seasonStart: AnilistSeasonMedia,
+  next: AnilistSeasonMedia,
+  startSeason: number | null = null,
+): boolean {
   const markers = mediaTitles(next)
     .map((title) => splitPartMarker(title))
     .filter((marker): marker is NonNullable<typeof marker> => marker !== null && marker.part !== 1);
   if (markers.length === 0) return false;
+
+  const nextSeasons = namedSeasons(next);
+  if (nextSeasons.size > 0) {
+    const startNamed = namedSeasons(seasonStart);
+    const startSeasons =
+      startNamed.size > 0 ? startNamed : startSeason !== null ? new Set([startSeason]) : null;
+    if (startSeasons && ![...nextSeasons].some((value) => startSeasons.has(value))) return false;
+  }
 
   const seasonKeys = new Set<string>();
   for (const title of mediaTitles(seasonStart)) {
@@ -503,7 +520,7 @@ async function walkSequelChain(
     if (!isSeasonEntry(next)) continue;
 
     const named = namedSeasons(next);
-    if (isSeasonContinuation(seasonStart, next)) {
+    if (isSeasonContinuation(seasonStart, next, advances + 1)) {
       // A back half naming the requested season ("Season 3 Part 2") vouches for the
       // entry its season started on.
       if (named.has(season)) return { media: seasonStart, via: 'named-season' };
@@ -537,6 +554,7 @@ async function walkSequelChain(
  */
 async function findEpisodeEntry(
   seasonEntry: AnilistSeasonMedia,
+  season: number,
   episode: number,
   sequelsOf: SequelLookup,
 ): Promise<{ media: AnilistSeasonMedia; episode: number } | null> {
@@ -557,7 +575,7 @@ async function findEpisodeEntry(
     current = next;
     // A recap special between the two halves airs none of the season's episodes.
     if (!isSeasonEntry(next)) continue;
-    if (!isSeasonContinuation(seasonEntry, next)) return null;
+    if (!isSeasonContinuation(seasonEntry, next, season)) return null;
 
     remaining -= episodeCount(lastPart) ?? 0;
     lastPart = next;
@@ -694,15 +712,18 @@ export async function resolveAnilistSeasonMedia(
 
   if (season === null || season <= 1) {
     // The best title match first. If the episode runs past it, a split-cour continuation
-    // may air it ("S1E15" of 11 + 12); only when none does is the episode count used to
-    // pick a different, longer entry (a TV series over a same-titled movie).
+    // may air it ("S1E15" of 11 + 12). Only when none does, and the title match is not a
+    // season itself (a same-titled movie or special), is the episode count used to pick
+    // a longer entry; it must not swap season 1 for a later, longer season.
     const titleAnchor = pickAnchorMedia(searchTitle, media);
     if (!titleAnchor) return null;
     if (episode === null) return finish(titleAnchor, 'anchor');
-    const split = await findEpisodeEntry(titleAnchor, episode, sequelsOf);
+    const split = await findEpisodeEntry(titleAnchor, 1, episode, sequelsOf);
     if (split) return finish(titleAnchor, 'anchor', split);
-    const fitted = pickAnchorMedia(searchTitle, media, { episode }) ?? titleAnchor;
-    return finish(fitted, 'anchor');
+    if (isSeasonEntry(titleAnchor)) return finish(titleAnchor, 'anchor');
+    const fitted = pickAnchorMedia(searchTitle, media, { episode });
+    const laterSeason = fitted !== null && [...namedSeasons(fitted)].some((value) => value > 1);
+    return finish(fitted && !laterSeason ? fitted : titleAnchor, 'anchor');
   }
 
   // Later seasons must not filter by episode, because the anchor is season 1 and may be
@@ -720,7 +741,8 @@ export async function resolveAnilistSeasonMedia(
     deps.logInfo?.(
       `[anilist] season ${season} of "${searchTitle}" resolved via ${via}: ${displayTitle(seasonEntry, searchTitle)} (${seasonEntry.id})`,
     );
-    const split = episode === null ? null : await findEpisodeEntry(seasonEntry, episode, sequelsOf);
+    const split =
+      episode === null ? null : await findEpisodeEntry(seasonEntry, season, episode, sequelsOf);
     return finish(seasonEntry, via, split);
   }
 
