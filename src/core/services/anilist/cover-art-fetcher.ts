@@ -1,4 +1,5 @@
 import type { AnilistRateLimiter } from './rate-limiter';
+import { AnilistRateLimitedError, executeAnilistQuery } from './anilist-graphql';
 import type { DatabaseSync } from '../immersion-tracker/sqlite';
 import {
   getAnimeCoverArt,
@@ -20,7 +21,6 @@ import { getVideoTmdbLink, linkAnimeToTmdbTitle } from '../immersion-tracker/liv
 import type { LiveActionMetadataResolver } from '../tmdb/live-action-resolver';
 import type { TmdbTitleDetails } from '../tmdb/tmdb-client';
 
-const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 const NO_MATCH_RETRY_MS = 5 * 60 * 1000;
 
 export interface CoverArtFetcher {
@@ -74,47 +74,6 @@ export function stripFilenameTags(raw: string): string {
   title = title.replace(/\s*-\s*[\w]+$/, '');
 
   return title.trim().replace(/\s{2,}/g, ' ');
-}
-
-class AnilistRateLimitedError extends Error {
-  constructor() {
-    super('Anilist rate limit reached');
-    this.name = 'AnilistRateLimitedError';
-  }
-}
-
-async function executeAnilistQuery<T>(
-  rateLimiter: AnilistRateLimiter,
-  query: string,
-  variables: Record<string, unknown>,
-): Promise<T> {
-  await rateLimiter.acquire();
-
-  const res = await fetch(ANILIST_GRAPHQL_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  rateLimiter.recordResponse(res.headers);
-
-  if (res.status === 429) {
-    throw new AnilistRateLimitedError();
-  }
-
-  if (!res.ok) {
-    throw new Error(`Anilist search failed: ${res.status} ${res.statusText}`);
-  }
-
-  const json = (await res.json()) as { data?: T; errors?: Array<{ message?: string }> };
-  const firstError = json.errors?.find((entry) => Boolean(entry?.message));
-  if (firstError?.message) {
-    throw new Error(firstError.message);
-  }
-  if (!json.data) {
-    throw new Error('Anilist response missing data');
-  }
-  return json.data;
 }
 
 async function downloadImage(url: string): Promise<Buffer | null> {

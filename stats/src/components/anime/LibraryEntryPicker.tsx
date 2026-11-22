@@ -12,6 +12,8 @@ interface LibraryEntryPickerProps {
   excludeAnimeIds?: number[];
   /** When set, only entries of this kind are offered. */
   mediaKind?: MediaKind;
+  /** Further narrows the entries offered. */
+  filter?: (entry: AnimeLibraryItem) => boolean;
   initialQuery?: string;
   busyAnimeId?: number | null;
   error?: string | null;
@@ -23,6 +25,7 @@ export function LibraryEntryPicker({
   heading,
   excludeAnimeIds = [],
   mediaKind,
+  filter,
   initialQuery = '',
   busyAnimeId = null,
   error = null,
@@ -74,9 +77,10 @@ export function LibraryEntryPicker({
     return (entries ?? [])
       .filter((entry) => !excluded.has(entry.animeId))
       .filter((entry) => mediaKind === undefined || shareTitleNamespace(entry.mediaKind, mediaKind))
+      .filter((entry) => filter === undefined || filter(entry))
       .filter((entry) => !term || entry.canonicalTitle.toLowerCase().includes(term))
       .sort((a, b) => b.lastWatchedMs - a.lastWatchedMs);
-  }, [entries, excluded, mediaKind, query]);
+  }, [entries, excluded, mediaKind, filter, query]);
 
   return (
     <div

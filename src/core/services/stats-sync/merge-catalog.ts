@@ -15,6 +15,8 @@ const ANIME_COPY_COLUMNS = [
   'tmdb_id',
   'tmdb_type',
   'metadata_json',
+  'group_override',
+  'group_override_updated_at',
   'CREATED_DATE',
   'LAST_UPDATE_DATE',
 ] as const;
@@ -146,6 +148,13 @@ export function mergeAnime(
        END
      WHERE anime_id = ?`,
   );
+  // The franchise override holds AniList ids (or 0 / NULL), so it needs no id
+  // remapping. The side that set or cleared it last wins.
+  const takeNewerGroupOverride = local.query(
+    `UPDATE imm_anime SET group_override = ?, group_override_updated_at = ?
+     WHERE anime_id = ? AND (group_override_updated_at IS NULL
+       OR CAST(group_override_updated_at AS INTEGER) < CAST(? AS INTEGER))`,
+  );
 
   for (const row of selectAll(
     remote,
@@ -195,6 +204,14 @@ export function mergeAnime(
         row.media_kind,
         localId,
       );
+      if (row.group_override_updated_at !== null) {
+        takeNewerGroupOverride.run(
+          row.group_override,
+          row.group_override_updated_at,
+          localId,
+          row.group_override_updated_at,
+        );
+      }
       continue;
     }
     // Conflicting providers can share a title, but the stored title key is

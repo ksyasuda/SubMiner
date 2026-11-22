@@ -4,6 +4,18 @@ import { createLogger } from '../../logger';
 import { sanitizeMediaTitle, toMediaIdentityPath } from '../../shared/media-identity';
 import { MediaGenerator } from '../../media-generator';
 import type { CoverArtFetcher } from './anilist/cover-art-fetcher';
+import type { AnilistRelationFetcher } from './anilist/franchise-relation-fetcher';
+import {
+  createFranchiseRelationRefresher,
+  type FranchiseRelationRefresher,
+} from './immersion-tracker/franchise-relation-refresher';
+import {
+  getAnimeGroupPlacement,
+  getAnimeLibraryGroups,
+  setAnimeGroupOverride,
+  type AnimeGroupOverrideResult,
+  type AnimeGroupOverrideTarget,
+} from './immersion-tracker/query-library-groups';
 import { getLocalVideoMetadata, guessAnimeVideoMetadata } from './immersion-tracker/metadata';
 import {
   pruneRawRetention,
@@ -61,6 +73,7 @@ import type {
   StatsTrendGroupBy,
   StatsTrendRange,
 } from '../../types/stats-http-contract';
+import type { AnimeGroupPlacement, AnimeLibraryGroup } from '../../types/stats-wire';
 import {
   getKanjiAnimeAppearances,
   getKanjiDetail,
@@ -452,6 +465,7 @@ export class ImmersionTrackerService {
   private readonly mediaGenerator = new MediaGenerator();
   private readonly preparedStatements: TrackerPreparedStatements;
   private coverArtFetcher: CoverArtFetcher | null = null;
+  private franchiseRelations: FranchiseRelationRefresher | null = null;
   private readonly pendingCoverFetches = new Map<number, Promise<boolean>>();
   private readonly pendingYoutubeMetadataFetches = new Map<number, Promise<void>>();
   private readonly recordedSubtitleKeys = new Set<string>();
@@ -621,6 +635,7 @@ export class ImmersionTrackerService {
     }
     this.finalizeActiveSession();
     this.isDestroyed = true;
+    this.franchiseRelations?.stop();
     this.deleteMaintenanceScheduler.destroy();
     this.destroyDeleteMaintenanceRunner();
     this.destroyVocabularySummaryRunner();
@@ -831,6 +846,27 @@ export class ImmersionTrackerService {
   async getAnimeLibrary(): Promise<AnimeLibraryRow[]> {
     this.relinkYoutubeAnimeLibrary();
     return getAnimeLibrary(this.db);
+  }
+
+  /** The library as franchise cards; also schedules a background AniList relation refresh. */
+  async getAnimeLibraryGroups(): Promise<AnimeLibraryGroup[]> {
+    this.relinkYoutubeAnimeLibrary();
+    const groups = getAnimeLibraryGroups(this.db);
+    this.franchiseRelations?.requestRefresh();
+    return groups;
+  }
+
+  async getAnimeGroupPlacement(animeId: number): Promise<AnimeGroupPlacement | null> {
+    return getAnimeGroupPlacement(this.db, animeId);
+  }
+
+  async setAnimeGroupOverride(
+    animeId: number,
+    target: AnimeGroupOverrideTarget,
+  ): Promise<AnimeGroupOverrideResult> {
+    const result = setAnimeGroupOverride(this.db, animeId, target);
+    if (result.ok) this.franchiseRelations?.requestRefresh({ force: true });
+    return result;
   }
 
   async getAnimeMergeRecommendations(): Promise<AnimeMergeRecommendation[]> {
@@ -1122,6 +1158,7 @@ export class ImmersionTrackerService {
       this.db.exec('ROLLBACK');
       throw error;
     }
+    this.franchiseRelations?.requestRefresh({ force: true });
   }
 
   /**
@@ -1248,6 +1285,19 @@ export class ImmersionTrackerService {
     this.coverArtFetcher = fetcher;
   }
 
+  /** Enables franchise grouping refreshes; null disables them (tests, offline runs). */
+  setAnilistRelationFetcher(fetcher: AnilistRelationFetcher | null): void {
+    this.franchiseRelations?.stop();
+    this.franchiseRelations = fetcher
+      ? createFranchiseRelationRefresher({
+          db: this.db,
+          fetcher,
+          logger: createLogger('immersion-tracker:franchise-relations'),
+        })
+      : null;
+    this.franchiseRelations?.requestRefresh();
+  }
+
   async ensureAnimeCoverArt(animeId: number): Promise<boolean> {
     const existing = await this.getAnimeCoverArt(animeId);
     if (existing?.coverBlob) {
@@ -1300,6 +1350,8 @@ export class ImmersionTrackerService {
       if (!fetched) {
         return false;
       }
+      // A fresh AniList link may join this entry to a franchise card.
+      this.franchiseRelations?.requestRefresh({ force: true });
       const cover = await this.getCoverArt(videoId);
       return cover?.coverBlob != null;
     })();

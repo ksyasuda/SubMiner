@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { ImmersionTrackerService } from '../../core/services';
 import { createCoverArtFetcher } from '../../core/services/anilist/cover-art-fetcher';
+import { createAnilistRelationFetcher } from '../../core/services/anilist/franchise-relation-fetcher';
 import type { createAnilistRateLimiter } from '../../core/services/anilist/rate-limiter';
 import { resolveLegacyVocabularyPosFromTokens } from '../../core/services/immersion-tracker/legacy-vocabulary-pos';
 import type { StatsWindowOptions } from '../../core/services/stats-window';
@@ -172,6 +173,8 @@ export function createStatsAssembly(deps: StatsAssemblyDeps) {
     },
   );
 
+  const anilistRelationFetcher = createAnilistRelationFetcher(deps.anilistRateLimiter);
+
   // One options object serves the overlay's IPC toggle and the session-action toggle.
   const statsOverlayOptions: StatsWindowOptions = {
     preloadPath: path.join(deps.mainDirname, 'preload-stats.js'),
@@ -235,6 +238,7 @@ export function createStatsAssembly(deps: StatsAssemblyDeps) {
 
       appState.immersionTracker = tracker as ImmersionTrackerService | null;
       appState.immersionTracker?.setCoverArtFetcher(coverArtFetcher);
+      appState.immersionTracker?.setAnilistRelationFetcher(anilistRelationFetcher);
       if (tracker) {
         // Start HTTP stats server
         if (!appState.statsServer) {

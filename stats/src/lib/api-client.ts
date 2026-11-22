@@ -3,6 +3,7 @@ import type {
   StatsExcludedWord,
   StatsCoverImagesData,
   StatsAnilistAssignment,
+  StatsAnimeGroupOverrideRequest,
   StatsAnkiNotesInfoRequest,
   StatsCoverImagesRequest,
   StatsDeleteSessionsRequest,
@@ -163,6 +164,7 @@ export const apiClient = {
   getMediaLibrary: () => fetchJson('mediaLibrary', '/api/stats/media'),
   getMediaDetail: (videoId: number) => fetchJson('mediaDetail', `/api/stats/media/${videoId}`),
   getAnimeLibrary: () => fetchJson('animeLibrary', '/api/stats/anime'),
+  getAnimeLibraryGroups: () => fetchJson('animeLibraryGroups', '/api/stats/anime/groups'),
   getAnimeMergeRecommendations: () =>
     fetchJson('animeMergeRecommendations', '/api/stats/anime/merge-recommendations'),
   getAnimeDetail: (animeId: number) => fetchJson('animeDetail', `/api/stats/anime/${animeId}`),
@@ -267,6 +269,16 @@ export const apiClient = {
       body: JSON.stringify({ animeId } satisfies StatsMoveVideoRequest),
     });
     return res.json() as Promise<StatsMoveVideoResponse>;
+  },
+  setAnimeGroupOverride: async (
+    animeId: number,
+    request: StatsAnimeGroupOverrideRequest,
+  ): Promise<void> => {
+    await fetchResponse(`/api/stats/anime/${animeId}/group`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request satisfies StatsAnimeGroupOverrideRequest),
+    });
   },
   dismissAnimeMergeRecommendation: async (recommendationId: number): Promise<void> => {
     await fetchResponse(`/api/stats/anime/merge-recommendations/${recommendationId}`, {

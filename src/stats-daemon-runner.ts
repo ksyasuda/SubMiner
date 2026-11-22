@@ -6,6 +6,7 @@ import { ConfigService } from './config/service';
 import { createLogger, setLogLevel } from './logger';
 import { ImmersionTrackerService } from './core/services/immersion-tracker-service';
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
+import { createAnilistRelationFetcher } from './core/services/anilist/franchise-relation-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
 import { createTmdbClient, createTmdbApiKeyResolver } from './core/services/tmdb/tmdb-client';
@@ -212,11 +213,14 @@ async function main(): Promise<void> {
         () => bundledTmdbApiKey,
       ),
     });
+    // Cover art and franchise relations share one AniList request budget.
+    const anilistRateLimiter = createAnilistRateLimiter();
     tracker.setCoverArtFetcher(
-      createCoverArtFetcher(createAnilistRateLimiter(), createLogger('stats-daemon:cover-art'), {
+      createCoverArtFetcher(anilistRateLimiter, createLogger('stats-daemon:cover-art'), {
         liveAction: createLiveActionMetadataResolver(tmdbClient, createLogger('stats-daemon:tmdb')),
       }),
     );
+    tracker.setAnilistRelationFetcher(createAnilistRelationFetcher(anilistRateLimiter));
 
     statsServer = await startStatsServer({
       port: config.stats.serverPort,

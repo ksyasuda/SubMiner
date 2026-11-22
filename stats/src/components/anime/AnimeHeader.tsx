@@ -1,9 +1,17 @@
 import { AnimeCoverImage } from './AnimeCoverImage';
-import type { AnimeDetailData, AnilistEntry } from '../../types/stats';
+import type { AnimeDetailData, AnimeGroupPlacement, AnilistEntry } from '../../types/stats';
+
+const SECONDARY_BUTTON_CLASS =
+  'inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-overlay2 hover:bg-ctp-surface2 hover:text-ctp-subtext0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
 interface AnimeHeaderProps {
   detail: AnimeDetailData['detail'];
   anilistEntries: AnilistEntry[];
+  /** The franchise card this entry is listed under; null hides the grouping actions. */
+  group?: AnimeGroupPlacement | null;
+  onMoveToGroup?: () => void;
+  onSetGroupMode?: (mode: 'standalone' | 'anilist') => void;
+  groupBusy?: boolean;
   coverRetryToken?: number;
   onChangeAnilist?: () => void;
   onChangeTmdb?: () => void;
@@ -33,6 +41,10 @@ function AnilistButton({ entry }: { entry: AnilistEntry }) {
 export function AnimeHeader({
   detail,
   anilistEntries,
+  group = null,
+  onMoveToGroup,
+  onSetGroupMode,
+  groupBusy = false,
   coverRetryToken = 0,
   onChangeAnilist,
   onChangeTmdb,
@@ -52,6 +64,9 @@ export function AnimeHeader({
       ? `https://www.themoviedb.org/${detail.tmdbType}/${detail.tmdbId}`
       : null;
   const coverCacheToken = (detail.anilistId ?? detail.tmdbId ?? 0) * 1_000_000 + coverRetryToken;
+  // Only anime entries are grouped by AniList relations.
+  const placement = detail.mediaKind === 'anime' ? group : null;
+  const otherParts = placement ? placement.partCount - 1 : 0;
 
   return (
     <div className="flex gap-4">
@@ -80,6 +95,11 @@ export function AnimeHeader({
             </span>
           )}
         </div>
+        {placement && otherParts > 0 && (
+          <div className="text-xs text-ctp-overlay2 mt-1">
+            Listed under {placement.title} with {otherParts} other part{otherParts !== 1 ? 's' : ''}
+          </div>
+        )}
         <div className="flex flex-wrap gap-1.5 mt-2">
           {tmdbUrl && (
             <a
@@ -138,6 +158,42 @@ export function AnimeHeader({
               {tmdbUrl ? 'Change TMDB Title' : 'Link to TMDB'}
             </button>
           )}
+          {placement && onMoveToGroup && (
+            <button
+              type="button"
+              onClick={onMoveToGroup}
+              disabled={groupBusy}
+              title="List this entry with another anime's seasons and movies"
+              className={SECONDARY_BUTTON_CLASS}
+            >
+              {'Move to Another Anime\u2026'}
+            </button>
+          )}
+          {placement && onSetGroupMode && placement.overrideMode !== 'anilist' && (
+            <button
+              type="button"
+              onClick={() => onSetGroupMode('anilist')}
+              disabled={groupBusy}
+              title="Undo a manual move and group this entry by its AniList relations"
+              className={SECONDARY_BUTTON_CLASS}
+            >
+              Put Back Where AniList Has It
+            </button>
+          )}
+          {placement &&
+            onSetGroupMode &&
+            placement.overrideMode === 'anilist' &&
+            otherParts > 0 && (
+              <button
+                type="button"
+                onClick={() => onSetGroupMode('standalone')}
+                disabled={groupBusy}
+                title="List this entry as its own card instead of with its franchise"
+                className={SECONDARY_BUTTON_CLASS}
+              >
+                Show On Its Own
+              </button>
+            )}
           {onDeleteAnime && (
             <button
               type="button"

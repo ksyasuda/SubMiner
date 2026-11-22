@@ -6,6 +6,7 @@ import { apiClient } from '../../lib/api-client';
 import type { AnimeDetailData, AnimeLibraryItem } from '../../types/stats';
 import { AnimeTab } from './AnimeTab';
 import { installDom } from '../../test-utils/dom';
+import { singleGroupLibrary } from '../../test-utils/library';
 
 function libraryItem(anilistId: number | null): AnimeLibraryItem {
   return {
@@ -51,6 +52,7 @@ function detailData(anilistId: number | null): AnimeDetailData {
     },
     episodes: [],
     anilistEntries: [],
+    group: null,
   };
 }
 
@@ -65,7 +67,7 @@ function findButton(container: Element, label: string): HTMLElement {
 test('AnimeTab refetches the library after the AniList entry is relinked', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeDetail: apiClient.getAnimeDetail,
     getAnimeWords: apiClient.getAnimeWords,
     getAnimeRollups: apiClient.getAnimeRollups,
@@ -79,10 +81,10 @@ test('AnimeTab refetches the library after the AniList entry is relinked', async
   let anilistId: number | null = 14813;
   let libraryFetches = 0;
 
-  apiClient.getAnimeLibrary = (async () => {
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => {
     libraryFetches += 1;
     return [libraryItem(anilistId)];
-  }) as typeof apiClient.getAnimeLibrary;
+  });
   apiClient.getAnimeDetail = (async () => detailData(anilistId)) as typeof apiClient.getAnimeDetail;
   apiClient.getAnimeWords = (async () => []) as typeof apiClient.getAnimeWords;
   apiClient.getAnimeRollups = (async () => []) as typeof apiClient.getAnimeRollups;
@@ -150,8 +152,8 @@ test('AnimeTab refetches the library after the AniList entry is relinked', async
 
 test('AnimeTab watch time follows the displayed kind filter', async () => {
   const uninstallDom = installDom();
-  const original = apiClient.getAnimeLibrary;
-  apiClient.getAnimeLibrary = async () => [
+  const original = apiClient.getAnimeLibraryGroups;
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => [
     { ...libraryItem(42), totalActiveMs: 3600000 },
     {
       ...libraryItem(null),
@@ -162,7 +164,7 @@ test('AnimeTab watch time follows the displayed kind filter', async () => {
       tmdbType: 'tv',
       totalActiveMs: 7200000,
     },
-  ];
+  ]);
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
@@ -180,7 +182,7 @@ test('AnimeTab watch time follows the displayed kind filter', async () => {
     await act(async () => {
       root.unmount();
     });
-    apiClient.getAnimeLibrary = original;
+    apiClient.getAnimeLibraryGroups = original;
     uninstallDom();
   }
 });
@@ -188,10 +190,10 @@ test('AnimeTab watch time follows the displayed kind filter', async () => {
 test('Library kind filter separates YouTube channels from anime and updates totals', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
   };
-  apiClient.getAnimeLibrary = async () => [
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => [
     { ...libraryItem(null), totalActiveMs: 60_000 },
     {
       ...libraryItem(null),
@@ -200,7 +202,7 @@ test('Library kind filter separates YouTube channels from anime and updates tota
       canonicalTitle: 'Language Channel',
       totalActiveMs: 120_000,
     },
-  ];
+  ]);
   apiClient.getAnimeMergeRecommendations = async () => ({ recommendations: [] });
   const container = document.createElement('div');
   document.body.append(container);

@@ -1,5 +1,6 @@
 import type {
   AnimeDetailData,
+  AnimeLibraryGroup,
   AnimeLibraryItem,
   AnimeWord,
   DailyRollup,
@@ -187,6 +188,16 @@ export interface StatsMoveVideoRequest {
   animeId: number;
 }
 
+/**
+ * Body of `PUT /api/stats/anime/:animeId/group`: list the entry with another
+ * entry's franchise (`join`), on its own (`standalone`), or where AniList's
+ * relations put it (`anilist`, which clears the override).
+ */
+export type StatsAnimeGroupOverrideRequest =
+  | { mode: 'join'; targetAnimeId: number }
+  | { mode: 'standalone' }
+  | { mode: 'anilist' };
+
 export interface StatsAnimeMergeRecommendation {
   recommendationId: number;
   animeIds: [number, number];
@@ -251,6 +262,7 @@ export interface StatsJsonResponseMap {
   mediaLibrary: MediaLibraryItem[];
   mediaDetail: MediaDetailData;
   animeLibrary: AnimeLibraryItem[];
+  animeLibraryGroups: AnimeLibraryGroup[];
   animeMergeRecommendations: StatsAnimeMergeRecommendationsResponse;
   animeDetail: AnimeDetailData;
   animeWords: AnimeWord[];
@@ -262,6 +274,7 @@ export interface StatsJsonResponseMap {
   deleteAnime: StatsOkResponse;
   mergeAnime: StatsMergeAnimeResponse;
   moveVideoToAnime: StatsMoveVideoResponse;
+  setAnimeGroupOverride: StatsOkResponse;
   dismissAnimeMergeRecommendation: StatsOkResponse;
   anilistSearch: StatsAnilistSearchResult[];
   tmdbSearch: StatsTmdbSearchResult[];
@@ -330,6 +343,7 @@ export interface StatsHttpClient {
   getMediaLibrary: () => Promise<MediaLibraryItem[]>;
   getMediaDetail: (videoId: number) => Promise<MediaDetailData>;
   getAnimeLibrary: () => Promise<AnimeLibraryItem[]>;
+  getAnimeLibraryGroups: () => Promise<AnimeLibraryGroup[]>;
   getAnimeMergeRecommendations: () => Promise<StatsAnimeMergeRecommendationsResponse>;
   getAnimeDetail: (animeId: number) => Promise<AnimeDetailData>;
   getAnimeWords: (animeId: number, limit?: number) => Promise<AnimeWord[]>;
@@ -356,6 +370,10 @@ export interface StatsHttpClient {
   deleteAnime: (animeId: number) => Promise<void>;
   mergeAnime: (targetAnimeId: number, sourceAnimeIds: number[]) => Promise<StatsMergeAnimeResponse>;
   moveVideoToAnime: (videoId: number, animeId: number) => Promise<StatsMoveVideoResponse>;
+  setAnimeGroupOverride: (
+    animeId: number,
+    request: StatsAnimeGroupOverrideRequest,
+  ) => Promise<void>;
   dismissAnimeMergeRecommendation: (recommendationId: number) => Promise<void>;
   getKnownWords: () => Promise<string[]>;
   getKnownWordsSummary: () => Promise<StatsKnownWordsSummary>;

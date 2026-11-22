@@ -338,6 +338,7 @@ function createMockTracker(
     hasAnime: async (animeId: number) => animeId === 1,
     getAnimeEpisodes: async () => ANIME_EPISODES,
     getAnimeAnilistEntries: async () => [],
+    getAnimeGroupPlacement: async () => null,
     getAnimeWords: async () => ANIME_WORDS,
     getAnimeDailyRollups: async () => DAILY_ROLLUPS,
     getEpisodesPerDay: async () => EPISODES_PER_DAY,
@@ -712,7 +713,7 @@ const MALFORMED_IDS = [
 
 /** Every route that takes a positive resource id; `:id` is replaced per request. */
 const ID_ROUTES: Array<{
-  method: 'GET' | 'DELETE' | 'PATCH' | 'POST';
+  method: 'GET' | 'DELETE' | 'PATCH' | 'POST' | 'PUT';
   path: string;
   body?: unknown;
 }> = [
@@ -739,6 +740,7 @@ const ID_ROUTES: Array<{
   { method: 'PATCH', path: '/api/stats/anime/:id/anilist', body: { anilistId: 21858 } },
   { method: 'PATCH', path: '/api/stats/anime/:id/tmdb', body: { tmdbId: 12, tmdbType: 'tv' } },
   { method: 'POST', path: '/api/stats/anime/:id/merge', body: { sourceAnimeIds: [8] } },
+  { method: 'PUT', path: '/api/stats/anime/:id/group', body: { mode: 'standalone' } },
   { method: 'POST', path: '/api/stats/anki/browse?noteId=:id' },
 ];
 
@@ -2427,6 +2429,50 @@ describe('stats server API routes', () => {
       assert.equal(res.status, 400);
     }
     assert.equal(mergeCalls, 0);
+  });
+
+  it('PUT /api/stats/anime/:animeId/group validates the body and maps refusals', async () => {
+    const calls: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        setAnimeGroupOverride: async (animeId, target) => {
+          calls.push([animeId, target]);
+          if (target.mode === 'join' && target.targetAnimeId === 9) {
+            return { ok: false, reason: 'target-not-grouped' };
+          }
+          if (animeId === 404) return { ok: false, reason: 'not-found' };
+          return { ok: true };
+        },
+      }),
+    );
+    const put = (path: string, body: unknown) =>
+      app.request(path, { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(body) });
+
+    for (const body of [
+      {},
+      { mode: 'join' },
+      { mode: 'join', targetAnimeId: 0 },
+      { mode: 'join', targetAnimeId: '8' },
+      { mode: 'join', targetAnimeId: 3 },
+      { mode: 'reset' },
+    ]) {
+      assert.equal((await put('/api/stats/anime/3/group', body)).status, 400, JSON.stringify(body));
+    }
+    assert.deepEqual(calls, []);
+
+    assert.equal(
+      (await put('/api/stats/anime/3/group', { mode: 'join', targetAnimeId: 8 })).status,
+      200,
+    );
+    assert.equal((await put('/api/stats/anime/3/group', { mode: 'anilist' })).status, 200);
+    assert.equal((await put('/api/stats/anime/404/group', { mode: 'standalone' })).status, 404);
+    const refused = await put('/api/stats/anime/3/group', { mode: 'join', targetAnimeId: 9 });
+    assert.equal(refused.status, 409);
+    assert.match((await refused.json()).error, /no AniList entry/);
+    assert.deepEqual(calls.slice(0, 2), [
+      [3, { mode: 'join', targetAnimeId: 8 }],
+      [3, { mode: 'anilist' }],
+    ]);
   });
 
   it('PATCH /api/stats/media/:videoId/anime moves the episode to another entry', async () => {
