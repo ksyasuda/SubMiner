@@ -4,7 +4,13 @@ import * as os from 'os';
 import * as path from 'path';
 import test from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
-import { getSnapshotPath, readSnapshot, writeSnapshot } from './cache';
+import {
+  getSnapshotPath,
+  readCachedMediaResolution,
+  readSnapshot,
+  writeCachedMediaResolution,
+  writeSnapshot,
+} from './cache';
 import { CHARACTER_DICTIONARY_FORMAT_VERSION } from './constants';
 import type { CharacterDictionarySnapshot } from './types';
 
@@ -120,4 +126,21 @@ test('readSnapshot ignores snapshots written with an older format version', asyn
   fs.writeFileSync(snapshotPath, JSON.stringify(staleSnapshot), 'utf8');
 
   assert.equal(await readSnapshot(snapshotPath), null);
+});
+
+test('media resolutions cached before the season resolver fix are re-resolved', () => {
+  const outputDir = makeTempDir();
+  const cachePath = path.join(outputDir, 'anilist-resolution-cache.json');
+  // Written by the old resolver, which counted "Season 2 Part 2" as season 3.
+  fs.writeFileSync(
+    cachePath,
+    JSON.stringify({
+      entries: [{ seriesKey: 'mushoku-tensei-s3', mediaId: 166873, mediaTitle: 'Part 2' }],
+    }),
+  );
+  assert.equal(readCachedMediaResolution(outputDir, 'mushoku-tensei-s3'), null);
+
+  const entry = { seriesKey: 'mushoku-tensei-s3', mediaId: 178789, mediaTitle: 'Season 3' };
+  writeCachedMediaResolution(outputDir, entry);
+  assert.deepEqual(readCachedMediaResolution(outputDir, 'mushoku-tensei-s3'), entry);
 });
