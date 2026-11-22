@@ -155,6 +155,7 @@ import { createSyncAssembly } from './main/assemblies/sync';
 import { createYoutubeAssembly } from './main/assemblies/youtube';
 import { createOverlayModalsAssembly } from './main/assemblies/overlay-modals';
 import { createFirstRunSetupAssembly } from './main/assemblies/first-run-setup';
+import { appendManagedFfmpegToPath, getManagedFfmpegDir } from './core/services/managed-ffmpeg';
 import { createOverlayAssembly } from './main/assemblies/overlay';
 import { createYomitanAssembly } from './main/assemblies/yomitan';
 import { createStatsAssembly } from './main/assemblies/stats';
@@ -428,6 +429,8 @@ const {
   appState,
   appLifecycleApp,
 } = bootServices;
+// Before any ffmpeg/ffprobe spawn: a system FFmpeg stays first, the setup-page download fills in.
+appendManagedFfmpegToPath(process.env, getManagedFfmpegDir(CONFIG_DIR));
 // Backend changes take effect on restart; windows and parser must share one session.
 const activeDictionaryBackend = configService.getConfig().dictionaryBackend;
 const yomitan = createYomitanAssembly({
@@ -688,6 +691,7 @@ const firstRunSetup = createFirstRunSetupAssembly({
   ensureYomitanExtensionLoaded: () => yomitan.ensureExtensionLoaded(),
   getYomitanParserRuntimeDeps: () => yomitan.getParserRuntimeDeps(),
   createCommandLineLauncherRuntimeOptions: () => createCommandLineLauncherRuntimeOptions(),
+  waitForLoginShellPath: () => loginShellPathReady,
   getAppPath: (name) => app.getPath(name),
   trashItem: (targetPath) => shell.trashItem(targetPath),
   writeShortcutLink: (shortcutPath, operation, details) =>

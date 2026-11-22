@@ -12,7 +12,7 @@ Getting started takes three steps:
 
 ## 1. Install requirements
 
-Only mpv is required. Install ffmpeg too unless you are fine with cards that have no audio or screenshot.
+Only mpv is required. Install ffmpeg too unless you are fine with cards that have no audio or screenshot. If you skip it, first-run setup can download a copy for SubMiner.
 
 | Dependency               | Needed for                                                                                                           | Platforms    |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------ |
@@ -124,7 +124,7 @@ mpv --version
 ffmpeg -version
 ```
 
-ffmpeg must be on `PATH`, because SubMiner runs it by name to make card audio and screenshots. mpv does not have to be. If `mpv --version` says `not recognized`, find `mpv.exe` (usually in `%LOCALAPPDATA%\Programs\mpv`) and either add that folder to `PATH` or enter the full path to `mpv.exe` during first-run setup (`mpv.executablePath`).
+ffmpeg must be on `PATH`, because SubMiner runs it by name to make card audio and screenshots. Otherwise, use the FFmpeg download in first-run setup. mpv does not have to be. If `mpv --version` says `not recognized`, find `mpv.exe` (usually in `%LOCALAPPDATA%\Programs\mpv`) and either add that folder to `PATH` or enter the full path to `mpv.exe` during first-run setup (`mpv.executablePath`).
 
 <details>
 <summary><b>Alternative: Scoop (no admin rights, includes xz)</b></summary>
@@ -262,8 +262,9 @@ Setup walks you through:
 
 1. **Config file.** Created at `~/.config/SubMiner/config.jsonc` (Linux and macOS) or `%APPDATA%\SubMiner\config.jsonc` (Windows).
 2. **Yomitan dictionaries.** Import at least one dictionary, or lookups will not work. SubMiner's Yomitan is separate from any Yomitan in your browser.
-3. **The `subminer` command** (optional). Setup installs it into a folder already on your `PATH`. If there is none on Linux or macOS, it uses `~/.local/bin` and shows the `export PATH=...` line to add to your shell config. On Windows it adds `%LOCALAPPDATA%\SubMiner\bin` to your user `PATH`.
-4. **SubMiner mpv shortcut** (Windows only). A Start menu or desktop shortcut that opens mpv with SubMiner attached.
+3. **FFmpeg** (optional). If `ffmpeg` and `ffprobe` are on your `PATH` and run, there is nothing to do. Otherwise **Download FFmpeg** saves a static build to `tools/ffmpeg/` next to your config file. SubMiner and the `subminer` command use it only when FFmpeg is missing from `PATH`, so a system install always takes priority.
+4. **The `subminer` command** (optional). Setup installs it into a folder already on your `PATH`. If there is none on Linux or macOS, it uses `~/.local/bin` and shows the `export PATH=...` line to add to your shell config. On Windows it adds `%LOCALAPPDATA%\SubMiner\bin` to your user `PATH`.
+5. **SubMiner mpv shortcut** (Windows only). A Start menu or desktop shortcut that opens mpv with SubMiner attached.
 
 **Finish setup** unlocks once the config exists and at least one dictionary is imported. To reopen setup later, run `subminer app --setup`.
 

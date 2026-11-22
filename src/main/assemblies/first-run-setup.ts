@@ -1,6 +1,12 @@
 import os from 'node:os';
 import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron';
 import type { ConfigService } from '../../config/service';
+import {
+  appendManagedFfmpegToPath,
+  detectFfmpeg,
+  getManagedFfmpegDir,
+  installManagedFfmpeg,
+} from '../../core/services/managed-ffmpeg';
 import { getYomitanDictionaryInfo } from '../../core/services';
 import { requestHachidoriSharing } from '../../core/services/tokenizer/yomitan-parser-runtime';
 import type { Logger } from '../../logger';
@@ -62,6 +68,8 @@ export interface FirstRunSetupAssemblyDeps {
   getYomitanParserRuntimeDeps: () => YomitanParserRuntimeDeps;
   /** Resolves the launcher options after the login-shell PATH is applied. */
   createCommandLineLauncherRuntimeOptions: () => Promise<CommandLineLauncherRuntimeOptions>;
+  /** Resolves once the macOS login-shell PATH is merged, so FFmpeg detection sees it. */
+  waitForLoginShellPath: () => Promise<void>;
   getAppPath: (name: 'appData' | 'desktop') => string;
   trashItem: (targetPath: string) => Promise<void>;
   writeShortcutLink: Parameters<typeof applyWindowsMpvShortcuts>[0]['writeShortcutLink'];
@@ -83,6 +91,23 @@ export type FirstRunSetupAssembly = ReturnType<typeof createFirstRunSetupAssembl
 export function createFirstRunSetupAssembly(deps: FirstRunSetupAssemblyDeps) {
   const { appState, configService, logger } = deps;
   let firstRunSetupMessage: string | null = null;
+  const managedFfmpegDir = getManagedFfmpegDir(deps.configDir);
+  // Shared by repeat clicks so a second press never starts a parallel download.
+  let ffmpegInstall: Promise<string> | null = null;
+  const installFfmpeg = (): Promise<string> =>
+    (ffmpegInstall ??= installManagedFfmpeg({ managedDir: managedFfmpegDir })
+      .then(() => {
+        appendManagedFfmpegToPath(process.env, managedFfmpegDir);
+        logger.info(`[ffmpeg] Downloaded FFmpeg to ${managedFfmpegDir}`);
+        return 'FFmpeg downloaded. SubMiner uses it whenever FFmpeg is not on PATH.';
+      })
+      .catch((error: unknown) => {
+        logger.error('[ffmpeg] FFmpeg download failed', error);
+        return `FFmpeg download failed: ${error instanceof Error ? error.message : String(error)}`;
+      })
+      .finally(() => {
+        ffmpegInstall = null;
+      }));
   const resolveWindowsMpvShortcutRuntimePaths = () =>
     resolveWindowsMpvShortcutPaths({
       appDataDir: deps.getAppPath('appData'),
@@ -232,6 +257,9 @@ export function createFirstRunSetupAssembly(deps: FirstRunSetupAssemblyDeps) {
         mpvExecutablePathStatus: getConfiguredWindowsMpvPathStatus(mpvExecutablePath),
         windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
         commandLineLauncher: snapshot.commandLineLauncher,
+        ffmpeg: await deps
+          .waitForLoginShellPath()
+          .then(() => detectFfmpeg({ managedDir: managedFfmpegDir })),
         message: firstRunSetupMessage,
       };
     },
@@ -302,6 +330,10 @@ export function createFirstRunSetupAssembly(deps: FirstRunSetupAssemblyDeps) {
       if (submission.action === 'install-command-line-launcher') {
         const snapshot = await firstRunSetupService.installCommandLineLauncher();
         firstRunSetupMessage = snapshot.message;
+        return;
+      }
+      if (submission.action === 'install-ffmpeg') {
+        firstRunSetupMessage = await installFfmpeg();
         return;
       }
       if (submission.action === 'open-yomitan-settings') {

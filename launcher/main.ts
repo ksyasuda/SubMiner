@@ -1,6 +1,11 @@
 import path from 'node:path';
 import packageJson from '../package.json';
 import { applyLogFileTogglesToEnv } from '../src/shared/log-files.js';
+import { getDefaultConfigDir } from '../src/shared/setup-state.js';
+import {
+  appendManagedFfmpegToPath,
+  getManagedFfmpegDir,
+} from '../src/core/services/managed-ffmpeg.js';
 import {
   loadLauncherJellyfinConfig,
   loadLauncherLoggingConfig,
@@ -65,6 +70,8 @@ function ensureAppPath(context: LauncherCommandContext): string {
 async function main(): Promise<void> {
   const scriptPath = process.argv[1] || 'subminer';
   const scriptName = path.basename(scriptPath);
+  // Same PATH rule as the app: dependency checks and spawned tools see a setup-page FFmpeg.
+  appendManagedFfmpegToPath(process.env, getManagedFfmpegDir(getDefaultConfigDir()));
   const launcherConfig = loadLauncherYoutubeSubgenConfig();
   const launcherMpvConfig = loadLauncherMpvConfig();
   const launcherLoggingConfig = loadLauncherLoggingConfig();

@@ -121,7 +121,7 @@ SubMiner runs on Linux, macOS 11+, and Windows 10+. Only **mpv** is required to 
 | mpv                      | Required         | The video player SubMiner draws over                                 |
 | fuse2                    | Required (Linux) | Running the AppImage                                                 |
 | Anki + AnkiConnect       | Required to mine | Card creation from the Yomitan popup                                 |
-| ffmpeg                   | Recommended      | Audio clips and screenshots on cards                                 |
+| ffmpeg                   | Recommended      | Card audio and screenshots (first-run setup can download it)         |
 | MeCab + mecab-ipadic     | Recommended      | More accurate N+1, JLPT, and frequency highlighting                  |
 | xdotool + xwininfo       | Required (X11)   | Window tracking on desktops other than Hyprland or Sway              |
 | yt-dlp                   | Optional         | YouTube playback                                                     |

@@ -1,3 +1,4 @@
+import type { FfmpegSetupStatus } from '../../core/services/managed-ffmpeg';
 import type { HachidoriHostStatus } from '../../shared/hachidori-sharing';
 import type { DictionaryBackend } from '../../types/config';
 import { getFirstRunSetupCompletionMessage } from './first-run-setup-service';
@@ -34,6 +35,7 @@ export type FirstRunSetupSubmission =
         | 'remove-legacy-plugin'
         | 'install-bun'
         | 'install-command-line-launcher'
+        | 'install-ffmpeg'
         | 'open-yomitan-settings'
         | 'open-config-settings'
         | 'refresh'
@@ -63,6 +65,7 @@ export interface FirstRunSetupHtmlModel {
     status: 'installed' | 'optional' | 'skipped' | 'failed';
   };
   commandLineLauncher: CommandLineLauncherSnapshot;
+  ffmpeg: FfmpegSetupStatus;
   message: string | null;
 }
 
@@ -152,6 +155,56 @@ function renderCommandLineLauncherSection(
         </div>
       </div>
     </section>`;
+}
+
+function renderFfmpegCard(ffmpeg: FfmpegSetupStatus): string {
+  const lines: string[] = [];
+  let badge: string;
+  let showDownload = false;
+  if (ffmpeg.kind === 'ready') {
+    lines.push(
+      ffmpeg.source === 'system'
+        ? 'Found on your system. Nothing to do.'
+        : 'Using the copy SubMiner downloaded. Nothing to do.',
+      `FFmpeg: ${ffmpeg.ffmpegPath}`,
+      `FFprobe: ${ffmpeg.ffprobePath}`,
+    );
+    badge = renderStatusBadge(ffmpeg.source === 'system' ? 'Detected' : 'Downloaded', 'ready');
+  } else if (ffmpeg.kind === 'missing') {
+    lines.push(`Not found on PATH: ${ffmpeg.missing.join(', ')}.`);
+    lines.push(
+      ffmpeg.downloadable
+        ? 'Download a copy for SubMiner (under 60 MB), or install FFmpeg yourself and refresh.'
+        : 'No download is available for this platform. Install FFmpeg, then refresh.',
+    );
+    badge = renderStatusBadge('Missing', 'warn');
+    showDownload = ffmpeg.downloadable;
+  } else {
+    lines.push(`${ffmpeg.path} failed to run: ${ffmpeg.message}`);
+    lines.push(
+      ffmpeg.managed
+        ? 'Download it again to repair the copy SubMiner downloaded.'
+        : 'Repair or remove that FFmpeg install, then refresh.',
+    );
+    badge = renderStatusBadge('Not working', 'danger');
+    showDownload = ffmpeg.managed && ffmpeg.downloadable;
+  }
+  // The button relabels itself because the page only re-renders once the download finishes.
+  const downloadButton = showDownload
+    ? `<div class="inline-actions"><button onclick="this.disabled = true; this.textContent = 'Downloading FFmpeg...'; window.location.href='subminer://first-run-setup?action=install-ffmpeg'">${ffmpeg.kind === 'broken' ? 'Download FFmpeg again' : 'Download FFmpeg'}</button></div>`
+    : '';
+  return `
+    <div class="card block">
+      <div class="card-head">
+        <div>
+          <strong>FFmpeg</strong>
+          <div class="meta">Used for card audio and screenshots, and subtitle generation.</div>
+          ${lines.map((line) => `<div class="meta">${escapeHtml(line)}</div>`).join('')}
+        </div>
+        ${badge}
+      </div>
+      ${downloadButton}
+    </div>`;
 }
 
 export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
@@ -535,6 +588,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       ${renderStatusBadge(yomitanBadgeLabel, yomitanBadgeTone)}
     </div>
     ${hostCard}
+    ${renderFfmpegCard(model.ffmpeg)}
     ${mpvExecutablePathCard}
     ${windowsShortcutCard}
     ${renderCommandLineLauncherSection(model.commandLineLauncher)}
@@ -566,6 +620,7 @@ export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSu
     action !== 'configure-windows-mpv-shortcuts' &&
     action !== 'install-bun' &&
     action !== 'install-command-line-launcher' &&
+    action !== 'install-ffmpeg' &&
     action !== 'open-yomitan-settings' &&
     action !== 'open-config-settings' &&
     action !== 'refresh' &&
