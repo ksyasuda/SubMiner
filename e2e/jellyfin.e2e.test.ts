@@ -21,7 +21,7 @@ after(async () => {
   if (clipsDir) fs.rmSync(clipsDir, { recursive: true, force: true });
 });
 
-type PlaylistEntry = { filename: string; current?: boolean };
+type PlaylistEntry = { filename: string; current?: boolean; title?: string };
 
 // The episode ids in mpv's playlist, the current one marked with `*`.
 async function playlistIds(mpv: E2eSession['mpv']): Promise<string[]> {
@@ -79,6 +79,19 @@ test(
       timeoutMs: 30_000,
     });
     assert.ok(reported('playing', 'ep2') >= 0, 'Jellyfin hears ep2 start');
+    // mpv's playlist lists entry titles, not stream URLs carrying the API key.
+    const titles = [
+      'E2E Show S01E01 Episode 1',
+      'E2E Show S01E02 Episode 2',
+      'E2E Show S01E03 Episode 3',
+    ];
+    await waitUntil(
+      async () => {
+        const playlist = (await mpv.command('get_property', 'playlist')) as PlaylistEntry[];
+        return playlist.map((entry) => entry.title).join('|') === titles.join('|');
+      },
+      { description: 'queued playlist entries titled like the playing episode', timeoutMs: 10_000 },
+    );
 
     await mpv.command('playlist-next');
     await waitUntil(() => reported('playing', 'ep3') >= 0, {

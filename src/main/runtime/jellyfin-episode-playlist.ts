@@ -7,6 +7,8 @@ export type JellyfinPlaylistEntry = {
   playbackUrl: string;
   /** Per-file mpv options, applied whenever mpv starts this entry. */
   loadfileOptions: string;
+  /** Shown in mpv's playlist, which otherwise lists the stream URL and its API key. */
+  title: string;
 };
 
 export type JellyfinEpisodePlaylistSettings = {
@@ -132,28 +134,23 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
       if (index < currentIndex) currentAt -= 1;
     }
 
+    // Each insert is followed by its title, sent while the entry is still at that index.
+    const insertEntry = (entry: Entry, index: number) => {
+      deps.sendMpvCommand([
+        'loadfile',
+        entry.playbackUrl,
+        'insert-at',
+        index,
+        entry.loadfileOptions,
+      ]);
+      deps.sendMpvCommand(['set_property', `playlist/${index}/title`, entry.title]);
+      queued.set(entry.playbackUrl, { context, entry });
+    };
     queued = new Map([[current.playbackUrl, { context, entry: current }]]);
-    next.forEach((entry, offset) => {
-      deps.sendMpvCommand([
-        'loadfile',
-        entry.playbackUrl,
-        'insert-at',
-        currentAt + 1 + offset,
-        entry.loadfileOptions,
-      ]);
-      queued.set(entry.playbackUrl, { context, entry });
-    });
+    deps.sendMpvCommand(['set_property', `playlist/${currentAt}/title`, current.title]);
+    next.forEach((entry, offset) => insertEntry(entry, currentAt + 1 + offset));
     // Each insert before the current entry pushes it one slot later.
-    previous.forEach((entry, offset) => {
-      deps.sendMpvCommand([
-        'loadfile',
-        entry.playbackUrl,
-        'insert-at',
-        currentAt + offset,
-        entry.loadfileOptions,
-      ]);
-      queued.set(entry.playbackUrl, { context, entry });
-    });
+    previous.forEach((entry, offset) => insertEntry(entry, currentAt + offset));
     deps.sendMpvCommand([
       'script-message',
       MANAGED_PLAYLIST_ENTRIES_SCRIPT_MESSAGE,

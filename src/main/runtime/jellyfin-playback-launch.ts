@@ -121,6 +121,7 @@ function resolveEffectiveStartTimeTicks(
 type JellyfinPreparedPlayback = {
   itemId: string;
   seriesId: string | null;
+  title: string;
   plan: JellyfinPlaybackPlan;
   playbackUrl: string;
   loadfileOptions: string;
@@ -173,6 +174,7 @@ function prepareJellyfinPlayback(
   return {
     itemId,
     seriesId: plan.seriesId,
+    title: plan.title,
     plan,
     playbackUrl: stripManagedSubtitleStreamFromPlaybackUrl(playbackUrlBase),
     loadfileOptions: buildJellyfinLoadfileOptions(

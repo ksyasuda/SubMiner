@@ -41,13 +41,14 @@ const entry = (itemId: string): Entry => ({
   seriesId: 'series',
   playbackUrl: url(itemId),
   loadfileOptions: `opts-${itemId}`,
+  title: `Show ${itemId}`,
 });
 
 /** mpv's playlist, kept in sync with the commands the queue sends. */
 function makeHarness(
   settings: JellyfinEpisodePlaylistSettings = { enabled: true, maxEpisodes: 3 },
 ) {
-  const playlist: Array<{ filename: string; current: boolean }> = [];
+  const playlist: Array<{ filename: string; current: boolean; title?: string }> = [];
   const commands: Array<Array<string | number>> = [];
   let episodeListCalls = 0;
   const queue = createJellyfinEpisodePlaylist<null, Entry>({
@@ -63,6 +64,10 @@ function makeHarness(
       if (command[0] === 'playlist-remove') playlist.splice(Number(command[1]), 1);
       if (command[0] === 'loadfile') {
         playlist.splice(Number(command[3]), 0, { filename: String(command[1]), current: false });
+      }
+      const titleIndex = /^playlist\/(\d+)\/title$/.exec(String(command[1]))?.[1];
+      if (command[0] === 'set_property' && titleIndex !== undefined) {
+        playlist[Number(titleIndex)]!.title = String(command[2]);
       }
     },
     logDebug: () => {},
@@ -80,6 +85,7 @@ function makeHarness(
     playing,
     episodeListCalls: () => episodeListCalls,
     filenames: () => playlist.map((item) => item.filename),
+    titles: () => playlist.map((item) => item.title),
   };
 }
 
@@ -104,6 +110,7 @@ test('queueNeighbors inserts the episode window around the current entry', async
     url('e4'),
     url('e2'),
   ]);
+  assert.deepEqual(harness.titles(), ['Show e2', 'Show e3', 'Show e4']);
   assert.equal(harness.queue.find(url('e4'))?.entry.itemId, 'e4');
   assert.equal(harness.queue.find(url('e5')), null);
 });
@@ -117,6 +124,7 @@ test('queueNeighbors slides the window when mpv moves to a queued episode', asyn
   await harness.queue.queueNeighbors(null, entry('e4'));
 
   assert.deepEqual(harness.filenames(), [url('e3'), url('e4'), url('e5')]);
+  assert.deepEqual(harness.titles(), ['Show e3', 'Show e4', 'Show e5']);
   assert.equal(harness.queue.find(url('e2')), null);
   assert.equal(harness.episodeListCalls(), 1, 'series order is reused while navigating');
 });
