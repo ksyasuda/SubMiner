@@ -89,6 +89,7 @@ function makeHarness(options: { plan?: Partial<JellyfinPlaybackPlan>; deps?: Par
       return reporter;
     },
     reportPlaybackSuperseded: async () => {},
+    waitForStopReports: async () => {},
     getEpisodePlaylistSettings: () => ({ enabled: true, maxEpisodes: 3 }),
     listSeriesEpisodeIds: async () => [],
     readMpvPlaylist: async () => [],
@@ -386,7 +387,19 @@ function makeSeriesHarness() {
   const statsMetadata: Array<{ itemId: string }> = [];
   const superseded: string[] = [];
   let active: ActiveJellyfinRemotePlaybackState | null = null;
+  // Stop reports in flight, from the superseded handler or `startGenericStop`.
+  const stopsInFlight = new Set<Promise<void>>();
   const pendingSupersededStops: Array<() => void> = [];
+  const trackStop = () => {
+    let release = () => {};
+    const stop = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    stopsInFlight.add(stop);
+    void stop.then(() => stopsInFlight.delete(stop));
+    pendingSupersededStops.push(release);
+    return stop;
+  };
   const harness = makeHarness({
     deps: {
       resolvePlaybackPlan: async ({ itemId }) =>
@@ -403,9 +416,10 @@ function makeSeriesHarness() {
       },
       reportPlaybackSuperseded: (playback) => {
         superseded.push(playback.itemId);
-        return new Promise<void>((resolve) => {
-          pendingSupersededStops.push(resolve);
-        });
+        return trackStop();
+      },
+      waitForStopReports: async () => {
+        while (stopsInFlight.size > 0) await Promise.all([...stopsInFlight]);
       },
       recordJellyfinPlaybackMetadata: (metadata) => void statsMetadata.push(metadata),
     },
@@ -431,6 +445,12 @@ function makeSeriesHarness() {
     active: () => active,
     // Completes the oldest stop report still in flight.
     releaseSupersededStop: () => pendingSupersededStops.shift()?.(),
+    // The generic stop handler, run when mpv reports an empty path between files: it clears
+    // the active playback and reports its stop on its own.
+    startGenericStop: () => {
+      active = null;
+      void trackStop();
+    },
     // What the Jellyfin assembly does with each new mpv path.
     mpvPathChanged: (path: string) => {
       if (harness.handler.adoptQueuedEpisode(path)) return;
@@ -509,7 +529,7 @@ test('playback handler takes over a queued episode mpv starts from its playlist'
   assert.equal(harness.handler.adoptQueuedEpisode('https://elsewhere.example/video.mkv'), false);
 });
 
-test('playback handler serializes stops when episodes switch faster than Jellyfin answers', async () => {
+test('playback handler starts an episode only after every stop in flight and skips switched-away ones', async () => {
   const harness = makeSeriesHarness();
   await harness.play({ itemId: 'item-1' });
   harness.mpvPathChanged(harness.streamUrl('item-1'));
@@ -519,15 +539,14 @@ test('playback handler serializes stops when episodes switch faster than Jellyfi
   harness.mpvPathChanged(harness.streamUrl('item-2'));
   harness.mpvPathChanged(harness.streamUrl('item-1'));
   await harness.flush();
-  assert.deepEqual(harness.superseded, ['item-1'], 'the second stop waits for the first');
+  assert.deepEqual(harness.superseded, ['item-1', 'item-2']);
 
   harness.releaseSupersededStop();
   await harness.flush();
-  assert.deepEqual(harness.superseded, ['item-1', 'item-2']);
   assert.deepEqual(
     harness.reports.map((report) => report.itemId),
     ['item-1'],
-    'the skipped-over episode never reports playing',
+    'the start waits for the stop still in flight',
   );
 
   harness.releaseSupersededStop();
@@ -535,6 +554,31 @@ test('playback handler serializes stops when episodes switch faster than Jellyfi
   assert.deepEqual(
     harness.reports.map((report) => report.itemId),
     ['item-1', 'item-1'],
-    'the episode mpv returned to starts once every earlier stop is in',
+    'the skipped-over episode never reports playing; the one mpv returned to does',
+  );
+});
+
+test('playback handler waits for a stop the empty path between files triggered', async () => {
+  const harness = makeSeriesHarness();
+  await harness.play({ itemId: 'item-1' });
+  harness.mpvPathChanged(harness.streamUrl('item-1'));
+  harness.handler.handlePlaybackTimePos();
+  await harness.flush();
+
+  // Past the startup grace, mpv's empty path stops item-1 before item-2's path arrives.
+  harness.startGenericStop();
+  harness.mpvPathChanged(harness.streamUrl('item-2'));
+  await harness.flush();
+  assert.deepEqual(harness.superseded, [], 'nothing was active to supersede');
+  assert.deepEqual(
+    harness.reports.map((report) => report.itemId),
+    ['item-1'],
+  );
+
+  harness.releaseSupersededStop();
+  await harness.flush();
+  assert.deepEqual(
+    harness.reports.map((report) => report.itemId),
+    ['item-1', 'item-2'],
   );
 });

@@ -44,6 +44,8 @@ export type JellyfinRemoteComposerResult = ComposerOutputs<{
   reportJellyfinPlaybackSuperseded: ReturnType<
     typeof createReportSupersededJellyfinPlaybackHandler
   >;
+  /** Resolves once no stop report is in flight, from either stop handler. */
+  waitForJellyfinStopReports: () => Promise<void>;
   handleJellyfinRemotePlay: (payload: RemotePlayPayload) => Promise<void>;
   handleJellyfinRemotePlaystate: (payload: RemotePlaystatePayload) => Promise<void>;
   handleJellyfinRemoteGeneralCommand: (payload: RemoteGeneralPayload) => Promise<void>;
@@ -65,7 +67,10 @@ export function composeJellyfinRemoteHandlers(
     logDebug: options.logDebug,
     reportTracker,
   });
-  const reportJellyfinRemoteStopped = createReportJellyfinRemoteStoppedHandler({
+  // Every stop report in flight, from either handler. Jellyfin clears a session's now-playing
+  // item on any stop, so an episode start waits for these before it reports.
+  const stopReportTracker = createJellyfinRemoteReportTracker();
+  const reportStopped = createReportJellyfinRemoteStoppedHandler({
     getActivePlayback: options.getActivePlayback,
     clearActivePlayback: options.clearActivePlayback,
     getMpvClient: options.getMpvClient,
@@ -75,17 +80,30 @@ export function composeJellyfinRemoteHandlers(
     logWarn: options.logWarn,
     reportTracker,
   });
-  const reportJellyfinPlaybackSuperseded = createReportSupersededJellyfinPlaybackHandler({
+  const reportSuperseded = createReportSupersededJellyfinPlaybackHandler({
     ticksPerSecond: options.ticksPerSecond,
     logDebug: options.logDebug,
     logWarn: options.logWarn,
     reportTracker,
   });
+  const reportJellyfinRemoteStopped = (): Promise<void> => {
+    const report = reportStopped();
+    stopReportTracker.track(report, null);
+    return report;
+  };
+  const reportJellyfinPlaybackSuperseded = (
+    playback: Parameters<typeof reportSuperseded>[0],
+  ): Promise<void> => {
+    const report = reportSuperseded(playback);
+    stopReportTracker.track(report, playback);
+    return report;
+  };
 
   return {
     reportJellyfinRemoteProgress,
     reportJellyfinRemoteStopped,
     reportJellyfinPlaybackSuperseded,
+    waitForJellyfinStopReports: () => stopReportTracker.settled(),
     handleJellyfinRemotePlay: createHandleJellyfinRemotePlay({
       getConfiguredSession: options.getConfiguredSession,
       getClientInfo: options.getClientInfo,
