@@ -108,6 +108,9 @@ function extractBuild() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yomitan-'));
   try {
     if (process.platform === 'win32') {
+      // Call .NET directly instead of Expand-Archive: under a pwsh CI step, PSModulePath
+      // makes Windows PowerShell load PowerShell 7's Archive module, whose
+      // ExtractToDirectory overload does not exist on .NET Framework.
       run(
         'powershell.exe',
         [
@@ -116,7 +119,7 @@ function extractBuild() {
           '-ExecutionPolicy',
           'Bypass',
           '-Command',
-          `Expand-Archive -LiteralPath '${escapePowerShellString(zipPath)}' -DestinationPath '${escapePowerShellString(tempDir)}' -Force`,
+          `$ErrorActionPreference = 'Stop'; Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('${escapePowerShellString(zipPath)}', '${escapePowerShellString(tempDir)}')`,
         ],
         repoRoot,
       );
