@@ -1,7 +1,7 @@
 import * as childProcess from 'child_process';
 import * as path from 'path';
 
-import { parseMediaInfo } from '../../../jimaku/utils';
+import { parseMediaLookupInfo } from '../../../jimaku/utils';
 import { resolveMediaLookupTarget, sanitizeMediaTitle } from '../../../shared/media-identity';
 import type { AnilistRateLimiter } from './rate-limiter';
 import { resolveAnilistSeasonMedia, stripSeasonSuffix } from './season-resolver';
@@ -231,7 +231,7 @@ export async function guessAnilistMediaInfo(
       const season = firstPositiveInteger(parsed.season);
       const year = firstYear(parsed.year);
       if (title) {
-        const fallback = parseMediaInfo(target);
+        const fallback = parseMediaLookupInfo(mediaPath, mediaTitle);
         const canUseFallbackDetails = fallback.confidence !== 'low';
         return {
           title: buildGuessitTitle(title, alternativeTitle),
@@ -247,7 +247,7 @@ export async function guessAnilistMediaInfo(
     }
   }
 
-  const parsed = parseMediaInfo(target);
+  const parsed = parseMediaLookupInfo(mediaPath, mediaTitle);
   if (!parsed.title.trim()) {
     return null;
   }

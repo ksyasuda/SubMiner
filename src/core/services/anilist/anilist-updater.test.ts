@@ -34,6 +34,21 @@ test('guessAnilistMediaInfo fills missing guessit episode from filename parser',
   });
 });
 
+test('guessAnilistMediaInfo fallback keeps the series of a stream title with slashes', async () => {
+  const title = 'Seitokai Yakuindomo S01E01 Under the Cherry Tree / For Now, Lets Try Stripping';
+  const result = await guessAnilistMediaInfo('jellyfin://host/item/abc', title, {
+    runGuessit: async () => {
+      throw new Error('guessit unavailable');
+    },
+  });
+  assert.deepEqual(result, {
+    title: 'Seitokai Yakuindomo',
+    season: 1,
+    episode: 1,
+    source: 'fallback',
+  });
+});
+
 test('guessAnilistMediaInfo keeps season directory scope when guessit omits details', async () => {
   const result = await guessAnilistMediaInfo('/tmp/Season 2/Guessit Title.mkv', null, {
     runGuessit: async () => JSON.stringify({ title: 'Guessit Title' }),

@@ -71,7 +71,7 @@ import type {
   SubtitlePosition,
 } from './types';
 import { OPEN_ANKI_CARD_ACTION_ID } from './types';
-import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
+import { downloadToFile, isRemoteMediaPath, parseMediaLookupInfo } from './jimaku/utils';
 import {
   createLogger,
   setLogFileToggles,
@@ -1590,7 +1590,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       setFieldGroupingResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) =>
         mining.setFieldGroupingResolver(resolver),
       parseMediaInfo: (mediaPath: string | null) =>
-        parseMediaInfo(mediaRuntime.resolveMediaPathForJimaku(mediaPath)),
+        parseMediaLookupInfo(mediaPath, appState.currentMediaTitle),
       getCurrentMediaPath: () => appState.currentMediaPath,
       jimakuFetchJson: <T>(
         endpoint: string,
