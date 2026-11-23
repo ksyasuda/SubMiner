@@ -557,3 +557,18 @@ test('a successful empty chapter list is not read again on a duration change', a
   await flushAsync();
   assert.equal(state.resolveCalls.length, 1);
 });
+
+test('a cached lookup is reused only for the episode length it was fetched for', async () => {
+  const { runtime, state } = createHarness();
+  // A failing chapter read keeps resolution retrying on each duration change.
+  state.chapterListFails = true;
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  runtime.handleDurationChange({ duration: 1440 });
+  await flushAsync();
+  assert.deepEqual(state.episodeLengths, [1440]);
+
+  runtime.handleDurationChange({ duration: 1500 });
+  await flushAsync();
+  assert.deepEqual(state.episodeLengths, [1440, 1500]);
+});

@@ -89,8 +89,9 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
   const promptShown: Record<SkipWindowKind, boolean> = { intro: false, outro: false };
   let boundButtonKey: string | null = null;
   let legacyFallbackBound = false;
-  // AniSkip results per media path. Only definitive answers are stored.
-  const lookupCache = new Map<string, AniSkipLookupResult>();
+  // AniSkip results per media path, with the episode length they were fetched
+  // for (v2 picks times by length). Only definitive answers are stored.
+  const lookupCache = new Map<string, { duration: number; result: AniSkipLookupResult }>();
 
   function resolveButtonKey(): string {
     const key = deps.getAniSkipConfig().aniskipButtonKey.trim();
@@ -238,14 +239,17 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
     await setSkipChapters();
   }
 
-  /** Looks up AniSkip, using the cache for definitive answers. Null means a retryable failure. */
+  /**
+   * Looks up AniSkip, using the cache for definitive answers fetched at the same
+   * episode length. Null means a retryable failure.
+   */
   async function lookUpAniSkip(
     mediaPath: string,
     duration: number,
     generation: number,
   ): Promise<AniSkipLookupResult | null> {
     const cached = lookupCache.get(mediaPath);
-    if (cached) return cached;
+    if (cached?.duration === duration) return cached.result;
 
     let metadata: AniSkipMetadata;
     try {
@@ -265,7 +269,7 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
     }
     // Every other status is definitive (a 404 or an unmatched title), so cache it,
     // unless a refresh or media change superseded this lookup while it ran.
-    if (generation === requestGeneration) lookupCache.set(mediaPath, result);
+    if (generation === requestGeneration) lookupCache.set(mediaPath, { duration, result });
     if (metadata.lookupStatus !== 'ready') {
       deps.logInfo(
         `AniSkip: no skip times for "${metadata.title}" (status=${metadata.lookupStatus ?? 'unknown'})`,
