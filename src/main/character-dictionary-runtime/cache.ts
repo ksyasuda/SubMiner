@@ -28,8 +28,16 @@ type MediaResolutionCacheEntry = {
 };
 
 type MediaResolutionCacheFile = {
+  version?: number;
   entries?: MediaResolutionCacheEntry[];
 };
+
+/**
+ * Bump when the AniList season resolver changes what it returns, so matches it used to get
+ * wrong are re-resolved instead of being served from here forever. Version 2: split-cour
+ * continuations and specials no longer count as seasons.
+ */
+const MEDIA_RESOLUTION_CACHE_VERSION = 2;
 
 function getMediaResolutionCachePath(outputDir: string): string {
   return path.join(outputDir, 'anilist-resolution-cache.json');
@@ -55,6 +63,7 @@ function readMediaResolutionEntries(outputDir: string): MediaResolutionCacheEntr
     const parsed = JSON.parse(
       fs.readFileSync(getMediaResolutionCachePath(outputDir), 'utf8'),
     ) as MediaResolutionCacheFile;
+    if (parsed.version !== MEDIA_RESOLUTION_CACHE_VERSION) return [];
     if (!Array.isArray(parsed.entries)) return [];
     const byKey = new Map<string, MediaResolutionCacheEntry>();
     for (const value of parsed.entries) {
@@ -74,7 +83,11 @@ function writeMediaResolutionEntries(
   ensureDir(outputDir);
   fs.writeFileSync(
     getMediaResolutionCachePath(outputDir),
-    JSON.stringify({ entries }, null, 2),
+    JSON.stringify(
+      { version: MEDIA_RESOLUTION_CACHE_VERSION, entries } satisfies MediaResolutionCacheFile,
+      null,
+      2,
+    ),
     'utf8',
   );
 }

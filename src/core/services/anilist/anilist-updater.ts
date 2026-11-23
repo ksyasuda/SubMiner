@@ -273,6 +273,9 @@ export async function updateAnilistPostWatchProgress(
   let mediaId = pinnedMediaId;
   let resolvedTitle: string | null = null;
   let resolvedEpisodes: number | null = null;
+  // Episode number within the entry being updated; differs from `episode` only for a
+  // split-cour back half.
+  let progress = episode;
   // A missing list entry is only created when we trust the match; otherwise a fuzzy
   // search hit would add an unrelated show to the user's list.
   let confidentMatch = pinnedMediaId !== null;
@@ -312,14 +315,18 @@ export async function updateAnilistPostWatchProgress(
       };
     }
 
-    mediaId = resolution.id;
-    resolvedTitle = resolution.title;
-    resolvedEpisodes = resolution.episodes;
+    // A split-cour back half is its own AniList entry with its own episode numbering:
+    // "S1E15" of an 11 + 12 season is progress 4 on the second entry.
+    const target = resolution.episodeEntry ?? resolution;
+    mediaId = target.id;
+    resolvedTitle = target.title;
+    resolvedEpisodes = target.episodes;
+    progress = resolution.episodeEntry?.episode ?? episode;
     // With no parsed season, an exact match on a season-stripped title ("Show S2" ->
     // "Show") only certifies the season 1 anchor, not the entry being watched.
     const seasonMarkerStripped = stripSeasonSuffix(title).trim() !== title.trim();
     confidentMatch =
-      resolution.exactTitleMatch && (resolution.requestedSeason !== null || !seasonMarkerStripped);
+      target.exactTitleMatch && (resolution.requestedSeason !== null || !seasonMarkerStripped);
   }
 
   const entryResponse = await anilistGraphQl<AnilistMediaEntryData>(
@@ -376,8 +383,8 @@ export async function updateAnilistPostWatchProgress(
   }
 
   const currentProgress = entry?.progress ?? 0;
-  const shouldMarkCompleted = isKnownFinalEpisode(pickedEpisodes, episode);
-  if (typeof currentProgress === 'number' && currentProgress >= episode && !shouldMarkCompleted) {
+  const shouldMarkCompleted = isKnownFinalEpisode(pickedEpisodes, progress);
+  if (typeof currentProgress === 'number' && currentProgress >= progress && !shouldMarkCompleted) {
     return {
       status: 'skipped',
       message: `AniList already at episode ${currentProgress} (${pickedTitle}).`,
@@ -396,7 +403,7 @@ export async function updateAnilistPostWatchProgress(
     `,
     {
       mediaId,
-      progress: episode,
+      progress,
       status: shouldMarkCompleted ? 'COMPLETED' : 'CURRENT',
     },
     options,
@@ -410,15 +417,15 @@ export async function updateAnilistPostWatchProgress(
     return {
       status: 'updated',
       message: shouldMarkCompleted
-        ? `AniList added "${pickedTitle}" at episode ${episode} and marked it completed.`
-        : `AniList added "${pickedTitle}" to Watching at episode ${episode}.`,
+        ? `AniList added "${pickedTitle}" at episode ${progress} and marked it completed.`
+        : `AniList added "${pickedTitle}" to Watching at episode ${progress}.`,
     };
   }
 
   return {
     status: 'updated',
     message: shouldMarkCompleted
-      ? `AniList updated "${pickedTitle}" to episode ${episode} and marked it completed.`
-      : `AniList updated "${pickedTitle}" to episode ${episode}.`,
+      ? `AniList updated "${pickedTitle}" to episode ${progress} and marked it completed.`
+      : `AniList updated "${pickedTitle}" to episode ${progress}.`,
   };
 }
