@@ -165,3 +165,16 @@ test('yomitan externalProfilePath expands leading tilde to the current home dire
     path.join(homeDir, '.config', 'gsm_overlay'),
   );
 });
+
+test('jellyfin episodePlaylist resolves the toggle and clamps the episode cap', () => {
+  const { context, warnings } = createResolveContext({
+    jellyfin: {
+      episodePlaylist: { enabled: false, maxEpisodes: 400 },
+    },
+  });
+
+  applyIntegrationConfig(context);
+
+  assert.deepEqual(context.resolved.jellyfin.episodePlaylist, { enabled: false, maxEpisodes: 25 });
+  assert.ok(warnings.some((warning) => warning.path === 'jellyfin.episodePlaylist.maxEpisodes'));
+});

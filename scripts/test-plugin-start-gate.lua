@@ -1043,6 +1043,65 @@ do
 end
 
 do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "https://jellyfin.example/Videos/ep1/stream",
+		media_title = "Jellyfin Episode 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for managed playlist entry scenario: " .. tostring(err))
+	recorded.script_messages["subminer-managed-playlist-entries"](
+		"https://jellyfin.example/Videos/ep1/stream",
+		"https://jellyfin.example/Videos/ep2/stream"
+	)
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "https://jellyfin.example/Videos/ep2/stream"
+	scenario.media_title = "Jellyfin Episode 2"
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		not has_property_set(recorded.property_sets, "sid", "auto"),
+		"an app-queued playlist entry should keep the app's subtitle selection"
+	)
+	assert_true(
+		count_start_calls(recorded.async_calls) == 0,
+		"an app-queued playlist entry should not auto-start the overlay"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 0,
+		"an app-queued playlist entry should not arm the plugin pause gate"
+	)
+	assert_true(
+		not has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"an app-queued playlist entry should not show the overlay loading spinner"
+	)
+	fire_event(recorded, "end-file", { reason = "stop" })
+	scenario.path = "/media/local-episode.mkv"
+	scenario.media_title = "Local Episode"
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "sid", "auto") == 1,
+		"a path the app did not queue should get the normal subtitle rearm"
+	)
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"a path the app did not queue should auto-start the overlay"
+	)
+end
+
+do
 	local recorded, err = run_plugin_scenario({
 		process_list = "",
 		option_overrides = {

@@ -21,10 +21,7 @@ import { createAutoplayTokenizationWarmRelease } from '../runtime/autoplay-token
 import { composeMpvRuntimeHandlers } from '../runtime/composers';
 import { createCurrentMediaTokenizationGate } from '../runtime/current-media-tokenization-gate';
 import { createCachedInternalSubtitleTrackExtractor } from '../runtime/internal-subtitle-extraction';
-import {
-  markJellyfinRemotePlaybackLoaded as markJellyfinRemotePlaybackLoadedState,
-  shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
-} from '../runtime/jellyfin-remote-playback';
+import { shouldAutoLoadSecondarySubTrackForJellyfinPlayback } from '../runtime/jellyfin-remote-playback';
 import { createJimakuAutoOpenRuntime } from '../runtime/jimaku-auto-open';
 import { createManagedLocalSubtitleSelectionRuntime } from '../runtime/local-subtitle-selection';
 import { focusMacOSOverlayWindow } from '../runtime/macos-overlay-window-focus';
@@ -164,6 +161,8 @@ export interface PlaybackAssemblyDeps {
     | 'reportJellyfinRemoteStopped'
     | 'reportJellyfinRemoteProgress'
     | 'getActivePlayback'
+    | 'handleMediaPathLoaded'
+    | 'handlePlaybackTimePos'
     | 'startJellyfinRemoteSession'
   >;
   anilist: Pick<
@@ -838,8 +837,8 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
         immersionMediaRuntime.syncFromCurrentMediaState();
       },
       signalAutoplayReadyIfWarm: (path) => signalAutoplayReadyFromWarmTokenization?.(path),
-      markJellyfinRemotePlaybackLoaded: (path) => {
-        markJellyfinRemotePlaybackLoadedState(jellyfin.getActivePlayback(), path);
+      handleJellyfinMediaPathLoaded: (path) => {
+        jellyfin.handleMediaPathLoaded(path);
       },
       scheduleCharacterDictionarySync: () => {
         if (
@@ -862,6 +861,7 @@ export function createPlaybackAssembly(deps: PlaybackAssemblyDeps) {
       },
       consumeExplicitSeek: () => consumeExplicitSeekIntent(),
       onTimePosUpdate: (time) => {
+        jellyfin.handlePlaybackTimePos();
         const delta = time - lastObservedTimePos;
         if (subtitlePrefetchService && (delta > SEEK_THRESHOLD_SECONDS || delta < 0)) {
           subtitlePrefetchService.onSeek(time);

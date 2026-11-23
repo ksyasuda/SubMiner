@@ -389,6 +389,10 @@ export interface ResolvedConfig {
     directPlayPreferred: boolean;
     directPlayContainers: string[];
     transcodeVideoCodec: string;
+    episodePlaylist: {
+      enabled: boolean;
+      maxEpisodes: number;
+    };
   };
   discordPresence: {
     enabled: boolean;

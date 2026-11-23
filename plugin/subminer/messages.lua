@@ -27,6 +27,15 @@ function M.create(ctx)
 			state.skip_managed_subtitle_rearm_once = true
 			state.app_managed_playback_pending = true
 		end)
+		-- Playlist entries the app queued (Jellyfin neighbor episodes). mpv starts them on its own,
+		-- so start-file recognizes them by path instead of waiting for subminer-managed-subtitles-loading.
+		mp.register_script_message("subminer-managed-playlist-entries", function(...)
+			local paths = {}
+			for _, path in ipairs({ ... }) do
+				paths[path] = true
+			end
+			state.app_managed_playlist_paths = paths
+		end)
 		mp.register_script_message("subminer-menu", function()
 			ui.show_menu()
 		end)

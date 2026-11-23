@@ -1111,7 +1111,11 @@
       "mp3",
       "aac"
     ], // Container allowlist for direct play decisions.
-    "transcodeVideoCodec": "h264" // Preferred transcode video codec when direct play is unavailable.
+    "transcodeVideoCodec": "h264", // Preferred transcode video codec when direct play is unavailable.
+    "episodePlaylist": {
+      "enabled": true, // Add the playing episode's neighbors from its Jellyfin series to the mpv playlist, so mpv's playlist controls and end-of-file advance move between episodes. Values: true | false
+      "maxEpisodes": 5 // Most episodes kept in the mpv playlist, the playing one included, centered on it (2-25).
+    } // Episode playlist setting.
   }, // Optional Jellyfin integration for auth, browsing, and playback launch.
 
   // ==========================================

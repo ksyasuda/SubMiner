@@ -223,6 +223,7 @@ const SUBSECTION_ORDER = new Map<string, number>(
     'Toggle & Visibility',
     'Open Panels',
     'Playback',
+    'Episode Playlist',
     'Default Fold State',
   ].map((subsection, index) => [subsection, index]),
 );
@@ -628,6 +629,9 @@ function subsectionForPath(path: string): string | undefined {
   }
   if (path === 'mpv.aniskipButtonKey') {
     return 'Playback';
+  }
+  if (path.startsWith('jellyfin.episodePlaylist.')) {
+    return 'Episode Playlist';
   }
   if (path.startsWith('shortcuts.')) {
     const leaf = path.split('.').at(-1) ?? '';

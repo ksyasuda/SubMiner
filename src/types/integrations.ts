@@ -93,6 +93,10 @@ export interface JellyfinConfig {
   directPlayPreferred?: boolean;
   directPlayContainers?: string[];
   transcodeVideoCodec?: string;
+  episodePlaylist?: {
+    enabled?: boolean;
+    maxEpisodes?: number;
+  };
 }
 
 export type DiscordPresenceStylePreset = 'default' | 'meme' | 'japanese' | 'minimal';

@@ -27,6 +27,14 @@ If an episode has no Japanese subtitles, you can [generate them with Whisper](/s
 
 Casting finds mpv through `mpv.executablePath`, then `SUBMINER_MPV_PATH`, then `PATH`. On macOS it then checks `/opt/homebrew/bin/mpv`, `/usr/local/bin/mpv`, and `/Applications/mpv.app`, because an app opened from Finder, the Dock, or Spotlight does not get your shell's `PATH`. If mpv lives somewhere else, set `mpv.executablePath` to its full path (`command -v mpv` prints it). An invalid `mpv.executablePath` stops mpv from starting.
 
+## Episode playlist
+
+When you play an episode, by casting or from the terminal, SubMiner adds the episodes around it from the same series to mpv's playlist. Move between them with mpv's playlist keys (`<` and `>` by default) or your playlist UI, and mpv moves on to the next episode when one ends. The series order runs across seasons. Each switch happens in the running mpv and overlay; nothing restarts.
+
+SubMiner waits until the first episode is playing before it looks up the others, so startup is no slower. Every episode you switch to resumes from Jellyfin's saved position and reports progress like one you picked yourself. Its subtitles load the same way.
+
+`episodePlaylist.maxEpisodes` caps how many episodes the playlist holds, centered on the playing one. Turn `episodePlaylist.enabled` off to play one episode at a time. Changes apply from the next episode switch.
+
 ## Playing from the terminal
 
 The launcher can browse your libraries and play an item without a Jellyfin client:
@@ -42,14 +50,16 @@ Sign in first. Playback resumes from Jellyfin's saved position, and watch progre
 
 All options are under **Settings > Integrations > Jellyfin**, or `jellyfin` in `config.jsonc`. See [Configuration](/configuration#jellyfin) for the full list and defaults.
 
-| Key                        | What it does                                                           |
-| -------------------------- | ---------------------------------------------------------------------- |
-| `enabled`                  | Turns the integration on. Set for you when you sign in.                |
-| `serverUrl`                | Your Jellyfin server. Filled in when you sign in.                      |
-| `remoteControlEnabled`     | Lets SubMiner act as a cast target.                                    |
-| `remoteControlAutoConnect` | Connects at startup when `startupWarmups.jellyfinRemoteSession` is on. |
-| `autoAnnounce`             | Re-announces the device on connect. Try it if SubMiner appears late.   |
-| `transcodeVideoCodec`      | Video codec requested when Jellyfin transcodes.                        |
+| Key                           | What it does                                                           |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `enabled`                     | Turns the integration on. Set for you when you sign in.                |
+| `serverUrl`                   | Your Jellyfin server. Filled in when you sign in.                      |
+| `remoteControlEnabled`        | Lets SubMiner act as a cast target.                                    |
+| `remoteControlAutoConnect`    | Connects at startup when `startupWarmups.jellyfinRemoteSession` is on. |
+| `autoAnnounce`                | Re-announces the device on connect. Try it if SubMiner appears late.   |
+| `transcodeVideoCodec`         | Video codec requested when Jellyfin transcodes.                        |
+| `episodePlaylist.enabled`     | Adds the surrounding episodes to mpv's playlist.                       |
+| `episodePlaylist.maxEpisodes` | Most episodes in that playlist, the playing one included.              |
 
 For headless setups, `SUBMINER_JELLYFIN_ACCESS_TOKEN` and `SUBMINER_JELLYFIN_USER_ID` supply a session without the sign-in window. Treat the token store and `config.jsonc` as secrets.
 

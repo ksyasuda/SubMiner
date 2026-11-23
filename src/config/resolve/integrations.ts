@@ -372,6 +372,49 @@ export function applyIntegrationConfig(context: ResolveContext): void {
       );
     }
 
+    if (isObject(src.jellyfin.episodePlaylist)) {
+      const episodePlaylist = src.jellyfin.episodePlaylist;
+      const playlistEnabled = asBoolean(episodePlaylist.enabled);
+      if (playlistEnabled !== undefined) {
+        resolved.jellyfin.episodePlaylist.enabled = playlistEnabled;
+      } else if (episodePlaylist.enabled !== undefined) {
+        warn(
+          'jellyfin.episodePlaylist.enabled',
+          episodePlaylist.enabled,
+          resolved.jellyfin.episodePlaylist.enabled,
+          'Expected boolean.',
+        );
+      }
+
+      const maxEpisodes = asNumber(episodePlaylist.maxEpisodes);
+      if (maxEpisodes !== undefined) {
+        const normalized = Math.min(25, Math.max(2, Math.floor(maxEpisodes)));
+        if (normalized !== maxEpisodes) {
+          warn(
+            'jellyfin.episodePlaylist.maxEpisodes',
+            episodePlaylist.maxEpisodes,
+            normalized,
+            'Out of range; clamped to 2..25.',
+          );
+        }
+        resolved.jellyfin.episodePlaylist.maxEpisodes = normalized;
+      } else if (episodePlaylist.maxEpisodes !== undefined) {
+        warn(
+          'jellyfin.episodePlaylist.maxEpisodes',
+          episodePlaylist.maxEpisodes,
+          resolved.jellyfin.episodePlaylist.maxEpisodes,
+          'Expected number.',
+        );
+      }
+    } else if (src.jellyfin.episodePlaylist !== undefined) {
+      warn(
+        'jellyfin.episodePlaylist',
+        src.jellyfin.episodePlaylist,
+        resolved.jellyfin.episodePlaylist,
+        'Expected object.',
+      );
+    }
+
     if (Array.isArray(src.jellyfin.recentServers)) {
       const seenRecentServers = new Set<string>();
       resolved.jellyfin.recentServers = src.jellyfin.recentServers

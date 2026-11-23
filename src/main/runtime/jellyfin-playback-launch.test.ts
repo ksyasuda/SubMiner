@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { JellyfinPlaybackPlan } from '../../core/services/jellyfin';
 import type { JellyfinTimelinePlaybackState } from '../../core/services/jellyfin-playback-reporter';
 import { createPlayJellyfinItemInMpvHandler } from './jellyfin-playback-launch';
+import type { ActiveJellyfinRemotePlaybackState } from './jellyfin-remote-commands';
 
 type Deps = Parameters<typeof createPlayJellyfinItemInMpvHandler>[0];
 type PlayParams = Parameters<ReturnType<typeof createPlayJellyfinItemInMpvHandler>>[0];
@@ -30,6 +31,7 @@ function makePlan(overrides: Partial<JellyfinPlaybackPlan> = {}): JellyfinPlayba
     title: 'Episode 1',
     itemTitle: 'Episode 1',
     seriesTitle: null,
+    seriesId: null,
     seasonNumber: null,
     episodeNumber: null,
     startTimeTicks: 0,
@@ -73,16 +75,23 @@ function makeHarness(options: { plan?: Partial<JellyfinPlaybackPlan>; deps?: Par
       activeStates.push(state);
       events.push(`active:${String(state.loadedMediaPath)}`);
     },
+    getActivePlayback: () => null,
     setLastProgressAtMs: () => {},
     createPlaybackReporter: (params) => {
       reporterParams.push(params);
       return reporter;
     },
+    reportPlaybackSuperseded: async () => {},
+    getEpisodePlaylistSettings: () => ({ enabled: true, maxEpisodes: 3 }),
+    listSeriesEpisodeIds: async () => [],
+    readMpvPlaylist: async () => [],
     showMpvOsd: () => {},
+    logDebug: () => {},
     ...options.deps,
   });
 
   return {
+    handler,
     commands,
     events,
     activeStates,
@@ -359,3 +368,135 @@ for (const c of HOOK_FAILURE_CASES) {
     ]);
   });
 }
+
+/**
+ * A series of three episodes where `item-1` plays first. mpv's playlist and the active playback
+ * follow the commands the handler sends, the way mpv and the Jellyfin assembly would.
+ */
+function makeSeriesHarness() {
+  const streamUrl = (itemId: string) => `https://jf.example/Videos/${itemId}/stream`;
+  const playlist: Array<{ filename: string; current: boolean }> = [];
+  const statsMetadata: Array<{ itemId: string }> = [];
+  const superseded: string[] = [];
+  let active: ActiveJellyfinRemotePlaybackState | null = null;
+  let releaseSupersededStop = () => {};
+  const harness = makeHarness({
+    deps: {
+      resolvePlaybackPlan: async ({ itemId }) =>
+        makePlan({
+          url: streamUrl(itemId),
+          title: `${itemId}: 前編, 1`,
+          seriesId: 'series-1',
+        }),
+      listSeriesEpisodeIds: async () => ['item-0', 'item-1', 'item-2'],
+      readMpvPlaylist: async () => playlist.map((item) => ({ ...item })),
+      getActivePlayback: () => active,
+      setActivePlayback: (state) => {
+        active = { ...state };
+      },
+      reportPlaybackSuperseded: (playback) => {
+        superseded.push(playback.itemId);
+        return new Promise<void>((resolve) => {
+          releaseSupersededStop = resolve;
+        });
+      },
+      recordJellyfinPlaybackMetadata: (metadata) => void statsMetadata.push(metadata),
+    },
+  });
+  const sendMpvCommand = harness.commands.push.bind(harness.commands);
+  harness.commands.push = (...commands) => {
+    for (const command of commands) {
+      if (command[0] === 'loadfile' && command[2] === 'replace') {
+        playlist.splice(0, playlist.length, { filename: String(command[1]), current: true });
+      } else if (command[0] === 'loadfile') {
+        playlist.splice(Number(command[3]), 0, { filename: String(command[1]), current: false });
+      }
+    }
+    return sendMpvCommand(...commands);
+  };
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  return {
+    ...harness,
+    streamUrl,
+    playlist,
+    statsMetadata,
+    superseded,
+    active: () => active,
+    releaseSupersededStop: () => releaseSupersededStop(),
+    // What the Jellyfin assembly does with each new mpv path.
+    mpvPathChanged: (path: string) => {
+      if (harness.handler.adoptQueuedEpisode(path)) return;
+      if (active) active.loadedMediaPath = path;
+    },
+    flush,
+  };
+}
+
+test('playback handler queues neighbor episodes only once mpv plays the item', async () => {
+  const harness = makeSeriesHarness();
+
+  await harness.play({ itemId: 'item-1' });
+  harness.handler.handlePlaybackTimePos();
+  await harness.flush();
+  assert.equal(harness.playlist.length, 1, 'nothing is queued before mpv reports the item');
+
+  harness.mpvPathChanged(harness.streamUrl('item-1'));
+  harness.handler.handlePlaybackTimePos();
+  await harness.flush();
+
+  assert.deepEqual(
+    harness.playlist.map((item) => item.filename),
+    [harness.streamUrl('item-0'), harness.streamUrl('item-1'), harness.streamUrl('item-2')],
+  );
+  const queuedNext = harness.commands.find(
+    (command) => command[0] === 'loadfile' && command[1] === harness.streamUrl('item-2'),
+  );
+  assert.deepEqual(queuedNext, [
+    'loadfile',
+    harness.streamUrl('item-2'),
+    'insert-at',
+    1,
+    `${SUPPRESSED_SUBTITLE_OPTIONS},force-media-title=%17%item-2: 前編, 1`,
+  ]);
+});
+
+test('playback handler takes over a queued episode mpv starts from its playlist', async () => {
+  const harness = makeSeriesHarness();
+  await harness.play({ itemId: 'item-1' });
+  harness.mpvPathChanged(harness.streamUrl('item-1'));
+  harness.handler.handlePlaybackTimePos();
+  await harness.flush();
+  const commandsBefore = harness.commands.length;
+
+  harness.mpvPathChanged(harness.streamUrl('item-2'));
+
+  // Synchronous, so the immersion tracker that runs next already sees the episode's metadata.
+  assert.deepEqual(
+    harness.statsMetadata.map((metadata) => metadata.itemId),
+    ['item-1', 'item-2'],
+  );
+  assert.equal(harness.active()?.itemId, 'item-2');
+  assert.equal(harness.active()?.loadedMediaPath, harness.streamUrl('item-2'));
+  assert.deepEqual(harness.superseded, ['item-1']);
+  assert.equal(
+    harness.commands.slice(commandsBefore).some((command) => command[2] === 'replace'),
+    false,
+    'mpv already loads the entry, so the handler must not load it again',
+  );
+
+  await harness.flush();
+  assert.deepEqual(
+    harness.reports.map((report) => report.itemId),
+    ['item-1'],
+    'the new start waits for the previous stop',
+  );
+  harness.releaseSupersededStop();
+  await harness.flush();
+  assert.deepEqual(
+    harness.reports.map((report) => report.itemId),
+    ['item-1', 'item-2'],
+  );
+
+  assert.equal(harness.handler.adoptQueuedEpisode(harness.streamUrl('item-2')), false);
+  assert.equal(harness.handler.adoptQueuedEpisode('https://elsewhere.example/video.mkv'), false);
+});

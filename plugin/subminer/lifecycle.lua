@@ -210,8 +210,17 @@ function M.create(ctx)
 		})
 	end
 
+	local function is_app_managed_playlist_entry()
+		local path = mp.get_property("path")
+		local managed_paths = state.app_managed_playlist_paths or {}
+		return type(path) == "string" and managed_paths[path] == true
+	end
+
 	local function on_start_file()
-		if should_show_overlay_loading_osd() then
+		if is_app_managed_playlist_entry() then
+			state.skip_managed_subtitle_rearm_once = true
+			state.app_managed_playback_pending = true
+		elseif should_show_overlay_loading_osd() then
 			process.start_overlay_loading_osd()
 		end
 		if state.pending_reload_media_identity ~= nil then
@@ -322,6 +331,7 @@ function M.create(ctx)
 		state.pending_reload_reason = nil
 		state.app_managed_playback_pending = false
 		state.app_managed_playback_active = false
+		state.app_managed_playlist_paths = {}
 	end
 
 	local function register_lifecycle_hooks()

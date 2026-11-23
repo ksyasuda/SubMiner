@@ -69,7 +69,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
   syncImmersionMediaState: () => void;
   scheduleCharacterDictionarySync?: () => void;
   signalAutoplayReadyIfWarm?: (path: string) => void;
-  markJellyfinRemotePlaybackLoaded?: (path: string) => void;
+  handleJellyfinMediaPathLoaded?: (path: string) => void;
   flushPlaybackPositionOnMediaPathClear?: (mediaPath: string) => void;
   refreshDiscordPresence: () => void;
 }) {
@@ -94,9 +94,13 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
       deps.maybeProbeAnilistDuration(mediaKey);
       deps.ensureAnilistMediaGuess(mediaKey);
     }
+    // Runs before the immersion sync: a Jellyfin episode mpv started from its playlist records
+    // its stats metadata here, and the session that sync starts must already see it.
+    if (trimmedPath.length > 0) {
+      deps.handleJellyfinMediaPathLoaded?.(normalizedPath);
+    }
     deps.syncImmersionMediaState();
     if (trimmedPath.length > 0) {
-      deps.markJellyfinRemotePlaybackLoaded?.(normalizedPath);
       if (trimmedPath !== lastCharacterDictionarySyncMediaPath) {
         lastCharacterDictionarySyncMediaPath = trimmedPath;
         deps.scheduleCharacterDictionarySync?.();

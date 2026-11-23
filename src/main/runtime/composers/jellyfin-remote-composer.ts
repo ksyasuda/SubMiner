@@ -5,6 +5,7 @@ import {
   createJellyfinRemoteReportTracker,
   createReportJellyfinRemoteProgressHandler,
   createReportJellyfinRemoteStoppedHandler,
+  createReportSupersededJellyfinPlaybackHandler,
   type JellyfinRemoteGeneralCommandHandlerDeps,
   type JellyfinRemotePlayHandlerDeps,
   type JellyfinRemotePlaystateHandlerDeps,
@@ -40,6 +41,9 @@ export type JellyfinRemoteComposerOptions = ComposerInputs<{
 export type JellyfinRemoteComposerResult = ComposerOutputs<{
   reportJellyfinRemoteProgress: ReturnType<typeof createReportJellyfinRemoteProgressHandler>;
   reportJellyfinRemoteStopped: ReturnType<typeof createReportJellyfinRemoteStoppedHandler>;
+  reportJellyfinPlaybackSuperseded: ReturnType<
+    typeof createReportSupersededJellyfinPlaybackHandler
+  >;
   handleJellyfinRemotePlay: (payload: RemotePlayPayload) => Promise<void>;
   handleJellyfinRemotePlaystate: (payload: RemotePlaystatePayload) => Promise<void>;
   handleJellyfinRemoteGeneralCommand: (payload: RemoteGeneralPayload) => Promise<void>;
@@ -71,10 +75,17 @@ export function composeJellyfinRemoteHandlers(
     logWarn: options.logWarn,
     reportTracker,
   });
+  const reportJellyfinPlaybackSuperseded = createReportSupersededJellyfinPlaybackHandler({
+    ticksPerSecond: options.ticksPerSecond,
+    logDebug: options.logDebug,
+    logWarn: options.logWarn,
+    reportTracker,
+  });
 
   return {
     reportJellyfinRemoteProgress,
     reportJellyfinRemoteStopped,
+    reportJellyfinPlaybackSuperseded,
     handleJellyfinRemotePlay: createHandleJellyfinRemotePlay({
       getConfiguredSession: options.getConfiguredSession,
       getClientInfo: options.getClientInfo,

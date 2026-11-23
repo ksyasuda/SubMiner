@@ -30,6 +30,8 @@ export type E2eSessionOptions = {
   config?: JsonObject;
   /** Files written before launch, keyed by path relative to the config dir (e.g. plugins). */
   files?: Record<string, string>;
+  /** Extra environment for every app launch, e.g. a Jellyfin session. */
+  env?: Record<string, string>;
 };
 
 export type AppTarget = {
@@ -241,6 +243,7 @@ export async function startE2eSession(options: E2eSessionOptions = {}): Promise<
         SUBMINER_APP_LOG: path.join(root, 'app.log'),
         // Stay attached instead of re-spawning detached, so the harness owns the process.
         SUBMINER_BACKGROUND_CHILD: '1',
+        ...options.env,
       },
       unset: [...display.env.unset, 'ELECTRON_RUN_AS_NODE'],
     };

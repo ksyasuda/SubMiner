@@ -208,6 +208,49 @@ export type JellyfinRemoteStoppedReporterDeps = {
   reportTracker?: JellyfinRemoteReportTracker;
 };
 
+type JellyfinStopReportDeps = {
+  ticksPerSecond: number;
+  logDebug: (message: string, error: unknown) => void;
+  logWarn?: (message: string) => void;
+};
+
+async function sendJellyfinStopReports(
+  deps: JellyfinStopReportDeps,
+  playback: ActiveJellyfinRemotePlaybackState,
+  positionSeconds: number,
+): Promise<void> {
+  const positionTicks = secondsToJellyfinTicks(positionSeconds, deps.ticksPerSecond);
+  try {
+    await playback.reporter.reportProgress({
+      itemId: playback.itemId,
+      mediaSourceId: playback.mediaSourceId,
+      positionTicks,
+      isPaused: false,
+      playMethod: playback.playMethod,
+      audioStreamIndex: playback.audioStreamIndex,
+      subtitleStreamIndex: playback.subtitleStreamIndex,
+      eventName: 'TimeUpdate',
+    });
+  } catch (error) {
+    deps.logDebug('Failed to report Jellyfin remote final progress', error);
+  }
+  const reported = await playback.reporter.reportStopped({
+    itemId: playback.itemId,
+    mediaSourceId: playback.mediaSourceId,
+    positionTicks,
+    failed: false,
+    playMethod: playback.playMethod,
+    audioStreamIndex: playback.audioStreamIndex,
+    subtitleStreamIndex: playback.subtitleStreamIndex,
+    eventName: 'stop',
+  });
+  if (reported === false) {
+    deps.logWarn?.(
+      `Jellyfin did not accept the playback stop report for item ${playback.itemId}; the server may keep showing it as playing.`,
+    );
+  }
+}
+
 export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteStoppedReporterDeps) {
   return async (): Promise<void> => {
     const playback = deps.getActivePlayback();
@@ -230,36 +273,25 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
     try {
       const observedPositionSeconds = await readMpvPositionSecondsOrFallback(deps.getMpvClient());
       const positionSeconds = resolveReportablePositionSeconds(playback, observedPositionSeconds);
-      const positionTicks = secondsToJellyfinTicks(positionSeconds, deps.ticksPerSecond);
-      try {
-        await playback.reporter.reportProgress({
-          itemId: playback.itemId,
-          mediaSourceId: playback.mediaSourceId,
-          positionTicks,
-          isPaused: false,
-          playMethod: playback.playMethod,
-          audioStreamIndex: playback.audioStreamIndex,
-          subtitleStreamIndex: playback.subtitleStreamIndex,
-          eventName: 'TimeUpdate',
-        });
-      } catch (error) {
-        deps.logDebug('Failed to report Jellyfin remote final progress', error);
-      }
-      const reported = await playback.reporter.reportStopped({
-        itemId: playback.itemId,
-        mediaSourceId: playback.mediaSourceId,
-        positionTicks,
-        failed: false,
-        playMethod: playback.playMethod,
-        audioStreamIndex: playback.audioStreamIndex,
-        subtitleStreamIndex: playback.subtitleStreamIndex,
-        eventName: 'stop',
-      });
-      if (reported === false) {
-        deps.logWarn?.(
-          `Jellyfin did not accept the playback stop report for item ${playback.itemId}; the server may keep showing it as playing.`,
-        );
-      }
+      await sendJellyfinStopReports(deps, playback, positionSeconds);
+    } catch (error) {
+      deps.logDebug('Failed to report Jellyfin remote stop', error);
+    }
+  };
+}
+
+/**
+ * Reports the stop of a playback mpv has already left for another playlist entry. mpv's position
+ * now belongs to the new file, so the stop carries the last position observed for this one.
+ * The caller has already replaced the active playback.
+ */
+export function createReportSupersededJellyfinPlaybackHandler(
+  deps: JellyfinStopReportDeps & { reportTracker?: JellyfinRemoteReportTracker },
+) {
+  return async (playback: ActiveJellyfinRemotePlaybackState): Promise<void> => {
+    await deps.reportTracker?.settled();
+    try {
+      await sendJellyfinStopReports(deps, playback, playback.lastKnownPositionSeconds ?? 0);
     } catch (error) {
       deps.logDebug('Failed to report Jellyfin remote stop', error);
     }

@@ -5,6 +5,7 @@ import {
   createJellyfinRemoteReportTracker,
   createReportJellyfinRemoteProgressHandler,
   createReportJellyfinRemoteStoppedHandler,
+  createReportSupersededJellyfinPlaybackHandler,
   secondsToJellyfinTicks,
   shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
 } from './jellyfin-remote-playback';
@@ -444,4 +445,41 @@ test('createReportJellyfinRemoteStoppedHandler clears playback before reporting 
     'progress:TimeUpdate:cleared',
     'stopped:cleared',
   ]);
+});
+
+test('createReportSupersededJellyfinPlaybackHandler stops at the last position observed for the item', async () => {
+  const events: string[] = [];
+  const tracker = createJellyfinRemoteReportTracker();
+  let finishInFlightProgress = () => {};
+  tracker.track(
+    new Promise<void>((resolve) => {
+      finishInFlightProgress = () => {
+        events.push('in-flight progress done');
+        resolve();
+      };
+    }),
+  );
+  const reportSuperseded = createReportSupersededJellyfinPlaybackHandler({
+    ticksPerSecond: TICKS_PER_SECOND,
+    logDebug: () => {},
+    reportTracker: tracker,
+  });
+
+  const reported = reportSuperseded(
+    makePlayback({
+      itemId: 'item-1',
+      lastKnownPositionSeconds: 1410,
+      reporter: makeReporter({
+        reportStopped: async (payload) => {
+          events.push(`stopped:${payload.itemId}@${payload.positionTicks}`);
+        },
+      }),
+    }),
+  );
+  await Promise.resolve();
+  assert.deepEqual(events, [], 'the stop waits for progress already in flight');
+  finishInFlightProgress();
+  await reported;
+
+  assert.deepEqual(events, ['in-flight progress done', 'stopped:item-1@14100000000']);
 });

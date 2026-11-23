@@ -29,6 +29,8 @@ export interface JellyfinPlaybackPlan {
   title: string;
   itemTitle: string;
   seriesTitle: string | null;
+  /** Set for episodes; lets playback queue the series' neighboring episodes. */
+  seriesId: string | null;
   seasonNumber: number | null;
   episodeNumber: number | null;
   startTimeTicks: number;
@@ -89,6 +91,8 @@ interface JellyfinItem {
   Name?: string;
   Type?: string;
   SeriesName?: string;
+  SeriesId?: string;
+  LocationType?: string;
   ParentIndexNumber?: number;
   IndexNumber?: number;
   UserData?: JellyfinItemUserData;
@@ -579,6 +583,7 @@ export async function resolvePlaybackPlan(
     title: getDisplayTitle(item),
     itemTitle,
     seriesTitle,
+    seriesId: item.Type === 'Episode' ? ensureString(item.SeriesId).trim() || null : null,
     seasonNumber: item.Type === 'Episode' ? asIntegerOrNull(item.ParentIndexNumber) : null,
     episodeNumber: item.Type === 'Episode' ? asIntegerOrNull(item.IndexNumber) : null,
     startTimeTicks,
@@ -609,6 +614,33 @@ export async function resolvePlaybackPlan(
     mode: 'transcode',
     url: createTranscodeUrl(session, selection.itemId, source, basePlan, config),
   };
+}
+
+/**
+ * Lists a series' episode ids in playback order. The order runs across season boundaries and
+ * skips episodes the server only knows from metadata.
+ */
+export async function listSeriesEpisodeIds(
+  session: JellyfinAuthSession,
+  client: JellyfinClientInfo,
+  seriesId: string,
+): Promise<string[]> {
+  const query = new URLSearchParams({
+    UserId: session.userId,
+    IsMissing: 'false',
+    EnableImages: 'false',
+    EnableUserData: 'false',
+  });
+  const payload = await jellyfinRequestJson<JellyfinItemsResponse>(
+    `/Shows/${encodeURIComponent(seriesId)}/Episodes?${query.toString()}`,
+    { method: 'GET' },
+    session,
+    client,
+  );
+  return (Array.isArray(payload.Items) ? payload.Items : [])
+    .filter((item) => item.LocationType !== 'Virtual')
+    .map((item) => ensureString(item.Id))
+    .filter((id) => id.length > 0);
 }
 
 export function ticksToSeconds(ticks: number): number {

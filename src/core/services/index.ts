@@ -128,6 +128,7 @@ export {
   authenticateWithPassword as authenticateWithPasswordRuntime,
   listItems as listJellyfinItemsRuntime,
   listLibraries as listJellyfinLibrariesRuntime,
+  listSeriesEpisodeIds as listJellyfinSeriesEpisodeIdsRuntime,
   listSubtitleTracks as listJellyfinSubtitleTracksRuntime,
   resolvePlaybackPlan as resolveJellyfinPlaybackPlanRuntime,
   ticksToSeconds as jellyfinTicksToSecondsRuntime,

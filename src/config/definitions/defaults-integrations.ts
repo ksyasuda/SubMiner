@@ -160,6 +160,10 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     directPlayPreferred: true,
     directPlayContainers: ['mkv', 'mp4', 'webm', 'mov', 'flac', 'mp3', 'aac'],
     transcodeVideoCodec: 'h264',
+    episodePlaylist: {
+      enabled: true,
+      maxEpisodes: 5,
+    },
   },
   discordPresence: {
     enabled: true,
