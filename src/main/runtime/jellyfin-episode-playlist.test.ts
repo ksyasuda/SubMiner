@@ -172,6 +172,20 @@ test('queueNeighbors never undoes a navigation that lands after its playlist rea
   assert.deepEqual(harness.filenames(), [url('e3'), url('e4'), url('e5')]);
 });
 
+test('queueNeighbors keeps the episode just left even with the smallest configured window', async () => {
+  const harness = makeHarness({ enabled: true, maxEpisodes: 2 });
+  harness.playing('e3');
+  await harness.queue.queueNeighbors(null, entry('e3'));
+  harness.playing('e4');
+  // The read sees e4 playing; the user steps back to e3 before the edits arrive.
+  harness.setAfterRead(() => harness.playing('e3'));
+
+  await harness.queue.queueNeighbors(null, entry('e4'));
+
+  assert.equal(harness.playlist.find((item) => item.current)?.filename, url('e3'));
+  assert.ok(harness.filenames().includes(url('e3')));
+});
+
 test('queueNeighbors leaves the playlist alone once mpv has moved past the item', async () => {
   const harness = makeHarness();
   harness.playing('e3');

@@ -178,3 +178,13 @@ test('jellyfin episodePlaylist resolves the toggle and clamps the episode cap', 
   assert.deepEqual(context.resolved.jellyfin.episodePlaylist, { enabled: false, maxEpisodes: 25 });
   assert.ok(warnings.some((warning) => warning.path === 'jellyfin.episodePlaylist.maxEpisodes'));
 });
+
+test('jellyfin episodePlaylist raises an episode cap below 3', () => {
+  const { context } = createResolveContext({
+    jellyfin: { episodePlaylist: { maxEpisodes: 2 } },
+  });
+
+  applyIntegrationConfig(context);
+
+  assert.equal(context.resolved.jellyfin.episodePlaylist.maxEpisodes, 3);
+});

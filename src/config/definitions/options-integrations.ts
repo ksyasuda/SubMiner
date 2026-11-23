@@ -716,7 +716,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'number',
       defaultValue: defaultConfig.jellyfin.episodePlaylist.maxEpisodes,
       description:
-        'Most episodes kept in the mpv playlist, the playing one included, centered on it (2-25).',
+        'Most episodes kept in the mpv playlist, the playing one included, centered on it (3-25).',
     },
     {
       path: 'discordPresence.enabled',

@@ -13,9 +13,16 @@ export type JellyfinPlaylistEntry = {
 
 export type JellyfinEpisodePlaylistSettings = {
   enabled: boolean;
-  /** Most entries kept in mpv's playlist, the current one included. */
+  /** Most entries kept in mpv's playlist, the current one included. Raised to at least 3. */
   maxEpisodes: number;
 };
+
+/**
+ * A window of 3 or more always holds the current episode's immediate neighbors (it only shifts
+ * at a series edge, where that neighbor does not exist). Removals then stay at least two steps
+ * from the playing entry, so a queue run cannot remove the episode a user just stepped back to.
+ */
+const MIN_WINDOW_EPISODES = 3;
 
 export type JellyfinQueuedEpisode<Context, Entry> = {
   context: Context;
@@ -110,7 +117,11 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
     let windowIds = [current.itemId];
     if (settings.enabled && current.seriesId) {
       const episodeIds = await getSeriesEpisodeIds(context, current.seriesId);
-      const window = selectEpisodeWindow(episodeIds, current.itemId, settings.maxEpisodes);
+      const window = selectEpisodeWindow(
+        episodeIds,
+        current.itemId,
+        Math.max(MIN_WINDOW_EPISODES, settings.maxEpisodes),
+      );
       windowIds = [...window.previousIds, current.itemId, ...window.nextIds];
     }
     // Entries already queued stay where they are, so only the missing ones are resolved.

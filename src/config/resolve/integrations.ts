@@ -388,13 +388,13 @@ export function applyIntegrationConfig(context: ResolveContext): void {
 
       const maxEpisodes = asNumber(episodePlaylist.maxEpisodes);
       if (maxEpisodes !== undefined) {
-        const normalized = Math.min(25, Math.max(2, Math.floor(maxEpisodes)));
+        const normalized = Math.min(25, Math.max(3, Math.floor(maxEpisodes)));
         if (normalized !== maxEpisodes) {
           warn(
             'jellyfin.episodePlaylist.maxEpisodes',
             episodePlaylist.maxEpisodes,
             normalized,
-            'Out of range; clamped to 2..25.',
+            'Out of range; clamped to 3..25.',
           );
         }
         resolved.jellyfin.episodePlaylist.maxEpisodes = normalized;

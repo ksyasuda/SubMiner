@@ -572,7 +572,7 @@ Log in to a Jellyfin server, browse libraries, and play or cast to SubMiner. Log
 | `jellyfin.directPlayPreferred`         | `true`                           | Try direct play before transcoding                                                                                       |
 | `jellyfin.transcodeVideoCodec`         | `"h264"`                         | Codec requested when transcoding                                                                                         |
 | `jellyfin.episodePlaylist.enabled`     | `true`                           | Queue the episodes around the playing one in mpv's playlist ([episode playlist](/jellyfin-integration#episode-playlist)) |
-| `jellyfin.episodePlaylist.maxEpisodes` | `5`                              | Most episodes in that playlist, the playing one included (2-25)                                                          |
+| `jellyfin.episodePlaylist.maxEpisodes` | `5`                              | Most episodes in that playlist, the playing one included (3-25)                                                          |
 
 ### Discord rich presence
 
