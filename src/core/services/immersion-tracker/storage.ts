@@ -1,7 +1,7 @@
 import { sameTitleNamespaceSql, type MediaKind } from '../../../shared/media-kind';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { parseMediaInfo } from '../../../jimaku/utils';
+import { parseMediaInfo, parseMediaTitleInfo } from '../../../jimaku/utils';
 import { normalizeTitleIdentity } from '../../utils/title-normalization';
 import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
@@ -405,7 +405,7 @@ function parseLegacyAnimeBackfillCandidate(
 
   const fallbackTitle = canonicalTitle.trim();
   if (!fallbackTitle) return null;
-  const fromTitle = parseMediaInfo(fallbackTitle);
+  const fromTitle = parseMediaTitleInfo(fallbackTitle);
   if (!fromTitle.title || looksLikeEpisodeOnlyTitle(fromTitle.title)) {
     return null;
   }

@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { spawn as nodeSpawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { parseMediaInfo } from '../../../jimaku/utils';
+import { parseMediaLookupInfo } from '../../../jimaku/utils';
 import { resolveMediaLookupTarget, sanitizeMediaTitle } from '../../../shared/media-identity';
 import {
   guessAnilistMediaInfo,
@@ -214,7 +214,7 @@ export async function guessAnimeVideoMetadata(
     };
   }
 
-  const fallbackInfo = parseMediaInfo(lookupTarget);
+  const fallbackInfo = parseMediaLookupInfo(mediaPath, mediaTitle);
   return {
     parsedBasename: parsedBasename ?? fallbackInfo.filename ?? null,
     parsedTitle: parsed.title,

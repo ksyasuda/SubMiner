@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as childProcess from 'child_process';
 import { createLogger } from '../logger';
+import { resolveMediaLookupTarget, sanitizeMediaTitle } from '../shared/media-identity';
 import {
   JimakuApiResponse,
   JimakuConfig,
@@ -202,22 +203,60 @@ function cleanupTitle(value: string): string {
     .trim();
 }
 
+const EMPTY_MEDIA_INFO: JimakuMediaInfo = {
+  title: '',
+  season: null,
+  episode: null,
+  confidence: 'low',
+  filename: '',
+  rawTitle: '',
+};
+
+const MEDIA_EXTENSION = /\.(?:mkv|mp4|m4v|webm|avi|mov|wmv|flv|ts|m2ts)$/i;
+
+/** Parses a media file path: the basename carries the title, the parent dir may name the season. */
 export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
-  if (!mediaPath) {
-    return {
-      title: '',
-      season: null,
-      episode: null,
-      confidence: 'low',
-      filename: '',
-      rawTitle: '',
-    };
-  }
+  if (!mediaPath) return { ...EMPTY_MEDIA_INFO };
 
   const normalizedMediaPath = normalizeMediaPathForJimaku(mediaPath);
   const filename = path.basename(normalizedMediaPath);
-  let name = filename.replace(/\.[^/.]+$/, '');
-  name = name.replace(/\[[^\]]*]/g, ' ');
+  return parseMediaName(
+    filename.replace(/\.[^/.]+$/, ''),
+    filename,
+    detectSeasonFromDir(normalizedMediaPath),
+  );
+}
+
+/**
+ * Parses a display title such as a stream's mpv media-title. A "/" here is part of the title
+ * (Jellyfin episodes like "Show S01E01 Part A / Part B"), not a directory separator.
+ */
+export function parseMediaTitleInfo(mediaTitle: string | null): JimakuMediaInfo {
+  const title = mediaTitle?.trim();
+  if (!title) return { ...EMPTY_MEDIA_INFO };
+  return parseMediaName(title.replace(MEDIA_EXTENSION, ''), title, null);
+}
+
+/**
+ * Parses whichever of the path or title `resolveMediaLookupTarget` picks. Callers that already
+ * swapped a stream URL for its title (`resolveMediaPathForJimaku`) still parse it as a title.
+ */
+export function parseMediaLookupInfo(
+  mediaPath: string | null,
+  mediaTitle: string | null,
+): JimakuMediaInfo {
+  const target = resolveMediaLookupTarget(mediaPath, mediaTitle);
+  return target !== null && target === sanitizeMediaTitle(mediaTitle)
+    ? parseMediaTitleInfo(target)
+    : parseMediaInfo(target);
+}
+
+function parseMediaName(
+  baseName: string,
+  filename: string,
+  seasonFallback: number | null,
+): JimakuMediaInfo {
+  let name = baseName.replace(/\[[^\]]*]/g, ' ');
   name = name.replace(/\(\d{4}\)/g, ' ');
   name = name.replace(/[._]/g, ' ');
   name = name.replace(/[–—]/g, '-');
@@ -229,12 +268,11 @@ export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
     titlePart = name.slice(0, parsed.index);
   }
 
-  const seasonFromDir = parsed.season ?? detectSeasonFromDir(normalizedMediaPath);
   const title = cleanupTitle(titlePart || name);
 
   return {
     title,
-    season: seasonFromDir,
+    season: parsed.season ?? seasonFallback,
     episode: parsed.episode,
     confidence: parsed.confidence,
     filename,
