@@ -32,6 +32,13 @@ async function playlistIds(mpv: E2eSession['mpv']): Promise<string[]> {
   });
 }
 
+// `playlist/N/title` is writable from mpv 0.42.
+async function supportsPlaylistTitles(mpv: E2eSession['mpv']): Promise<boolean> {
+  const version = String(await mpv.command('get_property', 'mpv-version'));
+  const [major = 0, minor = 0] = (/v?(\d+)\.(\d+)/.exec(version) ?? []).slice(1).map(Number);
+  return major > 0 || minor >= 42;
+}
+
 async function mainPid(started: E2eSession): Promise<number> {
   const main = await started.mainProcess();
   try {
@@ -83,19 +90,25 @@ test(
       description: 'Jellyfin to hear ep2 start',
       timeoutMs: 30_000,
     });
-    // mpv's playlist lists entry titles, not stream URLs carrying the API key.
+    // mpv's playlist lists entry titles, not stream URLs carrying the API key. Entry titles
+    // became writable in mpv 0.42; older players keep listing URLs.
     const titles = [
       'E2E Show S01E01 Episode 1',
       'E2E Show S01E02 Episode 2',
       'E2E Show S01E03 Episode 3',
     ];
-    await waitUntil(
-      async () => {
-        const playlist = (await mpv.command('get_property', 'playlist')) as PlaylistEntry[];
-        return playlist.map((entry) => entry.title).join('|') === titles.join('|');
-      },
-      { description: 'queued playlist entries titled like the playing episode', timeoutMs: 10_000 },
-    );
+    if (await supportsPlaylistTitles(mpv)) {
+      await waitUntil(
+        async () => {
+          const playlist = (await mpv.command('get_property', 'playlist')) as PlaylistEntry[];
+          return playlist.map((entry) => entry.title).join('|') === titles.join('|');
+        },
+        {
+          description: 'queued playlist entries titled like the playing episode',
+          timeoutMs: 10_000,
+        },
+      );
+    }
 
     await mpv.command('playlist-next');
     await waitUntil(() => reported('playing', 'ep3') >= 0, {
