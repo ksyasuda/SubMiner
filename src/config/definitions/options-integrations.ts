@@ -616,13 +616,14 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'mpv.aniskipEnabled',
       kind: 'boolean',
       defaultValue: defaultConfig.mpv.aniskipEnabled,
-      description: 'Enable AniSkip intro detection, chapter markers, and the skip-intro key.',
+      description:
+        'Enable intro and outro detection (file chapters, then AniSkip), chapter markers, and the skip key.',
     },
     {
       path: 'mpv.aniskipButtonKey',
       kind: 'string',
       defaultValue: defaultConfig.mpv.aniskipButtonKey,
-      description: 'mpv key used to skip the detected intro while the skip prompt is visible.',
+      description: 'mpv key that skips the detected intro or outro while it plays.',
     },
     {
       path: 'jellyfin.enabled',

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import type { SkipInterval } from './aniskip-chapters';
 
 export type AniSkipLookupStatus =
   | 'ready'
@@ -15,9 +16,14 @@ export interface AniSkipMetadata {
   episode: number | null;
   source: 'guessit' | 'fallback';
   malId: number | null;
-  introStart: number | null;
-  introEnd: number | null;
+  intro: SkipInterval | null;
+  outro: SkipInterval | null;
   lookupStatus?: AniSkipLookupStatus;
+}
+
+export interface AniSkipLookupOptions {
+  /** Length of the playing file in seconds; AniSkip v2 uses it to pick times marked on the same cut. */
+  episodeLength: number;
 }
 
 interface InferAniSkipDeps {
@@ -39,12 +45,12 @@ interface MalSearchResponse {
 }
 
 interface AniSkipIntervalPayload {
-  start_time?: unknown;
-  end_time?: unknown;
+  startTime?: unknown;
+  endTime?: unknown;
 }
 
 interface AniSkipSkipItemPayload {
-  skip_type?: unknown;
+  skipType?: unknown;
   interval?: unknown;
 }
 
@@ -61,9 +67,12 @@ const ROMAN_SEASON_ALIASES: Record<number, readonly string[]> = {
 };
 
 const MAL_PREFIX_API = 'https://myanimelist.net/search/prefix.json?type=anime&keyword=';
-const ANISKIP_PAYLOAD_API = 'https://api.aniskip.com/v1/skip-times/';
+const ANISKIP_PAYLOAD_API = 'https://api.aniskip.com/v2/skip-times/';
 const ANISKIP_USER_AGENT = 'SubMiner/ani-skip';
 const ANISKIP_FETCH_TIMEOUT_MS = 8000;
+// AniSkip allows 120 requests a minute; one lookup per file load stays far below that,
+// but a gap keeps fast playlist skipping from bursting.
+const ANISKIP_MIN_REQUEST_GAP_MS = 1000;
 const MAL_MATCH_STOPWORDS = new Set([
   'the',
   'this',
@@ -261,49 +270,71 @@ function toMalSearchItems(payload: unknown): MalSearchResult[] {
   return items;
 }
 
-function parseAniSkipPayload(payload: unknown): { start: number; end: number } | null {
-  const parsed = payload as AniSkipPayloadResponse;
-  const results = Array.isArray(parsed?.results) ? parsed.results : null;
-  if (!results) return null;
-
-  for (const rawResult of results) {
-    const result = rawResult as AniSkipSkipItemPayload;
-    if (
-      result.skip_type !== 'op' ||
-      typeof result.interval !== 'object' ||
-      result.interval === null
-    ) {
-      continue;
-    }
-    const interval = result.interval as AniSkipIntervalPayload;
-    const start = toNonNegativeNumber(interval?.start_time);
-    const end = toPositiveNumber(interval?.end_time);
-    if (start !== null && end !== null && end > start) {
-      return { start, end };
-    }
-  }
-
-  return null;
+function parseInterval(raw: unknown): SkipInterval | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const interval = raw as AniSkipIntervalPayload;
+  const start = toNonNegativeNumber(interval.startTime);
+  const end = toPositiveNumber(interval.endTime);
+  return start !== null && end !== null && end > start ? { start, end } : null;
 }
 
-async function fetchJson<T>(url: string): Promise<T | null> {
+/** Reads the first valid opening (`op`) and ending (`ed`) from an AniSkip v2 response. */
+export function parseAniSkipPayload(payload: unknown): {
+  intro: SkipInterval | null;
+  outro: SkipInterval | null;
+} {
+  const parsed = payload as AniSkipPayloadResponse | null;
+  const results = parsed?.found === true && Array.isArray(parsed.results) ? parsed.results : [];
+  let intro: SkipInterval | null = null;
+  let outro: SkipInterval | null = null;
+  for (const rawResult of results) {
+    const result = rawResult as AniSkipSkipItemPayload;
+    if (result.skipType === 'op' && !intro) intro = parseInterval(result.interval);
+    if (result.skipType === 'ed' && !outro) outro = parseInterval(result.interval);
+  }
+  return { intro, outro };
+}
+
+/**
+ * Fetches JSON. A 404 is a definite "nothing here" and returns null; any other
+ * failure (non-OK status, network error, timeout, bad JSON) throws so callers
+ * report a retryable lookup failure instead of caching a miss.
+ */
+async function fetchJson(url: string): Promise<unknown> {
   const response = await fetch(url, {
     headers: {
       'User-Agent': ANISKIP_USER_AGENT,
     },
     signal: AbortSignal.timeout(ANISKIP_FETCH_TIMEOUT_MS),
   });
-  if (!response.ok) return null;
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return null;
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} from ${new URL(url).host}`);
   }
+  return await response.json();
+}
+
+let lastAniSkipRequestAt = 0;
+let aniSkipRequestQueue: Promise<void> = Promise.resolve();
+
+/**
+ * Resolves when the caller may send its AniSkip request. Callers are released
+ * one at a time, each at least ANISKIP_MIN_REQUEST_GAP_MS after the previous
+ * release, so timers that fire late cannot release a burst.
+ */
+function waitForAniSkipRequestSlot(): Promise<void> {
+  const slot = aniSkipRequestQueue.then(async () => {
+    const waitMs = lastAniSkipRequestAt + ANISKIP_MIN_REQUEST_GAP_MS - Date.now();
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    lastAniSkipRequestAt = Date.now();
+  });
+  aniSkipRequestQueue = slot;
+  return slot;
 }
 
 async function resolveMalIdFromTitle(title: string, season: number | null): Promise<number | null> {
   const lookup = season && season > 1 ? `${title} Season ${season}` : title;
-  const payload = await fetchJson<unknown>(`${MAL_PREFIX_API}${encodeURIComponent(lookup)}`);
+  const payload = await fetchJson(`${MAL_PREFIX_API}${encodeURIComponent(lookup)}`);
   const items = toMalSearchItems(payload);
   if (!items.length) return null;
 
@@ -326,16 +357,17 @@ async function resolveMalIdFromTitle(title: string, season: number | null): Prom
   return bestMalId;
 }
 
-async function fetchAniSkipPayload(
+async function fetchAniSkipIntervals(
   malId: number,
   episode: number,
-): Promise<{ start: number; end: number } | null> {
-  const payload = await fetchJson<unknown>(
-    `${ANISKIP_PAYLOAD_API}${malId}/${episode}?types=op&types=ed`,
+  episodeLength: number,
+): Promise<{ intro: SkipInterval | null; outro: SkipInterval | null }> {
+  await waitForAniSkipRequestSlot();
+  const length = Math.round(episodeLength * 1000) / 1000;
+  const payload = await fetchJson(
+    `${ANISKIP_PAYLOAD_API}${malId}/${episode}?types=op&types=ed&episodeLength=${length}`,
   );
-  const parsed = payload as AniSkipPayloadResponse;
-  if (!parsed || parsed.found !== true) return null;
-  return parseAniSkipPayload(parsed);
+  return parseAniSkipPayload(payload);
 }
 
 function detectEpisodeFromName(baseName: string): number | null {
@@ -456,8 +488,8 @@ export function parseAniSkipGuessitJson(stdout: string, mediaPath: string): AniS
       episode: episodeFromDirect ?? episodeFromList,
       source: 'guessit',
       malId: null,
-      introStart: null,
-      introEnd: null,
+      intro: null,
+      outro: null,
       lookupStatus: 'lookup_failed',
     };
   } catch {
@@ -501,13 +533,20 @@ export function inferAniSkipMetadataForFile(
     episode: detectEpisodeFromName(baseName),
     source: 'fallback',
     malId: null,
-    introStart: null,
-    introEnd: null,
+    intro: null,
+    outro: null,
     lookupStatus: 'lookup_failed',
   };
 }
 
-export async function resolveAniSkipMetadataForFile(mediaPath: string): Promise<AniSkipMetadata> {
+/**
+ * Resolves a local file's MAL id and AniSkip opening/ending. Statuses other
+ * than `lookup_failed` are definite answers that callers may cache.
+ */
+export async function resolveAniSkipMetadataForFile(
+  mediaPath: string,
+  options: AniSkipLookupOptions,
+): Promise<AniSkipMetadata> {
   const inferred = inferAniSkipMetadataForFile(mediaPath);
   if (!inferred.title) {
     return { ...inferred, lookupStatus: 'lookup_failed' };
@@ -516,50 +555,25 @@ export async function resolveAniSkipMetadataForFile(mediaPath: string): Promise<
   try {
     const malId = await resolveMalIdFromTitle(inferred.title, inferred.season);
     if (!malId) {
-      return {
-        ...inferred,
-        malId: null,
-        introStart: null,
-        introEnd: null,
-        lookupStatus: 'missing_mal_id',
-      };
+      return { ...inferred, lookupStatus: 'missing_mal_id' };
     }
-
     if (!inferred.episode) {
-      return {
-        ...inferred,
-        malId,
-        introStart: null,
-        introEnd: null,
-        lookupStatus: 'missing_episode',
-      };
+      return { ...inferred, malId, lookupStatus: 'missing_episode' };
     }
 
-    const payload = await fetchAniSkipPayload(malId, inferred.episode);
-    if (!payload) {
-      return {
-        ...inferred,
-        malId,
-        introStart: null,
-        introEnd: null,
-        lookupStatus: 'missing_payload',
-      };
-    }
-
+    const { intro, outro } = await fetchAniSkipIntervals(
+      malId,
+      inferred.episode,
+      options.episodeLength,
+    );
     return {
       ...inferred,
       malId,
-      introStart: payload.start,
-      introEnd: payload.end,
-      lookupStatus: 'ready',
+      intro,
+      outro,
+      lookupStatus: intro || outro ? 'ready' : 'missing_payload',
     };
   } catch {
-    return {
-      ...inferred,
-      malId: inferred.malId,
-      introStart: inferred.introStart,
-      introEnd: inferred.introEnd,
-      lookupStatus: 'lookup_failed',
-    };
+    return { ...inferred, lookupStatus: 'lookup_failed' };
   }
 }

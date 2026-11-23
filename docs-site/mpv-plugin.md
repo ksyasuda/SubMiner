@@ -47,7 +47,7 @@ Most plugin keys are chords: press `y`, then the second key.
 
 `v` replaces mpv's own subtitle visibility toggle.
 
-The skip-intro key (`TAB` by default) comes from the SubMiner app, not the plugin. See [AniSkip integration](/aniskip-integration).
+The intro/outro skip key (`TAB` by default) comes from the SubMiner app, not the plugin. See [AniSkip integration](/aniskip-integration).
 
 The `y-y` menu lists Start overlay, Stop overlay, Toggle overlay, Open options, Restart overlay, Check status, and Stats. Press an item's number to run it. Stats only reminds you to press `` ` `` in the overlay.
 

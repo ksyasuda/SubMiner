@@ -46,7 +46,7 @@ A few ownership notes that are hard to guess from file names:
 
 - mpv access is split into transport (`mpv-transport.ts`), protocol (`mpv-protocol.ts`), and property modules under `src/core/services/`.
 - The renderer keeps `renderer.ts` to orchestration. Keyboard, mouse, and gamepad input live in `renderer/handlers/`, and each modal flow has its own file in `renderer/modals/`.
-- AniSkip intro detection runs in the app (`src/main/runtime/aniskip-runtime.ts`), which drives mpv chapters and the skip key over the mpv IPC socket. The plugin does not handle it.
+- Intro/outro detection runs in the app (`src/main/runtime/aniskip-runtime.ts`), which reads the file's chapters, asks AniSkip for what they lack, and drives mpv chapters and the skip key over the mpv IPC socket. The plugin does not handle it.
 
 ## Component diagram
 

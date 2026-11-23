@@ -10,12 +10,14 @@ function readyMetadata(overrides: Partial<AniSkipMetadata> = {}): AniSkipMetadat
     episode: 1,
     source: 'fallback',
     malId: 1234,
-    introStart: 10,
-    introEnd: 95.5,
+    intro: { start: 10, end: 95.5 },
+    outro: null,
     lookupStatus: 'ready',
     ...overrides,
   };
 }
+
+const NO_SKIP_TIMES = { intro: null, outro: null } as const;
 
 function createHarness(options?: {
   enabled?: boolean;
@@ -23,6 +25,7 @@ function createHarness(options?: {
   metadata?: AniSkipMetadata | (() => Promise<AniSkipMetadata>);
   chapterList?: unknown;
   playbackFeedback?: boolean;
+  duration?: number | null;
 }) {
   const state = {
     enabled: options?.enabled ?? true,
@@ -31,9 +34,14 @@ function createHarness(options?: {
     osd: [] as string[],
     feedback: [] as string[],
     resolveCalls: [] as string[],
+    episodeLengths: [] as number[],
     connected: true,
+    duration: options?.duration === undefined ? 1440 : options.duration,
     timePos: 0,
     chapterList: options?.chapterList ?? [],
+    chapterListFails: false,
+    // When set, chapter-list reads wait for it before answering.
+    chapterGate: null as Promise<void> | null,
   };
 
   const deps = {
@@ -41,8 +49,9 @@ function createHarness(options?: {
       aniskipEnabled: state.enabled,
       aniskipButtonKey: state.buttonKey,
     }),
-    resolveMetadataForFile: async (mediaPath) => {
+    resolveMetadataForFile: async (mediaPath, episodeLength) => {
       state.resolveCalls.push(mediaPath);
+      state.episodeLengths.push(episodeLength);
       const metadata = options?.metadata;
       if (typeof metadata === 'function') return metadata();
       return metadata ?? readyMetadata();
@@ -51,7 +60,15 @@ function createHarness(options?: {
       state.commands.push(command);
     },
     requestMpvProperty: async (name) => {
-      if (name === 'chapter-list') return state.chapterList;
+      if (name === 'chapter-list') {
+        if (state.chapterGate) await state.chapterGate;
+        if (state.chapterListFails) throw new Error('property unavailable');
+        return state.chapterList;
+      }
+      if (name === 'duration') {
+        if (state.duration === null) throw new Error('property unavailable');
+        return state.duration;
+      }
       return null;
     },
     isMpvConnected: () => state.connected,
@@ -84,6 +101,10 @@ async function flushAsync(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function seekCommands(commands: unknown[][]): unknown[][] {
+  return commands.filter((command) => command[0] === 'set_property' && command[1] === 'time-pos');
+}
+
 test('isRemoteMediaPath detects URLs but not local paths', () => {
   assert.equal(isRemoteMediaPath('https://example.com/stream.mkv'), true);
   assert.equal(isRemoteMediaPath('rtmp://example.com/live'), true);
@@ -101,6 +122,7 @@ test('media path change resolves metadata and sets AniSkip chapters', async () =
   await flushAsync();
 
   assert.deepEqual(state.resolveCalls, ['/media/anime/My Show/ep1.mkv']);
+  assert.deepEqual(state.episodeLengths, [1440]);
   const chapterCommands = chapterListCommands(state.commands);
   assert.equal(chapterCommands.length, 1);
   const chapters = chapterCommands[0]![2] as Array<{ time: number; title: string }>;
@@ -109,7 +131,10 @@ test('media path change resolves metadata and sets AniSkip chapters', async () =
     { time: 10, title: 'AniSkip Intro Start' },
     { time: 95.5, title: 'AniSkip Intro End' },
   ]);
-  assert.deepEqual(runtime.getIntroWindow(), { start: 10, end: 95.5, malId: 1234 });
+  assert.deepEqual(runtime.getSkipWindows(), {
+    intro: { start: 10, end: 95.5, source: 'aniskip' },
+    outro: null,
+  });
 });
 
 test('remote media paths and disabled config never resolve', async () => {
@@ -131,21 +156,18 @@ test('skip intro seeks to intro end only inside the intro window', async () => {
 
   state.timePos = 200;
   runtime.handleClientMessage({ args: ['subminer-skip-intro'] });
-  assert.deepEqual(state.osd, ['Skip intro only during intro']);
+  assert.deepEqual(state.osd, ['Skip only during intro or outro']);
 
   state.timePos = 30;
   runtime.handleClientMessage({ args: ['subminer-skip-intro'] });
-  assert.deepEqual(state.osd, ['Skip intro only during intro', 'Skipped intro']);
-  const seek = state.commands.find(
-    (command) => command[0] === 'set_property' && command[1] === 'time-pos',
-  );
-  assert.deepEqual(seek, ['set_property', 'time-pos', 95.5]);
+  assert.deepEqual(state.osd, ['Skip only during intro or outro', 'Skipped intro']);
+  assert.deepEqual(seekCommands(state.commands), [['set_property', 'time-pos', 95.5]]);
 });
 
 test('skip intro reports unavailable when no window was found', () => {
   const { runtime, state } = createHarness();
   runtime.handleClientMessage({ args: ['subminer-skip-intro'] });
-  assert.deepEqual(state.osd, ['Intro skip unavailable']);
+  assert.deepEqual(state.osd, ['Intro/outro skip unavailable']);
 });
 
 test('time-pos prompt shows once near intro start', async () => {
@@ -158,7 +180,7 @@ test('time-pos prompt shows once near intro start', async () => {
 
   runtime.handleTimePosChange({ time: 10.5 });
   runtime.handleTimePosChange({ time: 11 });
-  assert.deepEqual(state.osd, ['You can skip by pressing TAB']);
+  assert.deepEqual(state.osd, ['You can skip the intro by pressing TAB']);
 });
 
 test('prompt and skip messages use playback feedback when configured', async () => {
@@ -170,7 +192,7 @@ test('prompt and skip messages use playback feedback when configured', async () 
   state.timePos = 30;
   runtime.handleClientMessage({ args: ['subminer-skip-intro'] });
 
-  assert.deepEqual(state.feedback, ['You can skip by pressing TAB', 'Skipped intro']);
+  assert.deepEqual(state.feedback, ['You can skip the intro by pressing TAB', 'Skipped intro']);
   assert.deepEqual(state.osd, []);
 });
 
@@ -240,18 +262,13 @@ test('aniskip refresh forces a fresh lookup for the current media', async () => 
   assert.equal(state.resolveCalls.length, 2);
 });
 
-test('media without an intro window is cached and never re-resolved on reload of another file', async () => {
+test('definite misses are cached and not looked up again for the same file', async () => {
   const { runtime, state } = createHarness({
-    metadata: readyMetadata({
-      malId: 1234,
-      introStart: null,
-      introEnd: null,
-      lookupStatus: 'missing_payload',
-    }),
+    metadata: readyMetadata({ ...NO_SKIP_TIMES, lookupStatus: 'missing_payload' }),
   });
   runtime.handleMediaPathChange({ path: '/media/show.mkv' });
   await flushAsync();
-  assert.equal(runtime.getIntroWindow(), null);
+  assert.deepEqual(runtime.getSkipWindows(), NO_SKIP_TIMES);
   assert.equal(chapterListCommands(state.commands).length, 0);
 
   runtime.handleMediaPathChange({ path: '/media/other.mkv' });
@@ -261,25 +278,117 @@ test('media without an intro window is cached and never re-resolved on reload of
   assert.deepEqual(state.resolveCalls, ['/media/show.mkv', '/media/other.mkv']);
 });
 
-test('transient lookup failures are retried on the next media load', async () => {
-  let failures = 0;
+test('transient lookup failures are not cached and retry on the next media load', async () => {
+  let calls = 0;
   const { runtime, state } = createHarness({
     metadata: async () => {
-      failures += 1;
-      return readyMetadata(
-        failures === 1 ? { introStart: null, introEnd: null, lookupStatus: 'lookup_failed' } : {},
-      );
+      calls += 1;
+      return readyMetadata(calls === 1 ? { ...NO_SKIP_TIMES, lookupStatus: 'lookup_failed' } : {});
     },
   });
   runtime.handleMediaPathChange({ path: '/media/show.mkv' });
   await flushAsync();
-  assert.equal(runtime.getIntroWindow(), null);
+  assert.deepEqual(runtime.getSkipWindows(), NO_SKIP_TIMES);
 
   runtime.handleMediaPathChange({ path: '' });
   runtime.handleMediaPathChange({ path: '/media/show.mkv' });
   await flushAsync();
   assert.equal(state.resolveCalls.length, 2);
-  assert.deepEqual(runtime.getIntroWindow(), { start: 10, end: 95.5, malId: 1234 });
+  assert.deepEqual(runtime.getSkipWindows().intro, { start: 10, end: 95.5, source: 'aniskip' });
+});
+
+test('resolution waits for a known duration before reading chapters or AniSkip', async () => {
+  const { runtime, state } = createHarness({ duration: null });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  assert.deepEqual(state.resolveCalls, []);
+
+  runtime.handleDurationChange({ duration: 1425.2 });
+  await flushAsync();
+  assert.deepEqual(state.episodeLengths, [1425.2]);
+});
+
+test('file chapters with both an opening and an ending skip the AniSkip lookup', async () => {
+  const { runtime, state } = createHarness({
+    chapterList: [
+      { time: 0, title: 'Prologue' },
+      { time: 120, title: 'Opening' },
+      { time: 210, title: 'Part A' },
+      { time: 1300, title: 'Ending' },
+      { time: 1390, title: 'Preview' },
+    ],
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+
+  assert.deepEqual(state.resolveCalls, []);
+  assert.deepEqual(runtime.getSkipWindows(), {
+    intro: { start: 120, end: 210, source: 'chapters' },
+    outro: { start: 1300, end: 1390, source: 'chapters' },
+  });
+  // The file already has chapter boundaries there, so no AniSkip markers are added.
+  assert.equal(chapterListCommands(state.commands).length, 0);
+});
+
+test('AniSkip fills in the window the file chapters lack', async () => {
+  const { runtime, state } = createHarness({
+    chapterList: [
+      { time: 0, title: 'Opening' },
+      { time: 90, title: 'Episode' },
+    ],
+    metadata: readyMetadata({
+      intro: { start: 3, end: 93 },
+      outro: { start: 1330, end: 1420 },
+    }),
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+
+  assert.equal(state.resolveCalls.length, 1);
+  assert.deepEqual(runtime.getSkipWindows(), {
+    intro: { start: 0, end: 90, source: 'chapters' },
+    outro: { start: 1330, end: 1420, source: 'aniskip' },
+  });
+  assert.deepEqual(chapterListCommands(state.commands)[0]![2], [
+    { time: 0, title: 'Opening' },
+    { time: 90, title: 'Episode' },
+    { time: 1330, title: 'AniSkip Outro Start' },
+    { time: 1420, title: 'AniSkip Outro End' },
+  ]);
+});
+
+test('remote streams use file chapters without an AniSkip lookup', async () => {
+  const { runtime, state } = createHarness({
+    chapterList: [
+      { time: 0, title: 'Intro' },
+      { time: 30, title: 'OP' },
+      { time: 120, title: 'Episode' },
+    ],
+  });
+  runtime.handleMediaPathChange({ path: 'https://jellyfin.example/Videos/1/stream.mkv' });
+  await flushAsync();
+
+  assert.deepEqual(state.resolveCalls, []);
+  assert.deepEqual(runtime.getSkipWindows().intro, { start: 30, end: 120, source: 'chapters' });
+});
+
+test('skip key skips the outro inside its window and prompts at its start', async () => {
+  const { runtime, state } = createHarness({
+    metadata: readyMetadata({ outro: { start: 1330, end: 1420 } }),
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+
+  runtime.handleTimePosChange({ time: 1331 });
+  runtime.handleTimePosChange({ time: 1332 });
+  assert.deepEqual(state.osd, ['You can skip the outro by pressing TAB']);
+
+  state.timePos = 1329.8;
+  runtime.handleClientMessage({ args: ['subminer-skip-intro'] });
+  state.timePos = 1425;
+  runtime.handleClientMessage({ args: ['subminer-skip-intro'] });
+  assert.deepEqual(seekCommands(state.commands), [['set_property', 'time-pos', 1420]]);
+  assert.deepEqual(state.osd.slice(1), ['Skipped outro', 'Skip only during intro or outro']);
 });
 
 test('disconnect clears bindings so reconnect rebinds the skip key', () => {
@@ -291,4 +400,175 @@ test('disconnect clears bindings so reconnect rebinds the skip key', () => {
     ['keybind', 'TAB', 'script-message subminer-skip-intro'],
     ['keybind', 'TAB', 'script-message subminer-skip-intro'],
   ]);
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+test('a failed chapter-list read leaves the file chapters untouched', async () => {
+  const harness = createHarness({
+    chapterList: [{ time: 0, title: 'Prologue' }],
+    metadata: async () => {
+      harness.state.chapterListFails = true;
+      return readyMetadata();
+    },
+  });
+  harness.runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+
+  assert.equal(harness.runtime.getSkipWindows().intro?.source, 'aniskip');
+  assert.equal(chapterListCommands(harness.state.commands).length, 0);
+});
+
+test('markers are not written into a file that replaced the one being read', async () => {
+  const gate = deferred<void>();
+  let calls = 0;
+  const harness = createHarness({
+    metadata: async () => {
+      calls += 1;
+      if (calls === 1) {
+        harness.state.chapterGate = gate.promise;
+        return readyMetadata();
+      }
+      return readyMetadata({ ...NO_SKIP_TIMES, lookupStatus: 'missing_payload' });
+    },
+  });
+  harness.runtime.handleMediaPathChange({ path: '/media/a.mkv' });
+  await flushAsync();
+  // The marker write for a.mkv is waiting on its chapter-list read.
+  harness.runtime.handleMediaPathChange({ path: '/media/b.mkv' });
+  harness.state.chapterGate = null;
+  gate.resolve();
+  await flushAsync();
+  await flushAsync();
+
+  assert.deepEqual(harness.state.resolveCalls, ['/media/a.mkv', '/media/b.mkv']);
+  assert.equal(chapterListCommands(harness.state.commands).length, 0);
+});
+
+test('a file-chapter intro is usable while the AniSkip lookup is still running', async () => {
+  const lookup = deferred<AniSkipMetadata>();
+  const { runtime, state } = createHarness({
+    chapterList: [
+      { time: 0, title: 'Opening' },
+      { time: 90, title: 'Episode' },
+    ],
+    metadata: () => lookup.promise,
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+
+  assert.deepEqual(runtime.getSkipWindows(), {
+    intro: { start: 0, end: 90, source: 'chapters' },
+    outro: null,
+  });
+  runtime.handleTimePosChange({ time: 1 });
+  assert.equal(state.osd.length, 1);
+
+  lookup.resolve(
+    readyMetadata({ intro: { start: 3, end: 93 }, outro: { start: 1330, end: 1420 } }),
+  );
+  await flushAsync();
+
+  assert.deepEqual(runtime.getSkipWindows(), {
+    intro: { start: 0, end: 90, source: 'chapters' },
+    outro: { start: 1330, end: 1420, source: 'aniskip' },
+  });
+  // The intro prompt already shown is not shown again.
+  runtime.handleTimePosChange({ time: 1.5 });
+  assert.equal(state.osd.length, 1);
+});
+
+test('a lookup superseded by a refresh does not overwrite the cache', async () => {
+  const first = deferred<AniSkipMetadata>();
+  let calls = 0;
+  const { runtime, state } = createHarness({
+    metadata: () => {
+      calls += 1;
+      return calls === 1 ? first.promise : Promise.resolve(readyMetadata());
+    },
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  runtime.handleClientMessage({ args: ['subminer-aniskip-refresh'] });
+  await flushAsync();
+  first.resolve(readyMetadata({ ...NO_SKIP_TIMES, lookupStatus: 'missing_payload' }));
+  await flushAsync();
+
+  runtime.handleMediaPathChange({ path: '/media/other.mkv' });
+  await flushAsync();
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  assert.deepEqual(state.resolveCalls, ['/media/show.mkv', '/media/show.mkv', '/media/other.mkv']);
+  assert.deepEqual(runtime.getSkipWindows().intro, { start: 10, end: 95.5, source: 'aniskip' });
+});
+
+test('a same-media reload retries a transient lookup failure', async () => {
+  let calls = 0;
+  const { runtime, state } = createHarness({
+    metadata: async () => {
+      calls += 1;
+      return readyMetadata(calls === 1 ? { ...NO_SKIP_TIMES, lookupStatus: 'lookup_failed' } : {});
+    },
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  assert.deepEqual(runtime.getSkipWindows(), NO_SKIP_TIMES);
+
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  assert.equal(state.resolveCalls.length, 2);
+  assert.deepEqual(runtime.getSkipWindows().intro, { start: 10, end: 95.5, source: 'aniskip' });
+});
+
+test('a failed chapter-list read is retried on the next duration change or reload', async () => {
+  const stream = 'https://jellyfin.example/Videos/1/stream.mkv';
+  const chapters = [
+    { time: 0, title: 'OP' },
+    { time: 90, title: 'Episode' },
+  ];
+  for (const retry of ['duration', 'reload'] as const) {
+    const { runtime, state } = createHarness({ chapterList: chapters });
+    state.chapterListFails = true;
+    runtime.handleMediaPathChange({ path: stream });
+    await flushAsync();
+    assert.deepEqual(runtime.getSkipWindows(), NO_SKIP_TIMES);
+
+    state.chapterListFails = false;
+    if (retry === 'duration') runtime.handleDurationChange({ duration: 1440 });
+    else runtime.handleMediaPathChange({ path: stream });
+    await flushAsync();
+    assert.deepEqual(runtime.getSkipWindows().intro, { start: 0, end: 90, source: 'chapters' });
+  }
+});
+
+test('a successful empty chapter list is not read again on a duration change', async () => {
+  const { runtime, state } = createHarness({
+    metadata: readyMetadata({ ...NO_SKIP_TIMES, lookupStatus: 'missing_payload' }),
+  });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  runtime.handleDurationChange({ duration: 1441 });
+  await flushAsync();
+  assert.equal(state.resolveCalls.length, 1);
+});
+
+test('a cached lookup is reused only for the episode length it was fetched for', async () => {
+  const { runtime, state } = createHarness();
+  // A failing chapter read keeps resolution retrying on each duration change.
+  state.chapterListFails = true;
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+  runtime.handleDurationChange({ duration: 1440 });
+  await flushAsync();
+  assert.deepEqual(state.episodeLengths, [1440]);
+
+  runtime.handleDurationChange({ duration: 1500 });
+  await flushAsync();
+  assert.deepEqual(state.episodeLengths, [1440, 1500]);
 });
