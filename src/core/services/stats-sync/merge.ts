@@ -20,6 +20,11 @@ export type { SyncMergeSummary } from './shared';
  * are updated incrementally so history older than the session retention
  * window is preserved on both sides. Idempotent: re-merging the same
  * snapshot is a no-op.
+ *
+ * A library entry's franchise override (`group_override`) is last-writer-wins
+ * by `group_override_updated_at`. The AniList relation cache
+ * (`imm_anilist_media`, `imm_anilist_relations`) is not merged: each machine
+ * rebuilds it from AniList.
  */
 export function mergeSnapshotIntoDb(localDbPath: string, snapshotPath: string): SyncMergeSummary {
   if (!fs.existsSync(localDbPath)) {

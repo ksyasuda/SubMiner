@@ -58,3 +58,78 @@ for (const [localKind, remoteKind, sameEntry] of [
     }
   });
 }
+
+test('franchise override follows whichever side set or cleared it last', () => {
+  const adapt = (db: DatabaseSync) => ({
+    query: (sql: string) => db.prepare(sql),
+    exec: (sql: string) => {
+      db.exec(sql);
+    },
+    close: () => {
+      db.close();
+    },
+  });
+  const cases: Array<{
+    name: string;
+    local: [number | null, string | null];
+    remote: [number | null, string | null];
+    expected: number | null;
+  }> = [
+    {
+      name: 'newer remote join wins',
+      local: [null, null],
+      remote: [20832, '2000'],
+      expected: 20832,
+    },
+    { name: 'newer remote clear wins', local: [0, '1000'], remote: [null, '2000'], expected: null },
+    { name: 'older remote loses', local: [0, '3000'], remote: [20832, '2000'], expected: 0 },
+    { name: 'untouched remote keeps local', local: [0, '1000'], remote: [null, null], expected: 0 },
+  ];
+  for (const c of cases) {
+    const local = new Database(':memory:');
+    const remote = new Database(':memory:');
+    try {
+      for (const [db, [override, updatedAt]] of [
+        [local, c.local],
+        [remote, c.remote],
+      ] as const) {
+        ensureSchema(db);
+        db.prepare(
+          `INSERT INTO imm_anime(normalized_title_key, canonical_title, anilist_id, group_override, group_override_updated_at)
+          VALUES ('overlord ii', 'Overlord II', 98437, ?, ?)`,
+        ).run(override, updatedAt);
+      }
+      mergeAnime(adapt(local), adapt(remote), createEmptyMergeSummary());
+      const row = local.prepare('SELECT group_override AS value FROM imm_anime').get() as {
+        value: number | null;
+      };
+      assert.equal(row.value, c.expected, c.name);
+    } finally {
+      local.close();
+      remote.close();
+    }
+  }
+
+  const local = new Database(':memory:');
+  const remote = new Database(':memory:');
+  try {
+    ensureSchema(local);
+    ensureSchema(remote);
+    remote
+      .prepare(
+        `INSERT INTO imm_anime(normalized_title_key, canonical_title, group_override, group_override_updated_at)
+        VALUES ('specials', 'Specials', 20832, '1000')`,
+      )
+      .run();
+    mergeAnime(adapt(local), adapt(remote), createEmptyMergeSummary());
+    const row = local
+      .prepare(
+        'SELECT group_override AS value, group_override_updated_at AS updatedAt FROM imm_anime',
+      )
+      .get() as { value: number | null; updatedAt: string | null };
+    assert.deepEqual([row.value, row.updatedAt], [20832, '1000']);
+  } finally {
+    local.close();
+    remote.close();
+  }
+});

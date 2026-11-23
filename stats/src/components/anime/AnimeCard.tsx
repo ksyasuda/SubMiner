@@ -1,9 +1,9 @@
 import { AnimeCoverImage } from './AnimeCoverImage';
 import { formatDuration, formatNumber } from '../../lib/formatters';
-import type { AnimeLibraryItem } from '../../types/stats';
+import type { AnimeCardData } from '../../lib/anime-groups';
 
 interface AnimeCardProps {
-  anime: AnimeLibraryItem;
+  anime: AnimeCardData;
   onClick: () => void;
   /** While selecting, clicking the card toggles it instead of opening it. */
   selectable?: boolean;
@@ -16,6 +16,7 @@ export function AnimeCard({
   selectable = false,
   selected = false,
 }: AnimeCardProps) {
+  const unit = anime.mediaKind === 'youtube' ? 'video' : 'episode';
   return (
     <button
       type="button"
@@ -44,11 +45,16 @@ export function AnimeCard({
             {'✓'}
           </span>
         )}
+        {anime.partCount ? (
+          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-medium bg-ctp-crust/80 text-ctp-text border border-ctp-surface2">
+            {anime.partCount} parts
+          </span>
+        ) : null}
       </div>
       <div className="p-3">
         <div className="text-sm font-medium text-ctp-text truncate">{anime.canonicalTitle}</div>
         <div className="text-xs text-ctp-overlay2 mt-1">
-          {anime.episodeCount} {anime.mediaKind === 'youtube' ? 'video' : 'episode'}
+          {anime.episodeCount} {unit}
           {anime.episodeCount !== 1 ? 's' : ''}
         </div>
         <div className="text-xs text-ctp-overlay2">

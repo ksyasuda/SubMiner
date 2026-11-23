@@ -50,11 +50,15 @@ Deleting a session or session group refreshes the Overview totals, charts, calen
 
 Your shows as cover-art cards with search, sorting, per-series progress, and an episode list linking to mined cards. The **All Titles** / **Anime** / **Live Action** / **YouTube** selector filters the grid. YouTube videos are grouped by channel.
 
-Seasons get separate cards when a season number is detected. Live-action titles that AniList cannot match are looked up on [TMDB](/configuration#tmdb). If a title gets no match, open it and use **Link to TMDB** to pick one by hand.
+Seasons, movies, and OVAs of one anime share a card. SubMiner follows AniList's sequel, prequel, parent, side-story, summary, and compilation links, including through entries you have not watched, so two films can meet at a TV series you never played. Spin-offs and alternative versions keep their own cards. A shared card is named after the anime's first TV series, shows the cover of the earliest part you have, and opens to a list of its parts in release order. Relations come from AniList in the background and refresh weekly, so a newly linked show can take a minute to join its card.
+
+If a part lands on the wrong card, open it and choose **Move to Another Anime…** (the target must be linked to AniList) or **Show On Its Own**. **Put Back Where AniList Has It** undoes either. This only changes how the library is listed; duplicate entries for the same season still need a merge.
+
+Live-action titles that AniList cannot match are looked up on [TMDB](/configuration#tmdb). If a title gets no match, open it and use **Link to TMDB** to pick one by hand.
 
 The same show can end up on several cards when release names disagree. To fix that:
 
-- Merge: click **Select**, tick the duplicate cards, choose **Merge Selected**, and pick the entry to keep. Sessions, cards, and watch time move over, and future episodes with those names join the kept entry.
+- Merge: click **Select** (the grid then lists every entry on its own), tick the duplicate cards, choose **Merge Selected**, and pick the entry to keep. Sessions, cards, and watch time move over, and future episodes with those names join the kept entry.
 - Move one episode: hover its row in the episode list and click **→** to assign it to another entry. SubMiner remembers the correction.
 - Suggested merges appear as **Possible duplicate** above the grid. Choose **Review merge** or **Not duplicates**.
 

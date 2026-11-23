@@ -13,6 +13,7 @@ import {
 import { createLogger } from '../../../logger.js';
 import type { AnkiConnectConfig } from '../../../types.js';
 import type {
+  StatsAnimeGroupOverrideRequest,
   StatsDayRange,
   StatsDictionaryWordQuery,
   StatsDictionaryWordSort,
@@ -57,6 +58,15 @@ export function parseIntQuery(
 
 export function isPositiveSafeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+/** Validates a `PUT /api/stats/anime/:animeId/group` body; null for anything malformed. */
+export function parseAnimeGroupOverrideBody(body: unknown): StatsAnimeGroupOverrideRequest | null {
+  if (!body || typeof body !== 'object') return null;
+  const { mode, targetAnimeId } = body as Record<string, unknown>;
+  if (mode === 'standalone' || mode === 'anilist') return { mode };
+  if (mode === 'join' && isPositiveSafeInteger(targetAnimeId)) return { mode, targetAnimeId };
+  return null;
 }
 
 export function parsePositiveId(raw: string | undefined): number | null {

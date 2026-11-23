@@ -11,6 +11,7 @@ import {
   enrichSessionsWithKnownWordMetrics,
   isPositiveSafeInteger,
   loadKnownWordsSet,
+  parseAnimeGroupOverrideBody,
   parseBooleanQuery,
   parseDuplicateLineCleanupBody,
   parseExcludedWordsBody,
@@ -190,6 +191,11 @@ export function registerStatsLibraryRoutes(
     return c.json(statsJson('animeLibrary', rows));
   });
 
+  // Registered before `/api/stats/anime/:animeId` so `groups` is not read as an id.
+  app.get('/api/stats/anime/groups', async (c) => {
+    return c.json(statsJson('animeLibraryGroups', await tracker.getAnimeLibraryGroups()));
+  });
+
   app.get('/api/stats/anime/merge-recommendations', async (c) => {
     const recommendations = await tracker.getAnimeMergeRecommendations();
     return c.json(statsJson('animeMergeRecommendations', { recommendations }));
@@ -208,11 +214,12 @@ export function registerStatsLibraryRoutes(
     if (animeId === null) return c.body(null, 400);
     const detail = await tracker.getAnimeDetail(animeId);
     if (!detail) return c.body(null, 404);
-    const [episodes, anilistEntries] = await Promise.all([
+    const [episodes, anilistEntries, group] = await Promise.all([
       tracker.getAnimeEpisodes(animeId),
       tracker.getAnimeAnilistEntries(animeId),
+      tracker.getAnimeGroupPlacement(animeId),
     ]);
-    return c.json(statsJson('animeDetail', { detail, episodes, anilistEntries }));
+    return c.json(statsJson('animeDetail', { detail, episodes, anilistEntries, group }));
   });
 
   app.get('/api/stats/anime/:animeId/words', async (c) => {
@@ -265,6 +272,22 @@ export function registerStatsLibraryRoutes(
     if (animeId === null) return c.body(null, 400);
     await tracker.deleteAnime(animeId);
     return c.json(statsJson('deleteAnime', { ok: true }));
+  });
+
+  app.put('/api/stats/anime/:animeId/group', async (c) => {
+    const animeId = parsePositiveId(c.req.param('animeId'));
+    if (animeId === null) return c.body(null, 400);
+    const request = parseAnimeGroupOverrideBody(await c.req.json().catch(() => null));
+    if (!request) return c.body(null, 400);
+    if (request.mode === 'join' && request.targetAnimeId === animeId) return c.body(null, 400);
+    const result = await tracker.setAnimeGroupOverride(animeId, request);
+    if (result.ok) return c.json(statsJson('setAnimeGroupOverride', { ok: true }));
+    if (result.reason === 'not-found') return c.body(null, 404);
+    const error =
+      result.reason === 'unsupported-kind'
+        ? 'Only anime entries can be grouped.'
+        : 'That title has no AniList entry to group with. Link it to AniList or merge the entries instead.';
+    return c.json(statsJson('error', { error }), 409);
   });
 
   app.post('/api/stats/anime/:animeId/merge', async (c) => {

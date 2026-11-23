@@ -145,7 +145,7 @@ subminer sync macbook --remote-cmd ~/Apps/SubMiner.AppImage   # SubMiner in a cu
 subminer sync --ui                       # open the sync window
 ```
 
-Syncing only adds data. It never overwrites or double-counts, so you can run it as often as you like. `--push` and `--pull` do not delete anything on the receiving side.
+Syncing only adds data. It never overwrites or double-counts, so you can run it as often as you like. The one setting it carries is a library title's anime card choice (**Move to Another Anime…**), where the most recent change wins. `--push` and `--pull` do not delete anything on the receiving side.
 
 Before a command-line sync, close SubMiner on both machines and stop the stats server with `subminer stats -s`, or pass `--force`. The sync window does not need this. It syncs while SubMiner and playback are running, and skips the session in progress until it finishes.
 

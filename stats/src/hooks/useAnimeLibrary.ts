@@ -1,11 +1,16 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { getStatsClient } from './useStatsApi';
-import type { AnimeLibraryItem, StatsAnimeMergeRecommendation } from '../types/stats';
+import type { AnimeLibraryGroup, StatsAnimeMergeRecommendation } from '../types/stats';
 
 const BACKGROUND_REFRESH_MS = 30_000;
 
+/**
+ * The library as franchise cards (`groups`) plus every entry on its own
+ * (`anime`), which merging and duplicate review work on.
+ */
 export function useAnimeLibrary() {
-  const [anime, setAnime] = useState<AnimeLibraryItem[]>([]);
+  const [groups, setGroups] = useState<AnimeLibraryGroup[]>([]);
+  const anime = useMemo(() => groups.flatMap((group) => group.parts), [groups]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<StatsAnimeMergeRecommendation[]>([]);
@@ -29,11 +34,11 @@ export function useAnimeLibrary() {
     let cancelled = false;
     const client = getStatsClient();
     client
-      .getAnimeLibrary()
+      .getAnimeLibraryGroups()
       .then((data) => {
         if (!cancelled) {
           hasLoadedRef.current = true;
-          setAnime(data);
+          setGroups(data);
           setError(null);
         }
       })
@@ -103,6 +108,7 @@ export function useAnimeLibrary() {
   }, []);
 
   return {
+    groups,
     anime,
     loading,
     error,

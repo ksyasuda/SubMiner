@@ -306,6 +306,46 @@ export interface AnimeLibraryItem {
   lastWatchedMs: number;
 }
 
+/** One library entry inside a franchise group, with its AniList format and start date when cached. */
+export interface AnimeLibraryGroupPart extends AnimeLibraryItem {
+  /** AniList format (TV, MOVIE, OVA...); null without a cached AniList entry. */
+  format: string | null;
+  /** AniList start date as yyyymmdd (month/day 0 when unknown); null when unknown. */
+  startDate: number | null;
+}
+
+/**
+ * A library card: one franchise (seasons, movies and OVAs that AniList links
+ * together) or a single entry. Totals add up the parts; `lastWatchedMs` is the
+ * latest part's. Parts are in AniList release order.
+ */
+export interface AnimeLibraryGroup {
+  /** AniList id the franchise is named after, or minus the entry's animeId for a card of its own. */
+  groupKey: number;
+  title: string;
+  mediaKind: MediaKind;
+  /** Entry whose cover the card shows: the first part by release date. */
+  coverAnimeId: number;
+  totalSessions: number;
+  totalActiveMs: number;
+  totalCards: number;
+  totalTokensSeen: number;
+  episodeCount: number;
+  lastWatchedMs: number;
+  parts: AnimeLibraryGroupPart[];
+}
+
+/** How a library entry's franchise was chosen: by AniList, moved by the user, or kept on its own. */
+export type AnimeGroupOverrideMode = 'anilist' | 'joined' | 'standalone';
+
+/** Where one library entry sits in the grouped library. */
+export interface AnimeGroupPlacement {
+  groupKey: number;
+  title: string;
+  partCount: number;
+  overrideMode: AnimeGroupOverrideMode;
+}
+
 export interface AnilistEntry {
   anilistId: number;
   titleRomaji: string | null;
@@ -338,6 +378,8 @@ export interface AnimeDetailData {
   };
   episodes: AnimeEpisode[];
   anilistEntries: AnilistEntry[];
+  /** Null when the entry has no watch history to list in the library. */
+  group: AnimeGroupPlacement | null;
 }
 
 export interface AnimeEpisode {

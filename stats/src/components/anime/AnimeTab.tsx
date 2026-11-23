@@ -5,6 +5,7 @@ import {
 } from '../../../../src/shared/media-kind';
 import { useState, useMemo, useEffect } from 'react';
 import { useAnimeLibrary } from '../../hooks/useAnimeLibrary';
+import { groupCardData, groupMatchesSearch } from '../../lib/anime-groups';
 import { formatDuration } from '../../lib/formatters';
 import {
   getLibraryCardSizeStorage,
@@ -14,6 +15,7 @@ import {
 } from '../../lib/library-card-size';
 import { AnimeCard } from './AnimeCard';
 import { AnimeDetailView } from './AnimeDetailView';
+import { AnimeGroupView } from './AnimeGroupView';
 import { AnimeMergeDialog } from './AnimeMergeDialog';
 import { DuplicateReviewStrip } from './DuplicateReviewStrip';
 
@@ -39,7 +41,14 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'episodes', label: 'Episodes' },
 ];
 
-function sortAnime(list: ReturnType<typeof useAnimeLibrary>['anime'], key: SortKey) {
+interface SortableEntry {
+  lastWatchedMs: number;
+  totalActiveMs: number;
+  totalCards: number;
+  episodeCount: number;
+}
+
+function sortAnime<T extends SortableEntry>(list: T[], key: SortKey): T[] {
   return [...list].sort((a, b) => {
     switch (key) {
       case 'lastWatched':
@@ -68,6 +77,7 @@ export function AnimeTab({
   onOpenEpisodeDetail,
 }: AnimeTabProps) {
   const {
+    groups,
     anime,
     loading,
     error,
@@ -87,6 +97,8 @@ export function AnimeTab({
     ),
   );
   const [selectedAnimeId, setSelectedAnimeId] = useState<number | null>(null);
+  // Franchise card that is open, and stays the back target while one of its parts is open.
+  const [selectedGroupKey, setSelectedGroupKey] = useState<number | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [checkedAnimeIds, setCheckedAnimeIds] = useState<number[]>([]);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
@@ -115,11 +127,14 @@ export function AnimeTab({
 
   useEffect(() => {
     if (initialAnimeId != null) {
+      setSelectedGroupKey(null);
       setSelectedAnimeId(initialAnimeId);
       onClearInitialAnime?.();
     }
   }, [initialAnimeId, onClearInitialAnime]);
 
+  // Merging works on individual entries, so selection mode lists every entry
+  // on its own; browsing lists one card per franchise.
   const filtered = useMemo(() => {
     const entries = anime.filter((entry) => mediaKind === 'all' || entry.mediaKind === mediaKind);
     const base = search.trim()
@@ -127,8 +142,32 @@ export function AnimeTab({
       : entries;
     return sortAnime(base, sortKey);
   }, [anime, search, sortKey, mediaKind]);
+  const filteredGroups = useMemo(
+    () =>
+      sortAnime(
+        groups.filter(
+          (group) =>
+            (mediaKind === 'all' || group.mediaKind === mediaKind) &&
+            groupMatchesSearch(group, search),
+        ),
+        sortKey,
+      ),
+    [groups, search, sortKey, mediaKind],
+  );
+  const shownCount = selectionMode ? filtered.length : filteredGroups.length;
 
-  const totalMs = filtered.reduce((sum, a) => sum + a.totalActiveMs, 0);
+  const totalMs = (selectionMode ? filtered : filteredGroups).reduce(
+    (sum, entry) => sum + entry.totalActiveMs,
+    0,
+  );
+  const selectedGroup = groups.find((group) => group.groupKey === selectedGroupKey) ?? null;
+  // A franchise that no longer has several parts closes, so a later refresh
+  // cannot reopen it on its own. Only loaded results count; while a part is
+  // open, the franchise stays its back target.
+  useEffect(() => {
+    if (loading || selectedGroupKey === null || selectedAnimeId !== null) return;
+    if (!selectedGroup || selectedGroup.parts.length < 2) setSelectedGroupKey(null);
+  }, [loading, selectedGroupKey, selectedAnimeId, selectedGroup]);
   const checkedEntries = checkedAnimeIds
     .map((animeId) => anime.find((entry) => entry.animeId === animeId))
     .filter((entry): entry is (typeof anime)[number] => entry !== undefined);
@@ -160,6 +199,7 @@ export function AnimeTab({
     return (
       <AnimeDetailView
         animeId={selectedAnimeId}
+        backLabel={selectedGroup ? `Back to ${selectedGroup.title}` : undefined}
         onBack={() => setSelectedAnimeId(null)}
         onNavigateToWord={onNavigateToWord}
         onOpenEpisodeDetail={
@@ -170,6 +210,17 @@ export function AnimeTab({
         onAnimeDeleted={reload}
         onProviderRelinked={reload}
         onEpisodeMoved={reload}
+        onGroupChanged={reload}
+      />
+    );
+  }
+
+  if (selectedGroup && selectedGroup.parts.length > 1) {
+    return (
+      <AnimeGroupView
+        group={selectedGroup}
+        onBack={() => setSelectedGroupKey(null)}
+        onOpenPart={setSelectedAnimeId}
       />
     );
   }
@@ -250,12 +301,12 @@ export function AnimeTab({
           {selectionMode ? 'Cancel' : 'Select'}
         </button>
         <div className="text-xs text-ctp-overlay2 shrink-0">
-          {filtered.length}{' '}
+          {shownCount}{' '}
           {mediaKind === 'youtube'
-            ? filtered.length === 1
+            ? shownCount === 1
               ? 'channel'
               : 'channels'
-            : filtered.length === 1
+            : shownCount === 1
               ? 'title'
               : 'titles'}{' '}
           · {formatDuration(totalMs)}
@@ -298,18 +349,30 @@ export function AnimeTab({
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {shownCount === 0 ? (
         <div className="text-sm text-ctp-overlay2 p-4">No titles found</div>
-      ) : (
+      ) : selectionMode ? (
         <div className={`grid ${GRID_CLASSES[cardSize]} gap-4`}>
           {filtered.map((item) => (
             <AnimeCard
               key={item.animeId}
               anime={item}
-              selectable={selectionMode}
+              selectable
               selected={checkedAnimeIds.includes(item.animeId)}
+              onClick={() => toggleChecked(item.animeId)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className={`grid ${GRID_CLASSES[cardSize]} gap-4`}>
+          {filteredGroups.map((group) => (
+            <AnimeCard
+              key={group.groupKey}
+              anime={groupCardData(group)}
               onClick={() =>
-                selectionMode ? toggleChecked(item.animeId) : setSelectedAnimeId(item.animeId)
+                group.parts.length > 1
+                  ? setSelectedGroupKey(group.groupKey)
+                  : setSelectedAnimeId(group.parts[0]!.animeId)
               }
             />
           ))}

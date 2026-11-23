@@ -7,6 +7,7 @@ import type { AnimeLibraryItem, StatsMergeAnimeResponse } from '../../types/stat
 import { AnimeMergeDialog } from './AnimeMergeDialog';
 import { AnimeTab } from './AnimeTab';
 import { installDom } from '../../test-utils/dom';
+import { singleGroupLibrary } from '../../test-utils/library';
 
 function libraryItem(animeId: number, title: string, episodeCount: number): AnimeLibraryItem {
   return {
@@ -52,7 +53,7 @@ function mergeButton(container: Element): HTMLButtonElement {
 test('AnimeTab merges the selected duplicate entries into the chosen keeper', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     mergeAnime: apiClient.mergeAnime,
   };
 
@@ -61,10 +62,10 @@ test('AnimeTab merges the selected duplicate entries into the chosen keeper', as
   let libraryFetches = 0;
   let mergeCall: { targetAnimeId: number; sourceAnimeIds: number[] } | null = null;
 
-  apiClient.getAnimeLibrary = (async () => {
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => {
     libraryFetches += 1;
     return entries;
-  }) as typeof apiClient.getAnimeLibrary;
+  });
   apiClient.mergeAnime = (async (targetAnimeId: number, sourceAnimeIds: number[]) => {
     mergeCall = { targetAnimeId, sourceAnimeIds };
     entries = [libraryItem(1, 'Show', 3)];
@@ -181,7 +182,7 @@ test('AnimeMergeDialog refuses to merge an AniList entry with a TMDB entry', asy
 test('AnimeTab keeps a suggested duplicate visible until it is reviewed and merged', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
     dismissAnimeMergeRecommendation: apiClient.dismissAnimeMergeRecommendation,
     mergeAnime: apiClient.mergeAnime,
@@ -191,7 +192,7 @@ test('AnimeTab keeps a suggested duplicate visible until it is reviewed and merg
   let recommendations = [{ recommendationId: 41, animeIds: [1, 2] }];
   let mergeCall: { targetAnimeId: number; sourceAnimeIds: number[] } | null = null;
 
-  apiClient.getAnimeLibrary = (async () => entries) as typeof apiClient.getAnimeLibrary;
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => entries);
   apiClient.getAnimeMergeRecommendations = (async () => ({
     recommendations,
   })) as typeof apiClient.getAnimeMergeRecommendations;
@@ -252,16 +253,16 @@ test('AnimeTab keeps a suggested duplicate visible until it is reviewed and merg
 test('AnimeTab dismisses a false-positive duplicate recommendation', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
     dismissAnimeMergeRecommendation: apiClient.dismissAnimeMergeRecommendation,
   };
   let dismissedId: number | null = null;
 
-  apiClient.getAnimeLibrary = (async () => [
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => [
     libraryItem(1, 'Show', 2),
     libraryItem(2, 'Different Show', 1),
-  ]) as typeof apiClient.getAnimeLibrary;
+  ]);
   apiClient.getAnimeMergeRecommendations = (async () => ({
     recommendations: [{ recommendationId: 73, animeIds: [1, 2] }],
   })) as typeof apiClient.getAnimeMergeRecommendations;
@@ -291,16 +292,16 @@ test('AnimeTab dismisses a false-positive duplicate recommendation', async () =>
 test('AnimeTab refreshes the library and recommendations when the window regains focus', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
   };
   let entries = [libraryItem(1, 'Show', 2), libraryItem(2, 'Show Season 1', 1)];
   let libraryFetches = 0;
   let recommendationFetches = 0;
-  apiClient.getAnimeLibrary = (async () => {
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => {
     libraryFetches += 1;
     return entries;
-  }) as typeof apiClient.getAnimeLibrary;
+  });
   apiClient.getAnimeMergeRecommendations = (async () => {
     recommendationFetches += 1;
     return { recommendations: [] };
@@ -330,14 +331,14 @@ test('AnimeTab refreshes the library and recommendations when the window regains
 test('AnimeTab keeps a recommendation visible through a transient refresh failure', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
   };
   let failRecommendations = false;
-  apiClient.getAnimeLibrary = (async () => [
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => [
     libraryItem(1, 'Show', 2),
     libraryItem(2, 'Show Season 1', 1),
-  ]) as typeof apiClient.getAnimeLibrary;
+  ]);
   apiClient.getAnimeMergeRecommendations = (async () => {
     if (failRecommendations) throw new Error('temporary failure');
     return { recommendations: [{ recommendationId: 41, animeIds: [1, 2] }] };
@@ -364,14 +365,14 @@ test('AnimeTab keeps a recommendation visible through a transient refresh failur
 test('AnimeTab retains a recommendation and reports a failed dismissal', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
     dismissAnimeMergeRecommendation: apiClient.dismissAnimeMergeRecommendation,
   };
-  apiClient.getAnimeLibrary = (async () => [
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => [
     libraryItem(1, 'Show', 2),
     libraryItem(2, 'Show Season 1', 1),
-  ]) as typeof apiClient.getAnimeLibrary;
+  ]);
   apiClient.getAnimeMergeRecommendations = (async () => ({
     recommendations: [{ recommendationId: 41, animeIds: [1, 2] }],
   })) as typeof apiClient.getAnimeMergeRecommendations;
@@ -399,14 +400,14 @@ test('AnimeTab retains a recommendation and reports a failed dismissal', async (
 test('AnimeTab keeps an open recommendation review stable during background refresh', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
   };
   let recommendations = [{ recommendationId: 41, animeIds: [1, 2] as [number, number] }];
-  apiClient.getAnimeLibrary = (async () => [
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => [
     libraryItem(1, 'Show', 2),
     libraryItem(2, 'Show Season 1', 1),
-  ]) as typeof apiClient.getAnimeLibrary;
+  ]);
   apiClient.getAnimeMergeRecommendations = (async () => ({
     recommendations,
   })) as typeof apiClient.getAnimeMergeRecommendations;
@@ -434,14 +435,14 @@ test('AnimeTab keeps an open recommendation review stable during background refr
 test('AnimeTab keeps the library visible through a transient background refresh failure', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
   };
   let failLibrary = false;
-  apiClient.getAnimeLibrary = (async () => {
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => {
     if (failLibrary) throw new Error('temporary failure');
     return [libraryItem(1, 'Show', 2), libraryItem(2, 'Show Season 1', 1)];
-  }) as typeof apiClient.getAnimeLibrary;
+  });
   apiClient.getAnimeMergeRecommendations = (async () => ({
     recommendations: [],
   })) as typeof apiClient.getAnimeMergeRecommendations;
@@ -470,7 +471,7 @@ test('AnimeTab keeps the library visible through a transient background refresh 
 test('AnimeTab does not resurrect a dismissed recommendation from a stale in-flight refresh', async () => {
   const uninstallDom = installDom();
   const original = {
-    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeLibraryGroups: apiClient.getAnimeLibraryGroups,
     getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
     dismissAnimeMergeRecommendation: apiClient.dismissAnimeMergeRecommendation,
   };
@@ -479,10 +480,10 @@ test('AnimeTab does not resurrect a dismissed recommendation from a stale in-fli
   };
   let holdNextFetch = false;
   let releaseHeldFetch: (() => void) | null = null;
-  apiClient.getAnimeLibrary = (async () => [
+  apiClient.getAnimeLibraryGroups = singleGroupLibrary(async () => [
     libraryItem(1, 'Show', 2),
     libraryItem(2, 'Show Season 1', 1),
-  ]) as typeof apiClient.getAnimeLibrary;
+  ]);
   apiClient.getAnimeMergeRecommendations = ((): Promise<typeof payload> => {
     if (!holdNextFetch) return Promise.resolve(payload);
     holdNextFetch = false;

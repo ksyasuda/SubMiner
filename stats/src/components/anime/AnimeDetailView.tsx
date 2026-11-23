@@ -9,13 +9,16 @@ import { AnimeWordList } from './AnimeWordList';
 import { AnilistSelector } from './AnilistSelector';
 import { TmdbSelector } from './TmdbSelector';
 import { AnimeOverviewStats } from './AnimeOverviewStats';
+import { LibraryEntryPicker } from './LibraryEntryPicker';
 import { CHART_THEME } from '../../lib/chart-theme';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import type { DailyRollup } from '../../types/stats';
+import type { DailyRollup, StatsAnimeGroupOverrideRequest } from '../../types/stats';
 
 interface AnimeDetailViewProps {
   animeId: number;
   onBack: () => void;
+  /** Defaults to "Back to Library"; a part opened from a franchise card returns there. */
+  backLabel?: string;
   onNavigateToWord?: (wordId: number) => void;
   onOpenEpisodeDetail?: (videoId: number) => void;
   /** Called after the whole library entry is deleted, so the caller can refresh. */
@@ -28,6 +31,23 @@ interface AnimeDetailViewProps {
   onProviderRelinked?: () => void;
   /** Called after an episode is reassigned to another entry. */
   onEpisodeMoved?: () => void;
+  /** Called after the entry is moved to another franchise card or back. */
+  onGroupChanged?: () => void;
+}
+
+/** The server explains a refused move (409) in its JSON body; show that text. */
+function describeGroupError(err: unknown): string {
+  const message = err instanceof Error ? err.message : '';
+  const refused = /^Stats API error: 409 (.*)$/s.exec(message);
+  if (refused) {
+    try {
+      const body = JSON.parse(refused[1]!) as { error?: unknown };
+      if (typeof body.error === 'string') return body.error;
+    } catch {
+      // Fall through to the raw message.
+    }
+  }
+  return message || 'Failed to move this title.';
 }
 
 type Range = 14 | 30 | 90;
@@ -149,11 +169,13 @@ function useAnimeKnownWords(animeId: number) {
 export function AnimeDetailView({
   animeId,
   onBack,
+  backLabel = 'Back to Library',
   onNavigateToWord,
   onOpenEpisodeDetail,
   onAnimeDeleted,
   onProviderRelinked,
   onEpisodeMoved,
+  onGroupChanged,
 }: AnimeDetailViewProps) {
   const { data, loading, error, reload } = useAnimeDetail(animeId);
   const [showAnilistSelector, setShowAnilistSelector] = useState(false);
@@ -162,6 +184,9 @@ export function AnimeDetailView({
   const [isDeletingAnime, setIsDeletingAnime] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const isDeletingAnimeRef = useRef(false);
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
+  const [groupBusyTargetId, setGroupBusyTargetId] = useState<number | null>(null);
+  const [groupError, setGroupError] = useState<string | null>(null);
   const knownWordsSummary = useAnimeKnownWords(animeId);
 
   useEffect(() => {
@@ -172,7 +197,23 @@ export function AnimeDetailView({
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
   if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Library entry not found</div>;
 
-  const { detail, episodes, anilistEntries } = data;
+  const { detail, episodes, anilistEntries, group } = data;
+
+  // `busyId` marks which picker row shows progress; the entry's own id for header actions.
+  const applyGroupOverride = async (request: StatsAnimeGroupOverrideRequest, busyId: number) => {
+    setGroupBusyTargetId(busyId);
+    setGroupError(null);
+    try {
+      await getStatsClient().setAnimeGroupOverride(animeId, request);
+      setShowGroupPicker(false);
+      reload();
+      onGroupChanged?.();
+    } catch (err) {
+      setGroupError(describeGroupError(err));
+    } finally {
+      setGroupBusyTargetId(null);
+    }
+  };
 
   const handleDeleteAnime = async () => {
     if (isDeletingAnimeRef.current) return;
@@ -214,11 +255,18 @@ export function AnimeDetailView({
         onClick={onBack}
         className="text-sm text-ctp-blue hover:text-ctp-sapphire transition-colors"
       >
-        &larr; Back to Library
+        &larr; {backLabel}
       </button>
       <AnimeHeader
         detail={detail}
         anilistEntries={anilistEntries ?? []}
+        group={group}
+        groupBusy={groupBusyTargetId !== null}
+        onMoveToGroup={() => {
+          setGroupError(null);
+          setShowGroupPicker(true);
+        }}
+        onSetGroupMode={(mode) => void applyGroupOverride({ mode }, animeId)}
         coverRetryToken={coverRetryToken}
         onChangeAnilist={() => setShowAnilistSelector(true)}
         onChangeTmdb={() => setShowTmdbSelector(true)}
@@ -226,6 +274,25 @@ export function AnimeDetailView({
         isDeletingAnime={isDeletingAnime}
       />
       {deleteError ? <div className="text-sm text-ctp-red">{deleteError}</div> : null}
+      {groupError && !showGroupPicker ? (
+        <div role="alert" className="text-sm text-ctp-red">
+          {groupError}
+        </div>
+      ) : null}
+      {showGroupPicker && (
+        <LibraryEntryPicker
+          heading="Move to another anime"
+          mediaKind="anime"
+          excludeAnimeIds={[animeId]}
+          filter={(entry) => entry.anilistId !== null}
+          busyAnimeId={groupBusyTargetId}
+          error={groupError}
+          onSelect={(entry) =>
+            void applyGroupOverride({ mode: 'join', targetAnimeId: entry.animeId }, entry.animeId)
+          }
+          onClose={() => setShowGroupPicker(false)}
+        />
+      )}
       <AnimeOverviewStats detail={detail} knownWordsSummary={knownWordsSummary} />
       <EpisodeList
         episodes={episodes}

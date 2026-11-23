@@ -1,7 +1,8 @@
 import type { MediaKind, TmdbMediaType } from '../../../shared/media-kind';
 
 // 26: live-action entries (TMDB link) and YouTube channels share the media_kind column.
-export const SCHEMA_VERSION = 26;
+// 27: AniList relation cache and imm_anime.group_override for franchise grouping.
+export const SCHEMA_VERSION = 27;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;

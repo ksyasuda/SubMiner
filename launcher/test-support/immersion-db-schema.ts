@@ -25,7 +25,9 @@ export const IMMERSION_DB_FIXTURE_DDL = `
     tmdb_type TEXT,
     metadata_json TEXT,
     CREATED_DATE TEXT,
-    LAST_UPDATE_DATE TEXT
+    LAST_UPDATE_DATE TEXT,
+    group_override INTEGER,
+    group_override_updated_at TEXT
   );
   CREATE UNIQUE INDEX idx_anime_namespace_title ON imm_anime((media_kind = 'youtube'), normalized_title_key);
   CREATE TABLE imm_videos(

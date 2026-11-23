@@ -10,6 +10,7 @@ import { isVocabularyStatsRowVisible, type VocabularyVisibilityRow } from './voc
 import { SCHEMA_VERSION } from './types';
 import type { QueuedWrite, VideoMetadata, YoutubeVideoMetadata } from './types';
 import { toDbTimestamp } from './query-shared';
+import { ensureAnimeGroupingSchema } from './anilist-relation-cache';
 
 export interface TrackerPreparedStatements {
   telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;
@@ -998,6 +999,7 @@ export function ensureSchema(db: DatabaseSync): void {
     ensureLifetimeSummaryTables(db);
     ensureStatsExcludedWordsTable(db);
     ensureAnimeMergeTables(db);
+    ensureAnimeGroupingSchema(db);
     ensureSubtitleLineEventIndex(db);
     return;
   }
@@ -1064,6 +1066,8 @@ export function ensureSchema(db: DatabaseSync): void {
     'INTEGER NOT NULL DEFAULT 0 CHECK(anime_assignment_locked IN (0, 1))',
   );
   ensureAnimeMergeTables(db);
+  // Schema 27: franchise grouping (AniList relation cache + per-entry override).
+  ensureAnimeGroupingSchema(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_sessions(
       session_id INTEGER PRIMARY KEY AUTOINCREMENT,
