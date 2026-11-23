@@ -89,7 +89,8 @@ function makeHarness(options: { plan?: Partial<JellyfinPlaybackPlan>; deps?: Par
       return reporter;
     },
     reportPlaybackSuperseded: async () => {},
-    waitForStopReports: async () => {},
+    waitForTransitionReports: async () => {},
+    trackPlaybackStart: () => {},
     getEpisodePlaylistSettings: () => ({ enabled: true, maxEpisodes: 3 }),
     listSeriesEpisodeIds: async () => [],
     readMpvPlaylist: async () => [],
@@ -386,6 +387,7 @@ function makeSeriesHarness() {
   const playlist: Array<{ filename: string; current: boolean }> = [];
   const statsMetadata: Array<{ itemId: string }> = [];
   const superseded: string[] = [];
+  const startsTracked: string[] = [];
   let active: ActiveJellyfinRemotePlaybackState | null = null;
   // Stop reports in flight, from the superseded handler or `startGenericStop`.
   const stopsInFlight = new Set<Promise<void>>();
@@ -418,7 +420,8 @@ function makeSeriesHarness() {
         superseded.push(playback.itemId);
         return trackStop();
       },
-      waitForStopReports: async () => {
+      trackPlaybackStart: (_report, playback) => void startsTracked.push(playback.itemId),
+      waitForTransitionReports: async () => {
         while (stopsInFlight.size > 0) await Promise.all([...stopsInFlight]);
       },
       recordJellyfinPlaybackMetadata: (metadata) => void statsMetadata.push(metadata),
@@ -442,6 +445,7 @@ function makeSeriesHarness() {
     playlist,
     statsMetadata,
     superseded,
+    startsTracked,
     active: () => active,
     // Completes the oldest stop report still in flight.
     releaseSupersededStop: () => pendingSupersededStops.shift()?.(),
@@ -524,6 +528,7 @@ test('playback handler takes over a queued episode mpv starts from its playlist'
     harness.reports.map((report) => report.itemId),
     ['item-1', 'item-2'],
   );
+  assert.deepEqual(harness.startsTracked, ['item-1', 'item-2'], 'each start is tracked');
 
   assert.equal(harness.handler.adoptQueuedEpisode(harness.streamUrl('item-2')), false);
   assert.equal(harness.handler.adoptQueuedEpisode('https://elsewhere.example/video.mkv'), false);

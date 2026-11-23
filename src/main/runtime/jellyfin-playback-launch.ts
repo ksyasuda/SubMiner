@@ -246,8 +246,10 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
   }) => JellyfinPlaybackReporterLike;
   /** Reports the stop of a playback mpv left for a queued neighbor episode. */
   reportPlaybackSuperseded: (playback: ActiveJellyfinRemotePlaybackState) => Promise<void>;
-  /** Resolves once no Jellyfin stop report is in flight, whoever sent it. */
-  waitForStopReports: () => Promise<void>;
+  /** Resolves once no Jellyfin episode start or stop report is in flight, whoever sent it. */
+  waitForTransitionReports: () => Promise<void>;
+  /** Tracks a start report, so the playback's own stop and later starts wait for it. */
+  trackPlaybackStart: (report: Promise<void>, playback: ActiveJellyfinRemotePlaybackState) => void;
   /** Read on every queue run, so edits apply from the next episode change. */
   getEpisodePlaylistSettings: () => JellyfinEpisodePlaylistSettings;
   listSeriesEpisodeIds: (params: {
@@ -352,12 +354,13 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     deps.showVisibleOverlay();
     pendingNeighborQueue = { context, prepared };
 
-    // Jellyfin clears a session's now-playing item on any stop, so the start must come after
-    // every stop in flight: this handler's, and the generic one mpv's empty path between
-    // files can trigger.
-    await deps.waitForStopReports();
-    if (!ownsPlayback()) return;
-    void reporter.reportPlaying({
+    // Jellyfin clears a session's now-playing item on any stop and keeps whichever start lands
+    // last, so this start waits for every start and stop in flight, including the generic stop
+    // mpv's empty path between files can trigger.
+    await deps.waitForTransitionReports();
+    const playback = deps.getActivePlayback();
+    if (playback?.reporter !== reporter) return;
+    const started = reporter.reportPlaying({
       itemId: prepared.itemId,
       mediaSourceId: undefined,
       playMethod: prepared.playMethod,
@@ -367,6 +370,13 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
       subtitleStreamIndex: plan.subtitleStreamIndex,
       eventName: 'start',
     });
+    deps.trackPlaybackStart(
+      started.then(
+        () => undefined,
+        (error: unknown) => deps.logDebug('Failed to report Jellyfin playback start', error),
+      ),
+      playback,
+    );
     deps.showMpvOsd(`Jellyfin ${plan.mode}: ${plan.title}`);
   };
 

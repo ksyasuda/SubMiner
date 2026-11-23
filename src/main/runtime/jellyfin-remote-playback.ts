@@ -2,6 +2,7 @@ import type { ActiveJellyfinRemotePlaybackState } from './jellyfin-remote-comman
 
 type MpvClientLike = {
   currentTimePos?: number;
+  currentVideoPath?: string;
   requestProperty?: (name: string) => Promise<unknown>;
 };
 
@@ -278,7 +279,16 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
     deps.clearActivePlayback();
     await deps.reportTracker?.settled();
     try {
-      const observedPositionSeconds = await readMpvPositionSecondsOrFallback(deps.getMpvClient());
+      // mpv may have moved to another file while reports drained, and its position would then
+      // overwrite this item's resume point. Off its file, the last position observed for it
+      // (cached on every time-pos update) stands in.
+      const mpvClient = deps.getMpvClient();
+      const stillOnItem =
+        Boolean(playback.loadedMediaPath) &&
+        mpvClient?.currentVideoPath?.trim() === playback.loadedMediaPath?.trim();
+      const observedPositionSeconds = stillOnItem
+        ? await readMpvPositionSecondsOrFallback(mpvClient)
+        : 0;
       const positionSeconds = resolveReportablePositionSeconds(playback, observedPositionSeconds);
       await sendJellyfinStopReports(deps, playback, positionSeconds);
     } catch (error) {

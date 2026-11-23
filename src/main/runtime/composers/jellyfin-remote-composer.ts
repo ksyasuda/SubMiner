@@ -44,8 +44,13 @@ export type JellyfinRemoteComposerResult = ComposerOutputs<{
   reportJellyfinPlaybackSuperseded: ReturnType<
     typeof createReportSupersededJellyfinPlaybackHandler
   >;
-  /** Resolves once no stop report is in flight, from either stop handler. */
-  waitForJellyfinStopReports: () => Promise<void>;
+  /** Resolves once no episode start or stop report is in flight. */
+  waitForJellyfinTransitionReports: () => Promise<void>;
+  /** Tracks an episode start report, so its own stop and later starts wait for it. */
+  trackJellyfinPlaybackStart: (
+    report: Promise<void>,
+    playback: Parameters<ReturnType<typeof createReportSupersededJellyfinPlaybackHandler>>[0],
+  ) => void;
   handleJellyfinRemotePlay: (payload: RemotePlayPayload) => Promise<void>;
   handleJellyfinRemotePlaystate: (payload: RemotePlaystatePayload) => Promise<void>;
   handleJellyfinRemoteGeneralCommand: (payload: RemoteGeneralPayload) => Promise<void>;
@@ -67,9 +72,9 @@ export function composeJellyfinRemoteHandlers(
     logDebug: options.logDebug,
     reportTracker,
   });
-  // Every stop report in flight, from either handler. Jellyfin clears a session's now-playing
-  // item on any stop, so an episode start waits for these before it reports.
-  const stopReportTracker = createJellyfinRemoteReportTracker();
+  // Every episode start and stop report in flight. Jellyfin keeps whichever start arrives last
+  // as the now-playing item and clears it on any stop, so a start waits for all of these.
+  const transitionReportTracker = createJellyfinRemoteReportTracker();
   const reportStopped = createReportJellyfinRemoteStoppedHandler({
     getActivePlayback: options.getActivePlayback,
     clearActivePlayback: options.clearActivePlayback,
@@ -88,14 +93,14 @@ export function composeJellyfinRemoteHandlers(
   });
   const reportJellyfinRemoteStopped = (): Promise<void> => {
     const report = reportStopped();
-    stopReportTracker.track(report, null);
+    transitionReportTracker.track(report, null);
     return report;
   };
   const reportJellyfinPlaybackSuperseded = (
     playback: Parameters<typeof reportSuperseded>[0],
   ): Promise<void> => {
     const report = reportSuperseded(playback);
-    stopReportTracker.track(report, playback);
+    transitionReportTracker.track(report, playback);
     return report;
   };
 
@@ -103,7 +108,12 @@ export function composeJellyfinRemoteHandlers(
     reportJellyfinRemoteProgress,
     reportJellyfinRemoteStopped,
     reportJellyfinPlaybackSuperseded,
-    waitForJellyfinStopReports: () => stopReportTracker.settled(),
+    waitForJellyfinTransitionReports: () => transitionReportTracker.settled(),
+    trackJellyfinPlaybackStart: (report, playback) => {
+      // Tagged with its playback in the shared tracker, so that playback's stop waits for it.
+      reportTracker.track(report, playback);
+      transitionReportTracker.track(report, playback);
+    },
     handleJellyfinRemotePlay: createHandleJellyfinRemotePlay({
       getConfiguredSession: options.getConfiguredSession,
       getClientInfo: options.getClientInfo,

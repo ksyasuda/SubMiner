@@ -234,6 +234,7 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
         makePlayback({
           itemId: 'item-2',
           playMethod: 'Transcode',
+          loadedMediaPath: 'https://stream.example/item-2.m3u8',
           reporter: makeReporter({
             reportStopped: async (payload) => {
               stoppedPayload = {
@@ -249,6 +250,7 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
       },
       getMpvClient: () => ({
         currentTimePos: 12.5,
+        currentVideoPath: 'https://stream.example/item-2.m3u8',
         requestProperty: async () => {
           throw new Error('unloaded');
         },
@@ -263,6 +265,33 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
     failed: false,
   });
   assert.equal(cleared, true);
+});
+
+test('createReportJellyfinRemoteStoppedHandler ignores the position of a file mpv moved on to', async () => {
+  let stoppedTicks: number | undefined;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler(
+    makeStoppedDeps({
+      getActivePlayback: () =>
+        makePlayback({
+          itemId: 'item-1',
+          loadedMediaPath: 'https://stream.example/item-1.m3u8',
+          lastKnownPositionSeconds: 1410,
+          reporter: makeReporter({
+            reportStopped: async (payload) => {
+              stoppedTicks = payload.positionTicks;
+            },
+          }),
+        }),
+      getMpvClient: () => ({
+        currentTimePos: 42,
+        currentVideoPath: 'https://stream.example/item-2.m3u8',
+      }),
+    }),
+  );
+
+  await reportStopped();
+
+  assert.equal(stoppedTicks, 14_100_000_000);
 });
 
 test('createReportJellyfinRemoteStoppedHandler clears aborted playback that never loaded', async () => {
