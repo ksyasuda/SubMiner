@@ -51,6 +51,7 @@ function makeHarness(
   const playlist: Array<{ filename: string; current: boolean; title?: string }> = [];
   const commands: Array<Array<string | number>> = [];
   let episodeListCalls = 0;
+  let afterRead: (() => void) | undefined;
   const queue = createJellyfinEpisodePlaylist<null, Entry>({
     getSettings: () => settings,
     listSeriesEpisodeIds: async () => {
@@ -58,7 +59,12 @@ function makeHarness(
       return EPISODES;
     },
     prepareEntry: async (_context, itemId) => entry(itemId),
-    readMpvPlaylist: async () => playlist.map((item) => ({ ...item })),
+    readMpvPlaylist: async () => {
+      const snapshot = playlist.map((item) => ({ ...item }));
+      // Lets a test move mpv on after the read, like a keypress landing mid-run.
+      afterRead?.();
+      return snapshot;
+    },
     sendMpvCommand: (command) => {
       commands.push(command);
       if (command[0] === 'playlist-remove') playlist.splice(Number(command[1]), 1);
@@ -84,6 +90,9 @@ function makeHarness(
     playlist,
     playing,
     episodeListCalls: () => episodeListCalls,
+    setAfterRead: (callback: (() => void) | undefined) => {
+      afterRead = callback;
+    },
     filenames: () => playlist.map((item) => item.filename),
     titles: () => playlist.map((item) => item.title),
   };
@@ -127,6 +136,40 @@ test('queueNeighbors slides the window when mpv moves to a queued episode', asyn
   assert.deepEqual(harness.titles(), ['Show e3', 'Show e4', 'Show e5']);
   assert.equal(harness.queue.find(url('e2')), null);
   assert.equal(harness.episodeListCalls(), 1, 'series order is reused while navigating');
+});
+
+test('queueNeighbors keeps entries still in the window and edits only its far ends', async () => {
+  const harness = makeHarness();
+  harness.playing('e3');
+  await harness.queue.queueNeighbors(null, entry('e3'));
+  harness.playing('e4');
+  const commandsBefore = harness.commands.length;
+
+  await harness.queue.queueNeighbors(null, entry('e4'));
+
+  assert.deepEqual(
+    harness.commands
+      .slice(commandsBefore)
+      .filter((command) => command[0] === 'loadfile' || command[0] === 'playlist-remove'),
+    [
+      ['playlist-remove', 0],
+      ['loadfile', url('e5'), 'insert-at', 2, 'opts-e5'],
+    ],
+  );
+});
+
+test('queueNeighbors never undoes a navigation that lands after its playlist read', async () => {
+  const harness = makeHarness();
+  harness.playing('e3');
+  await harness.queue.queueNeighbors(null, entry('e3'));
+  harness.playing('e4');
+  // The read sees e4 playing; the user steps back to e3 before the edits arrive.
+  harness.setAfterRead(() => harness.playing('e3'));
+
+  await harness.queue.queueNeighbors(null, entry('e4'));
+
+  assert.equal(harness.playlist.find((item) => item.current)?.filename, url('e3'));
+  assert.deepEqual(harness.filenames(), [url('e3'), url('e4'), url('e5')]);
 });
 
 test('queueNeighbors leaves the playlist alone once mpv has moved past the item', async () => {

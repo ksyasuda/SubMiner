@@ -87,13 +87,13 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
     return ids;
   }
 
-  async function prepareNeighbors(context: Context, itemIds: string[]): Promise<Entry[]> {
-    const slots: Array<Entry | null> = itemIds.map(() => null);
+  async function prepareEntries(context: Context, itemIds: string[]): Promise<Map<string, Entry>> {
+    const prepared = new Map<string, Entry>();
     await Promise.all(
-      itemIds.map((itemId, index) =>
+      itemIds.map((itemId) =>
         deps.prepareEntry(context, itemId).then(
           (entry) => {
-            slots[index] = entry;
+            prepared.set(itemId, entry);
           },
           (error: unknown) => {
             deps.logDebug(`Failed to prepare Jellyfin episode ${itemId} for the playlist`, error);
@@ -101,22 +101,24 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
         ),
       ),
     );
-    return slots.filter((entry): entry is Entry => entry !== null);
+    return prepared;
   }
 
   async function queueNeighbors(context: Context, current: Entry): Promise<void> {
     const run = ++generation;
     const settings = deps.getSettings();
-    let previous: Entry[] = [];
-    let next: Entry[] = [];
+    let windowIds = [current.itemId];
     if (settings.enabled && current.seriesId) {
       const episodeIds = await getSeriesEpisodeIds(context, current.seriesId);
       const window = selectEpisodeWindow(episodeIds, current.itemId, settings.maxEpisodes);
-      [previous, next] = await Promise.all([
-        prepareNeighbors(context, window.previousIds),
-        prepareNeighbors(context, window.nextIds),
-      ]);
+      windowIds = [...window.previousIds, current.itemId, ...window.nextIds];
     }
+    // Entries already queued stay where they are, so only the missing ones are resolved.
+    const queuedItemIds = new Set([...queued.values()].map(({ entry }) => entry.itemId));
+    const prepared = await prepareEntries(
+      context,
+      windowIds.filter((itemId) => itemId !== current.itemId && !queuedItemIds.has(itemId)),
+    );
     if (run !== generation) return;
 
     const playlist = parseMpvPlaylist(await deps.readMpvPlaylist());
@@ -125,15 +127,28 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
     // mpv already left this item, so the run that follows it owns the playlist.
     if (playlist[currentIndex]?.filename !== current.playbackUrl) return;
 
-    // Drop the entries queued for the last item, from the end so earlier indices stay valid.
-    // Entries still in the window are re-added below with fresh resume positions.
-    let currentAt = currentIndex;
-    for (let index = playlist.length - 1; index >= 0; index -= 1) {
-      if (index === currentIndex || !queued.has(playlist[index]!.filename)) continue;
+    // mpv may have moved on since the read, so this only touches entries outside the window
+    // and never removes one the user could have just navigated to. `model` mirrors mpv's
+    // playlist by item id (null for entries the app did not queue) as the commands edit it.
+    const model = playlist.map((item) =>
+      item.filename === current.playbackUrl
+        ? current.itemId
+        : (queued.get(item.filename)?.entry.itemId ?? null),
+    );
+    for (let index = model.length - 1; index >= 0; index -= 1) {
+      const itemId = model[index];
+      if (itemId === null || itemId === undefined || windowIds.includes(itemId)) continue;
       deps.sendMpvCommand(['playlist-remove', index]);
-      if (index < currentIndex) currentAt -= 1;
+      model.splice(index, 1);
     }
 
+    const nextQueued = new Map<string, JellyfinQueuedEpisode<Context, Entry>>();
+    for (const queuedEpisode of queued.values()) {
+      if (model.includes(queuedEpisode.entry.itemId)) {
+        nextQueued.set(queuedEpisode.entry.playbackUrl, queuedEpisode);
+      }
+    }
+    nextQueued.set(current.playbackUrl, { context, entry: current });
     // Each insert is followed by its title, sent while the entry is still at that index.
     const insertEntry = (entry: Entry, index: number) => {
       deps.sendMpvCommand([
@@ -144,13 +159,30 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
         entry.loadfileOptions,
       ]);
       deps.sendMpvCommand(['set_property', `playlist/${index}/title`, entry.title]);
-      queued.set(entry.playbackUrl, { context, entry });
+      model.splice(index, 0, entry.itemId);
+      nextQueued.set(entry.playbackUrl, { context, entry });
     };
-    queued = new Map([[current.playbackUrl, { context, entry: current }]]);
-    deps.sendMpvCommand(['set_property', `playlist/${currentAt}/title`, current.title]);
-    next.forEach((entry, offset) => insertEntry(entry, currentAt + 1 + offset));
-    // Each insert before the current entry pushes it one slot later.
-    previous.forEach((entry, offset) => insertEntry(entry, currentAt + offset));
+    const currentAt = windowIds.indexOf(current.itemId);
+    deps.sendMpvCommand([
+      'set_property',
+      `playlist/${model.indexOf(current.itemId)}/title`,
+      current.title,
+    ]);
+    // Walk outward from the current entry, inserting each missing episode beside its
+    // neighbor in the window.
+    let anchor = model.indexOf(current.itemId);
+    for (const itemId of windowIds.slice(currentAt + 1)) {
+      const entry = prepared.get(itemId);
+      if (model.includes(itemId)) anchor = model.indexOf(itemId);
+      else if (entry) insertEntry(entry, ++anchor);
+    }
+    anchor = model.indexOf(current.itemId);
+    for (const itemId of windowIds.slice(0, currentAt).reverse()) {
+      const entry = prepared.get(itemId);
+      if (model.includes(itemId)) anchor = model.indexOf(itemId);
+      else if (entry) insertEntry(entry, anchor);
+    }
+    queued = nextQueued;
     deps.sendMpvCommand([
       'script-message',
       MANAGED_PLAYLIST_ENTRIES_SCRIPT_MESSAGE,
