@@ -540,3 +540,29 @@ test('createReportSupersededJellyfinPlaybackHandler waits only for the supersede
 
   assert.deepEqual(events, ['old progress done', 'stopped:item-1@14100000000']);
 });
+
+test('createReportJellyfinRemoteStoppedHandler is not held by reports for another playback', async () => {
+  const tracker = createJellyfinRemoteReportTracker();
+  // The next episode's progress stays in flight for the whole test.
+  tracker.track(new Promise<void>(() => {}), makePlayback({ itemId: 'item-2' }));
+  let stopped = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler(
+    makeStoppedDeps({
+      getActivePlayback: () =>
+        makePlayback({
+          loadedMediaPath: 'https://stream.example/item-1.m3u8',
+          lastKnownPositionSeconds: 30,
+          reporter: makeReporter({
+            reportStopped: async () => {
+              stopped = true;
+            },
+          }),
+        }),
+      reportTracker: tracker,
+    }),
+  );
+
+  await reportStopped();
+
+  assert.equal(stopped, true);
+});

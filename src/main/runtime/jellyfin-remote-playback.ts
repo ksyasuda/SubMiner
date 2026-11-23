@@ -277,7 +277,8 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
     // Clear before any network call so progress ticks fired during the stop find nothing to
     // report, then let reports already in flight finish so none can arrive after the stop.
     deps.clearActivePlayback();
-    await deps.reportTracker?.settled();
+    // Only this playback's reports: mpv may already be reporting the next episode.
+    await deps.reportTracker?.settled(playback);
     try {
       // mpv may have moved to another file while reports drained, and its position would then
       // overwrite this item's resume point. Off its file, the last position observed for it
