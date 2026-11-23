@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.22.1 (2026-11-23)
+
+### Added
+- **AniSkip Outro Skipping**:
+  - The AniSkip key now skips endings too, with its own prompt and chapter markers.
+  - Intros and outros are found from the file's own chapters first, so skipping also works for Jellyfin and other streams.
+  - Skip times now match your TV or Blu-ray cut.
+- **Library Franchise Cards**: The stats library shows each anime once. Seasons, movies, and OVAs that AniList links together share one card, and opening the card lists each part with its own stats. To fix the grouping, use **Move to Another Anime…**, **Show On Its Own**, or **Put Back Where AniList Has It** on a title's page.
+- **FFmpeg Download in Setup**: First-run setup shows whether FFmpeg and FFprobe can be used. If they're missing, **Download FFmpeg** installs a copy that SubMiner and the `subminer` command can use.
+
+### Fixed
+- **AniList Season Matching**:
+  - Later seasons now find the right AniList entry, even when a series has split-season halves, specials, or movies.
+  - Episodes in the second half of a split season update the right entry at the right episode number.
+  - Character dictionary matches saved by older versions are checked again once.
+- **AniSkip Lookups**: Rate limits, server errors, and network failures no longer count as "no intro" until restart. SubMiner tries again the next time the episode loads.
+- **Jimaku Series Name**: The Jimaku modal fills in the series name, season, and episode again for Jellyfin episodes with a "/" in their name.
+- **mpv Keys in the Overlay**: Keys bound in `input.conf` are no longer sent to a Yomitan popup that has already closed. They also no longer get lost when the overlay regains focus.
+- **Windows Overlay**: The overlay now finds the mpv window more reliably, and you can set the IPC socket in `mpv.conf`. It no longer stays attached to an unrelated window, and stalled overlays are now explained in the normal log.
+
+### Docs
+- **Windows Overlay Troubleshooting**: New guide to collecting and reading Windows overlay warnings without turning on debug logging.
+
 ## v0.22.0 (2026-11-06)
 
 ### Added
