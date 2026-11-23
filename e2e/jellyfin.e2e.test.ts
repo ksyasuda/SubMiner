@@ -78,7 +78,11 @@ test(
       description: 'the episodes around ep2 queued in the mpv playlist',
       timeoutMs: 30_000,
     });
-    assert.ok(reported('playing', 'ep2') >= 0, 'Jellyfin hears ep2 start');
+    // The start report is fire-and-forget, so it can land after the playlist fills.
+    await waitUntil(() => reported('playing', 'ep2') >= 0, {
+      description: 'Jellyfin to hear ep2 start',
+      timeoutMs: 30_000,
+    });
     // mpv's playlist lists entry titles, not stream URLs carrying the API key.
     const titles = [
       'E2E Show S01E01 Episode 1',

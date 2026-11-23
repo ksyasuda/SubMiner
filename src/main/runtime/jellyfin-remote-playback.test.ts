@@ -290,6 +290,32 @@ test('createReportJellyfinRemoteStoppedHandler clears aborted playback that neve
   assert.equal(cleared, true);
 });
 
+test('createReportJellyfinRemoteStoppedHandler keeps unloaded playback armed while the previous file unloads', async () => {
+  let cleared = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler(
+    makeStoppedDeps({
+      getActivePlayback: () =>
+        makePlayback({
+          loadedMediaPath: null,
+          stopReportsAfterMs: 10_000,
+          reporter: makeReporter({
+            reportStopped: async () => {
+              throw new Error('should not report stopped for unloaded media');
+            },
+          }),
+        }),
+      clearActivePlayback: () => {
+        cleared = true;
+      },
+      getNow: () => 5_000,
+    }),
+  );
+
+  await reportStopped();
+
+  assert.equal(cleared, false);
+});
+
 test('createReportJellyfinRemoteStoppedHandler uses cached position after mpv unload reset', async () => {
   let cleared = false;
   const calls: Array<{ event: string; positionTicks?: number }> = [];
@@ -447,39 +473,41 @@ test('createReportJellyfinRemoteStoppedHandler clears playback before reporting 
   ]);
 });
 
-test('createReportSupersededJellyfinPlaybackHandler stops at the last position observed for the item', async () => {
+test('createReportSupersededJellyfinPlaybackHandler waits only for the superseded playback reports', async () => {
   const events: string[] = [];
   const tracker = createJellyfinRemoteReportTracker();
-  let finishInFlightProgress = () => {};
+  const superseded = makePlayback({
+    itemId: 'item-1',
+    lastKnownPositionSeconds: 1410,
+    reporter: makeReporter({
+      reportStopped: async (payload) => {
+        events.push(`stopped:${payload.itemId}@${payload.positionTicks}`);
+      },
+    }),
+  });
+  let finishOldProgress = () => {};
   tracker.track(
     new Promise<void>((resolve) => {
-      finishInFlightProgress = () => {
-        events.push('in-flight progress done');
+      finishOldProgress = () => {
+        events.push('old progress done');
         resolve();
       };
     }),
+    superseded,
   );
+  // The new episode's progress stays in flight for the whole test.
+  tracker.track(new Promise<void>(() => {}), makePlayback({ itemId: 'item-2' }));
   const reportSuperseded = createReportSupersededJellyfinPlaybackHandler({
     ticksPerSecond: TICKS_PER_SECOND,
     logDebug: () => {},
     reportTracker: tracker,
   });
 
-  const reported = reportSuperseded(
-    makePlayback({
-      itemId: 'item-1',
-      lastKnownPositionSeconds: 1410,
-      reporter: makeReporter({
-        reportStopped: async (payload) => {
-          events.push(`stopped:${payload.itemId}@${payload.positionTicks}`);
-        },
-      }),
-    }),
-  );
+  const reported = reportSuperseded(superseded);
   await Promise.resolve();
-  assert.deepEqual(events, [], 'the stop waits for progress already in flight');
-  finishInFlightProgress();
+  assert.deepEqual(events, [], 'the stop waits for its own progress already in flight');
+  finishOldProgress();
   await reported;
 
-  assert.deepEqual(events, ['in-flight progress done', 'stopped:item-1@14100000000']);
+  assert.deepEqual(events, ['old progress done', 'stopped:item-1@14100000000']);
 });

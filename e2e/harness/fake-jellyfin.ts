@@ -32,7 +32,7 @@ function serveFile(request: http.IncomingMessage, response: http.ServerResponse,
   const size = fs.statSync(file).size;
   const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers.range ?? '');
   const start = range ? Number(range[1]) : 0;
-  const end = range?.[2] ? Number(range[2]) : size - 1;
+  const end = Math.min(range?.[2] ? Number(range[2]) : size - 1, size - 1);
   response.writeHead(range ? 206 : 200, {
     'content-type': 'video/x-matroska',
     'accept-ranges': 'bytes',

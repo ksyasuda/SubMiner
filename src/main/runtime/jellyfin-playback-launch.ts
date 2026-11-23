@@ -330,13 +330,18 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
 
   // Runs once mpv has the item: subtitles, overlay, and the Jellyfin start report. Its
   // neighbors are queued later, from the first time-pos update.
+  // Stop reports for episodes mpv left, chained so each runs after the ones before it.
+  let supersededStopsReported: Promise<void> = Promise.resolve();
+
   const finishPlaybackStartup = async (
     context: JellyfinPlaybackContext,
     prepared: JellyfinPreparedPlayback,
     reporter: JellyfinPlaybackReporterLike,
-    previousStopReported: Promise<void> = Promise.resolve(),
   ): Promise<void> => {
     const { plan } = prepared;
+    // Each start makes a new reporter, so it identifies this playback even when the same
+    // episode comes back. A later switch that took over does its own reporting.
+    const ownsPlayback = () => deps.getActivePlayback()?.reporter === reporter;
     await awaitBestEffortPlaybackHook(() =>
       deps.preloadExternalSubtitles({
         session: context.session,
@@ -344,11 +349,14 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
         itemId: prepared.itemId,
       }),
     );
+    if (!ownsPlayback()) return;
     deps.showVisibleOverlay();
     pendingNeighborQueue = { context, prepared };
 
-    // Jellyfin clears a session's now-playing item on any stop, so the start must come after.
-    await previousStopReported;
+    // Jellyfin clears a session's now-playing item on any stop, so the start must come after
+    // every stop sent before it.
+    await supersededStopsReported;
+    if (!ownsPlayback()) return;
     void reporter.reportPlaying({
       itemId: prepared.itemId,
       mediaSourceId: undefined,
@@ -423,16 +431,16 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     if (previous?.itemId === queued.entry.itemId) return false;
 
     const reporter = beginPlayback(queued.context, queued.entry, path);
-    const previousStopReported = previous
-      ? deps.reportPlaybackSuperseded(previous).catch((error: unknown) => {
+    if (previous) {
+      supersededStopsReported = supersededStopsReported
+        .then(() => deps.reportPlaybackSuperseded(previous))
+        .catch((error: unknown) => {
           deps.logDebug('Failed to report the previous Jellyfin episode stopped', error);
-        })
-      : undefined;
-    void finishPlaybackStartup(queued.context, queued.entry, reporter, previousStopReported).catch(
-      (error: unknown) => {
-        deps.logDebug('Failed to start the queued Jellyfin episode', error);
-      },
-    );
+        });
+    }
+    void finishPlaybackStartup(queued.context, queued.entry, reporter).catch((error: unknown) => {
+      deps.logDebug('Failed to start the queued Jellyfin episode', error);
+    });
     return true;
   };
 
