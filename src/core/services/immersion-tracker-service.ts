@@ -2464,6 +2464,9 @@ export class ImmersionTrackerService {
 
   private updateVideoTitleForActiveSession(canonicalTitle: string): void {
     if (!this.sessionState) return;
+    // Jellyfin's title is authoritative. mpv's media-title can still name the previous playlist
+    // entry while it switches files, so it must not overwrite a Jellyfin video's title.
+    if (this.hasJellyfinMetadata(this.sessionState.videoId)) return;
     updateVideoTitleRecord(this.db, this.sessionState.videoId, canonicalTitle);
   }
 }

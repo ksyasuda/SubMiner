@@ -2949,6 +2949,38 @@ test('Jellyfin metadata refresh preserves a manual episode assignment', async ()
   }
 });
 
+test('mpv media-title updates do not overwrite a Jellyfin video title', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const streamUrl = 'http://jellyfin.local/Videos/item-3/stream?static=true&api_key=token';
+    tracker.recordJellyfinPlaybackMetadata({
+      mediaPath: streamUrl,
+      displayTitle: 'Show S01E03 Third',
+      itemTitle: 'Third',
+      seriesTitle: 'Show',
+      seasonNumber: 1,
+      episodeNumber: 3,
+      itemId: 'item-3',
+    });
+    tracker.handleMediaChange(streamUrl, 'Show S01E03 Third');
+    // mpv restores the previous episode's title as it leaves this playlist entry.
+    tracker.handleMediaTitleUpdate('Show S01E02 Second');
+    tracker.handleMediaChange(streamUrl, 'Show S01E02 Second');
+
+    const row = (tracker as unknown as { db: DatabaseSync }).db
+      .prepare('SELECT canonical_title AS title FROM imm_videos')
+      .get() as { title: string };
+    assert.equal(row.title, 'Show S01E03 Third');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('startup repairs existing Jellyfin stream video links to metadata rows', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

@@ -135,18 +135,14 @@ function quoteMpvOptionValue(value: string): string {
   return `%${Buffer.byteLength(value, 'utf8')}%${value}`;
 }
 
-function buildJellyfinLoadfileOptions(
-  plan: JellyfinPlaybackPlan,
-  startSeconds: number,
-  mediaTitle?: string,
-): string {
+// The title is a per-file option, so mpv never shows the tokenized stream URL as the title, and
+// no global title is left behind for the next playlist entry to fall back to.
+function buildJellyfinLoadfileOptions(plan: JellyfinPlaybackPlan, startSeconds: number): string {
   const options = [...JELLYFIN_LOADFILE_SUBTITLE_SUPPRESSION_OPTIONS];
   if (plan.mode === 'direct' && startSeconds > 0) {
     options.push(`start=${startSeconds}`);
   }
-  if (mediaTitle) {
-    options.push(`force-media-title=${quoteMpvOptionValue(mediaTitle)}`);
-  }
+  options.push(`force-media-title=${quoteMpvOptionValue(plan.title)}`);
   return options.join(',');
 }
 
@@ -157,8 +153,6 @@ function prepareJellyfinPlayback(
   options: {
     startTimeTicksOverride?: number;
     fallbackToPlanStartTimeOnZeroOverride?: boolean;
-    // Playlist entries carry their title per file; an explicit play sets it before loadfile.
-    perFileMediaTitle?: boolean;
   } = {},
 ): JellyfinPreparedPlayback {
   const startTimeTicks = resolveEffectiveStartTimeTicks(
@@ -177,11 +171,7 @@ function prepareJellyfinPlayback(
     title: plan.title,
     plan,
     playbackUrl: stripManagedSubtitleStreamFromPlaybackUrl(playbackUrlBase),
-    loadfileOptions: buildJellyfinLoadfileOptions(
-      plan,
-      startSeconds,
-      options.perFileMediaTitle ? plan.title : undefined,
-    ),
+    loadfileOptions: buildJellyfinLoadfileOptions(plan, startSeconds),
     startTimeTicks,
     startSeconds,
     playMethod: plan.mode === 'direct' ? 'DirectPlay' : 'Transcode',
@@ -281,7 +271,6 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
         itemId,
         await deps.resolvePlaybackPlan({ ...context, itemId }),
         deps.convertTicksToSeconds,
-        { perFileMediaTitle: true },
       ),
     readMpvPlaylist: () => deps.readMpvPlaylist(),
     sendMpvCommand: (command) => deps.sendMpvCommand(command),
@@ -418,8 +407,6 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     pendingNeighborQueue = null;
     const reporter = beginPlayback(context, prepared, null);
     deps.sendMpvCommand(['script-message', 'subminer-managed-subtitles-loading']);
-    // Set mpv's title before loadfile can emit a URL-derived media-title event.
-    deps.sendMpvCommand(['set_property', 'force-media-title', plan.title]);
     deps.sendMpvCommand([
       'loadfile',
       prepared.playbackUrl,

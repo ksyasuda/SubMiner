@@ -159,13 +159,12 @@ test('playback handler disables mpv subtitle selection, then loads media and rep
     ['set_property', 'sub-visibility', 'no'],
     ['set_property', 'secondary-sub-visibility', 'no'],
     ['script-message', 'subminer-managed-subtitles-loading'],
-    ['set_property', 'force-media-title', 'Episode 1'],
     [
       'loadfile',
       'https://stream.example/video.m3u8',
       'replace',
       -1,
-      `${SUPPRESSED_SUBTITLE_OPTIONS},start=1.2`,
+      `${SUPPRESSED_SUBTITLE_OPTIONS},start=1.2,force-media-title=%9%Episode 1`,
     ],
   ]);
   assert.equal(harness.activeStates.length, 1);
@@ -314,9 +313,11 @@ test('playback handler publishes Jellyfin title before loading tokenized stream 
   const loadIndex = harness.events.indexOf('cmd:loadfile');
   assert.ok(titleIndex >= 0);
   assert.ok(titleIndex < loadIndex);
-  const mpvTitleIndex = harness.commands.findIndex((command) => command[1] === 'force-media-title');
+  // mpv gets the title as a per-file option, so it never falls back to the URL.
   assert.ok(
-    mpvTitleIndex >= 0 && mpvTitleIndex < harness.commands.findIndex((c) => c[0] === 'loadfile'),
+    String(harness.loadfile()?.[4]).endsWith(
+      ',force-media-title=%30%Galaxy Quest S02E07 A New Hope',
+    ),
   );
 });
 
@@ -373,7 +374,7 @@ for (const c of HOOK_FAILURE_CASES) {
       'https://stream.example/video.m3u8',
       'replace',
       -1,
-      SUPPRESSED_SUBTITLE_OPTIONS,
+      `${SUPPRESSED_SUBTITLE_OPTIONS},force-media-title=%9%Episode 1`,
     ]);
   });
 }
