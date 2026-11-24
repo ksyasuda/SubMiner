@@ -26,6 +26,8 @@ export interface PollingRunnerDeps {
 
 export class PollingRunner {
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
+  // Keeps interval ticks from stacking up behind a slow read, now that reads skip the update lock.
+  private pollInFlight = false;
   private initialized = false;
   private backoffMs = 200;
   private maxBackoffMs = 5000;
@@ -56,19 +58,29 @@ export class PollingRunner {
   }
 
   async pollOnce(): Promise<void> {
-    if (this.deps.isUpdateInProgress()) return;
+    if (this.pollInFlight || this.deps.isUpdateInProgress()) return;
     if (Date.now() < this.nextPollTime) return;
 
-    this.deps.setUpdateInProgress(true);
+    this.pollInFlight = true;
+    let holdsUpdateLock = false;
     try {
       const query = this.deps.getDeck() ? `"deck:${this.deps.getDeck()}" added:1` : 'added:1';
+      // The read runs without the update lock: mining checks that lock and gives up when it is
+      // held, so holding it for a routine poll would drop a card mined at the wrong moment.
       const noteIds = await this.deps.findNotes(query, {
         maxRetries: 0,
       });
+      // An update started during the read (its creator tracks any note it adds), so leave the
+      // new notes to the next poll.
+      if (this.deps.isUpdateInProgress()) return;
+      this.deps.setUpdateInProgress(true);
+      holdsUpdateLock = true;
       const currentNoteIds = new Set(noteIds);
 
       const previousNoteIds = this.deps.getTrackedNoteIds();
       if (!this.initialized) {
+        // Keep notes mined while the read was pending; the read may have started before they existed.
+        for (const noteId of previousNoteIds) currentNoteIds.add(noteId);
         this.deps.setTrackedNoteIds(currentNoteIds);
         this.initialized = true;
         this.deps.logInfo(`AnkiConnect initialized with ${currentNoteIds.size} existing cards`);
@@ -140,7 +152,8 @@ export class PollingRunner {
       }
       this.deps.logWarn((error as Error).message);
     } finally {
-      this.deps.setUpdateInProgress(false);
+      this.pollInFlight = false;
+      if (holdsUpdateLock) this.deps.setUpdateInProgress(false);
     }
   }
 

@@ -173,3 +173,90 @@ test('a failed source lookup skips plugin events without stopping counting or en
   assert.deepEqual(h.ready, []);
   assert.equal(h.warnings.length, 2);
 });
+
+/** A runner whose `findNotes` read stays pending until `finishRead`, sharing one update lock. */
+function makeSlowReadRunner() {
+  const state = { updating: false, processed: [] as number[], tracked: new Set<number>() };
+  let finishRead: (noteIds: number[]) => void = () => undefined;
+  const runner = new PollingRunner({
+    getDeck: () => 'Mining',
+    getPollingRate: () => 3000,
+    findNotes: (query) =>
+      query.includes('tag:')
+        ? Promise.resolve([])
+        : new Promise<number[]>((resolve) => {
+            finishRead = resolve;
+          }),
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async (noteId) => {
+      state.processed.push(noteId);
+    },
+    isUpdateInProgress: () => state.updating,
+    setUpdateInProgress: (value) => {
+      state.updating = value;
+    },
+    getTrackedNoteIds: () => state.tracked,
+    setTrackedNoteIds: (noteIds) => {
+      state.tracked = noteIds;
+    },
+    showStatusNotification: () => undefined,
+    logDebug: () => undefined,
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+  });
+  return {
+    runner,
+    state,
+    finishRead: (noteIds: number[]) => finishRead(noteIds),
+    /** The first poll only records the notes already in the deck. */
+    initialize: async () => {
+      const poll = runner.pollOnce();
+      finishRead([10]);
+      await poll;
+    },
+  };
+}
+
+test('a poll waiting on Anki leaves the update lock free for mining', async () => {
+  const h = makeSlowReadRunner();
+  await h.initialize();
+
+  const poll = h.runner.pollOnce();
+  assert.equal(h.state.updating, false, 'mining can start while the read is pending');
+  h.finishRead([10, 11]);
+  await poll;
+
+  assert.deepEqual(h.state.processed, [11]);
+  assert.equal(h.state.updating, false);
+});
+
+test('a poll leaves new notes alone when mining starts during its read', async () => {
+  const h = makeSlowReadRunner();
+  await h.initialize();
+
+  const poll = h.runner.pollOnce();
+  // Mining takes the lock and adds note 11 while the poll's read is in flight.
+  h.state.updating = true;
+  h.finishRead([10, 11]);
+  await poll;
+
+  assert.deepEqual(h.state.processed, []);
+  assert.deepEqual([...h.state.tracked], [10]);
+  assert.equal(h.state.updating, true, 'the poll must not release a lock it never took');
+});
+
+test('the first poll keeps notes mined while its read was pending', async () => {
+  const h = makeSlowReadRunner();
+
+  const init = h.runner.pollOnce();
+  // Mining finishes during the initial read and tracks note 11, which the read missed.
+  h.state.tracked.add(11);
+  h.finishRead([10]);
+  await init;
+
+  const poll = h.runner.pollOnce();
+  h.finishRead([10, 11]);
+  await poll;
+
+  assert.deepEqual(h.state.processed, []);
+});
