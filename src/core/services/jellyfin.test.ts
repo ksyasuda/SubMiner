@@ -4,6 +4,7 @@ import {
   authenticateWithPassword,
   listItems,
   listLibraries,
+  listSeriesEpisodeIds,
   listSubtitleTracks,
   resolvePlaybackPlan,
   ticksToSeconds,
@@ -885,4 +886,38 @@ test('toJellyfinOriginalStreamUrl maps direct and transcoded playback to the ori
   );
   assert.equal(toJellyfinOriginalStreamUrl('https://jf/Videos/item-1/stream', 'item-1'), null);
   assert.equal(toJellyfinOriginalStreamUrl('/media/item-1.mkv', 'item-1'), null);
+});
+
+test('listSeriesEpisodeIds returns playable episodes in series order', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  globalThis.fetch = (async (input) => {
+    requestedUrl = String(input);
+    return new Response(
+      JSON.stringify({
+        Items: [
+          { Id: 'ep-1', LocationType: 'FileSystem' },
+          { Id: 'ep-2', LocationType: 'Virtual' },
+          { Id: 'ep-3', LocationType: 'FileSystem' },
+          { Name: 'no id' },
+        ],
+      }),
+      { status: 200 },
+    );
+  }) as typeof fetch;
+
+  try {
+    const ids = await listSeriesEpisodeIds(
+      { serverUrl: 'http://jellyfin.local', accessToken: 'token', userId: 'u1', username: 'kyle' },
+      clientInfo,
+      'series-1',
+    );
+    assert.deepEqual(ids, ['ep-1', 'ep-3']);
+    const url = new URL(requestedUrl);
+    assert.equal(url.pathname, '/Shows/series-1/Episodes');
+    assert.equal(url.searchParams.get('UserId'), 'u1');
+    assert.equal(url.searchParams.get('IsMissing'), 'false');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

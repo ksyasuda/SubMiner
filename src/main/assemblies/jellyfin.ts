@@ -8,6 +8,7 @@ import {
   JellyfinPlaybackReporter,
   JellyfinRemoteSessionService,
   jellyfinTicksToSecondsRuntime,
+  listJellyfinSeriesEpisodeIdsRuntime,
   listJellyfinItemsRuntime,
   listJellyfinLibrariesRuntime,
   listJellyfinSubtitleTracksRuntime,
@@ -28,6 +29,7 @@ import {
   mergeJellyfinRecentServers,
   parseJellyfinSetupSubmissionUrl,
   persistJellyfinAuthSession,
+  markJellyfinRemotePlaybackLoaded,
   type ActiveJellyfinRemotePlaybackState,
 } from '../runtime/domains/jellyfin';
 import { detectInstalledMpvPlugin } from '../runtime/first-run-setup-plugin';
@@ -37,6 +39,10 @@ import {
   createHostDerivedJellyfinDeviceId,
   resolveJellyfinRemoteDeviceName,
 } from '../runtime/jellyfin-device-identity';
+import {
+  chooseMpvEntryLoadMode,
+  PLUGIN_ENTRY_OPTIONS_USER_DATA,
+} from '../runtime/jellyfin-episode-playlist';
 import { createJellyfinSubtitleCacheIo } from '../runtime/jellyfin-subtitle-cache-io';
 import { clearJellyfinAuthSessionAndRefreshTray as clearJellyfinAuthSessionAndRefreshTrayRuntime } from '../runtime/jellyfin-tray-discovery';
 import { resolveMpvExecutablePath, spawnMpvProcess } from '../runtime/mpv-process';
@@ -140,6 +146,7 @@ export function createJellyfinAssembly(deps: JellyfinAssemblyDeps) {
     runJellyfinCommand,
     openJellyfinSetupWindow,
     ensureMpvConnectedForPlayback,
+    playJellyfinItemInMpv,
   } = composeJellyfinRuntimeHandlers({
     getResolvedJellyfinConfigMainDeps: {
       getResolvedConfig: () => configService.getConfig(),
@@ -237,6 +244,7 @@ export function createJellyfinAssembly(deps: JellyfinAssemblyDeps) {
         setTimeout(callback, delayMs);
       },
       convertTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
+      getActivePlayback: () => activeJellyfinRemotePlayback,
       setActivePlayback: (state) => {
         activeJellyfinRemotePlayback = {
           ...(state as ActiveJellyfinRemotePlaybackState),
@@ -270,6 +278,24 @@ export function createJellyfinAssembly(deps: JellyfinAssemblyDeps) {
         deps.ensureImmersionTrackerStarted();
         appState.immersionTracker?.recordJellyfinPlaybackMetadata(metadata);
       },
+      getEpisodePlaylistSettings: () => configService.getConfig().jellyfin.episodePlaylist,
+      listSeriesEpisodeIds: ({ session, clientInfo, seriesId }) =>
+        listJellyfinSeriesEpisodeIdsRuntime(session, clientInfo, seriesId),
+      readMpvPlaylist: async () => appState.mpvClient?.requestProperty('playlist') ?? [],
+      resolveEntryLoadMode: async () => {
+        const client = appState.mpvClient;
+        if (!client) return 'loadfile';
+        // The user-data key is unset (an error) unless the SubMiner plugin is loaded.
+        const [mpvVersion, pluginAppliesEntryOptions] = await Promise.all([
+          client.requestProperty('mpv-version').catch(() => null),
+          client.requestProperty(PLUGIN_ENTRY_OPTIONS_USER_DATA).then(
+            (value) => value === true,
+            () => false,
+          ),
+        ]);
+        return chooseMpvEntryLoadMode(mpvVersion, pluginAppliesEntryOptions);
+      },
+      logDebug: (message, error) => logger.debug(message, error),
     },
     remoteComposerOptions: {
       getConfiguredSession: () => getConfiguredJellyfinSession(getResolvedJellyfinConfig()),
@@ -452,6 +478,15 @@ export function createJellyfinAssembly(deps: JellyfinAssemblyDeps) {
     ensureMpvConnectedForPlayback,
     getTrayDiscoveryDeps: getJellyfinTrayDiscoveryDeps,
     getActivePlayback: () => activeJellyfinRemotePlayback,
+    /**
+     * Called with each new mpv path: takes over a queued Jellyfin episode mpv started from its
+     * playlist, otherwise marks the active playback loaded. Must run before the immersion sync.
+     */
+    handleMediaPathLoaded: (path: string) => {
+      if (playJellyfinItemInMpv.adoptQueuedEpisode(path)) return;
+      markJellyfinRemotePlaybackLoaded(activeJellyfinRemotePlayback, path);
+    },
+    handlePlaybackTimePos: () => playJellyfinItemInMpv.handlePlaybackTimePos(),
     getQuitOnDisconnectArmed: () => jellyfinPlayQuitOnDisconnectArmed,
   };
 }

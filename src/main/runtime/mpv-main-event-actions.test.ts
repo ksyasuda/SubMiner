@@ -225,17 +225,19 @@ test('media path change handler schedules character dictionary once per media pa
   );
 });
 
-test('media path change handler marks Jellyfin remote playback loaded from media path', () => {
+test('media path change handler hands the path to Jellyfin before the immersion sync', () => {
   const calls: string[] = [];
   const handler = createHandleMpvMediaPathChangeHandler(
     createMediaPathDeps(calls, {
-      markJellyfinRemotePlaybackLoaded: (path) => calls.push(`jellyfin-loaded:${path}`),
+      handleJellyfinMediaPathLoaded: (path) => calls.push(`jellyfin-loaded:${path}`),
     }),
   );
 
   handler({ path: 'https://stream.example/video.m3u8' });
 
-  assert.ok(calls.includes('jellyfin-loaded:https://stream.example/video.m3u8'));
+  const loadedAt = calls.indexOf('jellyfin-loaded:https://stream.example/video.m3u8');
+  assert.ok(loadedAt >= 0);
+  assert.ok(loadedAt < calls.indexOf('sync'));
   assert.equal(calls.includes('stopped'), false);
 });
 

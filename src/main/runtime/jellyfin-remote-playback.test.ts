@@ -5,6 +5,7 @@ import {
   createJellyfinRemoteReportTracker,
   createReportJellyfinRemoteProgressHandler,
   createReportJellyfinRemoteStoppedHandler,
+  createReportSupersededJellyfinPlaybackHandler,
   secondsToJellyfinTicks,
   shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
 } from './jellyfin-remote-playback';
@@ -233,6 +234,7 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
         makePlayback({
           itemId: 'item-2',
           playMethod: 'Transcode',
+          loadedMediaPath: 'https://stream.example/item-2.m3u8',
           reporter: makeReporter({
             reportStopped: async (payload) => {
               stoppedPayload = {
@@ -248,6 +250,7 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
       },
       getMpvClient: () => ({
         currentTimePos: 12.5,
+        currentVideoPath: 'https://stream.example/item-2.m3u8',
         requestProperty: async () => {
           throw new Error('unloaded');
         },
@@ -262,6 +265,33 @@ test('createReportJellyfinRemoteStoppedHandler reports stop and clears playback'
     failed: false,
   });
   assert.equal(cleared, true);
+});
+
+test('createReportJellyfinRemoteStoppedHandler ignores the position of a file mpv moved on to', async () => {
+  let stoppedTicks: number | undefined;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler(
+    makeStoppedDeps({
+      getActivePlayback: () =>
+        makePlayback({
+          itemId: 'item-1',
+          loadedMediaPath: 'https://stream.example/item-1.m3u8',
+          lastKnownPositionSeconds: 1410,
+          reporter: makeReporter({
+            reportStopped: async (payload) => {
+              stoppedTicks = payload.positionTicks;
+            },
+          }),
+        }),
+      getMpvClient: () => ({
+        currentTimePos: 42,
+        currentVideoPath: 'https://stream.example/item-2.m3u8',
+      }),
+    }),
+  );
+
+  await reportStopped();
+
+  assert.equal(stoppedTicks, 14_100_000_000);
 });
 
 test('createReportJellyfinRemoteStoppedHandler clears aborted playback that never loaded', async () => {
@@ -287,6 +317,32 @@ test('createReportJellyfinRemoteStoppedHandler clears aborted playback that neve
   await reportStopped();
 
   assert.equal(cleared, true);
+});
+
+test('createReportJellyfinRemoteStoppedHandler keeps unloaded playback armed while the previous file unloads', async () => {
+  let cleared = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler(
+    makeStoppedDeps({
+      getActivePlayback: () =>
+        makePlayback({
+          loadedMediaPath: null,
+          stopReportsAfterMs: 10_000,
+          reporter: makeReporter({
+            reportStopped: async () => {
+              throw new Error('should not report stopped for unloaded media');
+            },
+          }),
+        }),
+      clearActivePlayback: () => {
+        cleared = true;
+      },
+      getNow: () => 5_000,
+    }),
+  );
+
+  await reportStopped();
+
+  assert.equal(cleared, false);
 });
 
 test('createReportJellyfinRemoteStoppedHandler uses cached position after mpv unload reset', async () => {
@@ -444,4 +500,69 @@ test('createReportJellyfinRemoteStoppedHandler clears playback before reporting 
     'progress:TimeUpdate:cleared',
     'stopped:cleared',
   ]);
+});
+
+test('createReportSupersededJellyfinPlaybackHandler waits only for the superseded playback reports', async () => {
+  const events: string[] = [];
+  const tracker = createJellyfinRemoteReportTracker();
+  const superseded = makePlayback({
+    itemId: 'item-1',
+    lastKnownPositionSeconds: 1410,
+    reporter: makeReporter({
+      reportStopped: async (payload) => {
+        events.push(`stopped:${payload.itemId}@${payload.positionTicks}`);
+      },
+    }),
+  });
+  let finishOldProgress = () => {};
+  tracker.track(
+    new Promise<void>((resolve) => {
+      finishOldProgress = () => {
+        events.push('old progress done');
+        resolve();
+      };
+    }),
+    superseded,
+  );
+  // The new episode's progress stays in flight for the whole test.
+  tracker.track(new Promise<void>(() => {}), makePlayback({ itemId: 'item-2' }));
+  const reportSuperseded = createReportSupersededJellyfinPlaybackHandler({
+    ticksPerSecond: TICKS_PER_SECOND,
+    logDebug: () => {},
+    reportTracker: tracker,
+  });
+
+  const reported = reportSuperseded(superseded);
+  await Promise.resolve();
+  assert.deepEqual(events, [], 'the stop waits for its own progress already in flight');
+  finishOldProgress();
+  await reported;
+
+  assert.deepEqual(events, ['old progress done', 'stopped:item-1@14100000000']);
+});
+
+test('createReportJellyfinRemoteStoppedHandler is not held by reports for another playback', async () => {
+  const tracker = createJellyfinRemoteReportTracker();
+  // The next episode's progress stays in flight for the whole test.
+  tracker.track(new Promise<void>(() => {}), makePlayback({ itemId: 'item-2' }));
+  let stopped = false;
+  const reportStopped = createReportJellyfinRemoteStoppedHandler(
+    makeStoppedDeps({
+      getActivePlayback: () =>
+        makePlayback({
+          loadedMediaPath: 'https://stream.example/item-1.m3u8',
+          lastKnownPositionSeconds: 30,
+          reporter: makeReporter({
+            reportStopped: async () => {
+              stopped = true;
+            },
+          }),
+        }),
+      reportTracker: tracker,
+    }),
+  );
+
+  await reportStopped();
+
+  assert.equal(stopped, true);
 });

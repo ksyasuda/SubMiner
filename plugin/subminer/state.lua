@@ -34,6 +34,9 @@ function M.new()
 		pending_reload_reason = nil,
 		app_managed_playback_pending = false,
 		app_managed_playback_active = false,
+		app_managed_playlist_paths = {},
+		-- path -> { { name, value }, ... }: per-file options the on_load hook applies (mpv < 0.42).
+		app_playlist_entry_options = {},
 		auto_start_retry_generation = 0,
 		session_binding_generation = 0,
 		session_binding_names = {},

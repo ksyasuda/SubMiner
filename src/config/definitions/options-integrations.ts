@@ -705,6 +705,20 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Preferred transcode video codec when direct play is unavailable.',
     },
     {
+      path: 'jellyfin.episodePlaylist.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.jellyfin.episodePlaylist.enabled,
+      description:
+        "Add the playing episode's neighbors from its Jellyfin series to the mpv playlist, so mpv's playlist controls and end-of-file advance move between episodes.",
+    },
+    {
+      path: 'jellyfin.episodePlaylist.maxEpisodes',
+      kind: 'number',
+      defaultValue: defaultConfig.jellyfin.episodePlaylist.maxEpisodes,
+      description:
+        'Most episodes kept in the mpv playlist, the playing one included, centered on it (3-25).',
+    },
+    {
       path: 'discordPresence.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.discordPresence.enabled,

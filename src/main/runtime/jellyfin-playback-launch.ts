@@ -1,12 +1,28 @@
 import type { JellyfinAuthSession, JellyfinPlaybackPlan } from '../../core/services/jellyfin';
 import type { JellyfinConfig } from '../../types';
 import type { MpvRuntimeClientLike } from '../../core/services/mpv';
-import type { JellyfinPlaybackReporterLike } from './jellyfin-remote-commands';
+import {
+  buildMpvEntryLoadCommands,
+  createJellyfinEpisodePlaylist,
+  type JellyfinEpisodePlaylistSettings,
+  type JellyfinPlaylistEntry,
+  type MpvEntryLoadMode,
+} from './jellyfin-episode-playlist';
+import type {
+  ActiveJellyfinRemotePlaybackState,
+  JellyfinPlaybackReporterLike,
+} from './jellyfin-remote-commands';
 
 type JellyfinClientInfo = {
   clientName: string;
   clientVersion: string;
   deviceId: string;
+};
+
+type JellyfinPlaybackContext = {
+  session: JellyfinAuthSession;
+  clientInfo: JellyfinClientInfo;
+  jellyfinConfig: JellyfinConfig;
 };
 
 type ActivePlaybackState = {
@@ -31,13 +47,13 @@ export type JellyfinPlaybackStatsMetadata = {
   itemId: string;
 };
 
-const JELLYFIN_LOADFILE_SUBTITLE_SUPPRESSION_OPTIONS = [
-  'sid=no',
-  'secondary-sid=no',
-  'sub-auto=no',
-  'sub-visibility=no',
-  'secondary-sub-visibility=no',
-];
+const JELLYFIN_SUBTITLE_SUPPRESSION_OPTIONS = [
+  ['sid', 'no'],
+  ['secondary-sid', 'no'],
+  ['sub-auto', 'no'],
+  ['sub-visibility', 'no'],
+  ['secondary-sub-visibility', 'no'],
+] as const;
 
 function runBestEffortPlaybackHook(callback: () => void | Promise<void>): void {
   try {
@@ -104,13 +120,90 @@ function resolveEffectiveStartTimeTicks(
   return Math.max(0, planStartTimeTicks);
 }
 
-function buildJellyfinLoadfileOptions(plan: JellyfinPlaybackPlan, startSeconds: number): string {
-  const options = [...JELLYFIN_LOADFILE_SUBTITLE_SUPPRESSION_OPTIONS];
-  if (plan.mode === 'direct' && startSeconds > 0) {
-    options.push(`start=${startSeconds}`);
-  }
-  return options.join(',');
+/** A resolved Jellyfin item in the form mpv loads it. */
+type JellyfinPreparedPlayback = {
+  itemId: string;
+  seriesId: string | null;
+  title: string;
+  plan: JellyfinPlaybackPlan;
+  playbackUrl: string;
+  fileOptions: JellyfinPlaylistEntry['fileOptions'];
+  startTimeTicks: number;
+  startSeconds: number;
+  playMethod: 'DirectPlay' | 'Transcode';
+};
+
+// The title is a per-file option, so mpv never shows the tokenized stream URL as the title, and
+// no global title is left behind for the next playlist entry to fall back to.
+function buildJellyfinFileOptions(
+  plan: JellyfinPlaybackPlan,
+  startSeconds: number,
+): JellyfinPlaylistEntry['fileOptions'] {
+  return [
+    ...JELLYFIN_SUBTITLE_SUPPRESSION_OPTIONS,
+    ...(plan.mode === 'direct' && startSeconds > 0
+      ? [['start', String(startSeconds)] as const]
+      : []),
+    ['force-media-title', plan.title],
+  ];
 }
+
+function prepareJellyfinPlayback(
+  itemId: string,
+  plan: JellyfinPlaybackPlan,
+  convertTicksToSeconds: (ticks: number) => number,
+  options: {
+    startTimeTicksOverride?: number;
+    fallbackToPlanStartTimeOnZeroOverride?: boolean;
+  } = {},
+): JellyfinPreparedPlayback {
+  const startTimeTicks = resolveEffectiveStartTimeTicks(
+    plan.startTimeTicks,
+    options.startTimeTicksOverride,
+    options.fallbackToPlanStartTimeOnZeroOverride,
+  );
+  const startSeconds = startTimeTicks > 0 ? Math.max(0, convertTicksToSeconds(startTimeTicks)) : 0;
+  const playbackUrlBase =
+    plan.mode === 'direct'
+      ? stripStartTimeTicksFromPlaybackUrl(plan.url)
+      : applyStartTimeTicksToPlaybackUrl(plan.url, startTimeTicks);
+  return {
+    itemId,
+    seriesId: plan.seriesId,
+    title: plan.title,
+    plan,
+    playbackUrl: stripManagedSubtitleStreamFromPlaybackUrl(playbackUrlBase),
+    fileOptions: buildJellyfinFileOptions(plan, startSeconds),
+    startTimeTicks,
+    startSeconds,
+    playMethod: plan.mode === 'direct' ? 'DirectPlay' : 'Transcode',
+  };
+}
+
+export type PlayJellyfinItemInMpvHandler = ((params: {
+  session: JellyfinAuthSession;
+  clientInfo: JellyfinClientInfo;
+  jellyfinConfig: JellyfinConfig;
+  itemId: string;
+  audioStreamIndex?: number | null;
+  subtitleStreamIndex?: number | null;
+  startTimeTicksOverride?: number;
+  fallbackToPlanStartTimeOnZeroOverride?: boolean;
+  setQuitOnDisconnectArm?: boolean;
+}) => Promise<void>) & {
+  /**
+   * Takes over a queued neighbor episode that mpv started from its playlist, given mpv's new
+   * `path`. Returns false when the path is not one, or is already the active playback. Runs
+   * synchronously up to recording stats metadata, so call it before the immersion tracker sees
+   * the path.
+   */
+  adoptQueuedEpisode: (path: string) => boolean;
+  /**
+   * Called on mpv time-pos updates. The first one for a just-started item queues its neighbor
+   * episodes, so that work never competes with opening the stream.
+   */
+  handlePlaybackTimePos: () => void;
+};
 
 export function createPlayJellyfinItemInMpvHandler(deps: {
   ensureMpvConnectedForPlayback: () => Promise<boolean>;
@@ -134,6 +227,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     clientInfo: JellyfinClientInfo;
     itemId: string;
   }) => void | Promise<void>;
+  getActivePlayback: () => ActiveJellyfinRemotePlaybackState | null;
   setActivePlayback: (state: ActivePlaybackState) => void;
   setLastProgressAtMs: (value: number) => void;
   // Reports go out as the device and account that started this playback, for CLI play and
@@ -142,23 +236,146 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     session: JellyfinAuthSession;
     clientInfo: JellyfinClientInfo;
   }) => JellyfinPlaybackReporterLike;
+  /** Reports the stop of a playback mpv left for a queued neighbor episode. */
+  reportPlaybackSuperseded: (playback: ActiveJellyfinRemotePlaybackState) => Promise<void>;
+  /** Resolves once no Jellyfin episode start or stop report is in flight, whoever sent it. */
+  waitForTransitionReports: () => Promise<void>;
+  /** Tracks a start report, so the playback's own stop and later starts wait for it. */
+  trackPlaybackStart: (report: Promise<void>, playback: ActiveJellyfinRemotePlaybackState) => void;
+  /** Read on every queue run, so edits apply from the next episode change. */
+  getEpisodePlaylistSettings: () => JellyfinEpisodePlaylistSettings;
+  listSeriesEpisodeIds: (params: {
+    session: JellyfinAuthSession;
+    clientInfo: JellyfinClientInfo;
+    seriesId: string;
+  }) => Promise<string[]>;
+  readMpvPlaylist: () => Promise<unknown>;
+  /** Asked once per explicit playback; its episode playlist keeps that mode. */
+  resolveEntryLoadMode: () => Promise<MpvEntryLoadMode>;
   showMpvOsd: (text: string) => void;
   recordJellyfinPlaybackMetadata?: (
     metadata: JellyfinPlaybackStatsMetadata,
   ) => void | Promise<void>;
   updateCurrentMediaTitle?: (title: string) => void | Promise<void>;
-}) {
-  return async (params: {
-    session: JellyfinAuthSession;
-    clientInfo: JellyfinClientInfo;
-    jellyfinConfig: JellyfinConfig;
-    itemId: string;
-    audioStreamIndex?: number | null;
-    subtitleStreamIndex?: number | null;
-    startTimeTicksOverride?: number;
-    fallbackToPlanStartTimeOnZeroOverride?: boolean;
-    setQuitOnDisconnectArm?: boolean;
-  }): Promise<void> => {
+  logDebug: (message: string, error?: unknown) => void;
+}): PlayJellyfinItemInMpvHandler {
+  let entryLoadMode: MpvEntryLoadMode = 'loadfile';
+  const episodePlaylist = createJellyfinEpisodePlaylist<
+    JellyfinPlaybackContext,
+    JellyfinPreparedPlayback
+  >({
+    getSettings: () => deps.getEpisodePlaylistSettings(),
+    listSeriesEpisodeIds: (context, seriesId) =>
+      deps.listSeriesEpisodeIds({
+        session: context.session,
+        clientInfo: context.clientInfo,
+        seriesId,
+      }),
+    prepareEntry: async (context, itemId) =>
+      prepareJellyfinPlayback(
+        itemId,
+        await deps.resolvePlaybackPlan({ ...context, itemId }),
+        deps.convertTicksToSeconds,
+      ),
+    readMpvPlaylist: () => deps.readMpvPlaylist(),
+    getEntryLoadMode: () => entryLoadMode,
+    sendMpvCommand: (command) => deps.sendMpvCommand(command),
+    logDebug: (message, error) => deps.logDebug(message, error),
+  });
+
+  // Records stats metadata and makes `prepared` the active playback. Synchronous, so a caller
+  // reacting to mpv's path change finishes it before the immersion tracker sees that path.
+  const beginPlayback = (
+    context: JellyfinPlaybackContext,
+    prepared: JellyfinPreparedPlayback,
+    loadedMediaPath: string | null,
+  ): JellyfinPlaybackReporterLike => {
+    const { plan } = prepared;
+    runBestEffortPlaybackHook(() => deps.updateCurrentMediaTitle?.(plan.title));
+    runBestEffortPlaybackHook(() =>
+      deps.recordJellyfinPlaybackMetadata?.({
+        mediaPath: prepared.playbackUrl,
+        displayTitle: plan.title,
+        itemTitle: plan.itemTitle,
+        seriesTitle: plan.seriesTitle,
+        seasonNumber: plan.seasonNumber,
+        episodeNumber: plan.episodeNumber,
+        itemId: prepared.itemId,
+      }),
+    );
+    const reporter = deps.createPlaybackReporter({
+      session: context.session,
+      clientInfo: context.clientInfo,
+    });
+    deps.setActivePlayback({
+      itemId: prepared.itemId,
+      reporter,
+      mediaSourceId: undefined,
+      audioStreamIndex: plan.audioStreamIndex,
+      subtitleStreamIndex: plan.subtitleStreamIndex,
+      playMethod: prepared.playMethod,
+      loadedMediaPath,
+      lastKnownPositionSeconds: prepared.startSeconds > 0 ? prepared.startSeconds : undefined,
+    });
+    deps.setLastProgressAtMs(0);
+    return reporter;
+  };
+
+  // The item whose neighbors get queued once mpv reports it playing.
+  let pendingNeighborQueue: {
+    context: JellyfinPlaybackContext;
+    prepared: JellyfinPreparedPlayback;
+  } | null = null;
+
+  // Runs once mpv has the item: subtitles, overlay, and the Jellyfin start report. Its
+  // neighbors are queued later, from the first time-pos update.
+  const finishPlaybackStartup = async (
+    context: JellyfinPlaybackContext,
+    prepared: JellyfinPreparedPlayback,
+    reporter: JellyfinPlaybackReporterLike,
+  ): Promise<void> => {
+    const { plan } = prepared;
+    // Each start makes a new reporter, so it identifies this playback even when the same
+    // episode comes back. A later switch that took over does its own reporting.
+    const ownsPlayback = () => deps.getActivePlayback()?.reporter === reporter;
+    await awaitBestEffortPlaybackHook(() =>
+      deps.preloadExternalSubtitles({
+        session: context.session,
+        clientInfo: context.clientInfo,
+        itemId: prepared.itemId,
+      }),
+    );
+    if (!ownsPlayback()) return;
+    deps.showVisibleOverlay();
+    pendingNeighborQueue = { context, prepared };
+
+    // Jellyfin clears a session's now-playing item on any stop and keeps whichever start lands
+    // last, so this start waits for every start and stop in flight, including the generic stop
+    // mpv's empty path between files can trigger.
+    await deps.waitForTransitionReports();
+    const playback = deps.getActivePlayback();
+    if (playback?.reporter !== reporter) return;
+    const started = reporter.reportPlaying({
+      itemId: prepared.itemId,
+      mediaSourceId: undefined,
+      playMethod: prepared.playMethod,
+      positionTicks: prepared.startTimeTicks,
+      isPaused: false,
+      audioStreamIndex: plan.audioStreamIndex,
+      subtitleStreamIndex: plan.subtitleStreamIndex,
+      eventName: 'start',
+    });
+    deps.trackPlaybackStart(
+      started.then(
+        () => undefined,
+        (error: unknown) => deps.logDebug('Failed to report Jellyfin playback start', error),
+      ),
+      playback,
+    );
+    deps.showMpvOsd(`Jellyfin ${plan.mode}: ${plan.title}`);
+  };
+
+  const play = async (params: Parameters<PlayJellyfinItemInMpvHandler>[0]): Promise<void> => {
     const connected = await deps.ensureMpvConnectedForPlayback();
     const mpvClient = deps.getMpvClient();
     if (!connected || !mpvClient) {
@@ -176,80 +393,72 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
       subtitleStreamIndex: params.subtitleStreamIndex,
     });
 
+    entryLoadMode = await deps.resolveEntryLoadMode().catch((error: unknown) => {
+      deps.logDebug('Failed to detect how mpv takes playlist titles', error);
+      return 'loadfile' as const;
+    });
     deps.applyJellyfinMpvDefaults(mpvClient);
     deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
     deps.sendMpvCommand(['set_property', 'sid', 'no']);
     deps.sendMpvCommand(['set_property', 'secondary-sid', 'no']);
     deps.sendMpvCommand(['set_property', 'sub-visibility', 'no']);
     deps.sendMpvCommand(['set_property', 'secondary-sub-visibility', 'no']);
-    const startTimeTicks = resolveEffectiveStartTimeTicks(
-      plan.startTimeTicks,
-      params.startTimeTicksOverride,
-      params.fallbackToPlanStartTimeOnZeroOverride,
-    );
-    const startSeconds =
-      startTimeTicks > 0 ? Math.max(0, deps.convertTicksToSeconds(startTimeTicks)) : 0;
-    const playbackUrlBase =
-      plan.mode === 'direct'
-        ? stripStartTimeTicksFromPlaybackUrl(plan.url)
-        : applyStartTimeTicksToPlaybackUrl(plan.url, startTimeTicks);
-    const playbackUrl = stripManagedSubtitleStreamFromPlaybackUrl(playbackUrlBase);
-    const loadfileOptions = buildJellyfinLoadfileOptions(plan, startSeconds);
-    const playMethod = plan.mode === 'direct' ? 'DirectPlay' : 'Transcode';
-    runBestEffortPlaybackHook(() => deps.updateCurrentMediaTitle?.(plan.title));
-    runBestEffortPlaybackHook(() =>
-      deps.recordJellyfinPlaybackMetadata?.({
-        mediaPath: playbackUrl,
-        displayTitle: plan.title,
-        itemTitle: plan.itemTitle,
-        seriesTitle: plan.seriesTitle,
-        seasonNumber: plan.seasonNumber,
-        episodeNumber: plan.episodeNumber,
-        itemId: params.itemId,
-      }),
-    );
-    const reporter = deps.createPlaybackReporter({
+    const prepared = prepareJellyfinPlayback(params.itemId, plan, deps.convertTicksToSeconds, {
+      startTimeTicksOverride: params.startTimeTicksOverride,
+      fallbackToPlanStartTimeOnZeroOverride: params.fallbackToPlanStartTimeOnZeroOverride,
+    });
+    const context: JellyfinPlaybackContext = {
       session: params.session,
       clientInfo: params.clientInfo,
-    });
-    deps.setActivePlayback({
-      itemId: params.itemId,
-      reporter,
-      mediaSourceId: undefined,
-      audioStreamIndex: plan.audioStreamIndex,
-      subtitleStreamIndex: plan.subtitleStreamIndex,
-      playMethod,
-      loadedMediaPath: null,
-      lastKnownPositionSeconds: startSeconds > 0 ? startSeconds : undefined,
-    });
-    deps.setLastProgressAtMs(0);
+      jellyfinConfig: params.jellyfinConfig,
+    };
+    // Replacing mpv's playlist takes the old neighbors with it.
+    episodePlaylist.reset();
+    pendingNeighborQueue = null;
+    const reporter = beginPlayback(context, prepared, null);
     deps.sendMpvCommand(['script-message', 'subminer-managed-subtitles-loading']);
-    // Set mpv's title before loadfile can emit a URL-derived media-title event.
-    deps.sendMpvCommand(['set_property', 'force-media-title', plan.title]);
-    deps.sendMpvCommand(['loadfile', playbackUrl, 'replace', -1, loadfileOptions]);
+    for (const command of buildMpvEntryLoadCommands(prepared, entryLoadMode, { kind: 'replace' })) {
+      deps.sendMpvCommand(command);
+    }
     if (params.setQuitOnDisconnectArm !== false) {
       deps.armQuitOnDisconnect();
     }
 
-    await awaitBestEffortPlaybackHook(() =>
-      deps.preloadExternalSubtitles({
-        session: params.session,
-        clientInfo: params.clientInfo,
-        itemId: params.itemId,
-      }),
-    );
-    deps.showVisibleOverlay();
-
-    void reporter.reportPlaying({
-      itemId: params.itemId,
-      mediaSourceId: undefined,
-      playMethod,
-      positionTicks: startTimeTicks,
-      isPaused: false,
-      audioStreamIndex: plan.audioStreamIndex,
-      subtitleStreamIndex: plan.subtitleStreamIndex,
-      eventName: 'start',
-    });
-    deps.showMpvOsd(`Jellyfin ${plan.mode}: ${plan.title}`);
+    await finishPlaybackStartup(context, prepared, reporter);
   };
+
+  const adoptQueuedEpisode = (path: string): boolean => {
+    const queued = episodePlaylist.find(path);
+    if (!queued) return false;
+    const previous = deps.getActivePlayback();
+    if (previous?.itemId === queued.entry.itemId) return false;
+
+    const reporter = beginPlayback(queued.context, queued.entry, path);
+    if (previous) {
+      void deps.reportPlaybackSuperseded(previous).catch((error: unknown) => {
+        deps.logDebug('Failed to report the previous Jellyfin episode stopped', error);
+      });
+    }
+    void finishPlaybackStartup(queued.context, queued.entry, reporter).catch((error: unknown) => {
+      deps.logDebug('Failed to start the queued Jellyfin episode', error);
+    });
+    return true;
+  };
+
+  const handlePlaybackTimePos = (): void => {
+    const pending = pendingNeighborQueue;
+    if (!pending) return;
+    const active = deps.getActivePlayback();
+    // time-pos can still belong to the file mpv is leaving until it reports the new path.
+    if (
+      active?.itemId !== pending.prepared.itemId ||
+      active.loadedMediaPath !== pending.prepared.playbackUrl
+    ) {
+      return;
+    }
+    pendingNeighborQueue = null;
+    void episodePlaylist.queueNeighbors(pending.context, pending.prepared);
+  };
+
+  return Object.assign(play, { adoptQueuedEpisode, handlePlaybackTimePos });
 }

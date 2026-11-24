@@ -82,7 +82,7 @@ export function createMpvMainEventBindingDeps(deps: {
   ensureAnilistMediaGuess: (mediaKey: string) => void;
   syncImmersionMediaState: () => void;
   signalAutoplayReadyIfWarm?: (path: string) => void;
-  markJellyfinRemotePlaybackLoaded?: (path: string) => void;
+  handleJellyfinMediaPathLoaded?: (path: string) => void;
   scheduleCharacterDictionarySync?: () => void;
   updateCurrentMediaTitle: (title: string) => void;
   resetAnilistMediaGuessState: () => void;
@@ -329,8 +329,7 @@ export function createMpvMainEventBindingDeps(deps: {
     ensureAnilistMediaGuess: (mediaKey: string) => deps.ensureAnilistMediaGuess(mediaKey),
     syncImmersionMediaState: () => deps.syncImmersionMediaState(),
     signalAutoplayReadyIfWarm: (path: string) => deps.signalAutoplayReadyIfWarm?.(path),
-    markJellyfinRemotePlaybackLoaded: (path: string) =>
-      deps.markJellyfinRemotePlaybackLoaded?.(path),
+    handleJellyfinMediaPathLoaded: (path: string) => deps.handleJellyfinMediaPathLoaded?.(path),
     scheduleCharacterDictionarySync: () => deps.scheduleCharacterDictionarySync?.(),
     updateCurrentMediaTitle: (title: string) => deps.updateCurrentMediaTitle(title),
     resetAnilistMediaGuessState: () => deps.resetAnilistMediaGuessState(),

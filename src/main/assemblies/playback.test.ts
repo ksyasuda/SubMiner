@@ -111,6 +111,8 @@ function makeDeps(recorder: Recorder): PlaybackAssemblyDeps {
       reportJellyfinRemoteStopped: spy('jellyfin.reportStopped', resolved),
       reportJellyfinRemoteProgress: spy('jellyfin.reportProgress', resolved),
       getActivePlayback: spy('jellyfin.getActivePlayback', () => null),
+      handleMediaPathLoaded: spy('jellyfin.handleMediaPathLoaded', noop),
+      handlePlaybackTimePos: spy('jellyfin.handlePlaybackTimePos', noop),
       startJellyfinRemoteSession: spy('jellyfin.startRemoteSession', resolved),
     },
     anilist: {

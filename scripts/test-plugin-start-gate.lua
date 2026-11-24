@@ -6,6 +6,7 @@ local function run_plugin_scenario(config)
 		sync_calls = {},
 		script_messages = {},
 		events = {},
+		hooks = {},
 		observers = {},
 		key_bindings = {},
 		osd = {},
@@ -185,7 +186,9 @@ local function run_plugin_scenario(config)
 			end
 			recorded.events[name][#recorded.events[name] + 1] = fn
 		end
-		function mp.add_hook(_name, _prio, _fn) end
+		function mp.add_hook(name, _prio, fn)
+			recorded.hooks[name] = fn
+		end
 		function mp.observe_property(name, _kind, fn)
 			if recorded.observers[name] == nil then
 				recorded.observers[name] = {}
@@ -1039,6 +1042,108 @@ do
 	assert_true(
 		count_start_calls(recorded.async_calls) == 1,
 		"plugin auto-start should resume after the managed Jellyfin lifecycle ends"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "https://jellyfin.example/Videos/ep1/stream",
+		media_title = "Jellyfin Episode 1",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for managed playlist entry scenario: " .. tostring(err))
+	recorded.script_messages["subminer-managed-playlist-entries"](
+		"https://jellyfin.example/Videos/ep1/stream",
+		"https://jellyfin.example/Videos/ep2/stream"
+	)
+	fire_event(recorded, "end-file", { reason = "eof" })
+	scenario.path = "https://jellyfin.example/Videos/ep2/stream"
+	scenario.media_title = "Jellyfin Episode 2"
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		not has_property_set(recorded.property_sets, "sid", "auto"),
+		"an app-queued playlist entry should keep the app's subtitle selection"
+	)
+	assert_true(
+		count_start_calls(recorded.async_calls) == 0,
+		"an app-queued playlist entry should not auto-start the overlay"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 0,
+		"an app-queued playlist entry should not arm the plugin pause gate"
+	)
+	assert_true(
+		not has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"an app-queued playlist entry should not show the overlay loading spinner"
+	)
+	fire_event(recorded, "end-file", { reason = "stop" })
+	scenario.path = "/media/local-episode.mkv"
+	scenario.media_title = "Local Episode"
+	fire_event(recorded, "start-file")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_property_set(recorded.property_sets, "sid", "auto") == 1,
+		"a path the app did not queue should get the normal subtitle rearm"
+	)
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"a path the app did not queue should auto-start the overlay"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+		},
+		path = "https://jellyfin.example/Videos/ep2/stream",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for playlist entry options scenario: " .. tostring(err))
+	assert_true(
+		has_property_set(recorded.property_sets, "user-data/subminer/playlist-entry-options", true),
+		"plugin should tell the app it applies playlist entry options"
+	)
+	recorded.script_messages["subminer-playlist-entry-options"](
+		"https://jellyfin.example/Videos/ep2/stream",
+		"start",
+		"12.5",
+		"force-media-title",
+		"Show S01E02, Part 1"
+	)
+	recorded.hooks["on_load"]()
+	assert_true(
+		has_property_set(recorded.property_sets, "file-local-options/start", "12.5"),
+		"on_load should apply the entry's start position"
+	)
+	assert_true(
+		has_property_set(recorded.property_sets, "file-local-options/force-media-title", "Show S01E02, Part 1"),
+		"on_load should apply the entry's title verbatim"
+	)
+	recorded.script_messages["subminer-managed-playlist-entries"]("https://jellyfin.example/Videos/ep3/stream")
+	recorded.property_sets = {}
+	recorded.hooks["on_load"]()
+	assert_true(
+		not has_property_set(recorded.property_sets, "file-local-options/start", "12.5"),
+		"options for an entry the app no longer queues should be dropped"
 	)
 end
 

@@ -50,7 +50,11 @@ export type JellyfinRuntimeComposerOptions = ComposerInputs<{
   >[0];
   playJellyfinItemInMpvMainDeps: Omit<
     PlayJellyfinItemMainDeps,
-    'ensureMpvConnectedForPlayback' | 'preloadExternalSubtitles'
+    | 'ensureMpvConnectedForPlayback'
+    | 'preloadExternalSubtitles'
+    | 'reportPlaybackSuperseded'
+    | 'waitForTransitionReports'
+    | 'trackPlaybackStart'
   >;
   remoteComposerOptions: Omit<
     JellyfinRemoteComposerOptions,
@@ -157,11 +161,18 @@ export function composeJellyfinRuntimeHandlers(
     preloadExternalSubtitles: (params) => {
       void preloadJellyfinExternalSubtitles(params);
     },
+    // The remote handlers are built below and share the report tracker with the stop handler.
+    reportPlaybackSuperseded: (playback) => reportJellyfinPlaybackSuperseded(playback),
+    waitForTransitionReports: () => waitForJellyfinTransitionReports(),
+    trackPlaybackStart: (report, playback) => trackJellyfinPlaybackStart(report, playback),
   });
 
   const {
     reportJellyfinRemoteProgress,
     reportJellyfinRemoteStopped,
+    reportJellyfinPlaybackSuperseded,
+    waitForJellyfinTransitionReports,
+    trackJellyfinPlaybackStart,
     handleJellyfinRemotePlay,
     handleJellyfinRemotePlaystate,
     handleJellyfinRemoteGeneralCommand,
