@@ -79,6 +79,8 @@ export class PollingRunner {
 
       const previousNoteIds = this.deps.getTrackedNoteIds();
       if (!this.initialized) {
+        // Keep notes mined while the read was pending; the read may have started before they existed.
+        for (const noteId of previousNoteIds) currentNoteIds.add(noteId);
         this.deps.setTrackedNoteIds(currentNoteIds);
         this.initialized = true;
         this.deps.logInfo(`AnkiConnect initialized with ${currentNoteIds.size} existing cards`);

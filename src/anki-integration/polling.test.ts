@@ -244,3 +244,19 @@ test('a poll leaves new notes alone when mining starts during its read', async (
   assert.deepEqual([...h.state.tracked], [10]);
   assert.equal(h.state.updating, true, 'the poll must not release a lock it never took');
 });
+
+test('the first poll keeps notes mined while its read was pending', async () => {
+  const h = makeSlowReadRunner();
+
+  const init = h.runner.pollOnce();
+  // Mining finishes during the initial read and tracks note 11, which the read missed.
+  h.state.tracked.add(11);
+  h.finishRead([10]);
+  await init;
+
+  const poll = h.runner.pollOnce();
+  h.finishRead([10, 11]);
+  await poll;
+
+  assert.deepEqual(h.state.processed, []);
+});
