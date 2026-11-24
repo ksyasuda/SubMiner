@@ -121,13 +121,20 @@ test('queueNeighbors inserts the episode window around the current entry', async
       ['loadfile', url('e2'), 'insert-at', 0, 'start=e2'],
     ],
   );
-  assert.deepEqual(harness.commands.at(-1), [
+  const managedAt = harness.commands.findIndex(
+    (command) => command[1] === 'subminer-managed-playlist-entries',
+  );
+  assert.deepEqual(harness.commands[managedAt], [
     'script-message',
     'subminer-managed-playlist-entries',
     url('e3'),
     url('e4'),
     url('e2'),
   ]);
+  assert.ok(
+    managedAt < harness.commands.findIndex((command) => command[0] === 'loadfile'),
+    'the plugin learns the managed paths before mpv can start an inserted entry',
+  );
   assert.deepEqual(harness.titles(), ['Show e2', 'Show e3', 'Show e4']);
   assert.equal(harness.queue.find(url('e4'))?.entry.itemId, 'e4');
   assert.equal(harness.queue.find(url('e5')), null);

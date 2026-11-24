@@ -232,15 +232,29 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
       }
     }
     nextQueued.set(current.playbackUrl, { context, entry: current });
+    const currentAt = windowIds.indexOf(current.itemId);
+    const nextIds = windowIds.slice(currentAt + 1);
+    const previousIds = windowIds.slice(0, currentAt).reverse();
+    // Every prepared entry is missing from mpv's playlist, so each one gets inserted below.
+    for (const itemId of [...nextIds, ...previousIds]) {
+      const entry = prepared.get(itemId);
+      if (entry) nextQueued.set(entry.playbackUrl, { context, entry });
+    }
+    queued = nextQueued;
+    // Sent before the inserts, so the plugin already knows an entry when mpv starts it.
+    deps.sendMpvCommand([
+      'script-message',
+      MANAGED_PLAYLIST_ENTRIES_SCRIPT_MESSAGE,
+      ...queued.keys(),
+    ]);
+
     const mode = deps.getEntryLoadMode();
     const insertEntry = (entry: Entry, index: number) => {
       for (const command of buildMpvEntryLoadCommands(entry, mode, { kind: 'insert-at', index })) {
         deps.sendMpvCommand(command);
       }
       model.splice(index, 0, entry.itemId);
-      nextQueued.set(entry.playbackUrl, { context, entry });
     };
-    const currentAt = windowIds.indexOf(current.itemId);
     // A `loadlist` entry already has its title from the m3u.
     if (mode === 'loadfile') {
       deps.sendMpvCommand([
@@ -252,23 +266,17 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
     // Walk outward from the current entry, inserting each missing episode beside its
     // neighbor in the window.
     let anchor = model.indexOf(current.itemId);
-    for (const itemId of windowIds.slice(currentAt + 1)) {
+    for (const itemId of nextIds) {
       const entry = prepared.get(itemId);
       if (model.includes(itemId)) anchor = model.indexOf(itemId);
       else if (entry) insertEntry(entry, ++anchor);
     }
     anchor = model.indexOf(current.itemId);
-    for (const itemId of windowIds.slice(0, currentAt).reverse()) {
+    for (const itemId of previousIds) {
       const entry = prepared.get(itemId);
       if (model.includes(itemId)) anchor = model.indexOf(itemId);
       else if (entry) insertEntry(entry, anchor);
     }
-    queued = nextQueued;
-    deps.sendMpvCommand([
-      'script-message',
-      MANAGED_PLAYLIST_ENTRIES_SCRIPT_MESSAGE,
-      ...queued.keys(),
-    ]);
   }
 
   return {
