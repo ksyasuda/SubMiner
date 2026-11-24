@@ -94,6 +94,7 @@ function makeHarness(options: { plan?: Partial<JellyfinPlaybackPlan>; deps?: Par
     getEpisodePlaylistSettings: () => ({ enabled: true, maxEpisodes: 3 }),
     listSeriesEpisodeIds: async () => [],
     readMpvPlaylist: async () => [],
+    resolveEntryLoadMode: async () => 'loadfile',
     showMpvOsd: () => {},
     logDebug: () => {},
     ...options.deps,
@@ -319,6 +320,31 @@ test('playback handler publishes Jellyfin title before loading tokenized stream 
       ',force-media-title=%30%Galaxy Quest S02E07 A New Hope',
     ),
   );
+});
+
+test('playback handler loads a titled m3u when mpv cannot set playlist titles', async () => {
+  const harness = makeHarness({
+    plan: { startTimeTicks: 12_000_000 },
+    deps: { resolveEntryLoadMode: async () => 'loadlist' },
+  });
+
+  await harness.play();
+
+  assert.equal(harness.loadfile(), undefined);
+  assert.deepEqual(harness.commands.slice(-2), [
+    [
+      'script-message',
+      'subminer-playlist-entry-options',
+      'https://stream.example/video.m3u8',
+      ...['sid', 'no', 'secondary-sid', 'no', 'sub-auto', 'no', 'sub-visibility', 'no'],
+      ...['secondary-sub-visibility', 'no', 'start', '1.2', 'force-media-title', 'Episode 1'],
+    ],
+    [
+      'loadlist',
+      'memory://#EXTM3U\n#EXTINF:0,Episode 1\nhttps://stream.example/video.m3u8\n',
+      'replace',
+    ],
+  ]);
 });
 
 test('playback handler arms unloaded active playback before loading mpv media', async () => {

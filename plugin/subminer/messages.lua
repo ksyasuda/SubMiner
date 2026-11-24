@@ -35,6 +35,25 @@ function M.create(ctx)
 				paths[path] = true
 			end
 			state.app_managed_playlist_paths = paths
+			-- Options belong to queued entries; drop those the app no longer queues.
+			for path in pairs(state.app_playlist_entry_options) do
+				if not paths[path] then
+					state.app_playlist_entry_options[path] = nil
+				end
+			end
+		end)
+		-- `<path> <name> <value> ...`: options for an entry the app loads with loadlist, where mpv
+		-- (before 0.42) cannot take both a playlist title and per-file options.
+		mp.register_script_message("subminer-playlist-entry-options", function(path, ...)
+			if type(path) ~= "string" or path == "" then
+				return
+			end
+			local args = { ... }
+			local options = {}
+			for index = 1, #args - 1, 2 do
+				options[#options + 1] = { args[index], args[index + 1] }
+			end
+			state.app_playlist_entry_options[path] = options
 		end)
 		mp.register_script_message("subminer-menu", function()
 			ui.show_menu()

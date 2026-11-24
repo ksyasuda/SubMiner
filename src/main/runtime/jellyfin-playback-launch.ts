@@ -2,8 +2,11 @@ import type { JellyfinAuthSession, JellyfinPlaybackPlan } from '../../core/servi
 import type { JellyfinConfig } from '../../types';
 import type { MpvRuntimeClientLike } from '../../core/services/mpv';
 import {
+  buildMpvEntryLoadCommands,
   createJellyfinEpisodePlaylist,
   type JellyfinEpisodePlaylistSettings,
+  type JellyfinPlaylistEntry,
+  type MpvEntryLoadMode,
 } from './jellyfin-episode-playlist';
 import type {
   ActiveJellyfinRemotePlaybackState,
@@ -44,13 +47,13 @@ export type JellyfinPlaybackStatsMetadata = {
   itemId: string;
 };
 
-const JELLYFIN_LOADFILE_SUBTITLE_SUPPRESSION_OPTIONS = [
-  'sid=no',
-  'secondary-sid=no',
-  'sub-auto=no',
-  'sub-visibility=no',
-  'secondary-sub-visibility=no',
-];
+const JELLYFIN_SUBTITLE_SUPPRESSION_OPTIONS = [
+  ['sid', 'no'],
+  ['secondary-sid', 'no'],
+  ['sub-auto', 'no'],
+  ['sub-visibility', 'no'],
+  ['secondary-sub-visibility', 'no'],
+] as const;
 
 function runBestEffortPlaybackHook(callback: () => void | Promise<void>): void {
   try {
@@ -124,26 +127,25 @@ type JellyfinPreparedPlayback = {
   title: string;
   plan: JellyfinPlaybackPlan;
   playbackUrl: string;
-  loadfileOptions: string;
+  fileOptions: JellyfinPlaylistEntry['fileOptions'];
   startTimeTicks: number;
   startSeconds: number;
   playMethod: 'DirectPlay' | 'Transcode';
 };
 
-// mpv's `%<bytes>%value` quoting takes any value verbatim, commas and colons included.
-function quoteMpvOptionValue(value: string): string {
-  return `%${Buffer.byteLength(value, 'utf8')}%${value}`;
-}
-
 // The title is a per-file option, so mpv never shows the tokenized stream URL as the title, and
 // no global title is left behind for the next playlist entry to fall back to.
-function buildJellyfinLoadfileOptions(plan: JellyfinPlaybackPlan, startSeconds: number): string {
-  const options = [...JELLYFIN_LOADFILE_SUBTITLE_SUPPRESSION_OPTIONS];
-  if (plan.mode === 'direct' && startSeconds > 0) {
-    options.push(`start=${startSeconds}`);
-  }
-  options.push(`force-media-title=${quoteMpvOptionValue(plan.title)}`);
-  return options.join(',');
+function buildJellyfinFileOptions(
+  plan: JellyfinPlaybackPlan,
+  startSeconds: number,
+): JellyfinPlaylistEntry['fileOptions'] {
+  return [
+    ...JELLYFIN_SUBTITLE_SUPPRESSION_OPTIONS,
+    ...(plan.mode === 'direct' && startSeconds > 0
+      ? [['start', String(startSeconds)] as const]
+      : []),
+    ['force-media-title', plan.title],
+  ];
 }
 
 function prepareJellyfinPlayback(
@@ -171,7 +173,7 @@ function prepareJellyfinPlayback(
     title: plan.title,
     plan,
     playbackUrl: stripManagedSubtitleStreamFromPlaybackUrl(playbackUrlBase),
-    loadfileOptions: buildJellyfinLoadfileOptions(plan, startSeconds),
+    fileOptions: buildJellyfinFileOptions(plan, startSeconds),
     startTimeTicks,
     startSeconds,
     playMethod: plan.mode === 'direct' ? 'DirectPlay' : 'Transcode',
@@ -248,6 +250,8 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     seriesId: string;
   }) => Promise<string[]>;
   readMpvPlaylist: () => Promise<unknown>;
+  /** Asked once per explicit playback; its episode playlist keeps that mode. */
+  resolveEntryLoadMode: () => Promise<MpvEntryLoadMode>;
   showMpvOsd: (text: string) => void;
   recordJellyfinPlaybackMetadata?: (
     metadata: JellyfinPlaybackStatsMetadata,
@@ -255,6 +259,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
   updateCurrentMediaTitle?: (title: string) => void | Promise<void>;
   logDebug: (message: string, error?: unknown) => void;
 }): PlayJellyfinItemInMpvHandler {
+  let entryLoadMode: MpvEntryLoadMode = 'loadfile';
   const episodePlaylist = createJellyfinEpisodePlaylist<
     JellyfinPlaybackContext,
     JellyfinPreparedPlayback
@@ -273,6 +278,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
         deps.convertTicksToSeconds,
       ),
     readMpvPlaylist: () => deps.readMpvPlaylist(),
+    getEntryLoadMode: () => entryLoadMode,
     sendMpvCommand: (command) => deps.sendMpvCommand(command),
     logDebug: (message, error) => deps.logDebug(message, error),
   });
@@ -387,6 +393,10 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
       subtitleStreamIndex: params.subtitleStreamIndex,
     });
 
+    entryLoadMode = await deps.resolveEntryLoadMode().catch((error: unknown) => {
+      deps.logDebug('Failed to detect how mpv takes playlist titles', error);
+      return 'loadfile' as const;
+    });
     deps.applyJellyfinMpvDefaults(mpvClient);
     deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
     deps.sendMpvCommand(['set_property', 'sid', 'no']);
@@ -402,18 +412,14 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
       clientInfo: params.clientInfo,
       jellyfinConfig: params.jellyfinConfig,
     };
-    // `loadfile replace` empties mpv's playlist, taking the old neighbors with it.
+    // Replacing mpv's playlist takes the old neighbors with it.
     episodePlaylist.reset();
     pendingNeighborQueue = null;
     const reporter = beginPlayback(context, prepared, null);
     deps.sendMpvCommand(['script-message', 'subminer-managed-subtitles-loading']);
-    deps.sendMpvCommand([
-      'loadfile',
-      prepared.playbackUrl,
-      'replace',
-      -1,
-      prepared.loadfileOptions,
-    ]);
+    for (const command of buildMpvEntryLoadCommands(prepared, entryLoadMode, { kind: 'replace' })) {
+      deps.sendMpvCommand(command);
+    }
     if (params.setQuitOnDisconnectArm !== false) {
       deps.armQuitOnDisconnect();
     }

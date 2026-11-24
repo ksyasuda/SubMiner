@@ -39,6 +39,10 @@ import {
   createHostDerivedJellyfinDeviceId,
   resolveJellyfinRemoteDeviceName,
 } from '../runtime/jellyfin-device-identity';
+import {
+  chooseMpvEntryLoadMode,
+  PLUGIN_ENTRY_OPTIONS_USER_DATA,
+} from '../runtime/jellyfin-episode-playlist';
 import { createJellyfinSubtitleCacheIo } from '../runtime/jellyfin-subtitle-cache-io';
 import { clearJellyfinAuthSessionAndRefreshTray as clearJellyfinAuthSessionAndRefreshTrayRuntime } from '../runtime/jellyfin-tray-discovery';
 import { resolveMpvExecutablePath, spawnMpvProcess } from '../runtime/mpv-process';
@@ -278,6 +282,19 @@ export function createJellyfinAssembly(deps: JellyfinAssemblyDeps) {
       listSeriesEpisodeIds: ({ session, clientInfo, seriesId }) =>
         listJellyfinSeriesEpisodeIdsRuntime(session, clientInfo, seriesId),
       readMpvPlaylist: async () => appState.mpvClient?.requestProperty('playlist') ?? [],
+      resolveEntryLoadMode: async () => {
+        const client = appState.mpvClient;
+        if (!client) return 'loadfile';
+        // The user-data key is unset (an error) unless the SubMiner plugin is loaded.
+        const [mpvVersion, pluginAppliesEntryOptions] = await Promise.all([
+          client.requestProperty('mpv-version').catch(() => null),
+          client.requestProperty(PLUGIN_ENTRY_OPTIONS_USER_DATA).then(
+            (value) => value === true,
+            () => false,
+          ),
+        ]);
+        return chooseMpvEntryLoadMode(mpvVersion, pluginAppliesEntryOptions);
+      },
       logDebug: (message, error) => logger.debug(message, error),
     },
     remoteComposerOptions: {

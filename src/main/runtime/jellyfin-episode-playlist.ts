@@ -5,11 +5,81 @@ export type JellyfinPlaylistEntry = {
   seriesId: string | null;
   /** The URL handed to mpv, which mpv reports back as `path` when it starts the entry. */
   playbackUrl: string;
-  /** Per-file mpv options, applied whenever mpv starts this entry. */
-  loadfileOptions: string;
+  /** Per-file mpv options as name/value pairs, applied whenever mpv starts this entry. */
+  fileOptions: ReadonlyArray<readonly [name: string, value: string]>;
   /** Shown in mpv's playlist, which otherwise lists the stream URL and its API key. */
   title: string;
 };
+
+/**
+ * How entries get into mpv's playlist with their title and per-file options.
+ * - `loadfile`: options ride on `loadfile`, and the title is set through `playlist/N/title`,
+ *   which mpv accepts from 0.42.
+ * - `loadlist`: an in-memory m3u carries the title (`#EXTINF`), which older mpv shows too, and
+ *   the SubMiner mpv plugin applies the options from its `on_load` hook.
+ */
+export type MpvEntryLoadMode = 'loadfile' | 'loadlist';
+
+/** Set by the mpv plugin when its `on_load` hook applies `ENTRY_OPTIONS_SCRIPT_MESSAGE` options. */
+export const PLUGIN_ENTRY_OPTIONS_USER_DATA = 'user-data/subminer/playlist-entry-options';
+
+/** `<path> <name> <value> ...`: per-file options the mpv plugin applies when `path` loads. */
+export const ENTRY_OPTIONS_SCRIPT_MESSAGE = 'subminer-playlist-entry-options';
+
+/** Picks `loadlist` only where it is needed (mpv before 0.42) and the plugin can apply options. */
+export function chooseMpvEntryLoadMode(
+  mpvVersion: unknown,
+  pluginAppliesEntryOptions: boolean,
+): MpvEntryLoadMode {
+  const match = /(\d+)\.(\d+)/.exec(String(mpvVersion ?? ''));
+  if (!match || !pluginAppliesEntryOptions) return 'loadfile';
+  const [major, minor] = [Number(match[1]), Number(match[2])];
+  return major === 0 && minor < 42 ? 'loadlist' : 'loadfile';
+}
+
+// mpv's `%<bytes>%value` quoting takes any value verbatim, commas and colons included.
+function formatLoadfileOptions(options: JellyfinPlaylistEntry['fileOptions']): string {
+  return options
+    .map(([name, value]) =>
+      /^[\w.-]*$/.test(value)
+        ? `${name}=${value}`
+        : `${name}=%${Buffer.byteLength(value, 'utf8')}%${value}`,
+    )
+    .join(',');
+}
+
+type MpvPlaylistPlacement = { kind: 'replace' } | { kind: 'insert-at'; index: number };
+
+/** The mpv commands that load `entry` with its title and options at `placement`. */
+export function buildMpvEntryLoadCommands(
+  entry: JellyfinPlaylistEntry,
+  mode: MpvEntryLoadMode,
+  placement: MpvPlaylistPlacement,
+): Array<Array<string | number>> {
+  if (mode === 'loadlist') {
+    const title = entry.title.replace(/[\r\n]+/g, ' ');
+    const m3u = `memory://#EXTM3U\n#EXTINF:0,${title}\n${entry.playbackUrl}\n`;
+    return [
+      [
+        'script-message',
+        ENTRY_OPTIONS_SCRIPT_MESSAGE,
+        entry.playbackUrl,
+        ...entry.fileOptions.flat(),
+      ],
+      placement.kind === 'replace'
+        ? ['loadlist', m3u, 'replace']
+        : ['loadlist', m3u, 'insert-at', placement.index],
+    ];
+  }
+  const options = formatLoadfileOptions(entry.fileOptions);
+  if (placement.kind === 'replace')
+    return [['loadfile', entry.playbackUrl, 'replace', -1, options]];
+  return [
+    ['loadfile', entry.playbackUrl, 'insert-at', placement.index, options],
+    // Sent while the entry is still at that index.
+    ['set_property', `playlist/${placement.index}/title`, entry.title],
+  ];
+}
 
 export type JellyfinEpisodePlaylistSettings = {
   enabled: boolean;
@@ -74,6 +144,8 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
   listSeriesEpisodeIds: (context: Context, seriesId: string) => Promise<string[]>;
   prepareEntry: (context: Context, itemId: string) => Promise<Entry>;
   readMpvPlaylist: () => Promise<unknown>;
+  /** The mode of the explicit playback this playlist follows. */
+  getEntryLoadMode: () => MpvEntryLoadMode;
   sendMpvCommand: (command: Array<string | number>) => void;
   logDebug: (message: string, error?: unknown) => void;
 }) {
@@ -160,25 +232,23 @@ export function createJellyfinEpisodePlaylist<Context, Entry extends JellyfinPla
       }
     }
     nextQueued.set(current.playbackUrl, { context, entry: current });
-    // Each insert is followed by its title, sent while the entry is still at that index.
+    const mode = deps.getEntryLoadMode();
     const insertEntry = (entry: Entry, index: number) => {
-      deps.sendMpvCommand([
-        'loadfile',
-        entry.playbackUrl,
-        'insert-at',
-        index,
-        entry.loadfileOptions,
-      ]);
-      deps.sendMpvCommand(['set_property', `playlist/${index}/title`, entry.title]);
+      for (const command of buildMpvEntryLoadCommands(entry, mode, { kind: 'insert-at', index })) {
+        deps.sendMpvCommand(command);
+      }
       model.splice(index, 0, entry.itemId);
       nextQueued.set(entry.playbackUrl, { context, entry });
     };
     const currentAt = windowIds.indexOf(current.itemId);
-    deps.sendMpvCommand([
-      'set_property',
-      `playlist/${model.indexOf(current.itemId)}/title`,
-      current.title,
-    ]);
+    // A `loadlist` entry already has its title from the m3u.
+    if (mode === 'loadfile') {
+      deps.sendMpvCommand([
+        'set_property',
+        `playlist/${model.indexOf(current.itemId)}/title`,
+        current.title,
+      ]);
+    }
     // Walk outward from the current entry, inserting each missing episode beside its
     // neighbor in the window.
     let anchor = model.indexOf(current.itemId);

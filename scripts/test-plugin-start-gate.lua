@@ -6,6 +6,7 @@ local function run_plugin_scenario(config)
 		sync_calls = {},
 		script_messages = {},
 		events = {},
+		hooks = {},
 		observers = {},
 		key_bindings = {},
 		osd = {},
@@ -185,7 +186,9 @@ local function run_plugin_scenario(config)
 			end
 			recorded.events[name][#recorded.events[name] + 1] = fn
 		end
-		function mp.add_hook(_name, _prio, _fn) end
+		function mp.add_hook(name, _prio, fn)
+			recorded.hooks[name] = fn
+		end
 		function mp.observe_property(name, _kind, fn)
 			if recorded.observers[name] == nil then
 				recorded.observers[name] = {}
@@ -1098,6 +1101,49 @@ do
 	assert_true(
 		count_start_calls(recorded.async_calls) == 1,
 		"a path the app did not queue should auto-start the overlay"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+		},
+		path = "https://jellyfin.example/Videos/ep2/stream",
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for playlist entry options scenario: " .. tostring(err))
+	assert_true(
+		has_property_set(recorded.property_sets, "user-data/subminer/playlist-entry-options", true),
+		"plugin should tell the app it applies playlist entry options"
+	)
+	recorded.script_messages["subminer-playlist-entry-options"](
+		"https://jellyfin.example/Videos/ep2/stream",
+		"start",
+		"12.5",
+		"force-media-title",
+		"Show S01E02, Part 1"
+	)
+	recorded.hooks["on_load"]()
+	assert_true(
+		has_property_set(recorded.property_sets, "file-local-options/start", "12.5"),
+		"on_load should apply the entry's start position"
+	)
+	assert_true(
+		has_property_set(recorded.property_sets, "file-local-options/force-media-title", "Show S01E02, Part 1"),
+		"on_load should apply the entry's title verbatim"
+	)
+	recorded.script_messages["subminer-managed-playlist-entries"]("https://jellyfin.example/Videos/ep3/stream")
+	recorded.property_sets = {}
+	recorded.hooks["on_load"]()
+	assert_true(
+		not has_property_set(recorded.property_sets, "file-local-options/start", "12.5"),
+		"options for an entry the app no longer queues should be dropped"
 	)
 end
 

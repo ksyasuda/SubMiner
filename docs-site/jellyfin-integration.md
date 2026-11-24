@@ -31,7 +31,7 @@ Casting finds mpv through `mpv.executablePath`, then `SUBMINER_MPV_PATH`, then `
 
 When you play an episode, by casting or from the terminal, SubMiner adds the episodes around it from the same series to mpv's playlist. Move between them with mpv's playlist keys (`<` and `>` by default) or your playlist UI, and mpv moves on to the next episode when one ends. The series order runs across seasons. Each switch happens in the running mpv and overlay; nothing restarts.
 
-SubMiner waits until the first episode is playing before it looks up the others, so startup is no slower. Every episode you switch to reports progress like one you picked yourself, and resumes from the position Jellyfin had saved when it was added to the playlist. Its subtitles load the same way. With mpv 0.42 or newer, the playlist lists the queued episodes by title; older mpv versions show their stream URLs.
+SubMiner waits until the first episode is playing before it looks up the others, so startup is no slower. Every episode you switch to reports progress like one you picked yourself, and resumes from the position Jellyfin had saved when it was added to the playlist. Its subtitles load the same way. The playlist lists the episodes by title. Before mpv 0.42 that needs the SubMiner mpv plugin; without it, older mpv versions show their stream URLs.
 
 `episodePlaylist.maxEpisodes` caps how many episodes the playlist holds, centered on the playing one. Turn `episodePlaylist.enabled` off to play one episode at a time. Changes apply from the next episode switch.
 

@@ -91,7 +91,8 @@ test(
       timeoutMs: 30_000,
     });
     // mpv's playlist lists entry titles, not stream URLs carrying the API key. Entry titles
-    // became writable in mpv 0.42; older players keep listing URLs.
+    // became writable in mpv 0.42. Older players need the SubMiner plugin's loadlist path,
+    // which this plugin-less mpv does not load, so they keep listing URLs here.
     const titles = [
       'E2E Show S01E01 Episode 1',
       'E2E Show S01E02 Episode 2',

@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildMpvEntryLoadCommands,
+  chooseMpvEntryLoadMode,
   createJellyfinEpisodePlaylist,
   selectEpisodeWindow,
   type JellyfinEpisodePlaylistSettings,
   type JellyfinPlaylistEntry,
+  type MpvEntryLoadMode,
 } from './jellyfin-episode-playlist';
 
 const EPISODES = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
@@ -40,13 +43,14 @@ const entry = (itemId: string): Entry => ({
   itemId,
   seriesId: 'series',
   playbackUrl: url(itemId),
-  loadfileOptions: `opts-${itemId}`,
+  fileOptions: [['start', itemId]],
   title: `Show ${itemId}`,
 });
 
 /** mpv's playlist, kept in sync with the commands the queue sends. */
 function makeHarness(
   settings: JellyfinEpisodePlaylistSettings = { enabled: true, maxEpisodes: 3 },
+  mode: MpvEntryLoadMode = 'loadfile',
 ) {
   const playlist: Array<{ filename: string; current: boolean; title?: string }> = [];
   const commands: Array<Array<string | number>> = [];
@@ -59,6 +63,7 @@ function makeHarness(
       return EPISODES;
     },
     prepareEntry: async (_context, itemId) => entry(itemId),
+    getEntryLoadMode: () => mode,
     readMpvPlaylist: async () => {
       const snapshot = playlist.map((item) => ({ ...item }));
       // Lets a test move mpv on after the read, like a keypress landing mid-run.
@@ -70,6 +75,10 @@ function makeHarness(
       if (command[0] === 'playlist-remove') playlist.splice(Number(command[1]), 1);
       if (command[0] === 'loadfile') {
         playlist.splice(Number(command[3]), 0, { filename: String(command[1]), current: false });
+      }
+      if (command[0] === 'loadlist') {
+        const [, title, filename] = /#EXTINF:0,(.*)\n(.*)\n$/.exec(String(command[1])) ?? [];
+        playlist.splice(Number(command[3]), 0, { filename: filename!, current: false, title });
       }
       const titleIndex = /^playlist\/(\d+)\/title$/.exec(String(command[1]))?.[1];
       if (command[0] === 'set_property' && titleIndex !== undefined) {
@@ -108,8 +117,8 @@ test('queueNeighbors inserts the episode window around the current entry', async
   assert.deepEqual(
     harness.commands.filter((command) => command[0] === 'loadfile'),
     [
-      ['loadfile', url('e4'), 'insert-at', 1, 'opts-e4'],
-      ['loadfile', url('e2'), 'insert-at', 0, 'opts-e2'],
+      ['loadfile', url('e4'), 'insert-at', 1, 'start=e4'],
+      ['loadfile', url('e2'), 'insert-at', 0, 'start=e2'],
     ],
   );
   assert.deepEqual(harness.commands.at(-1), [
@@ -153,7 +162,7 @@ test('queueNeighbors keeps entries still in the window and edits only its far en
       .filter((command) => command[0] === 'loadfile' || command[0] === 'playlist-remove'),
     [
       ['playlist-remove', 0],
-      ['loadfile', url('e5'), 'insert-at', 2, 'opts-e5'],
+      ['loadfile', url('e5'), 'insert-at', 2, 'start=e5'],
     ],
   );
 });
@@ -219,4 +228,55 @@ test('reset cancels a queue run that is still resolving episodes', async () => {
 
   assert.deepEqual(harness.filenames(), [url('e3')]);
   assert.equal(harness.queue.find(url('e3')), null);
+});
+
+test('queueNeighbors titles entries through an m3u on mpv without writable playlist titles', async () => {
+  const harness = makeHarness(undefined, 'loadlist');
+  harness.playing('e3');
+
+  await harness.queue.queueNeighbors(null, entry('e3'));
+
+  assert.deepEqual(harness.filenames(), [url('e2'), url('e3'), url('e4')]);
+  assert.deepEqual(harness.titles(), ['Show e2', undefined, 'Show e4']);
+  assert.equal(
+    harness.commands.some((command) => command[0] === 'loadfile' || command[0] === 'set_property'),
+    false,
+  );
+  // The plugin hears each entry's options before mpv can start it.
+  const optionsAt = harness.commands.findIndex(
+    (command) => command[0] === 'script-message' && command[2] === url('e4'),
+  );
+  assert.deepEqual(harness.commands[optionsAt], [
+    'script-message',
+    'subminer-playlist-entry-options',
+    url('e4'),
+    'start',
+    'e4',
+  ]);
+  assert.equal(harness.commands[optionsAt + 1]?.[0], 'loadlist');
+});
+
+test('buildMpvEntryLoadCommands keeps a title on one m3u line and quotes loadfile values', () => {
+  const titled = {
+    ...entry('e1'),
+    title: 'A, B\nC',
+    fileOptions: [['force-media-title', 'A, B']] as const,
+  };
+
+  assert.deepEqual(buildMpvEntryLoadCommands(titled, 'loadlist', { kind: 'replace' })[1], [
+    'loadlist',
+    `memory://#EXTM3U\n#EXTINF:0,A, B C\n${url('e1')}\n`,
+    'replace',
+  ]);
+  assert.deepEqual(buildMpvEntryLoadCommands(titled, 'loadfile', { kind: 'replace' }), [
+    ['loadfile', url('e1'), 'replace', -1, 'force-media-title=%4%A, B'],
+  ]);
+});
+
+test('chooseMpvEntryLoadMode uses loadlist only on mpv before 0.42 with the plugin hook', () => {
+  assert.equal(chooseMpvEntryLoadMode('mpv v0.41.0', true), 'loadlist');
+  assert.equal(chooseMpvEntryLoadMode('mpv v0.41.0', false), 'loadfile');
+  assert.equal(chooseMpvEntryLoadMode('mpv v0.42.0', true), 'loadfile');
+  assert.equal(chooseMpvEntryLoadMode('mpv v1.0.0', true), 'loadfile');
+  assert.equal(chooseMpvEntryLoadMode(null, true), 'loadfile');
 });

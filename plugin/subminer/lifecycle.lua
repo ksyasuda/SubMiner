@@ -332,12 +332,26 @@ function M.create(ctx)
 		state.app_managed_playback_pending = false
 		state.app_managed_playback_active = false
 		state.app_managed_playlist_paths = {}
+		state.app_playlist_entry_options = {}
+	end
+
+	-- Applies the app's per-file options to an entry it loaded with loadlist, the way loadfile
+	-- options would apply.
+	local function apply_app_playlist_entry_options()
+		local path = mp.get_property("path")
+		local options = type(path) == "string" and state.app_playlist_entry_options[path] or nil
+		for _, option in ipairs(options or {}) do
+			mp.set_property("file-local-options/" .. option[1], option[2])
+		end
 	end
 
 	local function register_lifecycle_hooks()
 		mp.register_event("start-file", on_start_file)
 		mp.register_event("file-loaded", on_file_loaded)
 		mp.register_event("shutdown", on_shutdown)
+		mp.add_hook("on_load", 50, apply_app_playlist_entry_options)
+		-- Tells the app it can rely on the hook above (read as PLUGIN_ENTRY_OPTIONS_USER_DATA).
+		mp.set_property_native("user-data/subminer/playlist-entry-options", true)
 		mp.register_event("end-file", function(event)
 			process.stop_overlay_loading_osd()
 			process.disarm_auto_play_ready_gate()
