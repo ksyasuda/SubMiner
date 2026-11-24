@@ -1767,6 +1767,16 @@ export class ImmersionTrackerService {
     return row?.parserSource === 'jellyfin';
   }
 
+  /** The stored title of a Jellyfin-linked video, or null when the key has no Jellyfin row. */
+  private getJellyfinCanonicalTitle(videoKey: string): string | null {
+    const row = this.db
+      .prepare(
+        "SELECT canonical_title AS title FROM imm_videos WHERE video_key = ? AND parser_source = 'jellyfin'",
+      )
+      .get(videoKey) as { title: string | null } | null;
+    return row?.title || null;
+  }
+
   handleMediaChange(mediaPath: string | null, mediaTitle: string | null): void {
     const rawPath = normalizeMediaPath(mediaPath);
     const normalizedPath =
@@ -1797,7 +1807,12 @@ export class ImmersionTrackerService {
 
     const sourceType = isRemoteSource(normalizedPath) ? SOURCE_TYPE_REMOTE : SOURCE_TYPE_LOCAL;
     const videoKey = buildVideoKey(normalizedPath, sourceType);
-    const canonicalTitle = normalizedTitle || deriveCanonicalTitle(normalizedPath);
+    // Jellyfin's title is authoritative: mpv's media-title can still name the previous playlist
+    // entry when the path switches, and getOrCreateVideoRecord rewrites an existing row's title.
+    const canonicalTitle =
+      this.getJellyfinCanonicalTitle(videoKey) ||
+      normalizedTitle ||
+      deriveCanonicalTitle(normalizedPath);
     const sourcePath = sourceType === SOURCE_TYPE_LOCAL ? normalizedPath : null;
     const sourceUrl = sourceType === SOURCE_TYPE_REMOTE ? normalizedPath : null;
 
