@@ -97,9 +97,25 @@ export interface MpvClient {
   send(command: { command: unknown[]; request_id?: number }): boolean;
 }
 
+export type SubsyncEngine = 'builtin' | 'alass' | 'ffsubsync' | 'offset';
+
 export interface SubsyncSubtitleTrack {
   id: number;
   label: string;
+}
+
+export interface SubsyncReferenceCandidate {
+  /** Unique option value used in the modal picker (`track:<id>`, `file:<path>`, or `video`). */
+  key: string;
+  kind: 'track' | 'file' | 'video';
+  label: string;
+  detail?: string;
+  trackId?: number | null;
+  filePath?: string | null;
+  audioStatus?: 'aligned' | 'misaligned' | 'unverified';
+  audioOffsetMs?: number | null;
+  isSignsOnly?: boolean;
+  recommended?: boolean;
 }
 
 export interface SubsyncManualPayload {
@@ -108,17 +124,36 @@ export interface SubsyncManualPayload {
   defaultTargetTrackId: number | null;
   videoReferenceAvailable: boolean;
   ffsubsyncAvailable: boolean;
+  /** Optional guidance shown when automatic sync hands off to the modal. */
+  guidanceMessage?: string | null;
+  /** Ranked candidate references (loaded tracks, unloaded tracks, sidecar files, audio). */
+  referenceCandidates?: SubsyncReferenceCandidate[];
+  /** Key of the recommended reference candidate in `referenceCandidates`. */
+  defaultReferenceKey?: string | null;
+  /** Default engine to select when the modal opens. */
+  defaultEngine?: SubsyncEngine;
+  builtinAvailable?: boolean;
+  alassAvailable?: boolean;
+  audioReferenceAvailable?: boolean;
+  canPickReferenceFile?: boolean;
 }
 
-export type SubsyncReferenceMode = 'track' | 'video';
+export type SubsyncReferenceMode = 'track' | 'video' | 'file';
 
 export interface SubsyncManualRunRequest {
-  engine: 'alass' | 'ffsubsync';
-  /** alass reference source: another subtitle track, or the loaded media file itself. */
+  engine: SubsyncEngine;
+  /** Reference source: another subtitle track, the loaded video/audio, or a local file on disk. */
   referenceMode?: SubsyncReferenceMode;
   referenceTrackId?: number | null;
+  referenceFilePath?: string | null;
   /** Subtitle track to retime. Defaults to the active primary track. */
   targetTrackId?: number | null;
+  /** Ignore signs, songs, karaoke, and typesets while computing alignment (default true). */
+  stripSigns?: boolean;
+  /** Allow scene-cut / broadcast ad-break split alignment (default true). */
+  allowSplits?: boolean;
+  /** Direct offset in milliseconds when `engine === 'offset'`. */
+  offsetMs?: number | null;
 }
 
 export interface SubsyncResult {
@@ -654,6 +689,8 @@ export interface ElectronAPI {
   ) => Promise<void>;
   onSubsyncManualOpen: (callback: (payload: SubsyncManualPayload) => void) => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
+  openSubsyncManual?: () => Promise<void>;
+  pickSubsyncReferenceFile?: () => Promise<string | null>;
   onKikuFieldGroupingRequest: (callback: (data: KikuFieldGroupingRequestData) => void) => void;
   onKikuFieldGroupingCancel: (callback: () => void) => void;
   kikuBuildMergePreview: (request: KikuMergePreviewRequest) => Promise<KikuMergePreviewResponse>;

@@ -144,18 +144,20 @@ Audio clips and screenshots need FFmpeg. Without it, cards are still created wit
 
 ## Subtitle sync (subsync)
 
-Subtitle sync needs at least one of alass or ffsubsync. Neither ships with SubMiner.
+SubMiner includes a built-in alass-based aligner and speech-activity fallback (using `ffmpeg`, or Silero VAD if configured for [subtitle generation](/subtitle-generation)), so external `alass` and `ffsubsync` are optional.
 
-**"Configured alass executable not found"**: install it (`paru -S alass` or `cargo install alass-cli`), or set `subsync.alass_path`.
+**Automatic sync opens the guided modal instead of applying immediately**:
 
-**"Configured ffsubsync executable not found"**: install it (`paru -S python-ffsubsync` or `pip install ffsubsync`), or set `subsync.ffsubsync_path`.
+- SubMiner pauses for guidance when confidence is low (for example, a mismatched episode), when a reference subtitle track is itself misaligned with the audio and audio-only alignment is uncertain, or when a remote stream has no usable reference track.
+- In the guided modal you can switch to another embedded/sidecar track, browse for a local reference subtitle file, switch to built-in video audio speech detection, toggle **Ignore signs & songs** or **Allow scene cuts & ad-break splits**, try external `alass`/`ffsubsync`, or apply a **Manual offset**.
+
+**"Configured alass executable not found"** / **"Configured ffsubsync executable not found"**: only applies when selecting the optional external engines. Install them (`paru -S alass`, `cargo install alass-cli`, or `pip install ffsubsync`), set `subsync.alass_path` / `subsync.ffsubsync_path`, or use the **Built-in (alass)** engine.
 
 **"alass synchronization failed" / "ffsubsync synchronization failed"**:
 
-- alass needs a reference: a second subtitle track or the local video file. It cannot use the track being retimed.
-- `ffmpeg` must be installed to extract internal subtitle tracks.
-- ffsubsync only works on local files, not streams.
-- Run the tool by hand to see its full error output.
+- `ffmpeg` must be installed to extract internal subtitle tracks or run audio-based sync/verification.
+- Audio-based sync and `ffsubsync` require a local video file, not a remote stream URL.
+- Run the external tool by hand to see its full error output if you are using an external engine.
 
 ## "xz binary not found"
 

@@ -421,3 +421,123 @@ test('subsync modal hides the reference picker for ffsubsync but keeps the targe
     harness.restoreGlobals();
   }
 });
+
+test('guided subsync modal shows guidance banner, ranked candidates, browse file, and built-in options', async () => {
+  let request: SubsyncManualRunRequest | null = null;
+  const harness = createTestHarness(async (nextRequest) => {
+    request = nextRequest;
+    return { ok: true, message: 'ok' };
+  });
+
+  const guidanceClassList = createClassList();
+  guidanceClassList.add('hidden');
+  const optionsClassList = createClassList();
+  const allowSplitsClassList = createClassList();
+  const offsetLabelClassList = createClassList();
+  offsetLabelClassList.add('hidden');
+  const browseClassList = createClassList();
+  browseClassList.add('hidden');
+
+  const engineBuiltinEvents = createEventTarget();
+  const engineOffsetEvents = createEventTarget();
+  const browseEvents = createEventTarget();
+
+  const subsyncEngineBuiltin = {
+    checked: true,
+    disabled: false,
+    addEventListener: engineBuiltinEvents.addEventListener,
+    dispatch: engineBuiltinEvents.dispatch,
+  };
+  const subsyncEngineOffset = {
+    checked: false,
+    disabled: false,
+    addEventListener: engineOffsetEvents.addEventListener,
+    dispatch: engineOffsetEvents.dispatch,
+  };
+  const subsyncBrowseReferenceButton = {
+    classList: browseClassList,
+    addEventListener: browseEvents.addEventListener,
+    dispatch: browseEvents.dispatch,
+  };
+  const subsyncGuidance = {
+    textContent: '',
+    classList: guidanceClassList,
+  };
+  const subsyncStripSignsCheckbox = { checked: true };
+  const subsyncAllowSplitsCheckbox = { checked: true };
+  const subsyncOffsetInput = { value: '0' };
+
+  Object.assign(harness.ctx.dom, {
+    subsyncGuidance,
+    subsyncEngineBuiltin,
+    subsyncEngineOffset,
+    subsyncBrowseReferenceButton,
+    subsyncOptionsGroup: { classList: optionsClassList },
+    subsyncStripSignsCheckbox,
+    subsyncAllowSplitsLabel: { classList: allowSplitsClassList },
+    subsyncAllowSplitsCheckbox,
+    subsyncOffsetLabel: { classList: offsetLabelClassList },
+    subsyncOffsetInput,
+  });
+
+  (
+    globalThis as unknown as { window: { electronAPI: Record<string, unknown> } }
+  ).window.electronAPI.pickSubsyncReferenceFile = async () => '/tmp/browsed-ref.srt';
+
+  try {
+    harness.modal.wireDomEvents();
+    harness.modal.openSubsyncModal(
+      payloadWith({
+        guidanceMessage: 'Loaded English track appears +2.4s off audio.',
+        defaultEngine: 'builtin',
+        builtinAvailable: true,
+        alassAvailable: false,
+        canPickReferenceFile: true,
+        referenceCandidates: [
+          {
+            key: 'track:2',
+            kind: 'track',
+            label: 'External #2 - eng (secondary)',
+            detail: '+2.4s off audio',
+            trackId: 2,
+          },
+          {
+            key: 'video',
+            kind: 'video',
+            label: 'Video audio (built-in speech detection)',
+            recommended: true,
+          },
+        ],
+        defaultReferenceKey: 'video',
+      }),
+    );
+
+    assert.equal(guidanceClassList.contains('hidden'), false);
+    assert.equal(subsyncGuidance.textContent, 'Loaded English track appears +2.4s off audio.');
+    assert.equal(subsyncEngineBuiltin.checked, true);
+    assert.equal(harness.ctx.dom.subsyncEngineAlass.disabled, true);
+    assert.equal(browseClassList.contains('hidden'), false);
+    assert.equal(harness.referenceSelect.value, 'video');
+
+    // Browse a custom file from disk and submit built-in sync with it.
+    subsyncBrowseReferenceButton.dispatch('click');
+    await flushMicrotasks();
+    assert.equal(harness.referenceSelect.value, 'file:/tmp/browsed-ref.srt');
+
+    subsyncAllowSplitsCheckbox.checked = false;
+    harness.runButton.dispatch('click');
+    await flushMicrotasks();
+
+    assert.deepEqual(request, {
+      engine: 'builtin',
+      targetTrackId: 1,
+      referenceMode: 'file',
+      referenceTrackId: null,
+      referenceFilePath: '/tmp/browsed-ref.srt',
+      stripSigns: true,
+      allowSplits: false,
+    });
+  } finally {
+    harness.restoreGlobals();
+  }
+});

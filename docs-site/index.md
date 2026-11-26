@@ -66,7 +66,7 @@ features:
       src: /assets/subtitle-download.svg
       alt: Subtitle download icon
     title: Subtitle download and sync
-    details: Search Jimaku or TsukiHime and download a track, then retime it with alass or ffsubsync. Both run from the overlay.
+    details: Search Jimaku or TsukiHime and download a track, then sync it automatically with SubMiner's built-in alass-based aligner and speech fallback (or optional external alass/ffsubsync). Both run from the overlay.
     link: /jimaku-integration
     linkText: Jimaku integration
   - icon:

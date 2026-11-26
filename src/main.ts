@@ -744,6 +744,8 @@ const configDerivedRuntime = createConfigDerivedRuntime({
 const subsyncRuntime = createMainSubsyncRuntime({
   getMpvClient: () => appState.mpvClient,
   getResolvedConfig: () => configService.getConfig(),
+  getSubtitleGenerationModelDirectory,
+  canPickReferenceFile: () => true,
   getSubsyncInProgress: () => appState.subsyncInProgress,
   setSubsyncInProgress: (inProgress) => {
     appState.subsyncInProgress = inProgress;
@@ -1516,6 +1518,29 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       ...stats.ipc,
       ...playlistBrowserMainDeps,
       // App-level handlers with no owning assembly.
+      openSubsyncManual: () => subsyncRuntime.openManualPicker(),
+      pickSubsyncReferenceFile: async () => {
+        const owner =
+          BrowserWindow.getFocusedWindow() ?? overlayManager.getMainWindow() ?? undefined;
+        const result = owner
+          ? await dialog.showOpenDialog(owner, {
+              title: 'Select reference subtitle file',
+              properties: ['openFile'],
+              filters: [
+                { name: 'Subtitle files', extensions: ['srt', 'ass', 'ssa', 'vtt'] },
+                { name: 'All files', extensions: ['*'] },
+              ],
+            })
+          : await dialog.showOpenDialog({
+              title: 'Select reference subtitle file',
+              properties: ['openFile'],
+              filters: [
+                { name: 'Subtitle files', extensions: ['srt', 'ass', 'ssa', 'vtt'] },
+                { name: 'All files', extensions: ['*'] },
+              ],
+            });
+        return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!;
+      },
       onYoutubePickerResolve: (request) => youtube.flow.resolveActivePicker(request),
       handleOverlayNotificationAction: (notificationId, actionId, noteId) => {
         if (

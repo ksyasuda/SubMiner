@@ -81,7 +81,7 @@ Built into the overlay, not configurable:
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search                            | `shortcuts.openJimaku`                     |
 | `Ctrl+Shift+T`     | Open TsukiHime subtitle search                         | `shortcuts.openTsukihime`                  |
 | `Ctrl+Shift+G`     | Open Japanese subtitle generation                      | `shortcuts.openSubtitleGeneration`         |
-| `Ctrl+Alt+S`       | Open subtitle sync (subsync)                           | `shortcuts.triggerSubsync`                 |
+| `Ctrl+Alt+S`       | Sync active subtitle automatically (guided modal on fallback) | `shortcuts.triggerSubsync`                 |
 | `g` then `s`       | Pick primary and secondary subtitles (when enabled)    | `shortcuts.openSubtitleSelection`          |
 | `\`                | Toggle subtitle sidebar                                | `subtitleSidebar.toggleKey`                |
 | `` ` ``            | Toggle stats overlay                                   | `stats.toggleKey`                          |

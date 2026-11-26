@@ -18,12 +18,12 @@ Only mpv is required. Install ffmpeg too unless you are fine with cards that hav
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------ |
 | mpv                      | Required. The player SubMiner draws over.                                                                            | All          |
 | fuse2                    | Required to run the AppImage.                                                                                        | Linux        |
-| ffmpeg                   | Recommended. Audio clips and screenshots on cards. Without it those fields stay empty.                               | All          |
+| ffmpeg                   | Recommended. Audio clips and screenshots on cards, plus embedded subtitle extraction and built-in audio subtitle sync/verification. | All          |
 | MeCab + mecab-ipadic     | Recommended. More accurate N+1, JLPT, and frequency highlighting.                                                    | All          |
 | yt-dlp                   | YouTube playback.                                                                                                    | All          |
 | xz                       | [TsukiHime](/tsukihime-integration) subtitle downloads. Most Linux distros already have it.                          | All          |
 | guessit                  | Better title, season, and episode detection for [AniSkip](/aniskip-integration) and [AniList](/anilist-integration). | All          |
-| alass or ffsubsync       | Subtitle syncing. You need at least one to use it.                                                                   | All          |
+| alass or ffsubsync       | Optional external subtitle sync engines. SubMiner includes built-in alass-based syncing and speech detection.       | All          |
 | fzf, rofi                | The file pickers in the `subminer` command (rofi is Linux only).                                                     | Linux, macOS |
 | chafa, ffmpegthumbnailer | Thumbnail previews in the pickers.                                                                                   | Linux, macOS |
 

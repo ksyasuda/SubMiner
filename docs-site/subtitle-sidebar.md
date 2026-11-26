@@ -7,6 +7,7 @@ The subtitle sidebar lists every line of the current subtitle file in a scrollab
 Press `\` to open or close it. The sidebar is on by default. Set `subtitleSidebar.enabled` to `false` to turn it off, or `subtitleSidebar.autoOpen` to `true` to open it at startup.
 
 - Click a line to seek to it. With a line focused from the keyboard, `Enter` seeks to it.
+- Click **Sync** in the sidebar header to automatically sync the active subtitle track (`Shift+click` opens the guided sync modal directly).
 - The current line is highlighted and kept in view as playback moves (`autoScroll`).
 - Hovering the list pauses playback (`pauseVideoOnHover`).
 - Switching media or subtitle track updates the list.

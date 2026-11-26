@@ -612,6 +612,14 @@ export function buildCoreConfigOptionRegistry(
       description: 'Annotated subtitle websocket server port.',
     },
     {
+      path: 'subsync.mode',
+      kind: 'enum',
+      enumValues: ['auto', 'manual'],
+      defaultValue: defaultConfig.subsync.mode,
+      description:
+        'Automatic subtitle sync mode ("auto" syncs immediately and opens the guided modal only when needed; "manual" always opens the modal).',
+    },
+    {
       path: 'subsync.replace',
       kind: 'boolean',
       defaultValue: defaultConfig.subsync.replace,

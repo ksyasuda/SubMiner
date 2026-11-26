@@ -1,0 +1,5 @@
+type: added
+area: subsync
+
+- Integrated built-in alass-based subtitle syncing with sign/song stripping, framerate and scene-cut/ad-break handling, audio alignment verification across all loaded/embedded/sidecar tracks, and built-in speech-activity audio fallback.
+- Added one-click automatic syncing via the subtitle sidebar Sync button and `Ctrl+Alt+S` (`subsync.mode: "auto"`), automatically opening the guided Subtitle Sync modal with diagnostics, file browsing, external engine fallbacks, and manual offset only when guidance is needed.

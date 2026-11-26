@@ -2,13 +2,15 @@ import * as fs from 'fs';
 import * as childProcess from 'child_process';
 import * as path from 'path';
 import { DEFAULT_CONFIG } from '../config';
-import { SubsyncConfig } from '../types';
+import { SubsyncConfig, SubsyncMode } from '../types';
 
 export interface MpvTrack {
   id?: number;
   type?: string;
   selected?: boolean;
   external?: boolean;
+  forced?: boolean;
+  default?: boolean;
   lang?: string;
   title?: string;
   codec?: string;
@@ -17,6 +19,7 @@ export interface MpvTrack {
 }
 
 export interface SubsyncResolvedConfig {
+  mode?: SubsyncMode;
   alassPath: string;
   ffsubsyncPath: string;
   ffmpegPath: string;
@@ -29,8 +32,73 @@ const DEFAULT_SUBSYNC_EXECUTABLE_PATHS = {
   ffmpeg: '/usr/bin/ffmpeg',
 } as const;
 
+const COMMON_BIN_DIRS = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin'];
+const WINDOWS_RUNNABLE_EXTENSIONS = new Set(['.exe', '.com', '.cmd', '.bat', '.ps1', '.sh']);
+
+function isExecutablePath(filePath: string): boolean {
+  try {
+    if (!fs.statSync(filePath).isFile()) return false;
+    if (process.platform !== 'win32') {
+      fs.accessSync(filePath, fs.constants.X_OK);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function candidateExecutableNames(name: string): string[] {
+  if (process.platform !== 'win32' || path.extname(name)) return [name];
+  const extensions = (process.env.PATHEXT ?? '.EXE;.CMD;.BAT')
+    .split(';')
+    .map((ext) => ext.trim())
+    .filter((ext) => ext.length > 0 && WINDOWS_RUNNABLE_EXTENSIONS.has(ext.toLowerCase()));
+  return [name, ...extensions.map((ext) => `${name}${ext}`)];
+}
+
+/**
+ * Find an executable on PATH (or common install dirs), honoring an explicit
+ * configured override first. Returns null if not found.
+ */
+export function findSubsyncExecutable(
+  configuredPath: string | undefined,
+  names: readonly string[],
+): string | null {
+  const trimmed = configuredPath?.trim() ?? '';
+  if (trimmed) {
+    if (hasPathSeparators(trimmed)) {
+      return isExecutablePath(trimmed) ? trimmed : null;
+    }
+    const foundConfigured = findSubsyncExecutable(undefined, [trimmed]);
+    return foundConfigured;
+  }
+
+  const dirs = [
+    ...(process.env.PATH ?? '')
+      .split(path.delimiter)
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+    ...(process.platform === 'win32' ? [] : COMMON_BIN_DIRS),
+  ];
+
+  const seen = new Set<string>();
+  for (const dir of dirs) {
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    for (const name of names) {
+      for (const candidateName of candidateExecutableNames(name)) {
+        const candidate = path.join(dir, candidateName);
+        if (isExecutablePath(candidate)) return candidate;
+      }
+    }
+  }
+  return null;
+}
+
 export interface SubsyncContext {
   videoPath: string;
+  workingDirectory?: string | null;
+  durationSec?: number | null;
   primaryTrack: MpvTrack;
   secondaryTrack: MpvTrack | null;
   /** Every usable subtitle track, including the primary one. */
@@ -46,7 +114,7 @@ export interface CommandResult {
   error?: string;
 }
 
-function resolveCommandInvocation(
+export function resolveCommandInvocation(
   executable: string,
   args: string[],
 ): { command: string; args: string[] } {
@@ -65,6 +133,12 @@ function resolveCommandInvocation(
     return `/mnt/${driveLetter!.toLowerCase()}/${remainder}`;
   };
   const extension = path.extname(executable).toLowerCase();
+  if (extension === '.cmd' || extension === '.bat') {
+    return {
+      command: process.env.ComSpec || 'cmd.exe',
+      args: ['/d', '/c', executable, ...args],
+    };
+  }
   if (extension === '.ps1') {
     return {
       command: 'powershell.exe',
@@ -83,15 +157,36 @@ function resolveCommandInvocation(
 }
 
 export function getSubsyncConfig(config: SubsyncConfig | undefined): SubsyncResolvedConfig {
-  const resolvePath = (value: string | undefined, fallback: string): string => {
+  const resolvePath = (
+    value: string | undefined,
+    names: readonly string[],
+    fallback: string,
+  ): string => {
     const trimmed = value?.trim();
-    return trimmed && trimmed.length > 0 ? trimmed : fallback;
+    if (trimmed && trimmed.length > 0) {
+      if (hasPathSeparators(trimmed)) return trimmed;
+      return findSubsyncExecutable(trimmed, [trimmed]) ?? trimmed;
+    }
+    return findSubsyncExecutable(undefined, names) ?? fallback;
   };
 
   return {
-    alassPath: resolvePath(config?.alass_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.alass),
-    ffsubsyncPath: resolvePath(config?.ffsubsync_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffsubsync),
-    ffmpegPath: resolvePath(config?.ffmpeg_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffmpeg),
+    mode: config?.mode ?? DEFAULT_CONFIG.subsync.mode,
+    alassPath: resolvePath(
+      config?.alass_path,
+      ['alass', 'alass-cli'],
+      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.alass,
+    ),
+    ffsubsyncPath: resolvePath(
+      config?.ffsubsync_path,
+      ['ffsubsync'],
+      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffsubsync,
+    ),
+    ffmpegPath: resolvePath(
+      config?.ffmpeg_path,
+      ['ffmpeg'],
+      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffmpeg,
+    ),
     replace: config?.replace ?? DEFAULT_CONFIG.subsync.replace,
   };
 }

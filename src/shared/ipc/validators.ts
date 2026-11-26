@@ -315,9 +315,25 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
 
 export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRequest | null {
   if (!isObject(value)) return null;
-  const { engine, referenceMode, referenceTrackId, targetTrackId } = value;
-  if (engine !== 'alass' && engine !== 'ffsubsync') return null;
-  if (referenceMode !== undefined && referenceMode !== 'track' && referenceMode !== 'video') {
+  const {
+    engine,
+    referenceMode,
+    referenceTrackId,
+    referenceFilePath,
+    targetTrackId,
+    stripSigns,
+    allowSplits,
+    offsetMs,
+  } = value;
+  if (engine !== 'builtin' && engine !== 'alass' && engine !== 'ffsubsync' && engine !== 'offset') {
+    return null;
+  }
+  if (
+    referenceMode !== undefined &&
+    referenceMode !== 'track' &&
+    referenceMode !== 'video' &&
+    referenceMode !== 'file'
+  ) {
     return null;
   }
 
@@ -331,11 +347,32 @@ export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRe
   const parsedTargetTrackId = parseOptionalTrackId(targetTrackId);
   if (parsedReferenceTrackId === false || parsedTargetTrackId === false) return null;
 
+  if (
+    referenceFilePath !== undefined &&
+    referenceFilePath !== null &&
+    typeof referenceFilePath !== 'string'
+  ) {
+    return null;
+  }
+  if (stripSigns !== undefined && typeof stripSigns !== 'boolean') return null;
+  if (allowSplits !== undefined && typeof allowSplits !== 'boolean') return null;
+  if (
+    offsetMs !== undefined &&
+    offsetMs !== null &&
+    (typeof offsetMs !== 'number' || !Number.isFinite(offsetMs))
+  ) {
+    return null;
+  }
+
   return {
     engine,
     referenceMode,
     referenceTrackId: parsedReferenceTrackId,
+    referenceFilePath: typeof referenceFilePath === 'string' ? referenceFilePath : null,
     targetTrackId: parsedTargetTrackId,
+    stripSigns,
+    allowSplits,
+    offsetMs: typeof offsetMs === 'number' ? Math.round(offsetMs) : null,
   };
 }
 

@@ -868,25 +868,59 @@
             <button id="subsyncClose" class="modal-close" type="button">Close</button>
           </div>
           <div class="modal-body">
+            <div id="subsyncGuidance" class="subsync-guidance hidden" role="status"></div>
             <div class="subsync-form">
               <div class="subsync-field">
                 <span>Engine</span>
-                <label class="subsync-radio">
-                  <input id="subsyncEngineAlass" type="radio" name="subsyncEngine" checked />
-                  alass
-                </label>
-                <label class="subsync-radio">
-                  <input id="subsyncEngineFfsubsync" type="radio" name="subsyncEngine" />
-                  ffsubsync
-                </label>
+                <div class="subsync-radio-group">
+                  <label class="subsync-radio">
+                    <input id="subsyncEngineBuiltin" type="radio" name="subsyncEngine" checked />
+                    Built-in (alass)
+                  </label>
+                  <label class="subsync-radio">
+                    <input id="subsyncEngineAlass" type="radio" name="subsyncEngine" />
+                    External alass
+                  </label>
+                  <label class="subsync-radio">
+                    <input id="subsyncEngineFfsubsync" type="radio" name="subsyncEngine" />
+                    ffsubsync
+                  </label>
+                  <label class="subsync-radio">
+                    <input id="subsyncEngineOffset" type="radio" name="subsyncEngine" />
+                    Manual offset
+                  </label>
+                </div>
               </div>
               <label id="subsyncReferenceLabel" class="subsync-field">
-                <span>Reference (correct timing, for alass)</span>
-                <select id="subsyncReferenceSelect"></select>
+                <span>Reference (correct timing)</span>
+                <div class="subsync-reference-row">
+                  <select id="subsyncReferenceSelect"></select>
+                  <button
+                    id="subsyncBrowseReference"
+                    class="kiku-cancel-button subsync-browse-button hidden"
+                    type="button"
+                  >
+                    Browse…
+                  </button>
+                </div>
               </label>
               <label id="subsyncTargetLabel" class="subsync-field">
                 <span>Out-of-sync Subtitle (gets retimed)</span>
                 <select id="subsyncTargetSelect"></select>
+              </label>
+              <div id="subsyncOptionsGroup" class="subsync-options">
+                <label class="subsync-checkbox">
+                  <input id="subsyncStripSigns" type="checkbox" checked />
+                  Ignore signs &amp; songs
+                </label>
+                <label id="subsyncAllowSplitsLabel" class="subsync-checkbox">
+                  <input id="subsyncAllowSplits" type="checkbox" checked />
+                  Allow scene cuts &amp; ad-break splits
+                </label>
+              </div>
+              <label id="subsyncOffsetLabel" class="subsync-field hidden">
+                <span>Shift offset (milliseconds, e.g. -1200 or +850)</span>
+                <input id="subsyncOffsetInput" type="number" step="50" value="0" />
               </label>
             </div>
             <div id="subsyncStatus" class="runtime-options-status"></div>
@@ -962,6 +996,14 @@
         <div id="subtitleSidebarContent" class="modal-content subtitle-sidebar-content">
           <div class="modal-header">
             <div class="modal-title">Subtitle Sidebar</div>
+            <button
+              id="subtitleSidebarSync"
+              class="modal-close"
+              type="button"
+              title="Sync subtitles automatically (Shift+click for options)"
+            >
+              Sync
+            </button>
             <button id="subtitleSidebarCopy" class="modal-close" type="button" hidden>Copy</button>
             <button id="subtitleSidebarClose" class="modal-close" type="button">Close</button>
           </div>

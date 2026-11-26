@@ -95,8 +95,8 @@ A stats dashboard tracks watch time, vocabulary growth, mining throughput, sessi
     <td>Automatic intro detection with chapter markers and a one-key skip (<code>TAB</code> by default)</td>
   </tr>
   <tr>
-    <td><b>alass / ffsubsync</b></td>
-    <td>Retime a subtitle against the audio or another subtitle track (<code>Ctrl+Alt+S</code>). Requires <code>alass</code> or <code>ffsubsync</code>; set <code>subsync.alass_path</code> or <code>subsync.ffsubsync_path</code> if they are not in <code>/usr/bin</code></td>
+    <td><b>Subtitle sync</b></td>
+    <td>One-click built-in alass-based syncing (<code>Ctrl+Alt+S</code> or the subtitle sidebar <b>Sync</b> button) with sign/song stripping, audio alignment checks across loaded/embedded/sidecar tracks, built-in speech-activity fallback, and a guided modal when manual input is needed. Works out of the box with no external sync binary; <code>ffmpeg</code> enables embedded-track extraction and audio sync/verification, and external <code>alass</code> or <code>ffsubsync</code> are optional</td>
   </tr>
   <tr>
     <td><b>WebSocket</b></td>
@@ -121,12 +121,12 @@ SubMiner runs on Linux, macOS 11+, and Windows 10+. Only **mpv** is required to 
 | mpv                      | Required         | The video player SubMiner draws over                                 |
 | fuse2                    | Required (Linux) | Running the AppImage                                                 |
 | Anki + AnkiConnect       | Required to mine | Card creation from the Yomitan popup                                 |
-| ffmpeg                   | Recommended      | Card audio and screenshots (first-run setup can download it)         |
-| MeCab + mecab-ipadic     | Recommended      | More accurate N+1, JLPT, and frequency highlighting                  |
-| xdotool + xwininfo       | Required (X11)   | Window tracking on desktops other than Hyprland or Sway              |
-| yt-dlp                   | Optional         | YouTube playback                                                     |
-| xz                       | Optional         | TsukiHime subtitle downloads (most Linux distros already have it)    |
-| alass / ffsubsync        | Optional         | Subtitle sync                                                        |
+| ffmpeg                   | Recommended      | Card audio/screenshots, embedded subtitle extraction, and built-in audio subtitle sync (first-run setup can download it) |
+| MeCab + mecab-ipadic     | Recommended      | More accurate N+1, JLPT, and frequency highlighting                                                                      |
+| xdotool + xwininfo       | Required (X11)   | Window tracking on desktops other than Hyprland or Sway                                                                  |
+| yt-dlp                   | Optional         | YouTube playback                                                                                                         |
+| xz                       | Optional         | TsukiHime subtitle downloads (most Linux distros already have it)                                                        |
+| alass / ffsubsync        | Optional         | Extra external subtitle sync engines (built-in alass-based sync and audio VAD are included)                              |
 | whisper.cpp              | Optional         | [Subtitle generation](https://docs.subminer.moe/subtitle-generation) |
 | guessit                  | Optional         | Better title, season, and episode detection for AniSkip and AniList  |
 | fzf / rofi               | Optional         | Video picker in the `subminer` launcher (rofi is Linux only)         |

@@ -16,6 +16,8 @@ export interface RuntimeOptionsIpcDepsParams {
 export interface SubsyncRuntimeDepsParams {
   getMpvClient: () => ReturnType<SubsyncRuntimeDeps['getMpvClient']>;
   getResolvedSubsyncConfig: () => SubsyncResolvedConfig;
+  getVadPaths?: SubsyncRuntimeDeps['getVadPaths'];
+  canPickReferenceFile?: SubsyncRuntimeDeps['canPickReferenceFile'];
   isSubsyncInProgress: () => boolean;
   setSubsyncInProgress: (inProgress: boolean) => void;
   showMpvOsd: (text: string) => void;
@@ -37,6 +39,8 @@ export function createSubsyncRuntimeDeps(params: SubsyncRuntimeDepsParams): Subs
   return {
     getMpvClient: params.getMpvClient,
     getResolvedSubsyncConfig: params.getResolvedSubsyncConfig,
+    getVadPaths: params.getVadPaths,
+    canPickReferenceFile: params.canPickReferenceFile,
     isSubsyncInProgress: params.isSubsyncInProgress,
     setSubsyncInProgress: params.setSubsyncInProgress,
     showMpvOsd: params.showMpvOsd,
@@ -84,6 +88,8 @@ export interface MainIpcRuntimeServiceDepsParams {
   getSecondarySubMode: IpcDepsRuntimeOptions['getSecondarySubMode'];
   getMpvClient: IpcDepsRuntimeOptions['getMpvClient'];
   runSubsyncManual: IpcDepsRuntimeOptions['runSubsyncManual'];
+  openSubsyncManual?: IpcDepsRuntimeOptions['openSubsyncManual'];
+  pickSubsyncReferenceFile?: IpcDepsRuntimeOptions['pickSubsyncReferenceFile'];
   getRuntimeOptions: IpcDepsRuntimeOptions['getRuntimeOptions'];
   setRuntimeOption: IpcDepsRuntimeOptions['setRuntimeOption'];
   reportOverlayContentBounds: IpcDepsRuntimeOptions['reportOverlayContentBounds'];
@@ -267,6 +273,8 @@ export function createMainIpcRuntimeServiceDeps(
     getSecondarySubMode: params.getSecondarySubMode,
     getMpvClient: params.getMpvClient,
     runSubsyncManual: params.runSubsyncManual,
+    openSubsyncManual: params.openSubsyncManual,
+    pickSubsyncReferenceFile: params.pickSubsyncReferenceFile,
     getRuntimeOptions: params.getRuntimeOptions,
     setRuntimeOption: params.setRuntimeOption,
     reportOverlayContentBounds: params.reportOverlayContentBounds,
