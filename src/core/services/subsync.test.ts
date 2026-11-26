@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import {
   TriggerSubsyncFromConfigDeps,
   runSubsyncManual,
@@ -78,6 +79,7 @@ test('triggerSubsyncFromConfig opens manual picker', async () => {
   await triggerSubsyncFromConfig(
     makeDeps({
       getResolvedConfig: () => ({
+        mode: 'manual',
         alassPath: process.execPath,
         ffsubsyncPath: process.execPath,
         ffmpegPath: process.execPath,
@@ -530,8 +532,13 @@ test('runSubsyncManual constructs ffsubsync command and returns success', async 
   assert.ok(ffArgs.includes('0:2'));
   const ffOutputFlagIndex = ffArgs.indexOf('-o');
   assert.equal(ffOutputFlagIndex >= 0, true);
-  assert.equal(ffArgs[ffOutputFlagIndex + 1], toShellPath(primaryPath));
-  assert.equal(sentCommands[0]?.[0], 'sub-add');
+  const stagedArg = ffArgs[ffOutputFlagIndex + 1]!;
+  assert.equal(path.dirname(fromShellPath(stagedArg)), tmpDir);
+  assert.equal(path.extname(stagedArg), '.srt');
+  assert.notEqual(stagedArg, toShellPath(primaryPath));
+  assert.equal(fs.existsSync(fromShellPath(stagedArg)), false);
+  assert.equal(fs.existsSync(primaryPath), true);
+  assert.deepEqual(sentCommands[0], ['sub-add', primaryPath]);
   assert.deepEqual(sentCommands[1], ['set_property', 'sub-delay', 0]);
 });
 
@@ -590,8 +597,12 @@ test('runSubsyncManual writes deterministic _retimed filename when replace is fa
   const ffArgs = fs.readFileSync(ffsubsyncLogPath, 'utf8').trim().split('\n');
   const ffOutputFlagIndex = ffArgs.indexOf('-o');
   assert.equal(ffOutputFlagIndex >= 0, true);
-  const outputPath = ffArgs[ffOutputFlagIndex + 1];
-  assert.equal(outputPath, toShellPath(path.join(tmpDir, 'episode.ja_retimed.srt')));
+  const stagedOutputArg = ffArgs[ffOutputFlagIndex + 1]!;
+  const expectedRetimedPath = path.join(tmpDir, 'episode.ja_retimed.srt');
+  assert.equal(path.dirname(fromShellPath(stagedOutputArg)), tmpDir);
+  assert.equal(path.extname(stagedOutputArg), '.srt');
+  assert.equal(fs.existsSync(fromShellPath(stagedOutputArg)), false);
+  assert.equal(fs.existsSync(expectedRetimedPath), true);
 });
 
 test('runSubsyncManual reports ffsubsync command failures with details', async () => {
@@ -1013,7 +1024,8 @@ test('runSubsyncManual resolves string sid values from mpv stream properties', a
   const outputPath = ffArgs[syncOutputIndex + 1];
   assert.equal(typeof outputPath, 'string');
   assert.ok(outputPath!.length > 0);
-  assert.equal(fs.readFileSync(fromShellPath(outputPath!), 'utf8'), '');
+  assert.equal(fs.existsSync(fromShellPath(outputPath!)), false);
+  assert.equal(fs.readFileSync(primaryPath, 'utf8'), '');
 });
 
 function generateSyntheticSpans(
@@ -1889,9 +1901,9 @@ test('runSubsyncManual rejects stale submissions when active video changed since
 
 test('triggerSubsyncFromConfig normalizes file:// video URLs as local media', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-file-url-'));
-  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const videoPath = path.join(tmpDir, 'ep#01.mkv');
   fs.writeFileSync(videoPath, 'video');
-  const fileUrl = `file://${videoPath}`;
+  const fileUrl = pathToFileURL(videoPath).href;
   let capturedPayload: SubsyncManualPayload | null = null;
 
   await triggerSubsyncFromConfig(
@@ -2189,4 +2201,200 @@ test('triggerSubsyncFromConfig resets non-zero sub-delay when already in sync wi
   assert.deepEqual(sentCommands, [['set_property', 'sub-delay', 0]]);
   assert.equal(fs.statSync(targetPath).mtimeMs, mtimeBefore);
   assert.ok(osd.some((line) => line.includes('Reset subtitle delay to 0s')));
+});
+
+test('runSubsyncManual stages external engine output and preserves original when playback switches mid-run', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-external-stage-'));
+  const ffsubsyncPath = path.join(tmpDir, 'ffsubsync.sh');
+  const ffmpegPath = path.join(tmpDir, 'ffmpeg.sh');
+  const alassPath = path.join(tmpDir, 'alass.sh');
+  const videoA = path.join(tmpDir, 'ep01.mkv');
+  const videoB = path.join(tmpDir, 'ep02.mkv');
+  const primaryPath = path.join(tmpDir, 'primary.srt');
+  const originalContent = '1\n00:00:01,000 --> 00:00:02,000\noriginal\n';
+
+  fs.writeFileSync(videoA, 'a');
+  fs.writeFileSync(videoB, 'b');
+  fs.writeFileSync(primaryPath, originalContent, 'utf8');
+  writeExecutableScript(ffmpegPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(
+    ffsubsyncPath,
+    '#!/bin/sh\nout=""\nprev=""\nfor arg in "$@"; do\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then printf "overwritten" > "$out"; fi\nexit 0\n',
+  );
+
+  let pathCalls = 0;
+  const sentCommands: Array<Array<string | number>> = [];
+  const result = await runSubsyncManual(
+    { engine: 'ffsubsync', mediaPath: videoA },
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: (payload) => {
+          sentCommands.push(payload.command);
+        },
+        requestProperty: async (name: string) => {
+          if (name === 'path') {
+            pathCalls += 1;
+            return pathCalls === 1 ? videoA : videoB;
+          }
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                'external-filename': primaryPath,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        alassPath,
+        ffsubsyncPath,
+        ffmpegPath,
+        replace: true,
+      }),
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /Playback changed/i);
+  assert.equal(fs.readFileSync(primaryPath, 'utf8'), originalContent);
+  assert.deepEqual(sentCommands, []);
+  const leftoverStaged = fs
+    .readdirSync(tmpDir)
+    .filter((name) => name.startsWith('.subminer-subsync-'));
+  assert.deepEqual(leftoverStaged, []);
+});
+
+test('runSubsyncManual preserves POSIX trailing whitespace and backslash distinctions in mediaPath', async () => {
+  if (process.platform === 'win32') return;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-posix-paths-'));
+  const trailingSpaceVideo = path.join(tmpDir, 'episode.mkv ');
+  const subPath = path.join(tmpDir, 'episode.srt');
+  fs.writeFileSync(trailingSpaceVideo, 'video');
+  fs.writeFileSync(subPath, '1\n00:00:01,000 --> 00:00:02,000\nhello\n', 'utf8');
+
+  const okResult = await runSubsyncManual(
+    { engine: 'offset', mediaPath: trailingSpaceVideo, targetTrackId: 1, offsetMs: 500 },
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return trailingSpaceVideo;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                'external-filename': subPath,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+    }),
+  );
+  assert.equal(okResult.ok, true);
+
+  const slashVideo = path.join(tmpDir, 'show', 'episode.mkv');
+  const backslashVideo = path.join(tmpDir, 'show\\episode.mkv');
+  const mismatchResult = await runSubsyncManual(
+    { engine: 'offset', mediaPath: backslashVideo, targetTrackId: 1, offsetMs: 500 },
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return slashVideo;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                'external-filename': subPath,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+    }),
+  );
+  assert.equal(mismatchResult.ok, false);
+  assert.match(mismatchResult.message, /Active video changed/i);
+});
+
+test('runSubsyncManual refuses to write ambiguous Shift_JIS/EUC-JP output even when replace is false', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-ambiguous-noreplace-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const targetPath = path.join(tmpDir, 'ambiguous.srt');
+  const retimedPath = path.join(tmpDir, 'ambiguous_retimed.srt');
+
+  fs.writeFileSync(videoPath, 'video');
+  const ambiguousBytes = Buffer.concat([
+    Buffer.from('1\n00:00:01,000 --> 00:00:02,500\n', 'utf8'),
+    Buffer.from([0xa4, 0xa2]),
+    Buffer.from('\n', 'utf8'),
+  ]);
+  fs.writeFileSync(targetPath, ambiguousBytes);
+
+  const result = await runSubsyncManual(
+    { engine: 'offset', offsetMs: 500 },
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoPath;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: '/missing/ffmpeg',
+        replace: false,
+      }),
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /losslessly/i);
+  assert.deepEqual(fs.readFileSync(targetPath), ambiguousBytes);
+  assert.equal(fs.existsSync(retimedPath), false);
 });

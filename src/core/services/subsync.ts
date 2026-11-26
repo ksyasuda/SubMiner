@@ -385,8 +385,8 @@ function buildRetimedPath(subPath: string, replace: boolean): string {
   return path.join(parsed.dir, `${parsed.name}_retimed${parsed.ext || '.srt'}`);
 }
 
-const LOSSY_REPLACE_ERROR_MESSAGE =
-  'Cannot safely replace subtitle file in place because its text encoding could not be decoded losslessly. Set subsync.replace to false or convert the file to UTF-8.';
+const LOSSY_REWRITE_ERROR_MESSAGE =
+  'Cannot safely rewrite subtitle file because its text encoding could not be decoded unambiguously and losslessly. Convert the file to UTF-8 and retry.';
 
 function readAndParseSubtitleFile(filePath: string): ParsedSubtitleFile {
   const bytes = fs.readFileSync(filePath);
@@ -503,11 +503,13 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// mpv may echo the path back with different separators, and Windows paths are
-// case-insensitive, so compare normalized forms instead of raw strings.
+// Windows local paths are case-insensitive and mpv may echo them with different
+// separators; on POSIX, backslashes are valid filename characters and must stay distinct.
 function normalizeSubtitlePathForCompare(value: string): string {
-  const normalized = value.replace(/\\/g, '/');
-  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  if (process.platform === 'win32' && !isRemoteMediaPath(value)) {
+    return value.replace(/\\/g, '/').toLowerCase();
+  }
+  return value;
 }
 
 async function findAddedSubtitleTrackId(
@@ -965,8 +967,8 @@ async function runBuiltinSubsync(
     if (parsedTarget.events.length === 0) {
       return { ok: false, message: 'Target subtitle file has no readable dialogue cues.' };
     }
-    if (replaceTarget && parsedTarget.lossless === false) {
-      return { ok: false, message: LOSSY_REPLACE_ERROR_MESSAGE };
+    if (parsedTarget.lossless === false) {
+      return { ok: false, message: LOSSY_REWRITE_ERROR_MESSAGE };
     }
 
     let referenceSpans: SubtitleTimeSpan[] = [];
@@ -1095,8 +1097,8 @@ async function runManualOffsetSubsync(
     if (parsedTarget.events.length === 0) {
       return { ok: false, message: 'Target subtitle file has no readable cues to shift.' };
     }
-    if (replaceTarget && parsedTarget.lossless === false) {
-      return { ok: false, message: LOSSY_REPLACE_ERROR_MESSAGE };
+    if (parsedTarget.lossless === false) {
+      return { ok: false, message: LOSSY_REWRITE_ERROR_MESSAGE };
     }
     const allIndices = parsedTarget.events.map((_, idx) => idx);
     const moves = new Array<number>(allIndices.length).fill(offsetMs / 1000);
@@ -1138,24 +1140,34 @@ async function subsyncToReference(
   );
   const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
+  const parsedOutput = path.parse(outputPath);
+  const stagedOutputPath = path.join(
+    parsedOutput.dir,
+    `.subminer-subsync-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}${parsedOutput.ext || '.srt'}`,
+  );
 
   try {
     let result: CommandResult;
     if (engine === 'alass') {
       const alassPath = ensureExecutablePath(resolved.alassPath, 'alass');
-      result = await runAlassSync(alassPath, referenceFilePath, targetExtraction.path, outputPath);
+      result = await runAlassSync(
+        alassPath,
+        referenceFilePath,
+        targetExtraction.path,
+        stagedOutputPath,
+      );
     } else {
       const ffsubsyncPath = ensureExecutablePath(resolved.ffsubsyncPath, 'ffsubsync');
       result = await runFfsubsyncSync(
         ffsubsyncPath,
         context.videoPath,
         targetExtraction.path,
-        outputPath,
+        stagedOutputPath,
         context.audioStreamIndex,
       );
     }
 
-    if (!result.ok || !fileExists(outputPath)) {
+    if (!result.ok || !fileExists(stagedOutputPath)) {
       const details = summarizeCommandFailure(engine, result);
       return {
         ok: false,
@@ -1167,12 +1179,20 @@ async function subsyncToReference(
       return { ok: false, message: 'Playback changed while syncing; discarded stale result.' };
     }
 
+    fs.renameSync(stagedOutputPath, outputPath);
     await loadSyncedSubtitle(client, outputPath, slot);
     return {
       ok: true,
       message: `Subtitle synchronized with ${engine}`,
     };
   } finally {
+    try {
+      if (fs.existsSync(stagedOutputPath)) {
+        fs.unlinkSync(stagedOutputPath);
+      }
+    } catch {
+      // Best-effort cleanup of staged external-engine output.
+    }
     cleanupTemporaryFile(targetExtraction);
   }
 }
@@ -1233,10 +1253,10 @@ export async function runSubsyncManual(
   const resolved = deps.getResolvedConfig();
 
   if (request.mediaPath !== undefined && request.mediaPath !== null) {
-    const trimmedMediaPath = request.mediaPath.trim();
-    const expectedVideoPath = trimmedMediaPath
-      ? normalizeMediaVideoPath(trimmedMediaPath, context.workingDirectory)
-      : '';
+    const expectedVideoPath =
+      request.mediaPath.trim().length > 0
+        ? normalizeMediaVideoPath(request.mediaPath, context.workingDirectory)
+        : '';
     if (
       !expectedVideoPath ||
       normalizeSubtitlePathForCompare(expectedVideoPath) !==
@@ -1584,8 +1604,8 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         deps.showMpvOsd(`Subtitles are already in sync (${sourceLabel})`);
         return;
       }
-      if (replaceTarget && parsedTarget.lossless === false) {
-        deps.showMpvOsd(`Subsync failed: ${LOSSY_REPLACE_ERROR_MESSAGE}`);
+      if (parsedTarget.lossless === false) {
+        deps.showMpvOsd(`Subsync failed: ${LOSSY_REWRITE_ERROR_MESSAGE}`);
         return;
       }
       writeRetimedContent(outputPath, alignment.rewrittenContent);
