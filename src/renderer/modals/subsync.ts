@@ -137,7 +137,7 @@ export function createSubsyncModal(
 
   function formatCandidateOptionLabel(candidate: SubsyncReferenceCandidate): string {
     const prefix = candidate.recommended ? '★ ' : '';
-    const detail = candidate.detail ? ` — ${candidate.detail}` : '';
+    const detail = candidate.detail ? ` · ${candidate.detail}` : '';
     return `${prefix}${candidate.label}${detail}`;
   }
 

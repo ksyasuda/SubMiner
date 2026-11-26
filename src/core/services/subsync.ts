@@ -1553,9 +1553,9 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         }
       }
 
-      // Sampled verification didn't yield a confident aligned subtitle sync (e.g. all
-      // references were misaligned or sampled windows were inconclusive) — escalate
-      // to full-episode audio extraction for complete verification + audio VAD sync!
+      // Sampled verification did not yield a confident aligned subtitle sync (e.g. all
+      // references were misaligned or sampled windows were inconclusive). Escalate
+      // to full-episode audio extraction for complete verification and audio VAD sync.
       audioSpeech = await resolveAudioSpeechForContext(context, resolved, deps);
       if (audioSpeech) {
         lengthSec = context.durationSec ?? audioSpeech.durationSec;
@@ -1704,7 +1704,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
       defaultReferenceKey: bestAttempt?.referenceKey ?? null,
     });
     deps.openManualPicker(payload);
-    deps.showMpvOsd('Subsync needs guidance — opened options');
+    deps.showMpvOsd('Subsync needs guidance: opened options');
   } finally {
     if (!keepTempTarget) {
       cleanupTemporaryFile(targetExtraction);

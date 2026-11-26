@@ -106,7 +106,7 @@ function rememberAudioSpeech(key: string | null, result: AudioSpeechResult): voi
 
 /**
  * Pure-TypeScript voice-band speech activity detector operating on 16-bit mono
- * PCM (expected 8 kHz, voice band-passed 200–3400 Hz). Uses a global dynamic-range
+ * PCM (expected 8 kHz, voice band-passed 200 to 3400 Hz). Uses a global dynamic-range
  * histogram with hysteresis, zero-crossing gating, hangover, and short-gap bridging.
  */
 export function detectSpeechSpansFromPcm(

@@ -636,7 +636,7 @@ interface BroadcastPiece {
 }
 
 /**
- * Handle TV broadcast subtitles with large commercial/ad-break gaps (30s–180s)
+ * Handle TV broadcast subtitles with large commercial/ad-break gaps (30s to 180s)
  * where a single shift cannot fit the whole episode. Splits along long pauses
  * (>= 15s), aligns each act independently via exact `alignNoSplit`, merges weak
  * or redundant pieces, and verifies the whole result with line-start agreement z-scores.
