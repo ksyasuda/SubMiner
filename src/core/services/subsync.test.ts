@@ -2398,3 +2398,89 @@ test('runSubsyncManual refuses to write ambiguous Shift_JIS/EUC-JP output even w
   assert.deepEqual(fs.readFileSync(targetPath), ambiguousBytes);
   assert.equal(fs.existsSync(retimedPath), false);
 });
+
+test('triggerSubsyncFromConfig checks playback session after reading sub-delay when already in sync', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-delay-session-race-'));
+  const videoA = path.join(tmpDir, 'ep01.mkv');
+  const videoB = path.join(tmpDir, 'ep02.mkv');
+  const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+  const refPath = path.join(tmpDir, 'ep01.en.srt');
+  fs.writeFileSync(videoA, 'a');
+  fs.writeFileSync(videoB, 'b');
+
+  let t = 5;
+  const spans: Array<[number, number]> = [];
+  for (let i = 0; i < 60; i += 1) {
+    const dur = 1.2 + ((i * 7) % 5) * 0.4;
+    const gap = 0.6 + ((i * 13) % 7) * 0.7;
+    spans.push([t, t + dur]);
+    t += dur + gap;
+  }
+  const fmt = (sec: number) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    const ms = Math.round((sec - Math.floor(sec)) * 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+  };
+  const srt = spans
+    .map(([s, e], i) => `${i + 1}\n${fmt(s)} --> ${fmt(e)}\nLine ${i + 1}\n`)
+    .join('\n');
+  fs.writeFileSync(refPath, srt, 'utf8');
+  fs.writeFileSync(targetPath, srt, 'utf8');
+
+  let switched = false;
+  const sentCommands: Array<(string | number)[]> = [];
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: (payload) => {
+          sentCommands.push(payload.command);
+        },
+        requestProperty: async (name: string) => {
+          if (name === 'sub-delay') {
+            switched = true;
+            return 2.5;
+          }
+          if (name === 'path') return switched ? videoB : videoA;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 600;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'eng',
+                'external-filename': refPath,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: '/missing/ffmpeg',
+        replace: true,
+      }),
+    }),
+  );
+
+  assert.equal(switched, true);
+  assert.deepEqual(sentCommands, []);
+});

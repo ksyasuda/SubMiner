@@ -1589,13 +1589,15 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
       alignment: AlignmentResult,
       sourceLabel: string,
     ): Promise<void> => {
+      const alreadyInSync = isAlreadyInSync(alignment);
+      const delayProperty = targetSlot === 'secondary' ? 'secondary-sub-delay' : 'sub-delay';
+      const activeDelay = alreadyInSync
+        ? parseOptionalNumber(await client.requestProperty(delayProperty).catch(() => null))
+        : null;
       if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
         return;
       }
-      if (isAlreadyInSync(alignment)) {
-        const delayProperty = targetSlot === 'secondary' ? 'secondary-sub-delay' : 'sub-delay';
-        const activeDelayRaw = await client.requestProperty(delayProperty).catch(() => null);
-        const activeDelay = parseOptionalNumber(activeDelayRaw);
+      if (alreadyInSync) {
         if (activeDelay !== null && Math.abs(activeDelay) > 0.005) {
           client.send({ command: ['set_property', delayProperty, 0] });
           deps.showMpvOsd(`Reset subtitle delay to 0s (already in sync with ${sourceLabel})`);
