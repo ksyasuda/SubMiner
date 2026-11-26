@@ -4,7 +4,11 @@ import test from 'node:test';
 import { DEFAULT_CONFIG, DEFAULT_KEYBINDINGS } from '../../config/definitions';
 import { compileSessionBindings } from '../../core/services/session-bindings';
 import { resolveConfiguredShortcuts } from '../../core/utils/shortcut-config';
-import { parseSessionActionDispatchRequest, parseUnforwardedMpvKeyReport } from './validators';
+import {
+  parseSessionActionDispatchRequest,
+  parseSubsyncManualRunRequest,
+  parseUnforwardedMpvKeyReport,
+} from './validators';
 
 // Regression guard: SESSION_ACTION_IDS in validators.ts is a hand-maintained mirror of the
 // SessionActionId union. If a new shortcut-backed action is added to the union/defaults but not to
@@ -45,4 +49,23 @@ test('unforwarded mpv key reports accept known reasons only', () => {
   assert.equal(parseUnforwardedMpvKeyReport({ key: 'LEFT', reason: 'toString' }), null);
   assert.equal(parseUnforwardedMpvKeyReport({ key: '', reason: 'modal' }), null);
   assert.equal(parseUnforwardedMpvKeyReport(null), null);
+});
+
+test('parseSubsyncManualRunRequest validates optional mediaPath', () => {
+  const parsed = parseSubsyncManualRunRequest({
+    engine: 'builtin',
+    mediaPath: '/tmp/ep01.mkv',
+    referenceMode: 'track',
+    referenceTrackId: 2,
+    targetTrackId: 1,
+  });
+  assert.equal(parsed?.mediaPath, '/tmp/ep01.mkv');
+  assert.equal(
+    parseSubsyncManualRunRequest({
+      engine: 'builtin',
+      mediaPath: 123,
+      targetTrackId: 1,
+    }),
+    null,
+  );
 });

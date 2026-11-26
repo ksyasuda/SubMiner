@@ -12,6 +12,7 @@ import {
 import {
   CommandResult,
   codecToExtension,
+  extensionToFfmpegMuxer,
   fileExists,
   findSubsyncExecutable,
   formatTrackLabel,
@@ -205,7 +206,7 @@ function resolveLocalSubtitlePath(
 ): string | null {
   if (!rawPath) return null;
   let local = rawPath;
-  if (local.startsWith('file://')) {
+  if (/^file:\/\//i.test(local)) {
     try {
       local = fileURLToPath(local);
     } catch {
@@ -218,6 +219,10 @@ function resolveLocalSubtitlePath(
     local = path.resolve(workingDirectory, local);
   }
   return local;
+}
+
+function normalizeMediaVideoPath(rawPath: string, workingDirectory?: string | null): string {
+  return resolveLocalSubtitlePath(rawPath, workingDirectory) ?? rawPath;
 }
 
 async function gatherSubsyncContext(client: MpvClientLike): Promise<SubsyncContext> {
@@ -238,9 +243,7 @@ async function gatherSubsyncContext(client: MpvClientLike): Promise<SubsyncConte
 
   const workingDirectory =
     typeof workingDirRaw === 'string' && workingDirRaw.trim().length > 0 ? workingDirRaw : null;
-  const resolvedVideoPath = isRemoteMediaPath(videoPath)
-    ? videoPath
-    : (resolveLocalSubtitlePath(videoPath, workingDirectory) ?? videoPath);
+  const resolvedVideoPath = normalizeMediaVideoPath(videoPath, workingDirectory);
 
   const tracks = Array.isArray(trackListRaw) ? normalizeTrackIds(trackListRaw as MpvTrack[]) : [];
   const subtitleTracks = tracks.filter((track) => track.type === 'sub');
@@ -345,7 +348,7 @@ async function extractSubtitleTrackToFile(
     '-map',
     `0:${ffIndex}`,
     '-f',
-    extension,
+    extensionToFfmpegMuxer(extension),
     outputPath,
   ]);
 
@@ -424,27 +427,46 @@ async function isPlaybackSessionUnchanged(
   if (!client.connected) return false;
   try {
     const slotProperty = slot === 'secondary' ? 'secondary-sid' : 'sid';
-    const [videoPathRaw, workingDirRaw, slotTrackRaw] = await Promise.all([
+    const initialSlotTrackId =
+      slot === 'secondary'
+        ? (context.secondaryTrack?.id ?? null)
+        : (context.primaryTrack.id ?? null);
+    const needsTrackIdentityCheck =
+      typeof targetTrack.id === 'number' && targetTrack.id !== initialSlotTrackId;
+    const [videoPathRaw, workingDirRaw, slotTrackRaw, trackListRaw] = await Promise.all([
       client.requestProperty('path'),
       client.requestProperty('working-directory').catch(() => null),
       client.requestProperty(slotProperty),
+      needsTrackIdentityCheck
+        ? client.requestProperty('track-list').catch(() => null)
+        : Promise.resolve(null),
     ]);
     const currentRawPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
     if (!currentRawPath) return false;
     const currentWorkingDir =
       typeof workingDirRaw === 'string' && workingDirRaw.trim().length > 0 ? workingDirRaw : null;
-    const currentVideoPath = isRemoteMediaPath(currentRawPath)
-      ? currentRawPath
-      : (resolveLocalSubtitlePath(currentRawPath, currentWorkingDir) ?? currentRawPath);
+    const currentVideoPath = normalizeMediaVideoPath(currentRawPath, currentWorkingDir);
     if (
       normalizeSubtitlePathForCompare(currentVideoPath) !==
       normalizeSubtitlePathForCompare(context.videoPath)
     ) {
       return false;
     }
-    if (typeof targetTrack.id === 'number') {
-      const currentSlotId = parseTrackId(slotTrackRaw);
-      if (currentSlotId !== null && currentSlotId !== targetTrack.id) {
+    const currentSlotId = parseTrackId(slotTrackRaw);
+    if (currentSlotId !== initialSlotTrackId) {
+      return false;
+    }
+    if (needsTrackIdentityCheck) {
+      const tracks = Array.isArray(trackListRaw)
+        ? normalizeTrackIds(trackListRaw as MpvTrack[])
+        : [];
+      const currentTarget = tracks.find(
+        (track) => track.type === 'sub' && track.id === targetTrack.id,
+      );
+      if (
+        !currentTarget ||
+        getSourceTrackIdentity(currentTarget) !== getSourceTrackIdentity(targetTrack)
+      ) {
         return false;
       }
     }
@@ -903,6 +925,7 @@ function buildManualPayload(
     defaultTargetTrackId: primaryTrackId,
     videoReferenceAvailable: isLocalMedia,
     ffsubsyncAvailable,
+    mediaPath: context.videoPath,
     guidanceMessage: options.guidanceMessage ?? null,
     referenceCandidates,
     defaultReferenceKey: recommendedKey,
@@ -1140,6 +1163,10 @@ async function subsyncToReference(
       };
     }
 
+    if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, slot))) {
+      return { ok: false, message: 'Playback changed while syncing; discarded stale result.' };
+    }
+
     await loadSyncedSubtitle(client, outputPath, slot);
     return {
       ok: true,
@@ -1204,6 +1231,24 @@ export async function runSubsyncManual(
   const client = getMpvClientForSubsync(deps);
   const context = await gatherSubsyncContext(client);
   const resolved = deps.getResolvedConfig();
+
+  if (request.mediaPath !== undefined && request.mediaPath !== null) {
+    const trimmedMediaPath = request.mediaPath.trim();
+    const expectedVideoPath = trimmedMediaPath
+      ? normalizeMediaVideoPath(trimmedMediaPath, context.workingDirectory)
+      : '';
+    if (
+      !expectedVideoPath ||
+      normalizeSubtitlePathForCompare(expectedVideoPath) !==
+        normalizeSubtitlePathForCompare(context.videoPath)
+    ) {
+      return {
+        ok: false,
+        message:
+          'Active video changed since the subsync picker opened. Reopen subsync for the current video.',
+      };
+    }
+  }
 
   const targetTrack = resolveTargetTrack(request, context);
   if (!targetTrack) {
@@ -1367,7 +1412,11 @@ async function prepareRipCandidatesAndAudio(
   // External-only reference fast path: reuse cached full audio if already available,
   // otherwise sample 4 seeked 60s windows (~0.2-0.5s) to verify external subtitle
   // references before ever decoding the full video audio.
-  const cachedFull = getCachedAudioSpeechSpans(context.videoPath, context.audioStreamIndex);
+  const cachedFull = getCachedAudioSpeechSpans(
+    context.videoPath,
+    context.audioStreamIndex,
+    vadPaths,
+  );
   if (cachedFull) {
     return { audioSpeech: cachedFull, sampledAudioWindows: null, preExtractedEmbedded: null };
   }
@@ -1405,7 +1454,7 @@ export async function openSubsyncManualPicker(
     guidanceMessage?: string | null;
     skipAudioAnalysis?: boolean;
   } = {},
-): Promise<void> {
+): Promise<boolean> {
   const client = getMpvClientForSubsync(deps);
   const context = await gatherSubsyncContext(client);
   const resolved = deps.getResolvedConfig();
@@ -1438,6 +1487,9 @@ export async function openSubsyncManualPicker(
         preExtractedEmbedded: prepared.preExtractedEmbedded,
       },
     );
+    if (!(await isPlaybackSessionUnchanged(client, context, context.primaryTrack, 'primary'))) {
+      return false;
+    }
   }
 
   const payload = buildManualPayload(context, resolved, deps, {
@@ -1446,6 +1498,7 @@ export async function openSubsyncManualPicker(
     guidanceMessage: options.guidanceMessage ?? null,
   });
   deps.openManualPicker(payload);
+  return true;
 }
 
 async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void> {
@@ -1467,6 +1520,9 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         context.workingDirectory,
       );
     } catch (extractError) {
+      if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
+        return;
+      }
       const payload = buildManualPayload(context, resolved, deps, {
         guidanceMessage: `Automatic sync could not read the active subtitle track (${(extractError as Error).message}). Choose an engine and subtitle tracks below.`,
       });
@@ -1478,6 +1534,9 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
     const targetInfo = extractSpansFromParsedSubtitle(parsedTarget, { stripSigns: true });
 
     if (parsedTarget.events.length === 0 || targetInfo.spans.length === 0) {
+      if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
+        return;
+      }
       const payload = buildManualPayload(context, resolved, deps, {
         guidanceMessage:
           'Could not read dialogue cues from the active subtitle track. Choose an engine or reference below.',
@@ -1514,6 +1573,14 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         return;
       }
       if (isAlreadyInSync(alignment)) {
+        const delayProperty = targetSlot === 'secondary' ? 'secondary-sub-delay' : 'sub-delay';
+        const activeDelayRaw = await client.requestProperty(delayProperty).catch(() => null);
+        const activeDelay = parseOptionalNumber(activeDelayRaw);
+        if (activeDelay !== null && Math.abs(activeDelay) > 0.005) {
+          client.send({ command: ['set_property', delayProperty, 0] });
+          deps.showMpvOsd(`Reset subtitle delay to 0s (already in sync with ${sourceLabel})`);
+          return;
+        }
         deps.showMpvOsd(`Subtitles are already in sync (${sourceLabel})`);
         return;
       }
@@ -1722,8 +1789,10 @@ export async function triggerSubsyncFromConfig(deps: TriggerSubsyncFromConfigDep
   try {
     const resolved = deps.getResolvedConfig();
     if (resolved.mode === 'manual') {
-      await openSubsyncManualPicker(deps, { skipAudioAnalysis: true });
-      deps.showMpvOsd('Subsync: choose engine and subtitles');
+      const opened = await openSubsyncManualPicker(deps, { skipAudioAnalysis: true });
+      if (opened) {
+        deps.showMpvOsd('Subsync: choose engine and subtitles');
+      }
       return;
     }
 

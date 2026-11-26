@@ -2,6 +2,10 @@ import * as fs from 'fs';
 import * as childProcess from 'child_process';
 import * as path from 'path';
 import { DEFAULT_CONFIG } from '../config';
+import {
+  buildWindowsShimInvocation,
+  isWindowsCommandShim,
+} from '../core/utils/windows-command-shim';
 import { SubsyncConfig, SubsyncMode } from '../types';
 
 export interface MpvTrack {
@@ -47,13 +51,18 @@ function isExecutablePath(filePath: string): boolean {
   }
 }
 
-function candidateExecutableNames(name: string): string[] {
-  if (process.platform !== 'win32' || path.extname(name)) return [name];
-  const extensions = (process.env.PATHEXT ?? '.EXE;.CMD;.BAT')
+export function candidateExecutableNames(
+  name: string,
+  platform: NodeJS.Platform = process.platform,
+  pathExt: string | undefined = process.env.PATHEXT,
+): string[] {
+  if (platform !== 'win32' || path.extname(name)) return [name];
+  const extensions = (pathExt ?? '.COM;.EXE;.BAT;.CMD')
     .split(';')
     .map((ext) => ext.trim())
     .filter((ext) => ext.length > 0 && WINDOWS_RUNNABLE_EXTENSIONS.has(ext.toLowerCase()));
-  return [name, ...extensions.map((ext) => `${name}${ext}`)];
+  const effective = extensions.length > 0 ? extensions : ['.exe', '.com', '.cmd', '.bat'];
+  return effective.map((ext) => `${name}${ext}`);
 }
 
 /**
@@ -117,8 +126,9 @@ export interface CommandResult {
 export function resolveCommandInvocation(
   executable: string,
   args: string[],
-): { command: string; args: string[] } {
-  if (process.platform !== 'win32') {
+  platform: NodeJS.Platform = process.platform,
+): { command: string; args: string[]; windowsVerbatimArguments?: boolean } {
+  if (platform !== 'win32') {
     return { command: executable, args };
   }
 
@@ -133,10 +143,12 @@ export function resolveCommandInvocation(
     return `/mnt/${driveLetter!.toLowerCase()}/${remainder}`;
   };
   const extension = path.extname(executable).toLowerCase();
-  if (extension === '.cmd' || extension === '.bat') {
+  if (isWindowsCommandShim(executable)) {
+    const shim = buildWindowsShimInvocation(executable, args, process.env);
     return {
-      command: process.env.ComSpec || 'cmd.exe',
-      args: ['/d', '/c', executable, ...args],
+      command: shim.file,
+      args: shim.args,
+      windowsVerbatimArguments: true,
     };
   }
   if (extension === '.ps1') {
@@ -233,6 +245,11 @@ export function codecToExtension(codec: string | undefined): string | null {
   return null;
 }
 
+export function extensionToFfmpegMuxer(extension: string): string {
+  if (extension === 'vtt') return 'webvtt';
+  return extension;
+}
+
 export function runCommand(
   executable: string,
   args: string[],
@@ -242,6 +259,7 @@ export function runCommand(
     const invocation = resolveCommandInvocation(executable, args);
     const child = childProcess.spawn(invocation.command, invocation.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      ...(invocation.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
     });
     let stdout = '';
     let stderr = '';

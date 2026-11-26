@@ -9,7 +9,7 @@ import {
   type ParsedSubtitleFile,
   type SubtitleTimeSpan,
 } from './subtitle-lines';
-import { fileExists, resolveCommandInvocation, runCommand } from './utils';
+import { extensionToFfmpegMuxer, fileExists, resolveCommandInvocation, runCommand } from './utils';
 
 const PCM_VAD_SAMPLE_RATE = 8000;
 const PCM_VAD_FILTER = 'highpass=f=200,lowpass=f=3400';
@@ -73,17 +73,35 @@ function buildFileSignatureKey(videoPath: string): string | null {
   }
 }
 
-function buildAudioCacheKey(videoPath: string, audioStreamIndex: number | null): string | null {
+function buildVadConfigKey(
+  vadExecutablePath?: string | null,
+  vadModelPath?: string | null,
+): string {
+  const exec = vadExecutablePath?.trim() ?? '';
+  const model = vadModelPath?.trim() ?? '';
+  if (exec.length > 0 && model.length > 0 && fileExists(model)) {
+    return `silero:${exec}\0${model}`;
+  }
+  return 'builtin';
+}
+
+function buildAudioCacheKey(
+  videoPath: string,
+  audioStreamIndex: number | null,
+  vadConfigKey = 'builtin',
+): string | null {
   const sig = buildFileSignatureKey(videoPath);
   if (!sig) return null;
-  return `${sig}\0${audioStreamIndex ?? 'default'}`;
+  return `${sig}\0${audioStreamIndex ?? 'default'}\0${vadConfigKey}`;
 }
 
 export function getCachedAudioSpeechSpans(
   videoPath: string,
   audioStreamIndex: number | null,
+  vadConfig?: { vadExecutablePath?: string | null; vadModelPath?: string | null } | null,
 ): AudioSpeechResult | null {
-  const key = buildAudioCacheKey(videoPath, audioStreamIndex);
+  const vadKey = buildVadConfigKey(vadConfig?.vadExecutablePath, vadConfig?.vadModelPath);
+  const key = buildAudioCacheKey(videoPath, audioStreamIndex, vadKey);
   return key ? (audioSpeechCache.get(key) ?? null) : null;
 }
 
@@ -295,6 +313,7 @@ function streamFfmpegPcm(
     const invocation = resolveCommandInvocation(ffmpegPath, args);
     const child = childProcess.spawn(invocation.command, invocation.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      ...(invocation.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
     });
     const chunks: Buffer[] = [];
     let stderr = '';
@@ -435,7 +454,8 @@ async function trySileroVadSpeech(
 export async function extractAudioSpeechSpans(
   options: ExtractAudioSpeechOptions,
 ): Promise<AudioSpeechResult> {
-  const cacheKey = buildAudioCacheKey(options.videoPath, options.audioStreamIndex);
+  const vadKey = buildVadConfigKey(options.vadExecutablePath, options.vadModelPath);
+  const cacheKey = buildAudioCacheKey(options.videoPath, options.audioStreamIndex, vadKey);
   if (cacheKey) {
     const cached = audioSpeechCache.get(cacheKey);
     if (cached) return cached;
@@ -479,6 +499,7 @@ function spawnFfmpegWithStdout(
     const invocation = resolveCommandInvocation(ffmpegPath, args);
     const child = childProcess.spawn(invocation.command, invocation.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      ...(invocation.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
     });
     const chunks: Buffer[] = [];
     let stderr = '';
@@ -644,7 +665,8 @@ export async function extractSinglePassRipMedia(
   options: SinglePassRipMediaOptions,
 ): Promise<SinglePassRipMediaResult | null> {
   const fileKey = buildFileSignatureKey(options.videoPath);
-  const audioKey = buildAudioCacheKey(options.videoPath, options.audioStreamIndex);
+  const vadKey = buildVadConfigKey(options.vadExecutablePath, options.vadModelPath);
+  const audioKey = buildAudioCacheKey(options.videoPath, options.audioStreamIndex, vadKey);
 
   const cachedSubs =
     (fileKey ? embeddedSubtitlesCache.get(fileKey) : undefined) ??
@@ -683,7 +705,15 @@ export async function extractSinglePassRipMedia(
     const trackOutputs: Array<{ ffIndex: number; outPath: string }> = [];
     for (const track of missingTracks) {
       const outPath = path.join(tempDir, `track_${track.ffIndex}.${track.extension}`);
-      args.push('-vn', '-an', '-map', `0:${track.ffIndex}`, '-f', track.extension, outPath);
+      args.push(
+        '-vn',
+        '-an',
+        '-map',
+        `0:${track.ffIndex}`,
+        '-f',
+        extensionToFfmpegMuxer(track.extension),
+        outPath,
+      );
       trackOutputs.push({ ffIndex: track.ffIndex, outPath });
     }
 

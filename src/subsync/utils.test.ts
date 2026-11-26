@@ -3,13 +3,23 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { codecToExtension, findSubsyncExecutable, getSubsyncConfig } from './utils';
+import {
+  candidateExecutableNames,
+  codecToExtension,
+  extensionToFfmpegMuxer,
+  findSubsyncExecutable,
+  getSubsyncConfig,
+  resolveCommandInvocation,
+} from './utils';
 
 test('codecToExtension maps stream/web formats to ffmpeg extractable extensions', () => {
   assert.equal(codecToExtension('subrip'), 'srt');
   assert.equal(codecToExtension('webvtt'), 'vtt');
   assert.equal(codecToExtension('vtt'), 'vtt');
   assert.equal(codecToExtension('ttml'), 'ttml');
+  assert.equal(extensionToFfmpegMuxer('vtt'), 'webvtt');
+  assert.equal(extensionToFfmpegMuxer('srt'), 'srt');
+  assert.equal(extensionToFfmpegMuxer('ass'), 'ass');
 });
 
 test('codecToExtension returns null for unsupported codecs', () => {
@@ -57,4 +67,30 @@ test('findSubsyncExecutable skips non-executable files on POSIX and resolves bar
     fs.rmSync(dirA, { recursive: true, force: true });
     fs.rmSync(dirB, { recursive: true, force: true });
   }
+});
+
+test('Windows candidate discovery excludes extensionless shims and escapes cmd.exe batch arguments', () => {
+  assert.deepEqual(candidateExecutableNames('ffsubsync', 'win32', '.COM;.EXE;.BAT;.CMD'), [
+    'ffsubsync.COM',
+    'ffsubsync.EXE',
+    'ffsubsync.BAT',
+    'ffsubsync.CMD',
+  ]);
+  assert.deepEqual(candidateExecutableNames('ffsubsync.exe', 'win32', '.EXE;.CMD'), [
+    'ffsubsync.exe',
+  ]);
+
+  const invocation = resolveCommandInvocation(
+    'C:\\Tools\\ffsubsync.cmd',
+    ['C:\\Videos\\Show & (Remix) [1080p].mkv', '-i', 'C:\\Subs\\ep1.srt'],
+    'win32',
+  );
+  assert.equal(invocation.windowsVerbatimArguments, true);
+  assert.equal(invocation.args[0], '/d');
+  assert.equal(invocation.args[1], '/s');
+  assert.equal(invocation.args[2], '/v:off');
+  assert.equal(invocation.args[3], '/c');
+  assert.ok(invocation.args[4]!.includes('^&'));
+  assert.ok(invocation.args[4]!.includes('^('));
+  assert.ok(invocation.args[4]!.includes('^)'));
 });

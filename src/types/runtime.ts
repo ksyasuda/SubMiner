@@ -124,6 +124,8 @@ export interface SubsyncManualPayload {
   defaultTargetTrackId: number | null;
   videoReferenceAvailable: boolean;
   ffsubsyncAvailable: boolean;
+  /** Normalized media path this picker payload was built for. */
+  mediaPath?: string | null;
   /** Optional guidance shown when automatic sync hands off to the modal. */
   guidanceMessage?: string | null;
   /** Ranked candidate references (loaded tracks, unloaded tracks, sidecar files, audio). */
@@ -142,6 +144,8 @@ export type SubsyncReferenceMode = 'track' | 'video' | 'file';
 
 export interface SubsyncManualRunRequest {
   engine: SubsyncEngine;
+  /** Media path captured when the picker opened, verified against the active video before running. */
+  mediaPath?: string | null;
   /** Reference source: another subtitle track, the loaded video/audio, or a local file on disk. */
   referenceMode?: SubsyncReferenceMode;
   referenceTrackId?: number | null;

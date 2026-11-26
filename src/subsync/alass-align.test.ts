@@ -6,6 +6,7 @@ import {
   evaluateReferenceAlignmentToAudio,
   evaluateReferenceAlignmentToSampledAudio,
   joinSpans,
+  wrappedCoverage,
   type SampledAudioWindow,
 } from './alass-align';
 import {
@@ -207,4 +208,49 @@ test('evaluateReferenceAlignmentToSampledAudio verifies aligned vs misaligned re
   // A 45s shift is outside the ±12s sample window search radius -> returns 'unverified' so caller escalates to full audio.
   const hugeEval = evaluateReferenceAlignmentToSampledAudio(hugeShiftRef, windows);
   assert.equal(hugeEval.status, 'unverified');
+});
+
+test('wrappedCoverage counts both fragments of a cue crossing the wrap boundary', () => {
+  const line = [{ start: 54, end: 58 }];
+  const ref = [
+    { start: 0, end: 3 },
+    { start: 59, end: 60 },
+  ];
+  // Shifting [54, 58] by +5s in a 60s window wraps to [59, 60] (1s) + [0, 3] (3s) = 4s / 4s = 1.0.
+  assert.equal(wrappedCoverage(line, 4, ref, 5, 60), 1);
+  // Also works for shifts larger than the window length and negative shifts.
+  assert.equal(wrappedCoverage(line, 4, ref, 65, 60), 1);
+  assert.equal(
+    wrappedCoverage(
+      [{ start: 1, end: 5 }],
+      4,
+      [
+        { start: 0, end: 2 },
+        { start: 58, end: 60 },
+      ],
+      -3,
+      60,
+    ),
+    1,
+  );
+});
+
+test('alignSubtitleFileToReferenceSpans rejects broadcast pieces that collapse onto the same reference section', () => {
+  const actPattern = generateDialogueRhythm(7n, 1442695040888963407n).filter((s) => s.end < 120);
+  // Two identical target acts separated by a long pause within the standing shift range,
+  // while the reference only contains one matching section.
+  const repeatedTarget = [
+    ...actPattern,
+    ...actPattern.map((s) => ({ start: s.start + 150, end: s.end + 150 })),
+  ];
+  const parsedTarget = parseSubtitleFileContent(spansToSrtFile(repeatedTarget), 'dup-acts.ja.srt');
+
+  const result = alignSubtitleFileToReferenceSpans(parsedTarget, actPattern, {
+    calibration: 'clean',
+    lengthSec: 320,
+    allowSplits: true,
+  });
+
+  assert.equal(result.cut, false);
+  assert.equal(result.confident, false);
 });

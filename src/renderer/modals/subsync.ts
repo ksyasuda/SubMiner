@@ -443,6 +443,7 @@ export function createSubsyncModal(
     const request: SubsyncManualRunRequest = {
       engine,
       targetTrackId,
+      ...(currentPayload.mediaPath ? { mediaPath: currentPayload.mediaPath } : {}),
     };
     if (engine === 'builtin' || engine === 'alass') {
       const parsed = parseReferenceValue(referenceValue);

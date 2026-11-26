@@ -74,12 +74,14 @@ export async function openSubsyncManualPickerRuntime(deps: SubsyncRuntimeDeps): 
   }
   triggerDeps.setSubsyncInProgress(true);
   try {
-    await triggerDeps.runWithSubsyncSpinner(() =>
+    const opened = await triggerDeps.runWithSubsyncSpinner(() =>
       openSubsyncManualPicker(triggerDeps, {
         guidanceMessage: null,
       }),
     );
-    triggerDeps.showMpvOsd('Subsync: choose engine and subtitles');
+    if (opened) {
+      triggerDeps.showMpvOsd('Subsync: choose engine and subtitles');
+    }
   } catch (error) {
     triggerDeps.showMpvOsd(`Subsync failed: ${(error as Error).message}`);
   } finally {

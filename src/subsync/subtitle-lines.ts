@@ -122,12 +122,18 @@ export function decodeSubtitleBytesWithStatus(bytes: Uint8Array): DecodedSubtitl
     return { text: strictUtf8, lossless: true };
   }
   const shiftJis = tryDecode(bytes, 'shift_jis', true);
-  if (shiftJis !== null) {
+  const eucJp = tryDecode(bytes, 'euc-jp', true);
+  if (shiftJis !== null && eucJp === null) {
     return { text: shiftJis, lossless: true };
   }
-  const eucJp = tryDecode(bytes, 'euc-jp', true);
-  if (eucJp !== null) {
+  if (eucJp !== null && shiftJis === null) {
     return { text: eucJp, lossless: true };
+  }
+  if (shiftJis !== null && eucJp !== null) {
+    if (shiftJis === eucJp) {
+      return { text: shiftJis, lossless: true };
+    }
+    return { text: eucJp, lossless: false };
   }
   return { text: new TextDecoder('utf-8').decode(bytes), lossless: false };
 }

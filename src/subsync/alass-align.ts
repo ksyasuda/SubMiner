@@ -421,28 +421,78 @@ function startsStanding(
   return weakest >= PIECE_Z_MIN ? whole : Math.min(weakest, whole);
 }
 
-function wrappedCoverage(
+function wrapSpansInPeriod(
+  spans: readonly SubtitleTimeSpan[],
+  shift: number,
+  period: number,
+): SubtitleTimeSpan[] {
+  if (period <= 0 || spans.length === 0) return [];
+  const modShift = ((shift % period) + period) % period;
+  const out: SubtitleTimeSpan[] = [];
+  for (let i = 0; i < spans.length; i += 1) {
+    const line = spans[i]!;
+    const dur = Math.min(period, line.end - line.start);
+    if (dur <= 0) continue;
+    const wStart = (((line.start + modShift) % period) + period) % period;
+    const wEnd = wStart + dur;
+    if (wEnd <= period) {
+      out.push({ start: wStart, end: wEnd });
+    } else {
+      out.push({ start: wStart, end: period });
+      out.push({ start: 0, end: wEnd - period });
+    }
+  }
+  out.sort((a, b) => a.start - b.start);
+  return out;
+}
+
+export function wrappedCoverage(
   sortedLines: readonly SubtitleTimeSpan[],
   total: number,
   joinedRef: readonly SubtitleTimeSpan[],
   shift: number,
   lengthSec: number,
 ): number {
-  let covered = 0;
-  if (shift >= 0) {
-    let cut = 0;
-    while (cut < sortedLines.length && sortedLines[cut]!.start + shift < lengthSec) cut += 1;
-    covered =
-      coveredAt(sortedLines.slice(0, cut), joinedRef, shift) +
-      coveredAt(sortedLines.slice(cut), joinedRef, shift - lengthSec);
-  } else {
-    let cut = 0;
-    while (cut < sortedLines.length && sortedLines[cut]!.start + shift < 0) cut += 1;
-    covered =
-      coveredAt(sortedLines.slice(0, cut), joinedRef, shift + lengthSec) +
-      coveredAt(sortedLines.slice(cut), joinedRef, shift);
+  if (sortedLines.length === 0 || total <= 0 || lengthSec <= 0) return 0;
+  const modShift = ((shift % lengthSec) + lengthSec) % lengthSec;
+  const firstStart = sortedLines[0]!.start;
+  const lastStart = sortedLines[sortedLines.length - 1]!.start;
+  if (firstStart >= 0 && lastStart < lengthSec) {
+    const inRange: SubtitleTimeSpan[] = [];
+    const wrapped: SubtitleTimeSpan[] = [];
+    const crossingHeads: SubtitleTimeSpan[] = [];
+    for (let i = 0; i < sortedLines.length; i += 1) {
+      const line = sortedLines[i]!;
+      const dur = Math.min(lengthSec, line.end - line.start);
+      if (dur <= 0) continue;
+      const shiftedStart = line.start + modShift;
+      if (shiftedStart < lengthSec) {
+        const shiftedEnd = shiftedStart + dur;
+        if (shiftedEnd <= lengthSec) {
+          inRange.push({ start: shiftedStart, end: shiftedEnd });
+        } else {
+          inRange.push({ start: shiftedStart, end: lengthSec });
+          crossingHeads.push({ start: 0, end: shiftedEnd - lengthSec });
+        }
+      } else {
+        const wStart = shiftedStart - lengthSec;
+        const wEnd = wStart + dur;
+        if (wEnd <= lengthSec) {
+          wrapped.push({ start: wStart, end: wEnd });
+        } else {
+          wrapped.push({ start: wStart, end: lengthSec });
+          crossingHeads.push({ start: 0, end: wEnd - lengthSec });
+        }
+      }
+    }
+    let covered = 0;
+    if (inRange.length > 0) covered += coveredAt(inRange, joinedRef, 0);
+    if (wrapped.length > 0) covered += coveredAt(wrapped, joinedRef, 0);
+    if (crossingHeads.length > 0) covered += coveredAt(crossingHeads, joinedRef, 0);
+    return covered / total;
   }
-  return covered / total;
+  const wrapped = wrapSpansInPeriod(sortedLines, modShift, lengthSec);
+  return coveredAt(wrapped, joinedRef, 0) / total;
 }
 
 export function evaluateStanding(
@@ -725,6 +775,29 @@ function alignBroadcastPieces(
 
   if (pieces.length < 2 || pieces.length > MAX_PIECES) return null;
 
+  // Placed acts must stay in chronological reference order and must not overlap
+  // onto the same reference interval.
+  const MAX_PIECE_OVERLAP_SEC = 2.0;
+  let prevPlacedStart = -Infinity;
+  let prevPlacedEnd = -Infinity;
+  for (const p of pieces) {
+    const placedStart = scaledSorted[p.first]!.start + p.shift;
+    let maxRawEnd = scaledSorted[p.first]!.end;
+    for (let i = p.first + 1; i < p.end; i += 1) {
+      if (scaledSorted[i]!.end > maxRawEnd) maxRawEnd = scaledSorted[i]!.end;
+    }
+    const placedEnd = maxRawEnd + p.shift;
+    if (
+      placedStart < prevPlacedStart ||
+      placedEnd <= prevPlacedEnd ||
+      placedStart < prevPlacedEnd - MAX_PIECE_OVERLAP_SEC
+    ) {
+      return null;
+    }
+    prevPlacedStart = placedStart;
+    prevPlacedEnd = placedEnd;
+  }
+
   let weightedZSum = 0;
   let totalLines = 0;
   let weakest = Infinity;
@@ -851,29 +924,35 @@ export function alignSubtitleFileToReferenceSpans(
   };
 
   const plain = evaluateRatio(1.0);
+  const plainScore = scoreStanding(plain.standing, cal);
   let chosen = plain;
 
   // Only test framerate conversions if plain fit isn't already near-perfect or to catch PAL speedup.
-  const altFits = FRAMERATE_RATIOS.slice(1).map(evaluateRatio);
-  const bestAltByAbove = altFits.reduce(
-    (best, cur) => (cur.standing.above > best.standing.above ? cur : best),
-    altFits[0]!,
-  );
-  const bestAltByStarts = altFits.reduce(
-    (best, cur) => (cur.standing.starts > best.standing.starts ? cur : best),
-    altFits[0]!,
-  );
+  // Never replace the plain fit with an alternate that lowers final confidence.
+  const altFits = FRAMERATE_RATIOS.slice(1)
+    .map(evaluateRatio)
+    .filter((alt) => scoreStanding(alt.standing, cal) >= plainScore);
+  if (altFits.length > 0) {
+    const bestAltByAbove = altFits.reduce(
+      (best, cur) => (cur.standing.above > best.standing.above ? cur : best),
+      altFits[0]!,
+    );
+    const bestAltByStarts = altFits.reduce(
+      (best, cur) => (cur.standing.starts > best.standing.starts ? cur : best),
+      altFits[0]!,
+    );
 
-  if (
-    bestAltByAbove.standing.above > plain.standing.above + 2.0 &&
-    bestAltByAbove.standing.above >= Math.max(4.0, cal.cutsFrom)
-  ) {
-    chosen = bestAltByAbove;
-  } else if (
-    bestAltByStarts.standing.starts >= STARTS_Z_MIN &&
-    bestAltByStarts.standing.starts > plain.standing.starts + 2.0
-  ) {
-    chosen = bestAltByStarts;
+    if (
+      bestAltByAbove.standing.above > plain.standing.above + 2.0 &&
+      bestAltByAbove.standing.above >= Math.max(4.0, cal.cutsFrom)
+    ) {
+      chosen = bestAltByAbove;
+    } else if (
+      bestAltByStarts.standing.starts >= STARTS_Z_MIN &&
+      bestAltByStarts.standing.starts > plain.standing.starts + 2.0
+    ) {
+      chosen = bestAltByStarts;
+    }
   }
 
   const ratio = chosen.ratio;
@@ -1221,14 +1300,7 @@ export function evaluateReferenceAlignmentToSampledAudio(
     const shiftedWindows = localWindows.map((w) => ({
       durationSec: w.durationSec,
       speechSpans: w.speechSpans,
-      refSpans: w.refSpans
-        .map((s) => ({
-          start: (((s.start + targetShift) % w.durationSec) + w.durationSec) % w.durationSec,
-          end:
-            ((((s.start + targetShift) % w.durationSec) + w.durationSec) % w.durationSec) +
-            (s.end - s.start),
-        }))
-        .sort((a, b) => a.start - b.start),
+      refSpans: wrapSpansInPeriod(w.refSpans, targetShift, w.durationSec),
     }));
 
     let hereCovered = 0;

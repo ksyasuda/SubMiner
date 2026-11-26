@@ -72,13 +72,20 @@ test('triggerSubsyncFromConfig opens manual picker', async () => {
   const osd: string[] = [];
   let payloadTrackCount = 0;
   let ffsubsyncAvailable: boolean | null = null;
+  let payloadMediaPath: string | null | undefined = undefined;
   let inProgressState: boolean | null = null;
 
   await triggerSubsyncFromConfig(
     makeDeps({
+      getResolvedConfig: () => ({
+        alassPath: process.execPath,
+        ffsubsyncPath: process.execPath,
+        ffmpegPath: process.execPath,
+      }),
       openManualPicker: (payload) => {
         payloadTrackCount = payload.subtitleTracks.length;
         ffsubsyncAvailable = payload.ffsubsyncAvailable;
+        payloadMediaPath = payload.mediaPath;
       },
       showMpvOsd: (text) => {
         osd.push(text);
@@ -91,6 +98,7 @@ test('triggerSubsyncFromConfig opens manual picker', async () => {
 
   assert.equal(payloadTrackCount, 2);
   assert.equal(ffsubsyncAvailable, true);
+  assert.equal(payloadMediaPath, '/tmp/video.mkv');
   assert.ok(osd.includes('Subsync: choose engine and subtitles'));
   assert.equal(inProgressState, false);
 });
@@ -1828,4 +1836,357 @@ test('runSubsyncManual refuses destructive replace when target subtitle encoding
   assert.equal(result.ok, false);
   assert.match(result.message, /losslessly/i);
   assert.deepEqual(fs.readFileSync(targetPath), corruptBytes);
+});
+
+test('runSubsyncManual rejects stale submissions when active video changed since picker opened', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-stale-media-'));
+  const videoA = path.join(tmpDir, 'ep01.mkv');
+  const videoB = path.join(tmpDir, 'ep02.mkv');
+  const targetB = path.join(tmpDir, 'ep02.ja.srt');
+  const original = '1\n00:00:01,000 --> 00:00:03,000\nこんにちは\n';
+  fs.writeFileSync(videoA, 'a');
+  fs.writeFileSync(videoB, 'b');
+  fs.writeFileSync(targetB, original, 'utf8');
+
+  const result = await runSubsyncManual(
+    {
+      engine: 'offset',
+      mediaPath: videoA,
+      targetTrackId: 1,
+      offsetMs: 1000,
+    },
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoB;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetB,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /Active video changed/i);
+  assert.equal(fs.readFileSync(targetB, 'utf8'), original);
+});
+
+test('triggerSubsyncFromConfig normalizes file:// video URLs as local media', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-file-url-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  fs.writeFileSync(videoPath, 'video');
+  const fileUrl = `file://${videoPath}`;
+  let capturedPayload: SubsyncManualPayload | null = null;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return fileUrl;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [{ id: 1, type: 'sub', selected: true, lang: 'jpn' }];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'manual',
+        alassPath: process.execPath,
+        ffsubsyncPath: process.execPath,
+        ffmpegPath: process.execPath,
+      }),
+      openManualPicker: (payload) => {
+        capturedPayload = payload;
+      },
+    }),
+  );
+
+  assert.ok(capturedPayload);
+  const resolved = capturedPayload as SubsyncManualPayload;
+  assert.equal(resolved.videoReferenceAvailable, true);
+  assert.equal(resolved.ffsubsyncAvailable, true);
+  assert.equal(resolved.mediaPath, videoPath);
+});
+
+test('runSubsyncManual allows retiming an unchanged inactive target track', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-inactive-target-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const activeSub = path.join(tmpDir, 'active.srt');
+  const inactiveSub = path.join(tmpDir, 'inactive.srt');
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(activeSub, '1\n00:00:01,000 --> 00:00:02,000\nactive\n', 'utf8');
+  fs.writeFileSync(inactiveSub, '1\n00:00:05,000 --> 00:00:07,000\ninactive\n', 'utf8');
+
+  const commands: Array<(string | number)[]> = [];
+  const result = await runSubsyncManual(
+    {
+      engine: 'offset',
+      mediaPath: videoPath,
+      targetTrackId: 3,
+      offsetMs: 1000,
+    },
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: (payload) => {
+          commands.push(payload.command);
+        },
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoPath;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': activeSub,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: true,
+                lang: 'jpn',
+                'external-filename': inactiveSub,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: '/missing/ffmpeg',
+        replace: true,
+      }),
+    }),
+  );
+
+  assert.equal(result.ok, true);
+  assert.ok(fs.readFileSync(inactiveSub, 'utf8').includes('00:00:06,000 --> 00:00:08,000'));
+  assert.ok(commands.some((cmd) => cmd[0] === 'sub-add' && cmd[1] === inactiveSub));
+});
+
+test('triggerSubsyncFromConfig discards auto-sync when user disables target slot mid-sync', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-disabled-slot-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+  const refPath = path.join(tmpDir, 'ep01.en.srt');
+  fs.writeFileSync(videoPath, 'video');
+
+  const lines: string[] = [];
+  const targetLines: string[] = [];
+  for (let i = 0; i < 40; i += 1) {
+    const start = 10 + i * 5;
+    const end = start + 2;
+    const fmt = (sec: number) => {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `00:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},000`;
+    };
+    lines.push(`${i + 1}\n${fmt(start)} --> ${fmt(end)}\nLine ${i + 1}\n`);
+    targetLines.push(`${i + 1}\n${fmt(start + 3)} --> ${fmt(end + 3)}\nセリフ ${i + 1}\n`);
+  }
+  const originalTarget = targetLines.join('\n');
+  fs.writeFileSync(refPath, lines.join('\n'), 'utf8');
+  fs.writeFileSync(targetPath, originalTarget, 'utf8');
+
+  let sidCalls = 0;
+  const sentCommands: Array<(string | number)[]> = [];
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: (payload) => {
+          sentCommands.push(payload.command);
+        },
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoPath;
+          if (name === 'sid') {
+            sidCalls += 1;
+            return sidCalls === 1 ? 1 : 'no';
+          }
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 400;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'eng',
+                'external-filename': refPath,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: '/missing/ffmpeg',
+        replace: true,
+      }),
+    }),
+  );
+
+  assert.deepEqual(sentCommands, []);
+  assert.equal(fs.readFileSync(targetPath, 'utf8'), originalTarget);
+});
+
+test('triggerSubsyncFromConfig skips early extraction fallback picker when playback switches', async () => {
+  let pathCalls = 0;
+  let pickerOpened = false;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') {
+            pathCalls += 1;
+            return pathCalls === 1 ? '/tmp/videoA.mkv' : '/tmp/videoB.mkv';
+          }
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [{ id: 1, type: 'sub', selected: true, lang: 'jpn' }];
+          }
+          return null;
+        },
+      }),
+      openManualPicker: () => {
+        pickerOpened = true;
+      },
+    }),
+  );
+
+  assert.equal(pickerOpened, false);
+});
+
+test('triggerSubsyncFromConfig resets non-zero sub-delay when already in sync without rewriting', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-reset-delay-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+  const refPath = path.join(tmpDir, 'ep01.en.srt');
+  fs.writeFileSync(videoPath, 'video');
+
+  let t = 5;
+  const spans: Array<[number, number]> = [];
+  for (let i = 0; i < 60; i += 1) {
+    const dur = 1.2 + ((i * 7) % 5) * 0.4;
+    const gap = 0.6 + ((i * 13) % 7) * 0.7;
+    spans.push([t, t + dur]);
+    t += dur + gap;
+  }
+  const fmt = (sec: number) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    const ms = Math.round((sec - Math.floor(sec)) * 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+  };
+  const srt = spans
+    .map(([s, e], i) => `${i + 1}\n${fmt(s)} --> ${fmt(e)}\nLine ${i + 1}\n`)
+    .join('\n');
+  fs.writeFileSync(refPath, srt, 'utf8');
+  fs.writeFileSync(targetPath, srt, 'utf8');
+  const mtimeBefore = fs.statSync(targetPath).mtimeMs;
+
+  const sentCommands: Array<(string | number)[]> = [];
+  const osd: string[] = [];
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: (payload) => {
+          sentCommands.push(payload.command);
+        },
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoPath;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'sub-delay') return 2.5;
+          if (name === 'duration') return 600;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'eng',
+                'external-filename': refPath,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: '/missing/ffmpeg',
+        replace: true,
+      }),
+      showMpvOsd: (text) => {
+        osd.push(text);
+      },
+    }),
+  );
+
+  assert.deepEqual(sentCommands, [['set_property', 'sub-delay', 0]]);
+  assert.equal(fs.statSync(targetPath).mtimeMs, mtimeBefore);
+  assert.ok(osd.some((line) => line.includes('Reset subtitle delay to 0s')));
 });

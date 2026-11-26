@@ -488,6 +488,7 @@ test('guided subsync modal shows guidance banner, ranked candidates, browse file
     harness.modal.wireDomEvents();
     harness.modal.openSubsyncModal(
       payloadWith({
+        mediaPath: '/tmp/ep01.mkv',
         guidanceMessage: 'Loaded English track appears +2.4s off audio.',
         defaultEngine: 'builtin',
         builtinAvailable: true,
@@ -530,6 +531,7 @@ test('guided subsync modal shows guidance banner, ranked candidates, browse file
 
     assert.deepEqual(request, {
       engine: 'builtin',
+      mediaPath: '/tmp/ep01.mkv',
       targetTrackId: 1,
       referenceMode: 'file',
       referenceTrackId: null,

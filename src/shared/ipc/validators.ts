@@ -317,6 +317,7 @@ export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRe
   if (!isObject(value)) return null;
   const {
     engine,
+    mediaPath,
     referenceMode,
     referenceTrackId,
     referenceFilePath,
@@ -326,6 +327,9 @@ export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRe
     offsetMs,
   } = value;
   if (engine !== 'builtin' && engine !== 'alass' && engine !== 'ffsubsync' && engine !== 'offset') {
+    return null;
+  }
+  if (mediaPath !== undefined && mediaPath !== null && typeof mediaPath !== 'string') {
     return null;
   }
   if (
@@ -366,6 +370,7 @@ export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRe
 
   return {
     engine,
+    ...(mediaPath !== undefined ? { mediaPath } : {}),
     referenceMode,
     referenceTrackId: parsedReferenceTrackId,
     referenceFilePath: typeof referenceFilePath === 'string' ? referenceFilePath : null,

@@ -164,6 +164,15 @@ test('decodeSubtitleBytesWithStatus marks lossless UTF-8 and lossy undecodable b
   const lossy = decodeSubtitleBytesWithStatus(corrupt);
   assert.equal(lossy.lossless, false);
 
+  // Ambiguous bytes valid in both Shift_JIS and EUC-JP (e.g. EUC-JP 'あ' = A4 A2) must not be marked lossless.
+  const ambiguousEucJp = new Uint8Array([0xa4, 0xa2]);
+  const ambiguousResult = decodeSubtitleBytesWithStatus(ambiguousEucJp);
+  assert.equal(ambiguousResult.lossless, false);
+
+  // Unambiguous Shift_JIS bytes (0x82 0xA0 = 'あ', invalid in UTF-8 and EUC-JP) remain lossless.
+  const unambiguousSjis = new Uint8Array([0x82, 0xa0]);
+  assert.deepEqual(decodeSubtitleBytesWithStatus(unambiguousSjis), { text: 'あ', lossless: true });
+
   const srt = formatSpansAsSrt([
     { start: 5.5, end: 7.0 },
     { start: 1.25, end: 2.75 },
