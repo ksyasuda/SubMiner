@@ -3606,6 +3606,7 @@ test('triggerSubsyncFromConfig on remote stream retries omitted embedded track w
     const targetPath = path.join(tmpDir, 'jimaku.ja.srt');
     const unrelatedEngPath = path.join(tmpDir, 'unrelated-eng.srt');
     const goodSpaPath = path.join(tmpDir, 'good-spa.srt');
+    const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
     const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
     const targetSpans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
     const unrelatedSpans = generateSyntheticSpans(99n, 314159265358979323n, 900);
@@ -3620,6 +3621,7 @@ test('triggerSubsyncFromConfig on remote stream retries omitted embedded track w
       fakeFfmpeg,
       `#!/bin/sh
 map_count=0
+maps=""
 prev=""
 cur_map=""
 out_for_2=""
@@ -3628,6 +3630,7 @@ for arg in "$@"; do
   if [ "$prev" = "-map" ]; then
     cur_map="$arg"
     map_count=$((map_count + 1))
+    maps="$maps $arg"
   fi
   case "$arg" in
     *.srt)
@@ -3637,6 +3640,7 @@ for arg in "$@"; do
   esac
   prev="$arg"
 done
+echo "MAPS:$maps" >> "${toShellPath(ffmpegCallsLog)}"
 if [ "$map_count" -ge 2 ]; then
   if [ -n "$out_for_2" ]; then cp "${toShellPath(unrelatedEngPath)}" "$out_for_2"; fi
   exit 0
@@ -3715,9 +3719,160 @@ exit 1
     );
 
     assert.equal(modalOpened, false);
+    const calls = fs.readFileSync(ffmpegCallsLog, 'utf8').trim().split('\n');
+    assert.equal(
+      calls.length,
+      2,
+      `expected combined pass followed by single omitted-track retry, got: ${calls.join(' | ')}`,
+    );
+    assert.ok(
+      calls[0]!.includes('0:2') && calls[0]!.includes('0:3'),
+      `expected first call to map both 0:2 and 0:3, got: ${calls[0]}`,
+    );
+    assert.ok(
+      calls[1]!.includes('0:3') && !calls[1]!.includes('0:2'),
+      `expected second call to retry only 0:3, got: ${calls[1]}`,
+    );
     assert.ok(
       osd.some((line) => line.includes('Spanish (Omitted From Batch)') && line.includes('-2.2')),
       `expected sync via omitted sibling track around -2.2s, got: ${osd.join(' | ')}`,
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('triggerSubsyncFromConfig on remote stream retries zero-event batch entry individually', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-remote-empty-batch-entry-'));
+  try {
+    const targetPath = path.join(tmpDir, 'jimaku.ja.srt');
+    const unrelatedEngPath = path.join(tmpDir, 'unrelated-eng.srt');
+    const goodSpaPath = path.join(tmpDir, 'good-spa.srt');
+    const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
+    const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+    const targetSpans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
+    const unrelatedSpans = generateSyntheticSpans(99n, 314159265358979323n, 900);
+
+    writeSrtFromSpans(targetPath, targetSpans, 2.2);
+    writeSrtFromSpans(unrelatedEngPath, unrelatedSpans, 0);
+    writeSrtFromSpans(goodSpaPath, targetSpans, 0);
+
+    // Combined pass (2 maps) writes unrelated 0:2 and an empty file (0 cues) for 0:3;
+    // individual call for 0:3 writes goodSpaPath.
+    writeExecutableScript(
+      fakeFfmpeg,
+      `#!/bin/sh
+map_count=0
+maps=""
+prev=""
+cur_map=""
+out_for_2=""
+out_for_3=""
+for arg in "$@"; do
+  if [ "$prev" = "-map" ]; then
+    cur_map="$arg"
+    map_count=$((map_count + 1))
+    maps="$maps $arg"
+  fi
+  case "$arg" in
+    *.srt)
+      if [ "$cur_map" = "0:2" ]; then out_for_2="$arg"; fi
+      if [ "$cur_map" = "0:3" ]; then out_for_3="$arg"; fi
+      ;;
+  esac
+  prev="$arg"
+done
+echo "MAPS:$maps" >> "${toShellPath(ffmpegCallsLog)}"
+if [ "$map_count" -ge 2 ]; then
+  if [ -n "$out_for_2" ]; then cp "${toShellPath(unrelatedEngPath)}" "$out_for_2"; fi
+  if [ -n "$out_for_3" ]; then : > "$out_for_3"; fi
+  exit 0
+fi
+if [ -n "$out_for_3" ]; then
+  cp "${toShellPath(goodSpaPath)}" "$out_for_3"
+  exit 0
+fi
+exit 1
+`,
+    );
+
+    let modalOpened = false;
+    const osd: string[] = [];
+
+    await triggerSubsyncFromConfig(
+      makeDeps({
+        getMpvClient: () => ({
+          connected: true,
+          currentAudioStreamIndex: 1,
+          send: () => {},
+          requestProperty: async (name: string) => {
+            if (name === 'path') return 'https://media.example.test/episode05.mkv';
+            if (name === 'sid') return 1;
+            if (name === 'secondary-sid') return 2;
+            if (name === 'duration') return 1420;
+            if (name === 'track-list') {
+              return [
+                {
+                  id: 1,
+                  type: 'sub',
+                  selected: true,
+                  external: true,
+                  lang: 'jpn',
+                  'external-filename': targetPath,
+                },
+                {
+                  id: 2,
+                  type: 'sub',
+                  selected: true,
+                  external: false,
+                  lang: 'eng',
+                  title: 'English (Wrong Ep)',
+                  codec: 'subrip',
+                  'ff-index': 2,
+                },
+                {
+                  id: 3,
+                  type: 'sub',
+                  selected: false,
+                  external: false,
+                  lang: 'spa',
+                  title: 'Spanish (Empty In Batch)',
+                  codec: 'subrip',
+                  'ff-index': 3,
+                },
+              ];
+            }
+            return null;
+          },
+        }),
+        getResolvedConfig: () => ({
+          mode: 'auto',
+          alassPath: '/missing/alass',
+          ffsubsyncPath: '/missing/ffsubsync',
+          ffmpegPath: fakeFfmpeg,
+          replace: false,
+        }),
+        openManualPicker: () => {
+          modalOpened = true;
+        },
+        showMpvOsd: (text) => {
+          osd.push(text);
+        },
+      }),
+    );
+
+    assert.equal(modalOpened, false);
+    const calls = fs.readFileSync(ffmpegCallsLog, 'utf8').trim().split('\n');
+    assert.equal(
+      calls.length,
+      2,
+      `expected combined pass followed by single empty-entry retry, got: ${calls.join(' | ')}`,
+    );
+    assert.ok(calls[0]!.includes('0:2') && calls[0]!.includes('0:3'));
+    assert.ok(calls[1]!.includes('0:3') && !calls[1]!.includes('0:2'));
+    assert.ok(
+      osd.some((line) => line.includes('Spanish (Empty In Batch)') && line.includes('-2.2')),
+      `expected sync via retried zero-event track around -2.2s, got: ${osd.join(' | ')}`,
     );
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -3761,20 +3916,17 @@ exit 1
 
     let modalOpened = false;
     const osd: string[] = [];
-    let pathReads = 0;
+    const applyErrorMessage = 'simulated sub-add failure during apply';
     const mpvClient = {
       connected: true,
       currentAudioStreamIndex: 1,
-      send: () => {},
-      requestProperty: async (name: string) => {
-        if (name === 'path') {
-          pathReads += 1;
-          // Disconnect right after the pre-write session check passes so loadSyncedSubtitle throws.
-          if (pathReads >= 2) {
-            mpvClient.connected = false;
-          }
-          return 'https://media.example.test/episode04.mkv';
+      send: (payload: { command: (string | number)[] }) => {
+        if (payload.command[0] === 'sub-add') {
+          throw new Error(applyErrorMessage);
         }
+      },
+      requestProperty: async (name: string) => {
+        if (name === 'path') return 'https://media.example.test/episode04.mkv';
         if (name === 'sid') return 1;
         if (name === 'secondary-sid') return 2;
         if (name === 'duration') return 1420;
@@ -3835,8 +3987,8 @@ exit 1
 
     assert.equal(modalOpened, false);
     assert.ok(
-      osd.some((line) => line.startsWith('Subsync failed:')),
-      `expected Subsync failed OSD when applyAlignment throws, got: ${osd.join(' | ')}`,
+      osd.includes(`Subsync failed: ${applyErrorMessage}`),
+      `expected exact apply error in OSD, got: ${osd.join(' | ')}`,
     );
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

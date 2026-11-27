@@ -2013,7 +2013,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
             if (singlePass) {
               for (const item of remainingItems) {
                 const parsed = singlePass.embeddedSubtitles.get(item.ffIndex);
-                if (!parsed) continue;
+                if (!parsed || parsed.events.length === 0) continue;
                 if (await tryAlignRemoteEmbeddedTrack(item, parsed)) {
                   return;
                 }
