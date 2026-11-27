@@ -134,4 +134,19 @@ test('buildJellyfinEmbeddedSubtitleUrl derives direct-play subtitle endpoints an
     buildJellyfinEmbeddedSubtitleUrl('https://cdn.example.test/episode.mkv', 2, 'srt'),
     null,
   );
+  // Leading double-slash in pathname must stay anchored to the media origin and never redirect ApiKey.
+  const doubleSlashResult = buildJellyfinEmbeddedSubtitleUrl(
+    'https://media.example//collector.example/Videos/item-1/stream?static=true&ApiKey=tok789&MediaSourceId=ms-1',
+    2,
+    'srt',
+  );
+  assert.ok(doubleSlashResult !== null);
+  const parsedDoubleSlash = new URL(doubleSlashResult);
+  assert.equal(parsedDoubleSlash.origin, 'https://media.example');
+  assert.equal(parsedDoubleSlash.host, 'media.example');
+  assert.equal(parsedDoubleSlash.searchParams.get('ApiKey'), 'tok789');
+  assert.equal(
+    parsedDoubleSlash.pathname,
+    '//collector.example/Videos/item-1/ms-1/Subtitles/2/Stream.srt',
+  );
 });

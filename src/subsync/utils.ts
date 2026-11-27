@@ -299,10 +299,8 @@ export function buildJellyfinEmbeddedSubtitleUrl(
   }
 
   const deliveryExt = extension === 'ttml' ? 'srt' : extension;
-  const subtitleUrl = new URL(
-    `${basePath}/Videos/${encodeURIComponent(itemId)}/${encodeURIComponent(mediaSourceId)}/Subtitles/${ffIndex}/Stream.${deliveryExt}`,
-    `${url.origin}/`,
-  );
+  const subtitleUrl = new URL(url.origin);
+  subtitleUrl.pathname = `${basePath}/Videos/${encodeURIComponent(itemId)}/${encodeURIComponent(mediaSourceId)}/Subtitles/${ffIndex}/Stream.${deliveryExt}`;
   subtitleUrl.searchParams.set('ApiKey', apiKey);
   return subtitleUrl.toString();
 }

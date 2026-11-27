@@ -3086,3 +3086,424 @@ exit 1
   ]);
   assert.match(result.message, /-1\.80s/);
 });
+
+test('triggerSubsyncFromConfig keeps sampled misalignment verdict when escalated full audio is unavailable', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-keep-misaligned-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+  const misalignedExtPath = path.join(tmpDir, 'ep01.en.srt');
+  const pcmPath = path.join(tmpDir, 'speech.pcm');
+  const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
+
+  fs.writeFileSync(videoPath, 'video');
+  // Target and external reference share the same +5.0s offset off the actual audio,
+  // so an unverified fallback would wrongly align target to the misaligned external ref!
+  writeSrtFromSpans(targetPath, spans, 5.0);
+  writeSrtFromSpans(misalignedExtPath, spans, 5.0);
+  writeSpeechPcmFile(pcmPath, spans, 920);
+  const originalTarget = fs.readFileSync(targetPath, 'utf8');
+
+  // Sampled -ss/-t calls return real speech PCM; full-file audio extraction returns silence/empty.
+  writeExecutableScript(
+    fakeFfmpeg,
+    `#!/bin/sh
+ss=0
+dur=0
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-ss" ]; then ss="$arg"; fi
+  if [ "$prev" = "-t" ]; then dur="$arg"; fi
+  prev="$arg"
+done
+if [ "$dur" -gt 0 ] 2>/dev/null; then
+  dd if="${toShellPath(pcmPath)}" bs=16000 skip="$ss" count="$dur" 2>/dev/null
+  exit 0
+fi
+# Full-file pass writes no audio bytes (simulating unavailable full audio) and no usable sub.
+exit 0
+`,
+  );
+
+  const modalPayloads: SubsyncManualPayload[] = [];
+  const osd: string[] = [];
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoPath;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 920;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'eng',
+                title: 'English (Bad)',
+                'external-filename': misalignedExtPath,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'eng',
+                title: 'English (Empty Embedded)',
+                codec: 'subrip',
+                'ff-index': 3,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: true,
+      }),
+      openManualPicker: (payload) => {
+        modalPayloads.push(payload);
+      },
+      showMpvOsd: (text) => {
+        osd.push(text);
+      },
+    }),
+  );
+
+  assert.equal(fs.readFileSync(targetPath, 'utf8'), originalTarget);
+  const modalPayload = modalPayloads[0];
+  assert.ok(modalPayload !== undefined, `expected guided modal, got OSD: ${osd.join(' | ')}`);
+  assert.match(modalPayload.guidanceMessage ?? '', /misaligned with the audio/i);
+});
+
+test('triggerSubsyncFromConfig escalation extracts embedded tracks individually when combined rip fails', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-escalation-fallback-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+  const misalignedExtPath = path.join(tmpDir, 'ep01.bad.en.srt');
+  const goodEmbeddedPath = path.join(tmpDir, 'fixture-embedded.srt');
+  const pcmPath = path.join(tmpDir, 'speech.pcm');
+  const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
+
+  fs.writeFileSync(videoPath, 'video');
+  writeSrtFromSpans(targetPath, spans, 2.5);
+  writeSrtFromSpans(misalignedExtPath, spans, 6.0);
+  writeSrtFromSpans(goodEmbeddedPath, spans, 0);
+  writeSpeechPcmFile(pcmPath, spans, 920);
+
+  // Sampled -ss/-t calls succeed; combined rip (has pipe:1 + *.srt) fails; full audio-only fails;
+  // individual embedded extraction (only *.srt, no pipe:1) succeeds for 0:3.
+  writeExecutableScript(
+    fakeFfmpeg,
+    `#!/bin/sh
+ss=0
+dur=0
+has_pipe=0
+out_srt=""
+prev=""
+cur_map=""
+for arg in "$@"; do
+  if [ "$prev" = "-ss" ]; then ss="$arg"; fi
+  if [ "$prev" = "-t" ]; then dur="$arg"; fi
+  if [ "$prev" = "-map" ]; then cur_map="$arg"; fi
+  if [ "$arg" = "pipe:1" ]; then has_pipe=1; fi
+  case "$arg" in
+    *.srt) out_srt="$arg" ;;
+  esac
+  prev="$arg"
+done
+if [ "$dur" -gt 0 ] 2>/dev/null; then
+  dd if="${toShellPath(pcmPath)}" bs=16000 skip="$ss" count="$dur" 2>/dev/null
+  exit 0
+fi
+if [ "$has_pipe" = "1" ]; then
+  exit 1
+fi
+if [ -n "$out_srt" ] && [ "$cur_map" = "0:3" ]; then
+  cp "${toShellPath(goodEmbeddedPath)}" "$out_srt"
+  exit 0
+fi
+exit 1
+`,
+  );
+
+  let modalOpened = false;
+  const osd: string[] = [];
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoPath;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 920;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'eng',
+                title: 'English (Bad External)',
+                'external-filename': misalignedExtPath,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'eng',
+                title: 'English (Embedded)',
+                codec: 'subrip',
+                'ff-index': 3,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+      openManualPicker: () => {
+        modalOpened = true;
+      },
+      showMpvOsd: (text) => {
+        osd.push(text);
+      },
+    }),
+  );
+
+  assert.equal(modalOpened, false);
+  assert.ok(
+    osd.some((line) => line.includes('English (Embedded)') && line.includes('-2.5')),
+    `expected sync via embedded fallback track around -2.5s, got: ${osd.join(' | ')}`,
+  );
+});
+
+test('triggerSubsyncFromConfig on non-Jellyfin remote stream falls back across lower-ranked embedded tracks when combined pass fails', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-remote-sibling-fallback-'));
+  const targetPath = path.join(tmpDir, 'jimaku.ja.srt');
+  const embeddedSpaPath = path.join(tmpDir, 'embedded-spa.srt');
+  const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
+
+  writeSrtFromSpans(targetPath, spans, 2.1);
+  writeSrtFromSpans(embeddedSpaPath, spans, 0);
+
+  // Combined pass (contains 0:2) fails because track 0:2 is corrupt; individual 0:2 fails;
+  // individual 0:3 succeeds!
+  writeExecutableScript(
+    fakeFfmpeg,
+    `#!/bin/sh
+has_bad=0
+out_srt=""
+prev=""
+cur_map=""
+for arg in "$@"; do
+  if [ "$prev" = "-map" ]; then cur_map="$arg"; fi
+  if [ "$cur_map" = "0:2" ]; then has_bad=1; fi
+  case "$arg" in
+    *.srt) out_srt="$arg" ;;
+  esac
+  prev="$arg"
+done
+if [ "$has_bad" = "1" ]; then
+  exit 1
+fi
+if [ -n "$out_srt" ] && [ "$cur_map" = "0:3" ]; then
+  cp "${toShellPath(embeddedSpaPath)}" "$out_srt"
+  exit 0
+fi
+exit 1
+`,
+  );
+
+  let modalOpened = false;
+  const osd: string[] = [];
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return 'https://media.example.test/episode02.mkv';
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 1420;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: false,
+                lang: 'eng',
+                title: 'English (Broken)',
+                codec: 'subrip',
+                'ff-index': 2,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'spa',
+                title: 'Spanish (Healthy)',
+                codec: 'subrip',
+                'ff-index': 3,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+      openManualPicker: () => {
+        modalOpened = true;
+      },
+      showMpvOsd: (text) => {
+        osd.push(text);
+      },
+    }),
+  );
+
+  assert.equal(modalOpened, false);
+  assert.ok(
+    osd.some((line) => line.includes('Spanish (Healthy)') && line.includes('-2.1')),
+    `expected sync via healthy sibling track around -2.1s, got: ${osd.join(' | ')}`,
+  );
+});
+
+test('runSubsyncManual alass on Jellyfin stream with external target does not require ffmpeg when reference fetches via HTTP', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-jellyfin-alass-no-ffmpeg-'));
+  const targetPath = path.join(tmpDir, 'jimaku.ja.srt');
+  const engSrtPath = path.join(tmpDir, 'eng.srt');
+  const fakeAlass = path.join(tmpDir, 'alass.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 200);
+
+  writeSrtFromSpans(targetPath, spans, 1.5);
+  writeSrtFromSpans(engSrtPath, spans, 0);
+  const engSrtText = fs.readFileSync(engSrtPath, 'utf8');
+  writeExecutableScript(
+    fakeAlass,
+    `#!/bin/sh
+cp "$2" "$3"
+exit 0
+`,
+  );
+
+  const fakeFetch: typeof fetch = (async () =>
+    new Response(engSrtText, { status: 200 })) as typeof fetch;
+
+  const result = await runSubsyncManual(
+    {
+      engine: 'alass',
+      referenceMode: 'track',
+      referenceTrackId: 2,
+      targetTrackId: 1,
+    },
+    makeDeps({
+      fetchImpl: fakeFetch,
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') {
+            return 'http://pve-main:8096/Videos/item-12/stream?static=true&ApiKey=secret-token&MediaSourceId=ms-12';
+          }
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 1420;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: false,
+                lang: 'eng',
+                title: 'English',
+                codec: 'subrip',
+                'ff-index': 2,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: fakeAlass,
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: '/missing/ffmpeg',
+        replace: false,
+      }),
+    }),
+  );
+
+  assert.equal(result.ok, true);
+  assert.match(result.message, /alass/i);
+});
