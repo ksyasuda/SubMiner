@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
+  buildJellyfinEmbeddedSubtitleUrl,
   candidateExecutableNames,
   codecToExtension,
   extensionToFfmpegMuxer,
@@ -93,4 +94,44 @@ test('Windows candidate discovery excludes extensionless shims and escapes cmd.e
   assert.ok(invocation.args[4]!.includes('^&'));
   assert.ok(invocation.args[4]!.includes('^('));
   assert.ok(invocation.args[4]!.includes('^)'));
+});
+
+test('buildJellyfinEmbeddedSubtitleUrl derives direct-play subtitle endpoints and rejects non-direct URLs', () => {
+  assert.equal(
+    buildJellyfinEmbeddedSubtitleUrl(
+      'http://pve-main:8096/Videos/item-1/stream?static=true&ApiKey=tok123&MediaSourceId=ms-1',
+      2,
+      'ass',
+    ),
+    'http://pve-main:8096/Videos/item-1/ms-1/Subtitles/2/Stream.ass?ApiKey=tok123',
+  );
+  assert.equal(
+    buildJellyfinEmbeddedSubtitleUrl(
+      'https://media.example.test/jellyfin/Videos/item-2/stream.mkv?Static=True&api_key=tok456&mediaSourceId=ms-2',
+      4,
+      'ttml',
+    ),
+    'https://media.example.test/jellyfin/Videos/item-2/ms-2/Subtitles/4/Stream.srt?ApiKey=tok456',
+  );
+  // Transcoded or non-static streams must not assume container ff-index matches Jellyfin stream index.
+  assert.equal(
+    buildJellyfinEmbeddedSubtitleUrl(
+      'http://pve-main:8096/Videos/item-1/main.m3u8?ApiKey=tok123&MediaSourceId=ms-1',
+      2,
+      'srt',
+    ),
+    null,
+  );
+  assert.equal(
+    buildJellyfinEmbeddedSubtitleUrl(
+      'http://pve-main:8096/Videos/item-1/stream?ApiKey=tok123&MediaSourceId=ms-1',
+      2,
+      'srt',
+    ),
+    null,
+  );
+  assert.equal(
+    buildJellyfinEmbeddedSubtitleUrl('https://cdn.example.test/episode.mkv', 2, 'srt'),
+    null,
+  );
 });

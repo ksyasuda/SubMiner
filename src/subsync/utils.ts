@@ -250,6 +250,63 @@ export function extensionToFfmpegMuxer(extension: string): string {
   return extension;
 }
 
+/**
+ * Derive Jellyfin's direct subtitle delivery endpoint for an embedded track on a
+ * direct-play stream URL (`.../Videos/{itemId}/stream?static=true&MediaSourceId=...&ApiKey=...`).
+ * Returns null for non-Jellyfin or transcoded URLs where stream indices may not match.
+ */
+export function buildJellyfinEmbeddedSubtitleUrl(
+  videoPath: string,
+  ffIndex: number,
+  extension: string,
+): string | null {
+  if (!Number.isInteger(ffIndex) || ffIndex < 0 || !extension) return null;
+  let url: URL;
+  try {
+    url = new URL(videoPath);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+
+  const findParam = (pattern: RegExp): string | null => {
+    for (const [key, value] of url.searchParams) {
+      if (pattern.test(key) && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return null;
+  };
+
+  if (findParam(/^static$/i)?.toLowerCase() !== 'true') return null;
+
+  const apiKey = findParam(/^api_?key$/i);
+  const mediaSourceId = findParam(/^mediasourceid$/i);
+  if (!apiKey || !mediaSourceId) return null;
+
+  const match = /^(.*)\/videos\/([^/]+)\/stream(?:\.[^/]+)?$/i.exec(url.pathname);
+  if (!match) return null;
+
+  const basePath = match[1] ?? '';
+  const rawItemId = match[2] ?? '';
+  if (!rawItemId) return null;
+
+  let itemId = rawItemId;
+  try {
+    itemId = decodeURIComponent(rawItemId);
+  } catch {
+    // Keep raw segment if it contains malformed percent escapes.
+  }
+
+  const deliveryExt = extension === 'ttml' ? 'srt' : extension;
+  const subtitleUrl = new URL(
+    `${basePath}/Videos/${encodeURIComponent(itemId)}/${encodeURIComponent(mediaSourceId)}/Subtitles/${ffIndex}/Stream.${deliveryExt}`,
+    `${url.origin}/`,
+  );
+  subtitleUrl.searchParams.set('ApiKey', apiKey);
+  return subtitleUrl.toString();
+}
+
 export function runCommand(
   executable: string,
   args: string[],

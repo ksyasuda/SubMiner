@@ -10,6 +10,7 @@ import {
   SubsyncResult,
 } from '../../types';
 import {
+  buildJellyfinEmbeddedSubtitleUrl,
   CommandResult,
   codecToExtension,
   extensionToFfmpegMuxer,
@@ -74,6 +75,7 @@ const AUTO_SUBTITLE_CONFIDENCE_THRESHOLD = 0.65;
 const AUTO_REMOTE_CONFIDENCE_THRESHOLD = 0.7;
 const AUTO_AUDIO_CONFIDENCE_THRESHOLD = 0.65;
 const AUDIO_SPEECH_LEAD_SEC = 0.1;
+const JELLYFIN_SUBTITLE_FETCH_TIMEOUT_MS = 15_000;
 
 function summarizeCommandFailure(command: string, result: CommandResult): string {
   const parts = [
@@ -106,6 +108,7 @@ interface SubsyncCoreDeps {
   getResolvedConfig: () => SubsyncResolvedConfig;
   getVadPaths?: () => SubsyncVadPaths;
   canPickReferenceFile?: () => boolean;
+  fetchImpl?: typeof fetch;
 }
 
 function parseTrackId(value: unknown): number | null {
@@ -306,11 +309,36 @@ function isExecutableAvailable(configuredPath: string, names: readonly string[])
   return findSubsyncExecutable(configuredPath, names) !== null;
 }
 
+async function tryFetchJellyfinSubtitleBytes(
+  videoPath: string,
+  ffIndex: number,
+  extension: string,
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<Uint8Array | null> {
+  const subtitleUrl = buildJellyfinEmbeddedSubtitleUrl(videoPath, ffIndex, extension);
+  if (!subtitleUrl || typeof fetchImpl !== 'function') return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), JELLYFIN_SUBTITLE_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetchImpl(subtitleUrl, { signal: controller.signal });
+    if (!response.ok) return null;
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength === 0) return null;
+    return new Uint8Array(buffer);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function extractSubtitleTrackToFile(
   ffmpegPath: string,
   videoPath: string,
   track: MpvTrack,
   workingDirectory?: string | null,
+  fetchImpl?: typeof fetch,
 ): Promise<FileExtractionResult> {
   if (track.external) {
     const externalPath = track['external-filename'];
@@ -333,9 +361,29 @@ async function extractSubtitleTrackToFile(
     throw new Error(`Unsupported subtitle codec: ${track.codec ?? 'unknown'}`);
   }
 
+  if (isRemoteMediaPath(videoPath)) {
+    const fetchedBytes = await tryFetchJellyfinSubtitleBytes(
+      videoPath,
+      ffIndex,
+      extension,
+      fetchImpl,
+    );
+    if (fetchedBytes) {
+      const decoded = decodeSubtitleBytesWithStatus(fetchedBytes);
+      const parsed = parseSubtitleFileContent(decoded.text, `track_${ffIndex}.${extension}`);
+      if (parsed.events.length > 0) {
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-subsync-'));
+        const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
+        fs.writeFileSync(outputPath, fetchedBytes);
+        return { path: outputPath, temporary: true };
+      }
+    }
+  }
+
+  const resolvedFfmpegPath = ensureExecutablePath(ffmpegPath, 'ffmpeg');
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-subsync-'));
   const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
-  const extraction = await runCommand(ffmpegPath, [
+  const extraction = await runCommand(resolvedFfmpegPath, [
     '-hide_banner',
     '-nostdin',
     '-y',
@@ -661,6 +709,8 @@ async function discoverAndEvaluateSubtitleCandidates(
     sampledAudioWindows?: SampledAudioWindow[] | null;
     preExtractedEmbedded?: ReadonlyMap<number, ParsedSubtitleFile> | null;
     skipSignsEmbeddedExtraction?: boolean;
+    skipEmbeddedExtraction?: boolean;
+    fetchImpl?: typeof fetch;
   } = {},
 ): Promise<CandidateWithSpans[]> {
   const results: CandidateWithSpans[] = [];
@@ -669,6 +719,7 @@ async function discoverAndEvaluateSubtitleCandidates(
   const sampledWindows = options.sampledAudioWindows ?? null;
   const preExtracted = options.preExtractedEmbedded ?? null;
   const skipSignsEmbedded = options.skipSignsEmbeddedExtraction !== false;
+  const skipEmbeddedExtraction = options.skipEmbeddedExtraction === true;
 
   for (const track of context.subtitleTracks) {
     if (track.external && track['external-filename']) {
@@ -781,6 +832,11 @@ async function discoverAndEvaluateSubtitleCandidates(
       }
     }
 
+    if (isEmbedded && skipEmbeddedExtraction) {
+      results.push(evaluateParsedCandidate(baseMeta, null));
+      continue;
+    }
+
     let extraction: FileExtractionResult | null = null;
     try {
       if (isEmbedded && (!ffmpegAvailable || !codecToExtension(track.codec))) {
@@ -792,6 +848,7 @@ async function discoverAndEvaluateSubtitleCandidates(
         context.videoPath,
         track,
         context.workingDirectory,
+        options.fetchImpl,
       );
       const parsed = readAndParseSubtitleFile(extraction.path);
       results.push(evaluateParsedCandidate(baseMeta, parsed));
@@ -956,6 +1013,7 @@ async function runBuiltinSubsync(
     context.videoPath,
     targetTrack,
     context.workingDirectory,
+    deps.fetchImpl,
   );
   const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
@@ -1024,14 +1082,27 @@ async function runBuiltinSubsync(
           message: 'Reference and out-of-sync subtitles must be different tracks',
         };
       }
-      const ffmpegPath = referenceTrack.external
-        ? resolved.ffmpegPath
-        : ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
+      const referenceExtension = codecToExtension(referenceTrack.codec);
+      const canTryJellyfinHttp =
+        !referenceTrack.external &&
+        isRemoteMediaPath(context.videoPath) &&
+        typeof referenceTrack['ff-index'] === 'number' &&
+        referenceExtension !== null &&
+        buildJellyfinEmbeddedSubtitleUrl(
+          context.videoPath,
+          referenceTrack['ff-index'],
+          referenceExtension,
+        ) !== null;
+      const ffmpegPath =
+        referenceTrack.external || canTryJellyfinHttp
+          ? resolved.ffmpegPath
+          : ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
       refExtraction = await extractSubtitleTrackToFile(
         ffmpegPath,
         context.videoPath,
         referenceTrack,
         context.workingDirectory,
+        deps.fetchImpl,
       );
       const parsedRef = readAndParseSubtitleFile(refExtraction.path);
       referenceSpans = extractSpansFromParsedSubtitle(parsedRef, { stripSigns }).spans;
@@ -1081,12 +1152,14 @@ async function runManualOffsetSubsync(
   context: SubsyncContext,
   resolved: SubsyncResolvedConfig,
   client: MpvClientLike,
+  fetchImpl?: typeof fetch,
 ): Promise<SubsyncResult> {
   const targetExtraction = await extractSubtitleTrackToFile(
     resolved.ffmpegPath,
     context.videoPath,
     targetTrack,
     context.workingDirectory,
+    fetchImpl,
   );
   const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
@@ -1130,6 +1203,7 @@ async function subsyncToReference(
   resolved: SubsyncResolvedConfig,
   client: MpvClientLike,
   slot: SubtitleSlot,
+  fetchImpl?: typeof fetch,
 ): Promise<SubsyncResult> {
   const ffmpegPath = ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
   const targetExtraction = await extractSubtitleTrackToFile(
@@ -1137,6 +1211,7 @@ async function subsyncToReference(
     context.videoPath,
     targetTrack,
     context.workingDirectory,
+    fetchImpl,
   );
   const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
@@ -1281,7 +1356,15 @@ export async function runSubsyncManual(
     if (!Number.isFinite(offsetMs) || offsetMs === 0) {
       return { ok: false, message: 'Enter a non-zero offset in milliseconds' };
     }
-    return runManualOffsetSubsync(offsetMs, targetTrack, targetSlot, context, resolved, client);
+    return runManualOffsetSubsync(
+      offsetMs,
+      targetTrack,
+      targetSlot,
+      context,
+      resolved,
+      client,
+      deps.fetchImpl,
+    );
   }
 
   if (request.engine === 'builtin') {
@@ -1356,7 +1439,20 @@ export async function runSubsyncManual(
     return { ok: false, message: 'Reference and out-of-sync subtitles must be different tracks' };
   }
 
-  const ffmpegPath = ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
+  const referenceExtension = codecToExtension(referenceTrack.codec);
+  const canTryJellyfinHttp =
+    !referenceTrack.external &&
+    isRemoteMediaPath(context.videoPath) &&
+    typeof referenceTrack['ff-index'] === 'number' &&
+    referenceExtension !== null &&
+    buildJellyfinEmbeddedSubtitleUrl(
+      context.videoPath,
+      referenceTrack['ff-index'],
+      referenceExtension,
+    ) !== null;
+  const ffmpegPath = canTryJellyfinHttp
+    ? resolved.ffmpegPath
+    : ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
   let referenceExtraction: FileExtractionResult | null = null;
   let cleanedRef: FileExtractionResult | null = null;
   try {
@@ -1365,6 +1461,7 @@ export async function runSubsyncManual(
       context.videoPath,
       referenceTrack,
       context.workingDirectory,
+      deps.fetchImpl,
     );
     cleanedRef = maybeWriteCleanedReferenceSrt(
       referenceExtraction.path,
@@ -1378,6 +1475,7 @@ export async function runSubsyncManual(
       resolved,
       client,
       targetSlot,
+      deps.fetchImpl,
     );
   } finally {
     cleanupTemporaryFile(cleanedRef);
@@ -1404,6 +1502,55 @@ async function prepareRipCandidatesAndAudio(
 
   const embeddedSpecs = collectExtractableEmbeddedRefTracks(context, targetTrack);
   const vadPaths = deps.getVadPaths?.();
+  const cachedFull = getCachedAudioSpeechSpans(
+    context.videoPath,
+    context.audioStreamIndex,
+    vadPaths,
+  );
+
+  // Fast path: when a non-signs external or sidecar reference already exists and
+  // full audio is not cached yet, sample 4 seeked 60s windows (~0.3s local / ~3s NAS)
+  // before ever streaming the full container over disk/NFS for embedded tracks or full VAD.
+  const loadedExternalPaths: string[] = [];
+  for (const track of context.subtitleTracks) {
+    if (track.external && track['external-filename']) {
+      const resolvedPath = resolveLocalSubtitlePath(
+        track['external-filename'],
+        context.workingDirectory,
+      );
+      if (resolvedPath) loadedExternalPaths.push(resolvedPath);
+    }
+  }
+  const hasExternalOrSidecarHint =
+    context.subtitleTracks.some(
+      (t) =>
+        typeof t.id === 'number' &&
+        t.id !== targetTrack.id &&
+        t.external &&
+        !isSignsOrSongsTrackMeta(t),
+    ) ||
+    discoverSidecarReferenceFiles(context.videoPath, loadedExternalPaths).some(
+      (s) => !s.isSignsOnly,
+    );
+
+  if (
+    options.allowSampledAudioFastPath &&
+    !cachedFull &&
+    hasExternalOrSidecarHint &&
+    context.durationSec !== null &&
+    context.durationSec !== undefined &&
+    context.durationSec >= 300
+  ) {
+    const sampled = await extractSampledAudioWindows({
+      ffmpegPath: resolved.ffmpegPath,
+      videoPath: context.videoPath,
+      audioStreamIndex: context.audioStreamIndex,
+      durationSec: context.durationSec,
+    });
+    if (sampled && sampled.length >= 2) {
+      return { audioSpeech: null, sampledAudioWindows: sampled, preExtractedEmbedded: null };
+    }
+  }
 
   // Single-pass demux when 1+ non-signs embedded tracks exist: reads the MKV ONCE
   // for all embedded subtitle tracks + full audio simultaneously.
@@ -1429,43 +1576,70 @@ async function prepareRipCandidatesAndAudio(
     return { audioSpeech, sampledAudioWindows: null, preExtractedEmbedded: null };
   }
 
-  // External-only reference fast path: reuse cached full audio if already available,
-  // otherwise sample 4 seeked 60s windows (~0.2-0.5s) to verify external subtitle
-  // references before ever decoding the full video audio.
-  const cachedFull = getCachedAudioSpeechSpans(
-    context.videoPath,
-    context.audioStreamIndex,
-    vadPaths,
-  );
   if (cachedFull) {
     return { audioSpeech: cachedFull, sampledAudioWindows: null, preExtractedEmbedded: null };
   }
 
-  const hasExternalOrSidecarHint =
-    context.subtitleTracks.some(
-      (t) => typeof t.id === 'number' && t.id !== targetTrack.id && t.external,
-    ) || discoverSidecarReferenceFiles(context.videoPath, []).length > 0;
-
-  if (
-    options.allowSampledAudioFastPath &&
-    hasExternalOrSidecarHint &&
-    context.durationSec !== null &&
-    context.durationSec !== undefined &&
-    context.durationSec >= 300
-  ) {
-    const sampled = await extractSampledAudioWindows({
-      ffmpegPath: resolved.ffmpegPath,
-      videoPath: context.videoPath,
-      audioStreamIndex: context.audioStreamIndex,
-      durationSec: context.durationSec,
-    });
-    if (sampled && sampled.length >= 2) {
-      return { audioSpeech: null, sampledAudioWindows: sampled, preExtractedEmbedded: null };
-    }
-  }
-
   const audioSpeech = await resolveAudioSpeechForContext(context, resolved, deps);
   return { audioSpeech, sampledAudioWindows: null, preExtractedEmbedded: null };
+}
+
+function collectRankedRemoteEmbeddedTracks(
+  context: SubsyncContext,
+  targetTrack: MpvTrack,
+): Array<{ track: MpvTrack; ffIndex: number; extension: string; key: string; label: string }> {
+  const metadataEvaluated: Array<{
+    evaluated: EvaluatedSubtitleReference;
+    track: MpvTrack;
+    ffIndex: number;
+    extension: string;
+  }> = [];
+
+  for (const track of context.subtitleTracks) {
+    if (typeof track.id !== 'number' || track.id === targetTrack.id) continue;
+    if (track.external || isSignsOrSongsTrackMeta(track)) continue;
+    const ffIndex = track['ff-index'];
+    const extension = codecToExtension(track.codec);
+    if (typeof ffIndex !== 'number' || !Number.isInteger(ffIndex) || ffIndex < 0 || !extension) {
+      continue;
+    }
+    const isSecondary = context.secondaryTrack !== null && track.id === context.secondaryTrack.id;
+    metadataEvaluated.push({
+      track,
+      ffIndex,
+      extension,
+      evaluated: {
+        key: `track:${track.id}`,
+        kind: 'track',
+        trackId: track.id,
+        filePath: null,
+        label: buildTrackReferenceLabel(track, isSecondary),
+        isSecondary,
+        isEmbedded: true,
+        isEnglish: isEnglishReferenceMeta({ lang: track.lang, title: track.title }),
+        isFullDialogueHint: isFullDialogueHintMeta({ title: track.title }),
+        isSignsOnly: false,
+        dialogueCount: MIN_REFERENCE_DIALOGUE_LINES + 5,
+        signCount: 0,
+        audioStatus: 'unverified',
+        audioOffsetMs: null,
+        audioConfidence: 0,
+      },
+    });
+  }
+
+  const rankedKeys = rankReferenceCandidates(metadataEvaluated.map((item) => item.evaluated));
+  const byKey = new Map(metadataEvaluated.map((item) => [item.evaluated.key, item]));
+  return rankedKeys.map((ev) => {
+    const item = byKey.get(ev.key)!;
+    return {
+      track: item.track,
+      ffIndex: item.ffIndex,
+      extension: item.extension,
+      key: ev.key,
+      label: ev.label,
+    };
+  });
 }
 
 export async function openSubsyncManualPicker(
@@ -1478,6 +1652,7 @@ export async function openSubsyncManualPicker(
   const client = getMpvClientForSubsync(deps);
   const context = await gatherSubsyncContext(client);
   const resolved = deps.getResolvedConfig();
+  const isRemote = isRemoteMediaPath(context.videoPath);
 
   let evaluatedCandidates: CandidateWithSpans[] | undefined;
   let audioSpeechAvailable: boolean | undefined;
@@ -1495,8 +1670,7 @@ export async function openSubsyncManualPicker(
     audioSpeechAvailable =
       prepared.audioSpeech !== null ||
       prepared.sampledAudioWindows !== null ||
-      (!isRemoteMediaPath(context.videoPath) &&
-        isExecutableAvailable(resolved.ffmpegPath, ['ffmpeg']));
+      (!isRemote && isExecutableAvailable(resolved.ffmpegPath, ['ffmpeg']));
     evaluatedCandidates = await discoverAndEvaluateSubtitleCandidates(
       context,
       context.primaryTrack,
@@ -1505,6 +1679,12 @@ export async function openSubsyncManualPicker(
       {
         sampledAudioWindows: prepared.sampledAudioWindows,
         preExtractedEmbedded: prepared.preExtractedEmbedded,
+        // Never stream a remote video over HTTP or full-read a local MKV during sampled fast-path just to populate the picker.
+        skipEmbeddedExtraction:
+          isRemote ||
+          prepared.sampledAudioWindows !== null ||
+          prepared.preExtractedEmbedded !== null,
+        fetchImpl: deps.fetchImpl,
       },
     );
     if (!(await isPlaybackSessionUnchanged(client, context, context.primaryTrack, 'primary'))) {
@@ -1525,6 +1705,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
   const client = getMpvClientForSubsync(deps);
   const context = await gatherSubsyncContext(client);
   const resolved = deps.getResolvedConfig();
+  const isRemote = isRemoteMediaPath(context.videoPath);
 
   const targetTrack = context.primaryTrack;
   const targetSlot = resolveTargetSlot(targetTrack, context);
@@ -1538,6 +1719,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         context.videoPath,
         targetTrack,
         context.workingDirectory,
+        deps.fetchImpl,
       );
     } catch (extractError) {
       if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
@@ -1578,6 +1760,13 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
       {
         sampledAudioWindows: prepared.sampledAudioWindows,
         preExtractedEmbedded: prepared.preExtractedEmbedded,
+        // Defer embedded extraction on remote streams (try external tracks first) and on
+        // local sampled-audio fast path (try external/sidecar tracks before full MKV demux).
+        skipEmbeddedExtraction:
+          isRemote ||
+          prepared.sampledAudioWindows !== null ||
+          prepared.preExtractedEmbedded !== null,
+        fetchImpl: deps.fetchImpl,
       },
     );
 
@@ -1620,7 +1809,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
 
     // Fast path: if sampled audio already verified a clean aligned subtitle reference
     // and target alignment succeeds with high confidence, finish immediately without
-    // reading the full video audio!
+    // reading the full video audio or embedded container tracks!
     if (!audioSpeech && prepared.sampledAudioWindows) {
       const fastAligned = evaluatedCandidates.filter(
         (c) =>
@@ -1643,31 +1832,38 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
       }
 
       // Sampled verification did not yield a confident aligned subtitle sync (e.g. all
-      // references were misaligned or sampled windows were inconclusive). Escalate
-      // to full-episode audio extraction for complete verification and audio VAD sync.
-      audioSpeech = await resolveAudioSpeechForContext(context, resolved, deps);
-      if (audioSpeech) {
-        lengthSec = context.durationSec ?? audioSpeech.durationSec;
+      // external references were misaligned or sampled windows were inconclusive). Escalate
+      // to a single full-episode pass for embedded tracks + complete audio verification.
+      const escalated = await prepareRipCandidatesAndAudio(context, targetTrack, resolved, deps, {
+        allowSampledAudioFastPath: false,
+      });
+      audioSpeech = escalated.audioSpeech;
+      if (audioSpeech || escalated.preExtractedEmbedded) {
+        lengthSec = context.durationSec ?? audioSpeech?.durationSec ?? lengthSec;
         evaluatedCandidates = await discoverAndEvaluateSubtitleCandidates(
           context,
           targetTrack,
           resolved,
           audioSpeech,
-          { preExtractedEmbedded: prepared.preExtractedEmbedded },
+          {
+            preExtractedEmbedded: escalated.preExtractedEmbedded,
+            skipEmbeddedExtraction: escalated.preExtractedEmbedded !== null,
+            fetchImpl: deps.fetchImpl,
+          },
         );
       }
     }
 
-    const misalignedCandidates = evaluatedCandidates.filter(
+    let misalignedCandidates = evaluatedCandidates.filter(
       (c) => c.evaluated.audioStatus === 'misaligned' && !c.evaluated.isSignsOnly,
     );
-    const alignedCandidates = evaluatedCandidates.filter(
+    let alignedCandidates = evaluatedCandidates.filter(
       (c) =>
         c.evaluated.audioStatus === 'aligned' &&
         !c.evaluated.isSignsOnly &&
         c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
     );
-    const unverifiedDialogueCandidates = evaluatedCandidates.filter(
+    let unverifiedDialogueCandidates = evaluatedCandidates.filter(
       (c) =>
         c.evaluated.audioStatus === 'unverified' &&
         !c.evaluated.isSignsOnly &&
@@ -1728,7 +1924,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
     }
 
     // 3. When audio verification wasn't available (e.g. remote stream or no ffmpeg):
-    //    try the highest-ranked clean dialogue subtitle track with a stricter confidence bar.
+    //    try already-loaded external dialogue tracks first with a stricter confidence bar.
     if (!audioSpeech) {
       for (const candidate of unverifiedDialogueCandidates) {
         const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
@@ -1748,6 +1944,166 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
             sourceLabel: candidate.evaluated.label,
             referenceKey: candidate.evaluated.key,
           };
+        }
+      }
+
+      // 3b. On remote streams where no external reference succeeded, fetch embedded tracks
+      //     via Jellyfin's subtitle endpoint first (KB instead of GB), or fall back to a
+      //     single ffmpeg pass across embedded candidates instead of N sequential downloads.
+      if (isRemote) {
+        const rankedEmbedded = collectRankedRemoteEmbeddedTracks(context, targetTrack);
+        if (rankedEmbedded.length > 0) {
+          const remoteExtracted = new Map<number, ParsedSubtitleFile>();
+          const triedViaJellyfin = new Set<number>();
+
+          for (const item of rankedEmbedded) {
+            if (
+              !buildJellyfinEmbeddedSubtitleUrl(context.videoPath, item.ffIndex, item.extension)
+            ) {
+              break;
+            }
+            const bytes = await tryFetchJellyfinSubtitleBytes(
+              context.videoPath,
+              item.ffIndex,
+              item.extension,
+              deps.fetchImpl,
+            );
+            if (!bytes) continue;
+            const decoded = decodeSubtitleBytesWithStatus(bytes);
+            const parsed = parseSubtitleFileContent(
+              decoded.text,
+              `track_${item.ffIndex}.${item.extension}`,
+            );
+            if (parsed.events.length === 0) continue;
+            remoteExtracted.set(item.ffIndex, parsed);
+            triedViaJellyfin.add(item.ffIndex);
+
+            const extractedSpans = extractSpansFromParsedSubtitle(parsed, { stripSigns: true });
+            if (extractedSpans.dialogueCount < MIN_REFERENCE_DIALOGUE_LINES) continue;
+            const alignment = alignSubtitleFileToReferenceSpans(
+              parsedTarget,
+              extractedSpans.spans,
+              {
+                stripSigns: true,
+                allowSplits: true,
+                calibration: 'clean',
+                lengthSec,
+                confidenceThreshold: AUTO_REMOTE_CONFIDENCE_THRESHOLD,
+              },
+            );
+            if (alignment.confident) {
+              await applyAlignment(alignment, item.label);
+              return;
+            }
+            if (!bestAttempt || alignment.confidence > bestAttempt.alignment.confidence) {
+              bestAttempt = {
+                alignment,
+                sourceLabel: item.label,
+                referenceKey: item.key,
+              };
+            }
+          }
+
+          const remainingSpecs = rankedEmbedded
+            .filter((item) => !remoteExtracted.has(item.ffIndex))
+            .map((item) => ({ ffIndex: item.ffIndex, extension: item.extension }));
+
+          if (remainingSpecs.length > 0 && isExecutableAvailable(resolved.ffmpegPath, ['ffmpeg'])) {
+            const singlePass = await extractSinglePassRipMedia({
+              ffmpegPath: resolved.ffmpegPath,
+              videoPath: context.videoPath,
+              audioStreamIndex: context.audioStreamIndex,
+              embeddedTracks: remainingSpecs,
+              includeAudio: false,
+            });
+            if (singlePass) {
+              for (const [ffIndex, parsed] of singlePass.embeddedSubtitles) {
+                remoteExtracted.set(ffIndex, parsed);
+              }
+            } else {
+              // Single-pass failed: fall back to at most the single top-ranked embedded track.
+              const topFallback = rankedEmbedded.find((item) => !remoteExtracted.has(item.ffIndex));
+              if (topFallback) {
+                let extraction: FileExtractionResult | null = null;
+                try {
+                  extraction = await extractSubtitleTrackToFile(
+                    resolved.ffmpegPath,
+                    context.videoPath,
+                    topFallback.track,
+                    context.workingDirectory,
+                    deps.fetchImpl,
+                  );
+                  remoteExtracted.set(
+                    topFallback.ffIndex,
+                    readAndParseSubtitleFile(extraction.path),
+                  );
+                } catch {
+                  // Ignore failed remote extraction and let guided picker open.
+                } finally {
+                  cleanupTemporaryFile(extraction);
+                }
+              }
+            }
+          }
+
+          if (remoteExtracted.size > 0) {
+            evaluatedCandidates = await discoverAndEvaluateSubtitleCandidates(
+              context,
+              targetTrack,
+              resolved,
+              null,
+              {
+                preExtractedEmbedded: remoteExtracted,
+                skipEmbeddedExtraction: true,
+                fetchImpl: deps.fetchImpl,
+              },
+            );
+            misalignedCandidates = evaluatedCandidates.filter(
+              (c) => c.evaluated.audioStatus === 'misaligned' && !c.evaluated.isSignsOnly,
+            );
+            alignedCandidates = evaluatedCandidates.filter(
+              (c) =>
+                c.evaluated.audioStatus === 'aligned' &&
+                !c.evaluated.isSignsOnly &&
+                c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
+            );
+            unverifiedDialogueCandidates = evaluatedCandidates.filter(
+              (c) =>
+                c.evaluated.audioStatus === 'unverified' &&
+                !c.evaluated.isSignsOnly &&
+                c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
+            );
+
+            for (const candidate of unverifiedDialogueCandidates) {
+              if (!candidate.evaluated.isEmbedded) continue;
+              const matchedItem = rankedEmbedded.find(
+                (item) => item.key === candidate.evaluated.key,
+              );
+              if (matchedItem && triedViaJellyfin.has(matchedItem.ffIndex)) continue;
+              const alignment = alignSubtitleFileToReferenceSpans(
+                parsedTarget,
+                candidate.dialogueSpans,
+                {
+                  stripSigns: true,
+                  allowSplits: true,
+                  calibration: 'clean',
+                  lengthSec,
+                  confidenceThreshold: AUTO_REMOTE_CONFIDENCE_THRESHOLD,
+                },
+              );
+              if (alignment.confident) {
+                await applyAlignment(alignment, candidate.evaluated.label);
+                return;
+              }
+              if (!bestAttempt || alignment.confidence > bestAttempt.alignment.confidence) {
+                bestAttempt = {
+                  alignment,
+                  sourceLabel: candidate.evaluated.label,
+                  referenceKey: candidate.evaluated.key,
+                };
+              }
+            }
+          }
         }
       }
     }

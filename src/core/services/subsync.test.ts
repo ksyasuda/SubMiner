@@ -6,6 +6,7 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import {
   TriggerSubsyncFromConfigDeps,
+  openSubsyncManualPicker,
   runSubsyncManual,
   triggerSubsyncFromConfig,
 } from './subsync';
@@ -2483,4 +2484,605 @@ test('triggerSubsyncFromConfig checks playback session after reading sub-delay w
 
   assert.equal(switched, true);
   assert.deepEqual(sentCommands, []);
+});
+
+test('triggerSubsyncFromConfig on Jellyfin remote stream uses preloaded external reference without calling ffmpeg on embedded tracks', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-remote-external-first-'));
+  const targetPath = path.join(tmpDir, 'jimaku.ja.srt');
+  const preloadedEngPath = path.join(tmpDir, 'jellyfin-eng.srt');
+  const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
+  const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
+
+  writeSrtFromSpans(targetPath, spans, 2.4);
+  writeSrtFromSpans(preloadedEngPath, spans, 0);
+  writeExecutableScript(
+    fakeFfmpeg,
+    `#!/bin/sh
+echo "CALL:$*" >> "${toShellPath(ffmpegCallsLog)}"
+exit 1
+`,
+  );
+
+  const osd: string[] = [];
+  let modalOpened = false;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') {
+            return 'http://pve-main:8096/Videos/item-1/stream?static=true&ApiKey=secret-token&MediaSourceId=ms-1';
+          }
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 4;
+          if (name === 'duration') return 1420;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'eng',
+                title: 'English',
+                codec: 'subrip',
+                'ff-index': 2,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'spa',
+                title: 'Spanish',
+                codec: 'subrip',
+                'ff-index': 3,
+              },
+              {
+                id: 4,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'eng',
+                title: 'English',
+                'external-filename': preloadedEngPath,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+      openManualPicker: () => {
+        modalOpened = true;
+      },
+      showMpvOsd: (text) => {
+        osd.push(text);
+      },
+    }),
+  );
+
+  assert.equal(modalOpened, false);
+  assert.equal(
+    fs.existsSync(ffmpegCallsLog),
+    false,
+    `expected zero ffmpeg calls on remote stream when external reference succeeds, got: ${fs.existsSync(ffmpegCallsLog) ? fs.readFileSync(ffmpegCallsLog, 'utf8') : ''}`,
+  );
+  assert.ok(
+    osd.some((line) => line.startsWith('Synced via') && line.includes('-2.4')),
+    `expected sync around -2.4s, got: ${osd.join(' | ')}`,
+  );
+});
+
+test('triggerSubsyncFromConfig on non-Jellyfin remote stream extracts embedded candidates in a single ffmpeg pass', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-remote-single-pass-'));
+  const targetPath = path.join(tmpDir, 'jimaku.ja.srt');
+  const embeddedEngPath = path.join(tmpDir, 'embedded-eng.srt');
+  const embeddedSpaPath = path.join(tmpDir, 'embedded-spa.srt');
+  const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
+  const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
+
+  writeSrtFromSpans(targetPath, spans, 2.8);
+  writeSrtFromSpans(embeddedEngPath, spans, 0);
+  writeSrtFromSpans(embeddedSpaPath, spans, 0);
+  writeExecutableScript(
+    fakeFfmpeg,
+    `#!/bin/sh
+echo "CALL:$*" >> "${toShellPath(ffmpegCallsLog)}"
+prev=""
+cur_map=""
+for arg in "$@"; do
+  if [ "$prev" = "-map" ]; then cur_map="$arg"; fi
+  case "$arg" in
+    *.srt)
+      if [ "$cur_map" = "0:2" ]; then cp "${toShellPath(embeddedEngPath)}" "$arg"; fi
+      if [ "$cur_map" = "0:3" ]; then cp "${toShellPath(embeddedSpaPath)}" "$arg"; fi
+      ;;
+  esac
+  prev="$arg"
+done
+exit 0
+`,
+  );
+
+  const osd: string[] = [];
+  let modalOpened = false;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return 'https://media.example.test/episode01.mkv';
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 1420;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: false,
+                lang: 'eng',
+                title: 'English',
+                codec: 'subrip',
+                'ff-index': 2,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'spa',
+                title: 'Spanish',
+                codec: 'subrip',
+                'ff-index': 3,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+      openManualPicker: () => {
+        modalOpened = true;
+      },
+      showMpvOsd: (text) => {
+        osd.push(text);
+      },
+    }),
+  );
+
+  assert.equal(modalOpened, false);
+  const calls = fs.readFileSync(ffmpegCallsLog, 'utf8').trim().split('\n');
+  assert.equal(
+    calls.length,
+    1,
+    `expected single ffmpeg pass on remote stream, got ${calls.length}: ${calls.join(' | ')}`,
+  );
+  assert.ok(
+    osd.some((line) => line.startsWith('Synced via') && line.includes('-2.8')),
+    `expected sync around -2.8s, got: ${osd.join(' | ')}`,
+  );
+});
+
+test('triggerSubsyncFromConfig on local MKV with external reference and embedded track uses sampled audio fast path first', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-local-mixed-fastpath-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+  const externalRefPath = path.join(tmpDir, 'ep01.en.srt');
+  const pcmPath = path.join(tmpDir, 'speech.pcm');
+  const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
+  const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
+
+  fs.writeFileSync(videoPath, 'video');
+  writeSrtFromSpans(targetPath, spans, 2.6);
+  writeSrtFromSpans(externalRefPath, spans, 0);
+  writeSpeechPcmFile(pcmPath, spans, 920);
+  writeExecutableScript(
+    fakeFfmpeg,
+    `#!/bin/sh
+echo "CALL:$*" >> "${toShellPath(ffmpegCallsLog)}"
+ss=0
+dur=0
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-ss" ]; then ss="$arg"; fi
+  if [ "$prev" = "-t" ]; then dur="$arg"; fi
+  prev="$arg"
+done
+if [ "$dur" -gt 0 ] 2>/dev/null; then
+  dd if="${toShellPath(pcmPath)}" bs=16000 skip="$ss" count="$dur" 2>/dev/null
+else
+  cat "${toShellPath(pcmPath)}"
+fi
+exit 0
+`,
+  );
+
+  let modalOpened = false;
+  const osd: string[] = [];
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoPath;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 3;
+          if (name === 'duration') return 920;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'eng',
+                title: 'English (Embedded)',
+                codec: 'subrip',
+                'ff-index': 2,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'eng',
+                title: 'English (External)',
+                'external-filename': externalRefPath,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+      openManualPicker: () => {
+        modalOpened = true;
+      },
+      showMpvOsd: (text) => {
+        osd.push(text);
+      },
+    }),
+  );
+
+  assert.equal(modalOpened, false);
+  const calls = fs.readFileSync(ffmpegCallsLog, 'utf8').trim().split('\n');
+  assert.ok(
+    calls.length >= 2 && calls.every((line) => line.includes('-ss ') && line.includes('-t 60')),
+    `expected only sampled -ss/-t 60 calls without full MKV rip, got: ${calls.join(' | ')}`,
+  );
+  assert.ok(
+    osd.some((line) => line.startsWith('Synced via') && line.includes('-2.6')),
+    `expected sync around -2.6s, got: ${osd.join(' | ')}`,
+  );
+});
+
+test('triggerSubsyncFromConfig on Jellyfin remote stream with embedded-only references fetches via Jellyfin subtitle endpoint without ffmpeg', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-jellyfin-embedded-http-'));
+  const targetPath = path.join(tmpDir, 'jimaku.ja.srt');
+  const engSrtPath = path.join(tmpDir, 'eng.srt');
+  const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
+  const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
+
+  writeSrtFromSpans(targetPath, spans, 2.3);
+  writeSrtFromSpans(engSrtPath, spans, 0);
+  const engSrtText = fs.readFileSync(engSrtPath, 'utf8');
+  writeExecutableScript(
+    fakeFfmpeg,
+    `#!/bin/sh
+echo "CALL:$*" >> "${toShellPath(ffmpegCallsLog)}"
+exit 1
+`,
+  );
+
+  const fetchedUrls: string[] = [];
+  const fakeFetch: typeof fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    fetchedUrls.push(url);
+    if (url.includes('/Subtitles/2/Stream.srt')) {
+      return new Response(engSrtText, { status: 200 });
+    }
+    return new Response('not found', { status: 404 });
+  }) as typeof fetch;
+
+  const osd: string[] = [];
+  let modalOpened = false;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      fetchImpl: fakeFetch,
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') {
+            return 'http://pve-main:8096/Videos/item-9/stream?static=true&ApiKey=secret-token&MediaSourceId=ms-9';
+          }
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'duration') return 1420;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'eng',
+                title: 'English (Full)',
+                codec: 'subrip',
+                'ff-index': 2,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'spa',
+                title: 'Spanish',
+                codec: 'subrip',
+                'ff-index': 3,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+      openManualPicker: () => {
+        modalOpened = true;
+      },
+      showMpvOsd: (text) => {
+        osd.push(text);
+      },
+    }),
+  );
+
+  assert.equal(modalOpened, false);
+  assert.equal(fs.existsSync(ffmpegCallsLog), false, 'expected zero ffmpeg calls');
+  assert.deepEqual(fetchedUrls, [
+    'http://pve-main:8096/Videos/item-9/ms-9/Subtitles/2/Stream.srt?ApiKey=secret-token',
+  ]);
+  assert.ok(
+    osd.some((line) => line.startsWith('Synced via') && line.includes('-2.3')),
+    `expected sync around -2.3s, got: ${osd.join(' | ')}`,
+  );
+});
+
+test('openSubsyncManualPicker on remote stream skips ffmpeg extraction of embedded tracks', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-remote-picker-'));
+  const targetPath = path.join(tmpDir, 'jimaku.ja.srt');
+  const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
+  const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 200);
+
+  writeSrtFromSpans(targetPath, spans, 0);
+  writeExecutableScript(
+    fakeFfmpeg,
+    `#!/bin/sh
+echo "CALL:$*" >> "${toShellPath(ffmpegCallsLog)}"
+exit 1
+`,
+  );
+
+  const receivedPayloads: SubsyncManualPayload[] = [];
+  const opened = await openSubsyncManualPicker(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') {
+            return 'http://pve-main:8096/Videos/item-10/stream?static=true&ApiKey=secret-token&MediaSourceId=ms-10';
+          }
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 1420;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: false,
+                lang: 'eng',
+                title: 'English',
+                codec: 'subrip',
+                'ff-index': 2,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+      openManualPicker: (nextPayload) => {
+        receivedPayloads.push(nextPayload);
+      },
+    }),
+  );
+
+  assert.equal(opened, true);
+  assert.equal(fs.existsSync(ffmpegCallsLog), false, 'expected zero ffmpeg calls opening picker');
+  const payload = receivedPayloads[0];
+  assert.ok(payload !== undefined);
+  assert.equal(
+    payload.referenceCandidates?.some((c) => c.trackId === 2),
+    true,
+  );
+});
+
+test('runSubsyncManual builtin on Jellyfin stream fetches embedded reference via Jellyfin endpoint without ffmpeg', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-jellyfin-manual-http-'));
+  const targetPath = path.join(tmpDir, 'jimaku.ja.srt');
+  const engSrtPath = path.join(tmpDir, 'eng.srt');
+  const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
+  const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 900);
+
+  writeSrtFromSpans(targetPath, spans, 1.8);
+  writeSrtFromSpans(engSrtPath, spans, 0);
+  const engSrtText = fs.readFileSync(engSrtPath, 'utf8');
+  writeExecutableScript(
+    fakeFfmpeg,
+    `#!/bin/sh
+echo "CALL:$*" >> "${toShellPath(ffmpegCallsLog)}"
+exit 1
+`,
+  );
+
+  const fetchedUrls: string[] = [];
+  const fakeFetch: typeof fetch = (async (input: string | URL | Request) => {
+    fetchedUrls.push(String(input));
+    return new Response(engSrtText, { status: 200 });
+  }) as typeof fetch;
+
+  const result = await runSubsyncManual(
+    {
+      engine: 'builtin',
+      referenceMode: 'track',
+      referenceTrackId: 2,
+      targetTrackId: 1,
+    },
+    makeDeps({
+      fetchImpl: fakeFetch,
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') {
+            return 'http://pve-main:8096/Videos/item-11/stream?static=true&ApiKey=secret-token&MediaSourceId=ms-11';
+          }
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 1420;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: false,
+                lang: 'eng',
+                title: 'English',
+                codec: 'subrip',
+                'ff-index': 2,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+    }),
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(fs.existsSync(ffmpegCallsLog), false, 'expected zero ffmpeg calls');
+  assert.deepEqual(fetchedUrls, [
+    'http://pve-main:8096/Videos/item-11/ms-11/Subtitles/2/Stream.srt?ApiKey=secret-token',
+  ]);
+  assert.match(result.message, /-1\.80s/);
 });
