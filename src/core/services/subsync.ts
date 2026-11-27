@@ -1092,23 +1092,8 @@ async function runBuiltinSubsync(
           message: 'Reference and out-of-sync subtitles must be different tracks',
         };
       }
-      const referenceExtension = codecToExtension(referenceTrack.codec);
-      const canTryJellyfinHttp =
-        !referenceTrack.external &&
-        isRemoteMediaPath(context.videoPath) &&
-        typeof referenceTrack['ff-index'] === 'number' &&
-        referenceExtension !== null &&
-        buildJellyfinEmbeddedSubtitleUrl(
-          context.videoPath,
-          referenceTrack['ff-index'],
-          referenceExtension,
-        ) !== null;
-      const ffmpegPath =
-        referenceTrack.external || canTryJellyfinHttp
-          ? resolved.ffmpegPath
-          : ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
       refExtraction = await extractSubtitleTrackToFile(
-        ffmpegPath,
+        resolved.ffmpegPath,
         context.videoPath,
         referenceTrack,
         context.workingDirectory,
@@ -1434,6 +1419,7 @@ export async function runSubsyncManual(
         resolved,
         client,
         targetSlot,
+        deps.fetchImpl,
       );
     } finally {
       cleanupTemporaryFile(cleaned);
@@ -1448,25 +1434,11 @@ export async function runSubsyncManual(
     return { ok: false, message: 'Reference and out-of-sync subtitles must be different tracks' };
   }
 
-  const referenceExtension = codecToExtension(referenceTrack.codec);
-  const canTryJellyfinHttp =
-    !referenceTrack.external &&
-    isRemoteMediaPath(context.videoPath) &&
-    typeof referenceTrack['ff-index'] === 'number' &&
-    referenceExtension !== null &&
-    buildJellyfinEmbeddedSubtitleUrl(
-      context.videoPath,
-      referenceTrack['ff-index'],
-      referenceExtension,
-    ) !== null;
-  const ffmpegPath = canTryJellyfinHttp
-    ? resolved.ffmpegPath
-    : ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
   let referenceExtraction: FileExtractionResult | null = null;
   let cleanedRef: FileExtractionResult | null = null;
   try {
     referenceExtraction = await extractSubtitleTrackToFile(
-      ffmpegPath,
+      resolved.ffmpegPath,
       context.videoPath,
       referenceTrack,
       context.workingDirectory,
@@ -2039,32 +2011,41 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
               includeAudio: false,
             });
             if (singlePass) {
-              for (const [ffIndex, parsed] of singlePass.embeddedSubtitles) {
-                remoteExtracted.set(ffIndex, parsed);
-              }
-            } else {
-              // Single-pass failed (e.g. one broken track aborted the combined pass): try
-              // remaining tracks individually in rank order and stop on the first confident match.
-              for (const fallbackItem of remainingItems) {
-                let extraction: FileExtractionResult | null = null;
-                try {
-                  extraction = await extractSubtitleTrackToFile(
-                    resolved.ffmpegPath,
-                    context.videoPath,
-                    fallbackItem.track,
-                    context.workingDirectory,
-                    deps.fetchImpl,
-                  );
-                  const parsed = readAndParseSubtitleFile(extraction.path);
-                  if (parsed.events.length === 0) continue;
-                  if (await tryAlignRemoteEmbeddedTrack(fallbackItem, parsed)) {
-                    return;
-                  }
-                } catch {
-                  // Continue to lower-ranked sibling tracks if this track fails.
-                } finally {
-                  cleanupTemporaryFile(extraction);
+              for (const item of remainingItems) {
+                const parsed = singlePass.embeddedSubtitles.get(item.ffIndex);
+                if (!parsed) continue;
+                if (await tryAlignRemoteEmbeddedTrack(item, parsed)) {
+                  return;
                 }
+              }
+            }
+
+            // Retry any ranked track omitted by the combined pass (whether the pass returned null
+            // or a partial map) individually in rank order, stopping on the first confident match.
+            const missingItems = remainingItems.filter(
+              (item) => !remoteExtracted.has(item.ffIndex),
+            );
+            for (const fallbackItem of missingItems) {
+              let extraction: FileExtractionResult | null = null;
+              let parsed: ParsedSubtitleFile | null = null;
+              try {
+                extraction = await extractSubtitleTrackToFile(
+                  resolved.ffmpegPath,
+                  context.videoPath,
+                  fallbackItem.track,
+                  context.workingDirectory,
+                  deps.fetchImpl,
+                );
+                parsed = readAndParseSubtitleFile(extraction.path);
+              } catch {
+                // Continue to lower-ranked sibling tracks if extracting or parsing this track fails.
+                continue;
+              } finally {
+                cleanupTemporaryFile(extraction);
+              }
+              if (parsed.events.length === 0) continue;
+              if (await tryAlignRemoteEmbeddedTrack(fallbackItem, parsed)) {
+                return;
               }
             }
           }
