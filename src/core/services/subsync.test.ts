@@ -3994,3 +3994,172 @@ exit 1
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('triggerSubsyncFromConfig on local MKV retries omitted and zero-event tracks from initial batch without re-extracting usable entries', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-local-batch-retry-'));
+  try {
+    const videoPath = path.join(tmpDir, 'ep01.mkv');
+    const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+    const badEngPath = path.join(tmpDir, 'fixture-bad-eng.srt');
+    const goodEngPath = path.join(tmpDir, 'fixture-good-eng.srt');
+    const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
+    const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+    const spans = generateSyntheticSpans(7n, 1442695040888963407n, 240);
+    const unrelatedSpans = generateSyntheticSpans(99n, 314159265358979323n, 240);
+
+    fs.writeFileSync(videoPath, 'video');
+    writeSrtFromSpans(targetPath, spans, 2.3);
+    writeSrtFromSpans(badEngPath, unrelatedSpans, 0);
+    writeSrtFromSpans(goodEngPath, spans, 0);
+
+    // Combined initial batch (has pipe:1) writes unrelated 0:2, empty (0-event) 0:3, omits 0:4,
+    // and emits no audio bytes so audio fallback cannot mask missing track retries.
+    // Individual extraction for 0:3 still fails/empty; individual extraction for 0:4 writes goodEngPath.
+    writeExecutableScript(
+      fakeFfmpeg,
+      `#!/bin/sh
+has_pipe=0
+maps=""
+prev=""
+cur_map=""
+out_for_2=""
+out_for_3=""
+out_for_4=""
+for arg in "$@"; do
+  if [ "$prev" = "-map" ]; then
+    cur_map="$arg"
+    maps="$maps $arg"
+  fi
+  if [ "$arg" = "pipe:1" ]; then has_pipe=1; fi
+  case "$arg" in
+    *.srt)
+      if [ "$cur_map" = "0:2" ]; then out_for_2="$arg"; fi
+      if [ "$cur_map" = "0:3" ]; then out_for_3="$arg"; fi
+      if [ "$cur_map" = "0:4" ]; then out_for_4="$arg"; fi
+      ;;
+  esac
+  prev="$arg"
+done
+echo "PIPE=$has_pipe MAPS:$maps" >> "${toShellPath(ffmpegCallsLog)}"
+if [ "$has_pipe" = "1" ]; then
+  if [ -n "$out_for_2" ]; then cp "${toShellPath(badEngPath)}" "$out_for_2"; fi
+  if [ -n "$out_for_3" ]; then : > "$out_for_3"; fi
+  exit 0
+fi
+if [ -n "$out_for_3" ]; then
+  : > "$out_for_3"
+  exit 0
+fi
+if [ -n "$out_for_4" ]; then
+  cp "${toShellPath(goodEngPath)}" "$out_for_4"
+  exit 0
+fi
+exit 1
+`,
+    );
+
+    let modalOpened = false;
+    const osd: string[] = [];
+
+    await triggerSubsyncFromConfig(
+      makeDeps({
+        getMpvClient: () => ({
+          connected: true,
+          currentAudioStreamIndex: 1,
+          send: () => {},
+          requestProperty: async (name: string) => {
+            if (name === 'path') return videoPath;
+            if (name === 'sid') return 1;
+            if (name === 'secondary-sid') return 2;
+            if (name === 'duration') return 250;
+            if (name === 'track-list') {
+              return [
+                {
+                  id: 1,
+                  type: 'sub',
+                  selected: true,
+                  external: true,
+                  lang: 'jpn',
+                  'external-filename': targetPath,
+                },
+                {
+                  id: 2,
+                  type: 'sub',
+                  selected: true,
+                  external: false,
+                  lang: 'eng',
+                  title: 'English (Wrong Ep)',
+                  codec: 'subrip',
+                  'ff-index': 2,
+                },
+                {
+                  id: 3,
+                  type: 'sub',
+                  selected: false,
+                  external: false,
+                  lang: 'eng',
+                  title: 'English (Empty In Batch)',
+                  codec: 'subrip',
+                  'ff-index': 3,
+                },
+                {
+                  id: 4,
+                  type: 'sub',
+                  selected: false,
+                  external: false,
+                  lang: 'eng',
+                  title: 'English (Omitted From Batch)',
+                  codec: 'subrip',
+                  'ff-index': 4,
+                },
+              ];
+            }
+            return null;
+          },
+        }),
+        getResolvedConfig: () => ({
+          mode: 'auto',
+          alassPath: '/missing/alass',
+          ffsubsyncPath: '/missing/ffsubsync',
+          ffmpegPath: fakeFfmpeg,
+          replace: false,
+        }),
+        openManualPicker: () => {
+          modalOpened = true;
+        },
+        showMpvOsd: (text) => {
+          osd.push(text);
+        },
+      }),
+    );
+
+    assert.equal(modalOpened, false);
+    const calls = fs.readFileSync(ffmpegCallsLog, 'utf8').trim().split('\n');
+    assert.equal(
+      calls.length,
+      3,
+      `expected 1 batch pass + 2 individual retries (0:3 and 0:4, not 0:2), got: ${calls.join(' | ')}`,
+    );
+    assert.ok(
+      calls[0]!.startsWith('PIPE=1') &&
+        calls[0]!.includes('0:2') &&
+        calls[0]!.includes('0:3') &&
+        calls[0]!.includes('0:4'),
+      `expected combined batch first, got: ${calls[0]}`,
+    );
+    assert.ok(
+      calls[1]!.startsWith('PIPE=0') && calls[1]!.includes('0:3') && !calls[1]!.includes('0:2'),
+      `expected individual retry for zero-event 0:3, got: ${calls[1]}`,
+    );
+    assert.ok(
+      calls[2]!.startsWith('PIPE=0') && calls[2]!.includes('0:4') && !calls[2]!.includes('0:2'),
+      `expected individual retry for omitted 0:4, got: ${calls[2]}`,
+    );
+    assert.ok(
+      osd.some((line) => line.includes('English (Omitted From Batch)') && line.includes('-2.3')),
+      `expected sync via retried omitted track around -2.3s, got: ${osd.join(' | ')}`,
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

@@ -836,7 +836,7 @@ async function discoverAndEvaluateSubtitleCandidates(
 
     if (isEmbedded && preExtracted && typeof track['ff-index'] === 'number') {
       const preParsed = preExtracted.get(track['ff-index']);
-      if (preParsed) {
+      if (preParsed && preParsed.events.length > 0) {
         results.push(evaluateParsedCandidate(baseMeta, preParsed));
         continue;
       }
@@ -1743,10 +1743,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         preExtractedEmbedded: prepared.preExtractedEmbedded,
         // Defer embedded extraction on remote streams (try external tracks first) and on
         // local sampled-audio fast path (try external/sidecar tracks before full MKV demux).
-        skipEmbeddedExtraction:
-          isRemote ||
-          prepared.sampledAudioWindows !== null ||
-          prepared.preExtractedEmbedded !== null,
+        skipEmbeddedExtraction: isRemote || prepared.sampledAudioWindows !== null,
         fetchImpl: deps.fetchImpl,
       },
     );
