@@ -1,12 +1,13 @@
 import { redactUrlCredentials } from './subtitle-generation-process';
 import { buildJellyfinEmbeddedSubtitleUrl } from '../../subsync/utils';
-import type { AlignmentResult } from '../../subsync/alass-align';
+import type { AlignmentResult, AlignSubtitleOptions } from '../../subsync/alass-align';
 import { extractSinglePassRipMedia, getMediaFileSignature } from '../../subsync/audio-speech';
 import {
   decodeSubtitleBytesWithStatus,
   extractSpansFromParsedSubtitle,
   parseSubtitleFileContent,
   type ParsedSubtitleFile,
+  type SubtitleTimeSpan,
 } from '../../subsync/subtitle-lines';
 import { isRemoteMediaPath } from '../../jimaku/utils';
 import {
@@ -45,8 +46,30 @@ import {
   getMpvClientForSubsync,
   isAlreadyInSync,
   isExecutableAvailable,
+  type CandidateWithSpans,
 } from './subsync-shared';
 import { alignSubtitleOffThread } from '../../subsync/align-worker';
+
+type BestAttempt = { alignment: AlignmentResult; sourceLabel: string; referenceKey: string };
+
+/** Split evaluated references by audio verdict; aligned/unverified keep only usable dialogue tracks. */
+function groupCandidatesByAudioStatus(candidates: readonly CandidateWithSpans[]): {
+  misaligned: CandidateWithSpans[];
+  aligned: CandidateWithSpans[];
+  unverified: CandidateWithSpans[];
+} {
+  const isUsableDialogue = (c: CandidateWithSpans): boolean =>
+    !c.evaluated.isSignsOnly && c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES;
+  return {
+    misaligned: candidates.filter(
+      (c) => c.evaluated.audioStatus === 'misaligned' && !c.evaluated.isSignsOnly,
+    ),
+    aligned: candidates.filter((c) => c.evaluated.audioStatus === 'aligned' && isUsableDialogue(c)),
+    unverified: candidates.filter(
+      (c) => c.evaluated.audioStatus === 'unverified' && isUsableDialogue(c),
+    ),
+  };
+}
 
 export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void> {
   const client = getMpvClientForSubsync(deps);
@@ -168,33 +191,50 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
       deps.showMpvOsd(formatAlignmentSummary(sourceLabel, alignment));
     };
 
+    // Only assigned inside tryReference; the cast keeps TS from narrowing it to null.
+    let bestAttempt = null as BestAttempt | null;
+
+    /**
+     * Align the target to one reference. A confident result is applied (returns true);
+     * otherwise it is remembered as the best attempt for the guided modal unless
+     * `trackBest` is false.
+     */
+    const tryReference = async (
+      referenceSpans: readonly SubtitleTimeSpan[],
+      source: { label: string; key: string },
+      options: Pick<AlignSubtitleOptions, 'calibration' | 'confidenceThreshold' | 'leadSec'>,
+      trackBest = true,
+    ): Promise<boolean> => {
+      const alignment = await alignSubtitleOffThread(deps.signal, parsedTarget, referenceSpans, {
+        stripSigns: true,
+        allowSplits: true,
+        lengthSec,
+        ...options,
+      });
+      if (alignment.confident) {
+        await applyAlignment(alignment, source.label);
+        return true;
+      }
+      if (trackBest && (!bestAttempt || alignment.confidence > bestAttempt.alignment.confidence)) {
+        bestAttempt = { alignment, sourceLabel: source.label, referenceKey: source.key };
+      }
+      return false;
+    };
+    const clean = (confidenceThreshold: number) =>
+      ({ calibration: 'clean', confidenceThreshold }) as const;
+
     // Fast path: if sampled audio already verified a clean aligned subtitle reference
     // and target alignment succeeds with high confidence, finish immediately without
     // reading the full video audio or embedded container tracks!
     if (!audioSpeech && prepared.sampledAudioWindows) {
-      const fastAligned = evaluatedCandidates.filter(
-        (c) =>
-          c.evaluated.audioStatus === 'aligned' &&
-          !c.evaluated.isSignsOnly &&
-          c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
-      );
-      for (const candidate of fastAligned) {
-        const alignment = await alignSubtitleOffThread(
-          deps.signal,
-          parsedTarget,
+      for (const candidate of groupCandidatesByAudioStatus(evaluatedCandidates).aligned) {
+        const applied = await tryReference(
           candidate.dialogueSpans,
-          {
-            stripSigns: true,
-            allowSplits: true,
-            calibration: 'clean',
-            lengthSec,
-            confidenceThreshold: AUTO_SUBTITLE_CONFIDENCE_THRESHOLD,
-          },
+          candidate.evaluated,
+          clean(AUTO_SUBTITLE_CONFIDENCE_THRESHOLD),
+          false,
         );
-        if (alignment.confident) {
-          await applyAlignment(alignment, candidate.evaluated.label);
-          return;
-        }
+        if (applied) return;
       }
 
       // Sampled verification did not yield a confident aligned subtitle sync (e.g. all
@@ -221,112 +261,48 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
       );
     }
 
-    let misalignedCandidates = evaluatedCandidates.filter(
-      (c) => c.evaluated.audioStatus === 'misaligned' && !c.evaluated.isSignsOnly,
-    );
-    let alignedCandidates = evaluatedCandidates.filter(
-      (c) =>
-        c.evaluated.audioStatus === 'aligned' &&
-        !c.evaluated.isSignsOnly &&
-        c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
-    );
-    let unverifiedDialogueCandidates = evaluatedCandidates.filter(
-      (c) =>
-        c.evaluated.audioStatus === 'unverified' &&
-        !c.evaluated.isSignsOnly &&
-        c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
-    );
-
-    let bestAttempt: {
-      alignment: AlignmentResult;
-      sourceLabel: string;
-      referenceKey: string;
-    } | null = null;
+    let {
+      misaligned: misalignedCandidates,
+      aligned: alignedCandidates,
+      unverified: unverifiedDialogueCandidates,
+    } = groupCandidatesByAudioStatus(evaluatedCandidates);
 
     // 1. Best path: an audio-verified aligned dialogue subtitle reference (loaded or unloaded!).
     for (const candidate of alignedCandidates) {
-      const alignment = await alignSubtitleOffThread(
-        deps.signal,
-        parsedTarget,
+      const applied = await tryReference(
         candidate.dialogueSpans,
-        {
-          stripSigns: true,
-          allowSplits: true,
-          calibration: 'clean',
-          lengthSec,
-          confidenceThreshold: AUTO_SUBTITLE_CONFIDENCE_THRESHOLD,
-        },
+        candidate.evaluated,
+        clean(AUTO_SUBTITLE_CONFIDENCE_THRESHOLD),
       );
-      if (alignment.confident) {
-        await applyAlignment(alignment, candidate.evaluated.label);
-        return;
-      }
-      if (!bestAttempt || alignment.confidence > bestAttempt.alignment.confidence) {
-        bestAttempt = {
-          alignment,
-          sourceLabel: candidate.evaluated.label,
-          referenceKey: candidate.evaluated.key,
-        };
-      }
+      if (applied) return;
     }
 
     // 2. Fallback when no subtitle track is audio-aligned (none exist, only signs/songs, or all
     //    reference subtitles are shifted off the audio): sync directly to video audio speech!
     if (audioSpeech && audioSpeech.spans.length >= MIN_REFERENCE_DIALOGUE_LINES) {
-      const audioAlignment = await alignSubtitleOffThread(
-        deps.signal,
-        parsedTarget,
+      const audioLabel = audioSpeech.source === 'silero-vad' ? 'audio (Silero VAD)' : 'video audio';
+      const applied = await tryReference(
         audioSpeech.spans,
+        { label: audioLabel, key: 'video' },
         {
-          stripSigns: true,
-          allowSplits: true,
           calibration: audioSpeech.calibration,
           leadSec: AUDIO_SPEECH_LEAD_SEC,
-          lengthSec,
           confidenceThreshold: AUTO_AUDIO_CONFIDENCE_THRESHOLD,
         },
       );
-      const audioLabel = audioSpeech.source === 'silero-vad' ? 'audio (Silero VAD)' : 'video audio';
-      if (audioAlignment.confident) {
-        await applyAlignment(audioAlignment, audioLabel);
-        return;
-      }
-      if (!bestAttempt || audioAlignment.confidence > bestAttempt.alignment.confidence) {
-        bestAttempt = {
-          alignment: audioAlignment,
-          sourceLabel: audioLabel,
-          referenceKey: 'video',
-        };
-      }
+      if (applied) return;
     }
 
     // 3. When audio verification wasn't available (e.g. remote stream or no ffmpeg):
     //    try already-loaded external dialogue tracks first with a stricter confidence bar.
     if (!audioSpeech) {
       for (const candidate of unverifiedDialogueCandidates) {
-        const alignment = await alignSubtitleOffThread(
-          deps.signal,
-          parsedTarget,
+        const applied = await tryReference(
           candidate.dialogueSpans,
-          {
-            stripSigns: true,
-            allowSplits: true,
-            calibration: 'clean',
-            lengthSec,
-            confidenceThreshold: AUTO_REMOTE_CONFIDENCE_THRESHOLD,
-          },
+          candidate.evaluated,
+          clean(AUTO_REMOTE_CONFIDENCE_THRESHOLD),
         );
-        if (alignment.confident) {
-          await applyAlignment(alignment, candidate.evaluated.label);
-          return;
-        }
-        if (!bestAttempt || alignment.confidence > bestAttempt.alignment.confidence) {
-          bestAttempt = {
-            alignment,
-            sourceLabel: candidate.evaluated.label,
-            referenceKey: candidate.evaluated.key,
-          };
-        }
+        if (applied) return;
       }
 
       // 3b. On remote streams where no external reference succeeded, fetch embedded tracks
@@ -347,30 +323,11 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
 
             const extractedSpans = extractSpansFromParsedSubtitle(parsed, { stripSigns: true });
             if (extractedSpans.dialogueCount < MIN_REFERENCE_DIALOGUE_LINES) return false;
-            const alignment = await alignSubtitleOffThread(
-              deps.signal,
-              parsedTarget,
+            return tryReference(
               extractedSpans.spans,
-              {
-                stripSigns: true,
-                allowSplits: true,
-                calibration: 'clean',
-                lengthSec,
-                confidenceThreshold: AUTO_REMOTE_CONFIDENCE_THRESHOLD,
-              },
+              item,
+              clean(AUTO_REMOTE_CONFIDENCE_THRESHOLD),
             );
-            if (alignment.confident) {
-              await applyAlignment(alignment, item.label);
-              return true;
-            }
-            if (!bestAttempt || alignment.confidence > bestAttempt.alignment.confidence) {
-              bestAttempt = {
-                alignment,
-                sourceLabel: item.label,
-                referenceKey: item.key,
-              };
-            }
-            return false;
           };
 
           for (const item of rankedEmbedded) {
@@ -467,21 +424,11 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
                 signal: deps.signal,
               },
             );
-            misalignedCandidates = evaluatedCandidates.filter(
-              (c) => c.evaluated.audioStatus === 'misaligned' && !c.evaluated.isSignsOnly,
-            );
-            alignedCandidates = evaluatedCandidates.filter(
-              (c) =>
-                c.evaluated.audioStatus === 'aligned' &&
-                !c.evaluated.isSignsOnly &&
-                c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
-            );
-            unverifiedDialogueCandidates = evaluatedCandidates.filter(
-              (c) =>
-                c.evaluated.audioStatus === 'unverified' &&
-                !c.evaluated.isSignsOnly &&
-                c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
-            );
+            ({
+              misaligned: misalignedCandidates,
+              aligned: alignedCandidates,
+              unverified: unverifiedDialogueCandidates,
+            } = groupCandidatesByAudioStatus(evaluatedCandidates));
 
             for (const candidate of unverifiedDialogueCandidates) {
               if (!candidate.evaluated.isEmbedded) continue;
@@ -489,29 +436,12 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
                 (item) => item.key === candidate.evaluated.key,
               );
               if (matchedItem && triedRemoteEmbedded.has(matchedItem.ffIndex)) continue;
-              const alignment = await alignSubtitleOffThread(
-                deps.signal,
-                parsedTarget,
+              const applied = await tryReference(
                 candidate.dialogueSpans,
-                {
-                  stripSigns: true,
-                  allowSplits: true,
-                  calibration: 'clean',
-                  lengthSec,
-                  confidenceThreshold: AUTO_REMOTE_CONFIDENCE_THRESHOLD,
-                },
+                candidate.evaluated,
+                clean(AUTO_REMOTE_CONFIDENCE_THRESHOLD),
               );
-              if (alignment.confident) {
-                await applyAlignment(alignment, candidate.evaluated.label);
-                return;
-              }
-              if (!bestAttempt || alignment.confidence > bestAttempt.alignment.confidence) {
-                bestAttempt = {
-                  alignment,
-                  sourceLabel: candidate.evaluated.label,
-                  referenceKey: candidate.evaluated.key,
-                };
-              }
+              if (applied) return;
             }
           }
         }
