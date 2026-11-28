@@ -656,8 +656,8 @@ export function scoreStanding(z: AlignmentStanding, cal: SyncCalibration): numbe
     covered = Math.min(covered, PARTIAL_FIT_SCORE_CAP);
   }
   // Intended override of the weak-quarter cap: startsStanding only reports the whole-file
-  // start agreement when every quarter's own agreement reaches PIECE_Z_MIN (else it reports the
-  // weakest quarter), so clearing STARTS_Z_MIN means line starts agree significantly in every
+  // start agreement when every quarter's own agreement reaches PIECE_Z_MIN (else the lower of the
+  // weakest quarter and the whole file), so clearing STARTS_Z_MIN means line starts agree significantly in every
   // quarter. A recap or wrong-episode fit has a quarter near zero there. Coverage alone can dip
   // in one quarter for benign reasons, such as VAD over a music-heavy stretch.
   const started =

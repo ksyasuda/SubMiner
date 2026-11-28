@@ -325,6 +325,6 @@ test('scoreStanding caps a weak-quarter fit unless every quarter agrees on line 
   const strongCoverage = { above: 14, alone: 5, weakestPart: 0.5 };
   // One quarter does not fit and starts do not agree everywhere: below the 0.65 auto bar.
   assert.ok(scoreStanding({ ...strongCoverage, starts: 0 }, CALIBRATION_CLEAN) <= 0.6);
-  // Every quarter agrees line for line (starts is the weakest quarter's z): not a partial fit.
+  // Starts agree significantly in every quarter and strongly overall: treated as a full fit.
   assert.ok(scoreStanding({ ...strongCoverage, starts: 9 }, CALIBRATION_CLEAN) > 0.65);
 });
