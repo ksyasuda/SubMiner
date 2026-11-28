@@ -907,7 +907,11 @@ export async function extractSinglePassRipMedia(
         }
       }
 
-      if (audioSpeech) {
+      // audioKey names the configured detector. A built-in fallback after a Silero failure was
+      // already cached under the built-in key by extractAudioSpeechSpans; storing it here too
+      // would make later runs skip Silero.
+      const matchesConfiguredDetector = !useSilero || audioSpeech?.source === 'silero-vad';
+      if (audioSpeech && matchesConfiguredDetector) {
         rememberAudioSpeech(audioKey, audioSpeech);
       }
     }

@@ -297,3 +297,50 @@ exit 0
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('the single pass does not cache a built-in fallback under the Silero key', async () => {
+  if (process.platform === 'win32') return;
+  clearAudioSpeechCache();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-single-pass-vad-'));
+  try {
+    const videoPath = path.join(tmpDir, 'episode.mkv');
+    const modelPath = path.join(tmpDir, 'silero.bin');
+    const ffmpegScript = path.join(tmpDir, 'ffmpeg.sh');
+    const vadScript = path.join(tmpDir, 'whisper-vad.sh');
+    fs.writeFileSync(videoPath, 'video');
+    fs.writeFileSync(modelPath, 'model');
+    // Writes a tiny WAV for the single pass and silence for the built-in PCM fallback.
+    fs.writeFileSync(
+      ffmpegScript,
+      `#!/bin/sh
+last=""
+for arg in "$@"; do
+  case "$arg" in
+    *.wav) printf 'RIFF....WAVEdata................................................' > "$arg" ;;
+  esac
+  last="$arg"
+done
+if [ "$last" = "pipe:1" ]; then dd if=/dev/zero bs=1600 count=1 2>/dev/null; fi
+exit 0
+`,
+      { mode: 0o755 },
+    );
+    fs.writeFileSync(vadScript, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    const vadPaths = { vadExecutablePath: vadScript, vadModelPath: modelPath };
+
+    const rip = await extractSinglePassRipMedia({
+      ffmpegPath: ffmpegScript,
+      videoPath,
+      audioStreamIndex: 1,
+      ...vadPaths,
+      embeddedTracks: [],
+      includeAudio: true,
+    });
+
+    assert.equal(rip?.audioSpeech?.source, 'builtin-vad');
+    assert.equal(getCachedAudioSpeechSpans(videoPath, 1, vadPaths), null);
+  } finally {
+    clearAudioSpeechCache();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
