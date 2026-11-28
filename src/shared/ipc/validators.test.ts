@@ -51,6 +51,14 @@ test('unforwarded mpv key reports accept known reasons only', () => {
   assert.equal(parseUnforwardedMpvKeyReport(null), null);
 });
 
+test('parseSubsyncManualRunRequest bounds manual offsets to one hour', () => {
+  assert.equal(
+    parseSubsyncManualRunRequest({ engine: 'offset', offsetMs: -3_600_000 })?.offsetMs,
+    -3_600_000,
+  );
+  assert.equal(parseSubsyncManualRunRequest({ engine: 'offset', offsetMs: 3_600_001 }), null);
+});
+
 test('parseSubsyncManualRunRequest validates optional mediaPath', () => {
   const parsed = parseSubsyncManualRunRequest({
     engine: 'builtin',

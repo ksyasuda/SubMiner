@@ -67,14 +67,11 @@ With a gamepad and keyboard-only mode on, you can mine without a mouse: move acr
 
 ## Fix subtitle timing (subsync)
 
-If the subtitles are out of sync, press `Ctrl+Alt+S` to open the subsync dialog. It uses [alass](https://github.com/kaegi/alass) or [ffsubsync](https://github.com/smacke/ffsubsync), which you install separately.
+If the subtitles are out of sync, press `Ctrl+Alt+S` or click **Sync** in the [subtitle sidebar](/subtitle-sidebar). SubMiner picks the best-aligned reference (another subtitle track, a sidecar file, or speech in the video's audio), retimes the active subtitle with its built-in aligner, and loads the result back into the same slot. No external tool is needed.
 
-1. Pick the engine.
-2. For alass, pick a reference: a subtitle track with correct timing (the secondary track by default) or the video file.
-3. Pick the track to retime (the active primary track by default).
-4. Run it. SubMiner loads the retimed subtitle back into the same slot.
+When it cannot sync confidently, it opens the guided sync modal instead (`Shift+click` **Sync** opens it directly, and `subsync.mode: "manual"` always opens it). There you can pick another reference, browse for a subtitle file, try external [alass](https://github.com/kaegi/alass) or [ffsubsync](https://github.com/smacke/ffsubsync) if installed, or apply a manual offset.
 
-For remote streams such as Jellyfin, only alass with a subtitle reference is available, because ffsubsync and the video reference need the local file. If the tools are not found, see [Troubleshooting](/troubleshooting#subtitle-sync-subsync).
+Audio-based sync and ffsubsync need a local video file, so remote streams such as Jellyfin can only sync against a subtitle reference. See [Troubleshooting](/troubleshooting#subtitle-sync-subsync) if a sync keeps falling back to the modal.
 
 ## Texthooker
 

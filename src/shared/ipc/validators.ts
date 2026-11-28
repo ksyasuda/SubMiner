@@ -313,6 +313,9 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
   return update;
 }
 
+// A manual subtitle shift beyond an hour is a typo, not a timing fix.
+const MAX_SUBSYNC_OFFSET_MS = 60 * 60 * 1000;
+
 export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRequest | null {
   if (!isObject(value)) return null;
   const {
@@ -363,7 +366,9 @@ export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRe
   if (
     offsetMs !== undefined &&
     offsetMs !== null &&
-    (typeof offsetMs !== 'number' || !Number.isFinite(offsetMs))
+    (typeof offsetMs !== 'number' ||
+      !Number.isFinite(offsetMs) ||
+      Math.abs(offsetMs) > MAX_SUBSYNC_OFFSET_MS)
   ) {
     return null;
   }

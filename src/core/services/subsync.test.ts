@@ -471,6 +471,64 @@ function fromShellPath(filePath: string): string {
     .replace(/\//g, '\\');
 }
 
+test('runSubsyncManual ignores the ff-index of an external audio track', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-external-audio-'));
+  const ffsubsyncLogPath = path.join(tmpDir, 'ffsubsync-args.log');
+  const ffsubsyncPath = path.join(tmpDir, 'ffsubsync.sh');
+  const videoPath = path.join(tmpDir, 'video.mkv');
+  const primaryPath = path.join(tmpDir, 'primary.srt');
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(primaryPath, 'sub');
+  writeExecutableScript(
+    ffsubsyncPath,
+    `#!/bin/sh\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nout=""\nprev=""\nfor arg in "$@"; do\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then : > "$out"; fi\nexit 0\n`,
+  );
+
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      // ff-index 1 inside the dub file, not inside video.mkv
+      currentAudioStreamIndex: 1,
+      send: () => {},
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return null;
+        if (name === 'track-list') {
+          return [
+            {
+              id: 1,
+              type: 'sub',
+              selected: true,
+              external: true,
+              'external-filename': primaryPath,
+            },
+            {
+              id: 3,
+              type: 'audio',
+              selected: true,
+              external: true,
+              'ff-index': 1,
+              'external-filename': path.join(tmpDir, 'dub.mka'),
+            },
+          ];
+        }
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      alassPath: '/missing/alass',
+      ffsubsyncPath,
+      ffmpegPath: '/missing/ffmpeg',
+    }),
+  });
+
+  const result = await runSubsyncManual({ engine: 'ffsubsync' }, deps);
+  assert.equal(result.ok, true);
+  const ffArgs = fs.readFileSync(ffsubsyncLogPath, 'utf8').trim().split('\n');
+  assert.equal(ffArgs.includes('--reference-stream'), false);
+});
+
 test('runSubsyncManual constructs ffsubsync command and returns success', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-ffsubsync-'));
   const ffsubsyncLogPath = path.join(tmpDir, 'ffsubsync-args.log');
@@ -1485,6 +1543,68 @@ test('runSubsyncManual supports built-in file reference and manual offset engine
   const offsetResult = await runSubsyncManual({ engine: 'offset', offsetMs: -1250 }, deps);
   assert.equal(offsetResult.ok, true);
   assert.equal(offsetResult.message, 'Shifted subtitle by -1.25s');
+});
+
+test('runSubsyncManual rejects non-file references and keeps the track title and lang on reload', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-manual-ref-validation-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+  const refPath = path.join(tmpDir, 'ref.srt');
+  const spans = generateSyntheticSpans(7n, 1442695040888963407n, 500);
+  fs.writeFileSync(videoPath, 'video');
+  writeSrtFromSpans(targetPath, spans, 2.0);
+  writeSrtFromSpans(refPath, spans, 0);
+
+  const sentCommands: Array<Array<string | number>> = [];
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: (payload) => {
+        sentCommands.push(payload.command);
+      },
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return null;
+        if (name === 'track-list') {
+          return [
+            {
+              id: 1,
+              type: 'sub',
+              selected: true,
+              external: true,
+              lang: 'jpn',
+              title: 'Japanese (CC)',
+              'external-filename': targetPath,
+            },
+          ];
+        }
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      alassPath: '/missing/alass',
+      ffsubsyncPath: '/missing/ffsubsync',
+      ffmpegPath: '/missing/ffmpeg',
+      replace: false,
+    }),
+  });
+  const runWithReference = (referenceFilePath: string) =>
+    runSubsyncManual({ engine: 'builtin', referenceMode: 'file', referenceFilePath }, deps);
+
+  assert.equal((await runWithReference(tmpDir)).ok, false);
+  assert.equal((await runWithReference('ref.srt')).ok, false);
+  assert.equal(sentCommands.length, 0);
+
+  assert.equal((await runWithReference(refPath)).ok, true);
+  assert.deepEqual(sentCommands[0], [
+    'sub-add',
+    path.join(tmpDir, 'ep01.ja_retimed.srt'),
+    'select',
+    'Japanese (CC)',
+    'jpn',
+  ]);
 });
 
 test('triggerSubsyncFromConfig extracts multiple embedded tracks and audio in a single ffmpeg pass and skips signs tracks', async () => {

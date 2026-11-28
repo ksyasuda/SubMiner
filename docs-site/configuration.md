@@ -525,13 +525,13 @@ Built-in alass-based subtitle alignment works out of the box with no extra sync 
 
 Optional external [`alass`](https://github.com/kaegi/alass) and [`ffsubsync`](https://github.com/smacke/ffsubsync) binaries are also supported in the guided modal when installed.
 
-| Key                      | Default  | What it does                                                                                                      |
-| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------- |
-| `subsync.mode`           | `"auto"` | `"auto"` syncs immediately and opens the guided modal only when needed; `"manual"` always opens the modal         |
-| `subsync.alass_path`     | `""`     | Optional external `alass` path. Empty auto-discovers from `PATH`                                                  |
-| `subsync.ffsubsync_path` | `""`     | Optional external `ffsubsync` path. Empty auto-discovers from `PATH`                                              |
-| `subsync.ffmpeg_path`    | `""`     | `ffmpeg` path used to extract embedded tracks and audio speech. Empty auto-discovers from `PATH`                  |
-| `subsync.replace`        | `true`   | Overwrite the subtitle file. When off, write `<name>_retimed.<ext>`                                               |
+| Key                      | Default  | What it does                                                                                              |
+| ------------------------ | -------- | --------------------------------------------------------------------------------------------------------- |
+| `subsync.mode`           | `"auto"` | `"auto"` syncs immediately and opens the guided modal only when needed; `"manual"` always opens the modal |
+| `subsync.alass_path`     | `""`     | Optional external `alass` path. Empty auto-discovers from `PATH`                                          |
+| `subsync.ffsubsync_path` | `""`     | Optional external `ffsubsync` path. Empty auto-discovers from `PATH`                                      |
+| `subsync.ffmpeg_path`    | `""`     | `ffmpeg` path used to extract embedded tracks and audio speech. Empty auto-discovers from `PATH`          |
+| `subsync.replace`        | `true`   | Overwrite the subtitle file. When off, write `<name>_retimed.<ext>`                                       |
 
 ### AniList
 

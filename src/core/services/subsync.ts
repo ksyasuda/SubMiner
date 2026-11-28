@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { redactUrlCredentials } from './subtitle-generation-process';
 import {
   SubsyncEngine,
   SubsyncManualPayload,
@@ -12,6 +13,7 @@ import {
 import {
   buildJellyfinEmbeddedSubtitleUrl,
   CommandResult,
+  canFfmpegExtractSubtitleExtension,
   codecToExtension,
   extensionToFfmpegMuxer,
   fileExists,
@@ -80,12 +82,29 @@ const AUTO_AUDIO_CONFIDENCE_THRESHOLD = 0.65;
 const AUDIO_SPEECH_LEAD_SEC = 0.1;
 const JELLYFIN_SUBTITLE_FETCH_TIMEOUT_MS = 15_000;
 
+const COMMAND_OUTPUT_SUMMARY_CHARS = 300;
+
+// Alignment and candidate scoring are synchronous CPU work (100ms to 1s each on long media).
+// Yield between them so mpv IPC, the overlay, and other main-process work keep flowing.
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+// Keep the tail of tool output (errors come last; alass prints progress first) and strip
+// stream tokens: ffmpeg echoes input URLs, and Jellyfin URLs carry ApiKey.
+function summarizeCommandOutput(text: string): string {
+  const trimmed = redactUrlCredentials(text.trim());
+  return trimmed.length > COMMAND_OUTPUT_SUMMARY_CHARS
+    ? `…${trimmed.slice(-COMMAND_OUTPUT_SUMMARY_CHARS)}`
+    : trimmed;
+}
+
 function summarizeCommandFailure(command: string, result: CommandResult): string {
   const parts = [
     `code=${result.code ?? 'n/a'}`,
-    result.stderr ? `stderr: ${result.stderr}` : '',
-    result.stdout ? `stdout: ${result.stdout}` : '',
-    result.error ? `error: ${result.error}` : '',
+    result.stderr ? `stderr: ${summarizeCommandOutput(result.stderr)}` : '',
+    result.stdout ? `stdout: ${summarizeCommandOutput(result.stdout)}` : '',
+    result.error ? `error: ${summarizeCommandOutput(result.error)}` : '',
   ]
     .map((value) => value.trim())
     .filter(Boolean);
@@ -269,14 +288,14 @@ async function gatherSubsyncContext(client: MpvClientLike): Promise<SubsyncConte
     return typeof filename === 'string' && filename.length > 0;
   });
 
-  // Resolve active audio stream ff-index if not already cached on mpv client.
-  let audioStreamIndex = client.currentAudioStreamIndex;
-  if (audioStreamIndex === null) {
-    const selectedAudio = tracks.find(
-      (track) =>
-        track.type === 'audio' && track.selected === true && typeof track['ff-index'] === 'number',
-    );
-    if (selectedAudio && typeof selectedAudio['ff-index'] === 'number') {
+  // Resolve the active audio stream's ff-index within the video file. An external audio track
+  // (--audio-file, auto-loaded .mka dub) has an ff-index inside its own file, so mapping it as
+  // `0:N` on the video would pick an unrelated stream; use the video's default audio instead.
+  const selectedAudio = tracks.find((track) => track.type === 'audio' && track.selected === true);
+  let audioStreamIndex: number | null = null;
+  if (!selectedAudio?.external) {
+    audioStreamIndex = client.currentAudioStreamIndex;
+    if (audioStreamIndex === null && typeof selectedAudio?.['ff-index'] === 'number') {
       audioStreamIndex = selectedAudio['ff-index'];
     }
   }
@@ -388,6 +407,11 @@ async function extractSubtitleTrackToFile(
     }
   }
 
+  if (!canFfmpegExtractSubtitleExtension(extension)) {
+    throw new Error(
+      `${extension.toUpperCase()} subtitle tracks cannot be extracted locally (ffmpeg has no decoder for them)`,
+    );
+  }
   const resolvedFfmpegPath = ensureExecutablePath(ffmpegPath, 'ffmpeg');
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-subsync-'));
   const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
@@ -438,6 +462,24 @@ function cleanupTemporaryFile(extraction: FileExtractionResult | null): void {
       fs.rmdirSync(dir);
     }
   } catch {}
+}
+
+const MAX_REFERENCE_FILE_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Validate a renderer-supplied reference subtitle path before main reads it synchronously:
+ * absolute regular file under a subtitle-sized cap (rejects directories, FIFOs, and videos
+ * picked by mistake through the "All files" filter). Returns the path or null.
+ */
+function resolveReferenceFilePath(rawPath: string | null | undefined): string | null {
+  const refPath = rawPath?.trim() ?? '';
+  if (!refPath || !path.isAbsolute(refPath)) return null;
+  try {
+    const stat = fs.statSync(refPath);
+    return stat.isFile() && stat.size <= MAX_REFERENCE_FILE_BYTES ? refPath : null;
+  } catch {
+    return null;
+  }
 }
 
 function buildRetimedPath(subPath: string, replace: boolean): string {
@@ -605,10 +647,24 @@ async function findAddedSubtitleTrackId(
   return null;
 }
 
+/** `sub-add` args that keep the retimed track's original title/lang (used for ranking and labels). */
+function buildSubAddCommand(
+  pathToLoad: string,
+  flag: 'select' | 'auto',
+  track: MpvTrack,
+): string[] {
+  const title = track.title?.trim() ?? '';
+  const lang = track.lang?.trim() ?? '';
+  if (!title && !lang)
+    return flag === 'select' ? ['sub-add', pathToLoad] : ['sub-add', pathToLoad, flag];
+  return ['sub-add', pathToLoad, flag, title || path.basename(pathToLoad), lang];
+}
+
 async function loadSyncedSubtitle(
   client: MpvClientLike,
   pathToLoad: string,
   slot: SubtitleSlot,
+  sourceTrack: MpvTrack,
 ): Promise<void> {
   if (!client.connected) {
     throw new Error('MPV disconnected while loading subtitle');
@@ -617,7 +673,7 @@ async function loadSyncedSubtitle(
   if (slot === 'secondary') {
     // Keep the primary track untouched: load without selecting, then point
     // secondary-sid at the freshly added track.
-    client.send({ command: ['sub-add', pathToLoad, 'auto'] });
+    client.send({ command: buildSubAddCommand(pathToLoad, 'auto', sourceTrack) });
     client.send({ command: ['set_property', 'secondary-sub-delay', 0] });
     const addedTrackId = await findAddedSubtitleTrackId(client, pathToLoad);
     if (addedTrackId === null) {
@@ -627,7 +683,7 @@ async function loadSyncedSubtitle(
     return;
   }
 
-  client.send({ command: ['sub-add', pathToLoad] });
+  client.send({ command: buildSubAddCommand(pathToLoad, 'select', sourceTrack) });
   client.send({ command: ['set_property', 'sub-delay', 0] });
 }
 
@@ -706,7 +762,13 @@ function collectExtractableEmbeddedRefTracks(
     if (isSignsOrSongsTrackMeta(track)) continue;
     const ffIndex = track['ff-index'];
     const extension = codecToExtension(track.codec);
-    if (typeof ffIndex === 'number' && Number.isInteger(ffIndex) && ffIndex >= 0 && extension) {
+    if (
+      typeof ffIndex === 'number' &&
+      Number.isInteger(ffIndex) &&
+      ffIndex >= 0 &&
+      extension &&
+      canFfmpegExtractSubtitleExtension(extension)
+    ) {
       specs.push({ ffIndex, extension });
     }
   }
@@ -840,6 +902,7 @@ async function discoverAndEvaluateSubtitleCandidates(
     if (isEmbedded && preExtracted && typeof track['ff-index'] === 'number') {
       const preParsed = preExtracted.get(track['ff-index']);
       if (preParsed && preParsed.events.length > 0) {
+        await yieldToEventLoop();
         results.push(evaluateParsedCandidate(baseMeta, preParsed));
         continue;
       }
@@ -852,7 +915,14 @@ async function discoverAndEvaluateSubtitleCandidates(
 
     let extraction: FileExtractionResult | null = null;
     try {
-      if (isEmbedded && (!ffmpegAvailable || !codecToExtension(track.codec))) {
+      const embeddedExtension = isEmbedded ? codecToExtension(track.codec) : null;
+      if (
+        isEmbedded &&
+        (!ffmpegAvailable ||
+          !embeddedExtension ||
+          (!isRemoteMediaPath(context.videoPath) &&
+            !canFfmpegExtractSubtitleExtension(embeddedExtension)))
+      ) {
         results.push(evaluateParsedCandidate(baseMeta, null));
         continue;
       }
@@ -887,6 +957,7 @@ async function discoverAndEvaluateSubtitleCandidates(
           );
         }
       }
+      await yieldToEventLoop();
       results.push(evaluateParsedCandidate(baseMeta, parsed));
     } catch {
       results.push(evaluateParsedCandidate(baseMeta, null));
@@ -916,6 +987,7 @@ async function discoverAndEvaluateSubtitleCandidates(
       };
       try {
         const parsed = readAndParseSubtitleFile(sidecar.path);
+        await yieldToEventLoop();
         results.push(evaluateParsedCandidate(baseMeta, parsed));
       } catch {
         // Ignore unreadable sidecars.
@@ -1100,9 +1172,9 @@ async function runBuiltinSubsync(
       leadSec = AUDIO_SPEECH_LEAD_SEC;
       lengthSec = Math.max(lengthSec, audioSpeech.durationSec);
     } else if (request.referenceMode === 'file') {
-      const refPath = request.referenceFilePath?.trim() ?? '';
-      if (!refPath || !fileExists(refPath)) {
-        return { ok: false, message: 'Select an existing reference subtitle file.' };
+      const refPath = resolveReferenceFilePath(request.referenceFilePath);
+      if (!refPath) {
+        return { ok: false, message: 'Select an existing reference subtitle file (up to 20 MB).' };
       }
       const parsedRef = readAndParseSubtitleFile(refPath);
       referenceSpans = extractSpansFromParsedSubtitle(parsedRef, { stripSigns }).spans;
@@ -1153,7 +1225,7 @@ async function runBuiltinSubsync(
     if (targetExtraction.temporary) {
       keepTempTarget = true;
     }
-    await loadSyncedSubtitle(client, outputPath, targetSlot);
+    await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
     return {
       ok: true,
       message: formatAlignmentSummary(referenceLabel, alignment),
@@ -1204,7 +1276,7 @@ async function runManualOffsetSubsync(
     if (targetExtraction.temporary) {
       keepTempTarget = true;
     }
-    await loadSyncedSubtitle(client, outputPath, targetSlot);
+    await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
     return {
       ok: true,
       message: `Shifted subtitle by ${formatOffsetSummary(offsetMs)}`,
@@ -1275,7 +1347,7 @@ async function subsyncToReference(
     }
 
     fs.renameSync(stagedOutputPath, outputPath);
-    await loadSyncedSubtitle(client, outputPath, slot);
+    await loadSyncedSubtitle(client, outputPath, slot, targetTrack);
     return {
       ok: true,
       message: `Subtitle synchronized with ${engine}`,
@@ -1431,9 +1503,12 @@ export async function runSubsyncManual(
   }
 
   if (request.referenceMode === 'file') {
-    const refPath = request.referenceFilePath?.trim() ?? '';
-    if (!refPath || !fileExists(refPath)) {
-      return { ok: false, message: 'Select an existing reference subtitle file for alass' };
+    const refPath = resolveReferenceFilePath(request.referenceFilePath);
+    if (!refPath) {
+      return {
+        ok: false,
+        message: 'Select an existing reference subtitle file (up to 20 MB) for alass',
+      };
     }
     const cleaned = maybeWriteCleanedReferenceSrt(refPath, request.stripSigns !== false);
     try {
@@ -1472,7 +1547,7 @@ export async function runSubsyncManual(
     );
     cleanedRef = maybeWriteCleanedReferenceSrt(
       referenceExtraction.path,
-      request.stripSigns === true,
+      request.stripSigns !== false,
     );
     return await subsyncToReference(
       'alass',
@@ -1713,6 +1788,8 @@ export async function openSubsyncManualPicker(
   return true;
 }
 
+const STALE_AUTO_RESULT_MESSAGE = 'Subsync: playback changed while syncing; discarded result';
+
 async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void> {
   const client = getMpvClientForSubsync(deps);
   const context = await gatherSubsyncContext(client);
@@ -1741,10 +1818,11 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
         !isMediaFileUnchanged()
       ) {
+        deps.showMpvOsd(STALE_AUTO_RESULT_MESSAGE);
         return;
       }
       const payload = buildManualPayload(context, resolved, deps, {
-        guidanceMessage: `Automatic sync could not read the active subtitle track (${(extractError as Error).message}). Choose an engine and subtitle tracks below.`,
+        guidanceMessage: `Automatic sync could not read the active subtitle track (${redactUrlCredentials((extractError as Error).message)}). Choose an engine and subtitle tracks below.`,
       });
       deps.openManualPicker(payload);
       deps.showMpvOsd('Subsync: choose engine and subtitles');
@@ -1758,6 +1836,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
         !isMediaFileUnchanged()
       ) {
+        deps.showMpvOsd(STALE_AUTO_RESULT_MESSAGE);
         return;
       }
       const payload = buildManualPayload(context, resolved, deps, {
@@ -1805,6 +1884,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
         !isMediaFileUnchanged()
       ) {
+        deps.showMpvOsd(STALE_AUTO_RESULT_MESSAGE);
         return;
       }
       if (alreadyInSync) {
@@ -1824,7 +1904,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
       if (targetExtraction!.temporary) {
         keepTempTarget = true;
       }
-      await loadSyncedSubtitle(client, outputPath, targetSlot);
+      await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
       deps.showMpvOsd(formatAlignmentSummary(sourceLabel, alignment));
     };
 
@@ -1839,6 +1919,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
           c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
       );
       for (const candidate of fastAligned) {
+        await yieldToEventLoop();
         const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
           stripSigns: true,
           allowSplits: true,
@@ -1898,6 +1979,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
 
     // 1. Best path: an audio-verified aligned dialogue subtitle reference (loaded or unloaded!).
     for (const candidate of alignedCandidates) {
+      await yieldToEventLoop();
       const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
         stripSigns: true,
         allowSplits: true,
@@ -1921,6 +2003,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
     // 2. Fallback when no subtitle track is audio-aligned (none exist, only signs/songs, or all
     //    reference subtitles are shifted off the audio): sync directly to video audio speech!
     if (audioSpeech && audioSpeech.spans.length >= MIN_REFERENCE_DIALOGUE_LINES) {
+      await yieldToEventLoop();
       const audioAlignment = alignSubtitleFileToReferenceSpans(parsedTarget, audioSpeech.spans, {
         stripSigns: true,
         allowSplits: true,
@@ -1947,6 +2030,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
     //    try already-loaded external dialogue tracks first with a stricter confidence bar.
     if (!audioSpeech) {
       for (const candidate of unverifiedDialogueCandidates) {
+        await yieldToEventLoop();
         const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
           stripSigns: true,
           allowSplits: true,
@@ -1985,6 +2069,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
 
             const extractedSpans = extractSpansFromParsedSubtitle(parsed, { stripSigns: true });
             if (extractedSpans.dialogueCount < MIN_REFERENCE_DIALOGUE_LINES) return false;
+            await yieldToEventLoop();
             const alignment = alignSubtitleFileToReferenceSpans(
               parsedTarget,
               extractedSpans.spans,
@@ -2124,6 +2209,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
                 (item) => item.key === candidate.evaluated.key,
               );
               if (matchedItem && triedRemoteEmbedded.has(matchedItem.ffIndex)) continue;
+              await yieldToEventLoop();
               const alignment = alignSubtitleFileToReferenceSpans(
                 parsedTarget,
                 candidate.dialogueSpans,
@@ -2185,6 +2271,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
       !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
       !isMediaFileUnchanged()
     ) {
+      deps.showMpvOsd(STALE_AUTO_RESULT_MESSAGE);
       return;
     }
 

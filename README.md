@@ -116,21 +116,21 @@ A stats dashboard tracks watch time, vocabulary growth, mining throughput, sessi
 
 SubMiner runs on Linux, macOS 11+, and Windows 10+. Only **mpv** is required to run it (plus `fuse2` for the Linux AppImage). Mining cards also needs Anki with the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on. Everything else is optional.
 
-| Dependency               | Status           | What it does                                                         |
-| ------------------------ | ---------------- | -------------------------------------------------------------------- |
-| mpv                      | Required         | The video player SubMiner draws over                                 |
-| fuse2                    | Required (Linux) | Running the AppImage                                                 |
-| Anki + AnkiConnect       | Required to mine | Card creation from the Yomitan popup                                 |
+| Dependency               | Status           | What it does                                                                                                             |
+| ------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| mpv                      | Required         | The video player SubMiner draws over                                                                                     |
+| fuse2                    | Required (Linux) | Running the AppImage                                                                                                     |
+| Anki + AnkiConnect       | Required to mine | Card creation from the Yomitan popup                                                                                     |
 | ffmpeg                   | Recommended      | Card audio/screenshots, embedded subtitle extraction, and built-in audio subtitle sync (first-run setup can download it) |
 | MeCab + mecab-ipadic     | Recommended      | More accurate N+1, JLPT, and frequency highlighting                                                                      |
 | xdotool + xwininfo       | Required (X11)   | Window tracking on desktops other than Hyprland or Sway                                                                  |
 | yt-dlp                   | Optional         | YouTube playback                                                                                                         |
 | xz                       | Optional         | TsukiHime subtitle downloads (most Linux distros already have it)                                                        |
 | alass / ffsubsync        | Optional         | Extra external subtitle sync engines (built-in alass-based sync and audio VAD are included)                              |
-| whisper.cpp              | Optional         | [Subtitle generation](https://docs.subminer.moe/subtitle-generation) |
-| guessit                  | Optional         | Better title, season, and episode detection for AniSkip and AniList  |
-| fzf / rofi               | Optional         | Video picker in the `subminer` launcher (rofi is Linux only)         |
-| chafa, ffmpegthumbnailer | Optional         | Thumbnail previews in the launcher pickers                           |
+| whisper.cpp              | Optional         | [Subtitle generation](https://docs.subminer.moe/subtitle-generation)                                                     |
+| guessit                  | Optional         | Better title, season, and episode detection for AniSkip and AniList                                                      |
+| fzf / rofi               | Optional         | Video picker in the `subminer` launcher (rofi is Linux only)                                                             |
+| chafa, ffmpegthumbnailer | Optional         | Thumbnail previews in the launcher pickers                                                                               |
 
 <details>
 <summary><b>Platform-specific install commands</b></summary>
