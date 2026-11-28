@@ -155,19 +155,86 @@ export async function extractSubtitleTrackToFile(
   }
 }
 
+const SUBSYNC_TEMP_DIR_PREFIX = 'subminer-subsync-';
+const STALE_SUBSYNC_TEMP_DIR_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Temp dirs still holding a retimed subtitle that mpv loaded (embedded or remote target).
+ * Pruned by `pruneRetainedSubsyncTempDirs` once mpv no longer lists the file, and on exit.
+ */
+const retainedSubsyncTempDirs = new Set<string>();
+let exitCleanupRegistered = false;
+let staleSweepDone = false;
+
+function removeDirQuietly(dir: string): void {
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+  } catch {
+    // Best-effort temp cleanup.
+  }
+}
+
+function retainSubsyncTempDir(dir: string): void {
+  retainedSubsyncTempDirs.add(dir);
+  if (exitCleanupRegistered) return;
+  exitCleanupRegistered = true;
+  process.once('exit', () => {
+    for (const retained of retainedSubsyncTempDirs) removeDirQuietly(retained);
+  });
+}
+
+/**
+ * Remove a temporary extraction and its mkdtemp dir. A dir that still holds the retimed
+ * subtitle mpv loaded stays on disk (mpv and the subtitle sidebar read it) and is retained.
+ */
 export function cleanupTemporaryFile(extraction: FileExtractionResult | null): void {
   if (!extraction || !extraction.temporary) return;
+  removeIfExists(extraction.path);
+  const dir = path.dirname(extraction.path);
   try {
-    if (fileExists(extraction.path)) {
-      fs.unlinkSync(extraction.path);
-    }
-  } catch {}
+    fs.rmdirSync(dir);
+  } catch {
+    if (fs.existsSync(dir)) retainSubsyncTempDir(dir);
+  }
+}
+
+/**
+ * Drop retained temp dirs whose files mpv no longer lists (`referencedPaths` are the current
+ * external subtitle filenames), and once per process sweep subsync temp dirs a crashed
+ * session left behind more than a day ago.
+ */
+export function pruneRetainedSubsyncTempDirs(
+  referencedPaths: readonly string[],
+  now: number = Date.now(),
+): void {
+  for (const dir of retainedSubsyncTempDirs) {
+    const prefix = `${dir}${path.sep}`;
+    if (referencedPaths.some((filePath) => filePath.startsWith(prefix))) continue;
+    removeDirQuietly(dir);
+    retainedSubsyncTempDirs.delete(dir);
+  }
+  if (staleSweepDone) return;
+  staleSweepDone = true;
+  const tmpRoot = os.tmpdir();
+  let entries: string[] = [];
   try {
-    const dir = path.dirname(extraction.path);
-    if (fs.existsSync(dir)) {
-      fs.rmdirSync(dir);
+    entries = fs.readdirSync(tmpRoot);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    if (!name.startsWith(SUBSYNC_TEMP_DIR_PREFIX)) continue;
+    const dir = path.join(tmpRoot, name);
+    if (retainedSubsyncTempDirs.has(dir)) continue;
+    try {
+      const stat = fs.statSync(dir);
+      if (stat.isDirectory() && now - stat.mtimeMs > STALE_SUBSYNC_TEMP_DIR_MS) {
+        removeDirQuietly(dir);
+      }
+    } catch {
+      // Raced with another cleanup; ignore.
     }
-  } catch {}
+  }
 }
 
 const MAX_REFERENCE_FILE_BYTES = 20 * 1024 * 1024;

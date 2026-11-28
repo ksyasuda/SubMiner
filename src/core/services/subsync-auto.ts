@@ -84,7 +84,6 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
   const targetSlot = resolveTargetSlot(targetTrack, context);
 
   let targetExtraction: FileExtractionResult | null = null;
-  let keepTempTarget = false;
   try {
     try {
       targetExtraction = await extractSubtitleTrackToFile(
@@ -184,9 +183,6 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
         return;
       }
       writeRetimedContent(outputPath, alignment.rewrittenContent, replaceTarget);
-      if (targetExtraction!.temporary) {
-        keepTempTarget = true;
-      }
       await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
       deps.showMpvOsd(formatAlignmentSummary(sourceLabel, alignment));
     };
@@ -495,8 +491,6 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
     deps.openManualPicker(payload);
     deps.showMpvOsd('Subsync needs guidance: opened options');
   } finally {
-    if (!keepTempTarget) {
-      cleanupTemporaryFile(targetExtraction);
-    }
+    cleanupTemporaryFile(targetExtraction);
   }
 }

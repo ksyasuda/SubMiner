@@ -87,7 +87,6 @@ async function runBuiltinSubsync(
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
 
   let refExtraction: FileExtractionResult | null = null;
-  let keepTempTarget = false;
   try {
     const parsedTarget = readAndParseSubtitleFile(targetExtraction.path);
     if (parsedTarget.events.length === 0) {
@@ -183,9 +182,6 @@ async function runBuiltinSubsync(
     }
 
     writeRetimedContent(outputPath, alignment.rewrittenContent, replaceTarget);
-    if (targetExtraction.temporary) {
-      keepTempTarget = true;
-    }
     await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
     return {
       ok: true,
@@ -193,9 +189,7 @@ async function runBuiltinSubsync(
     };
   } finally {
     cleanupTemporaryFile(refExtraction);
-    if (!keepTempTarget) {
-      cleanupTemporaryFile(targetExtraction);
-    }
+    cleanupTemporaryFile(targetExtraction);
   }
 }
 
@@ -217,8 +211,6 @@ async function runManualOffsetSubsync(
   );
   const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
-
-  let keepTempTarget = false;
   try {
     const parsedTarget = readAndParseSubtitleFile(targetExtraction.path);
     if (parsedTarget.events.length === 0) {
@@ -234,18 +226,13 @@ async function runManualOffsetSubsync(
       return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
     writeRetimedContent(outputPath, rewritten, replaceTarget);
-    if (targetExtraction.temporary) {
-      keepTempTarget = true;
-    }
     await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
     return {
       ok: true,
       message: `Shifted subtitle by ${formatOffsetSummary(offsetMs)}`,
     };
   } finally {
-    if (!keepTempTarget) {
-      cleanupTemporaryFile(targetExtraction);
-    }
+    cleanupTemporaryFile(targetExtraction);
   }
 }
 

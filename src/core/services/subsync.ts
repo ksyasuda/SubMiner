@@ -1,5 +1,6 @@
 import { SubsyncManualRunRequest, SubsyncResult } from '../../types';
 import { runAutoSubsync } from './subsync-auto';
+import { pruneRetainedSubsyncTempDirs } from './subsync-files';
 import { openSubsyncManualPicker, runSubsyncManualUnguarded } from './subsync-manual';
 import {
   PLAYBACK_CHANGED_RESULT_MESSAGE,
@@ -14,11 +15,27 @@ import {
 export { openSubsyncManualPicker } from './subsync-manual';
 export type { SubsyncVadPaths, TriggerSubsyncFromConfigDeps } from './subsync-shared';
 
+/**
+ * Before a run, drop temp dirs of earlier synced embedded/remote tracks that mpv no longer
+ * lists (e.g. after switching episodes). Skipped when the track list cannot be read.
+ */
+async function pruneTempDirsMpvNoLongerUses(deps: SubsyncCoreDeps): Promise<void> {
+  const client = deps.getMpvClient();
+  if (!client?.connected) return;
+  const trackList = await client.requestProperty('track-list').catch(() => null);
+  if (!Array.isArray(trackList)) return;
+  const referenced = trackList.flatMap((track: { 'external-filename'?: unknown } | null) =>
+    typeof track?.['external-filename'] === 'string' ? [track['external-filename']] : [],
+  );
+  pruneRetainedSubsyncTempDirs(referenced);
+}
+
 /** Manual (modal) run, cancelled when playback moves to other media. */
 export async function runSubsyncManual(
   request: SubsyncManualRunRequest,
   deps: SubsyncCoreDeps,
 ): Promise<SubsyncResult> {
+  await pruneTempDirsMpvNoLongerUses(deps);
   try {
     return await runWithMediaChangeAbort(deps, async (runDeps) => {
       const result = await runSubsyncManualUnguarded(request, runDeps);
@@ -102,6 +119,7 @@ export async function triggerSubsyncFromConfig(deps: TriggerSubsyncFromConfigDep
 
   deps.setSubsyncInProgress(true);
   try {
+    await pruneTempDirsMpvNoLongerUses(deps);
     await runWithMediaChangeAbort(deps, async (runDeps) => {
       if (runDeps.getResolvedConfig().mode === 'manual') {
         const opened = await openSubsyncManualPicker(runDeps, { skipAudioAnalysis: true });
