@@ -655,6 +655,10 @@ export function scoreStanding(z: AlignmentStanding, cal: SyncCalibration): numbe
   if (z.weakestPart !== undefined && z.weakestPart < PART_COVERAGE_Z_MIN) {
     covered = Math.min(covered, PARTIAL_FIT_SCORE_CAP);
   }
+  // Intended override of the weak-quarter cap: `starts` is itself the weakest quarter's
+  // line-start agreement, so clearing STARTS_Z_MIN means every quarter matches line for line
+  // (a partial fit cannot). Coverage alone can dip in one quarter for benign reasons, such as
+  // VAD over a music-heavy stretch.
   const started =
     z.starts >= STARTS_Z_MIN
       ? Math.max(
@@ -1128,8 +1132,15 @@ export function alignSubtitleFileToReferenceSpans(
             end: targetSpans[idx]!.end * ratio + shift,
           });
         }
-        const zSplit = evaluateStanding(splitSpans, joinedRef, sortedRefStarts, lengthSec);
-        if (zSplit.above > zOne.above + 0.3) {
+        // splitSpans follow the original start order; a cut that makes a later line start
+        // before an earlier one reorders dialogue, which no real edit does.
+        const keepsLineOrder = splitSpans.every(
+          (span, i) => i === 0 || span.start >= splitSpans[i - 1]!.start,
+        );
+        const zSplit = keepsLineOrder
+          ? evaluateStanding(splitSpans, joinedRef, sortedRefStarts, lengthSec)
+          : null;
+        if (zSplit && zSplit.above > zOne.above + 0.3) {
           finalStanding = zSplit;
           finalScore = scoreStanding(zSplit, cal);
           finalSegments = jumps + 1;

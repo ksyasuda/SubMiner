@@ -301,6 +301,13 @@ async function subsyncToReference(
         message: `${engine} synchronization failed: ${details}`,
       };
     }
+    // A zero exit is not proof of a usable file; never replace a subtitle with an empty one.
+    if (readAndParseSubtitleFile(stagedOutputPath).events.length === 0) {
+      return {
+        ok: false,
+        message: `${engine} synchronization failed: it wrote no readable subtitle cues; the original was kept.`,
+      };
+    }
 
     if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, slot, io.signal))) {
       return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };

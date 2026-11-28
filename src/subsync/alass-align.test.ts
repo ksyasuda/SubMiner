@@ -6,6 +6,8 @@ import {
   evaluateReferenceAlignmentToAudio,
   evaluateReferenceAlignmentToSampledAudio,
   joinSpans,
+  scoreStanding,
+  CALIBRATION_CLEAN,
   wrappedCoverage,
   type SampledAudioWindow,
 } from './alass-align';
@@ -317,4 +319,12 @@ test('alignSubtitleFileToReferenceSpans rejects broadcast pieces that collapse o
 
   assert.equal(result.cut, false);
   assert.equal(result.confident, false);
+});
+
+test('scoreStanding caps a weak-quarter fit unless every quarter agrees on line starts', () => {
+  const strongCoverage = { above: 14, alone: 5, weakestPart: 0.5 };
+  // One quarter does not fit and starts do not agree everywhere: below the 0.65 auto bar.
+  assert.ok(scoreStanding({ ...strongCoverage, starts: 0 }, CALIBRATION_CLEAN) <= 0.6);
+  // Every quarter agrees line for line (starts is the weakest quarter's z): not a partial fit.
+  assert.ok(scoreStanding({ ...strongCoverage, starts: 9 }, CALIBRATION_CLEAN) > 0.65);
 });

@@ -1,4 +1,3 @@
-import * as childProcess from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -14,8 +13,8 @@ import {
   extensionToFfmpegMuxer,
   fileExists,
   killProcessTree,
-  resolveCommandInvocation,
   runCommand,
+  spawnTool,
 } from './utils';
 
 const PCM_VAD_SAMPLE_RATE = 8000;
@@ -356,11 +355,12 @@ function streamFfmpegPcm(
       'pipe:1',
     );
 
-    const invocation = resolveCommandInvocation(ffmpegPath, args);
-    const child = childProcess.spawn(invocation.command, invocation.args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      ...(invocation.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
-    });
+    // Checked before spawning: nothing below is set up yet for an already-aborted run.
+    if (signal?.aborted) {
+      reject(new Error('Audio extraction aborted'));
+      return;
+    }
+    const child = spawnTool(ffmpegPath, args);
     const chunks: Buffer[] = [];
     let stderr = '';
     let settled = false;
@@ -378,10 +378,6 @@ function streamFfmpegPcm(
       finishError(new Error('Audio extraction aborted'));
     };
 
-    if (signal?.aborted) {
-      onAbort();
-      return;
-    }
     signal?.addEventListener('abort', onAbort, { once: true });
 
     const timer = setTimeout(() => {
@@ -522,6 +518,16 @@ export async function extractAudioSpeechSpans(
     return silero;
   }
 
+  // Built-in results live under the built-in key, never the Silero one, so a later run still
+  // retries Silero (e.g. after a timeout) while reusing this fallback meanwhile.
+  const builtinKey = buildAudioCacheKey(
+    options.videoPath,
+    options.audioStreamIndex,
+    buildVadConfigKey(null, null),
+  );
+  const cachedBuiltin = builtinKey ? audioSpeechCache.get(builtinKey) : undefined;
+  if (cachedBuiltin) return cachedBuiltin;
+
   // Tier 2: Built-in voice-band PCM speech detector via ffmpeg (zero extra dependencies).
   const pcmBuffer = await streamFfmpegPcm(
     options.ffmpegPath,
@@ -539,7 +545,7 @@ export async function extractAudioSpeechSpans(
     calibration: 'noisy',
     source: 'builtin-vad',
   };
-  rememberAudioSpeech(cacheKey, result);
+  rememberAudioSpeech(builtinKey, result);
   return result;
 }
 
@@ -550,11 +556,12 @@ function spawnFfmpegWithStdout(
   signal?: AbortSignal,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const invocation = resolveCommandInvocation(ffmpegPath, args);
-    const child = childProcess.spawn(invocation.command, invocation.args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      ...(invocation.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
-    });
+    // Checked before spawning: nothing below is set up yet for an already-aborted run.
+    if (signal?.aborted) {
+      reject(new Error('ffmpeg operation aborted'));
+      return;
+    }
+    const child = spawnTool(ffmpegPath, args);
     const chunks: Buffer[] = [];
     let stderr = '';
     let settled = false;
@@ -572,10 +579,6 @@ function spawnFfmpegWithStdout(
       finishError(new Error('ffmpeg operation aborted'));
     };
 
-    if (signal?.aborted) {
-      onAbort();
-      return;
-    }
     signal?.addEventListener('abort', onAbort, { once: true });
 
     const timer = setTimeout(() => {

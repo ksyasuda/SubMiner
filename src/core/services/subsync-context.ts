@@ -195,8 +195,9 @@ async function isPlaybackSessionUnchangedNow(
       slot === 'secondary'
         ? (context.secondaryTrack?.id ?? null)
         : (context.primaryTrack.id ?? null);
-    const needsTrackIdentityCheck =
-      typeof targetTrack.id === 'number' && targetTrack.id !== initialSlotTrackId;
+    // Always compare the target's source too: mpv reuses the highest freed id, so a track
+    // removed and replaced mid-sync can keep the same id (and the same slot id).
+    const needsTrackIdentityCheck = typeof targetTrack.id === 'number';
     const [videoPathRaw, workingDirRaw, slotTrackRaw, trackListRaw] = await Promise.all([
       client.requestProperty('path'),
       client.requestProperty('working-directory').catch(() => null),

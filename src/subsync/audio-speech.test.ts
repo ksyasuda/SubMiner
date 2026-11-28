@@ -241,3 +241,59 @@ exit 0
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('a built-in fallback after a Silero failure does not block retrying Silero', async () => {
+  if (process.platform === 'win32') return;
+  clearAudioSpeechCache();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-vad-retry-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const modelPath = path.join(tmpDir, 'silero.bin');
+  const ffmpegScript = path.join(tmpDir, 'ffmpeg.sh');
+  const vadScript = path.join(tmpDir, 'whisper-vad.sh');
+  const vadBrokenFlag = path.join(tmpDir, 'vad-broken');
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(modelPath, 'model');
+  fs.writeFileSync(vadBrokenFlag, '');
+  fs.writeFileSync(
+    ffmpegScript,
+    `#!/bin/sh
+last=""
+for arg in "$@"; do last="$arg"; done
+if [ "$last" = "pipe:1" ]; then
+  dd if=/dev/zero bs=1600 count=1 2>/dev/null
+else
+  printf 'RIFF....WAVEdata................................................' > "$last"
+fi
+exit 0
+`,
+    { mode: 0o755 },
+  );
+  // Fails while the flag file exists (e.g. a timeout), then recovers.
+  fs.writeFileSync(
+    vadScript,
+    `#!/bin/sh
+if [ -f "${vadBrokenFlag}" ]; then exit 1; fi
+echo "Speech segment 0: start = 100.00, end = 300.00"
+exit 0
+`,
+    { mode: 0o755 },
+  );
+  const options = {
+    ffmpegPath: ffmpegScript,
+    videoPath,
+    audioStreamIndex: 1,
+    vadExecutablePath: vadScript,
+    vadModelPath: modelPath,
+  };
+
+  try {
+    assert.equal((await extractAudioSpeechSpans(options)).source, 'builtin-vad');
+    assert.equal(getCachedAudioSpeechSpans(videoPath, 1, options), null);
+
+    fs.rmSync(vadBrokenFlag);
+    assert.equal((await extractAudioSpeechSpans(options)).source, 'silero-vad');
+  } finally {
+    clearAudioSpeechCache();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

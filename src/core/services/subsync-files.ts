@@ -275,11 +275,14 @@ export function buildRetimedPath(subPath: string, replace: boolean): string {
 export const LOSSY_REWRITE_ERROR_MESSAGE =
   'Cannot safely rewrite subtitle file because its text encoding could not be decoded unambiguously and losslessly. Convert the file to UTF-8 and retry.';
 
-/** Size + mtime of a subtitle file, compared before an in-place rewrite to catch edits made mid-sync. */
+/**
+ * Identity (device + inode, through symlinks) plus size and mtime of a subtitle file, compared
+ * before an in-place rewrite to catch edits or a retargeted symlink mid-sync.
+ */
 export function readSubtitleFileStamp(filePath: string): string | null {
   try {
     const stat = fs.statSync(filePath);
-    return `${stat.size}\0${stat.mtimeMs}`;
+    return `${stat.dev}:${stat.ino}\0${stat.size}\0${stat.mtimeMs}`;
   } catch {
     return null;
   }
@@ -499,6 +502,7 @@ export async function loadSyncedSubtitle(
         typeof track.id === 'number' ? [track.id] : [],
       ),
     );
+    const secondaryBeforeAdd = await client.requestProperty('secondary-sid');
     signal?.throwIfAborted();
     client.send({ command: buildSubAddCommand(pathToLoad, 'auto', sourceTrack) });
     const addedTrackId = await findAddedSubtitleTrackId(client, pathToLoad, knownTrackIds);
@@ -506,6 +510,13 @@ export async function loadSyncedSubtitle(
       throw new Error('Synchronized subtitle did not appear in the mpv track list');
     }
     signal?.throwIfAborted();
+    // The lookup polls for a while; if the user picked another secondary track meanwhile,
+    // keep their choice (and delay) rather than overriding it.
+    if ((await client.requestProperty('secondary-sid')) !== secondaryBeforeAdd) {
+      throw new Error(
+        `Secondary subtitle changed while loading; saved the synced file at ${pathToLoad} without selecting it.`,
+      );
+    }
     client.send({ command: ['set_property', 'secondary-sid', addedTrackId] });
     // The retimed file carries the timing now; only drop the old delay once it is selected.
     client.send({ command: ['set_property', 'secondary-sub-delay', 0] });

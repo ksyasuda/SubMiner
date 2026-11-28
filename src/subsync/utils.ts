@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as childProcess from 'child_process';
 import * as path from 'path';
+import type { Readable } from 'stream';
 import { DEFAULT_CONFIG } from '../config';
 import {
   buildWindowsShimInvocation,
@@ -329,7 +330,11 @@ export function killProcessTree(child: childProcess.ChildProcess): void {
         stdio: 'ignore',
         windowsHide: true,
       })
-      .on('error', () => child.kill());
+      .on('error', () => child.kill())
+      // taskkill can start yet fail (e.g. access denied); fall back to killing the tool itself.
+      .on('close', (code: number | null) => {
+        if (code !== 0) child.kill();
+      });
     return;
   }
   if (processGroupLeaders.has(child)) {
@@ -362,6 +367,26 @@ function trackProcessGroup(child: childProcess.ChildProcess): void {
   });
 }
 
+/**
+ * Spawn a tool with piped stdout/stderr. On POSIX it leads its own process group, so
+ * `killProcessTree` also reaches anything it started (a wrapper script running ffmpeg,
+ * ffsubsync's ffmpeg); still-running groups are killed when the app exits.
+ */
+export function spawnTool(
+  executable: string,
+  args: string[],
+): childProcess.ChildProcessByStdio<null, Readable, Readable> {
+  const invocation = resolveCommandInvocation(executable, args);
+  const ownGroup = process.platform !== 'win32';
+  const child = childProcess.spawn(invocation.command, invocation.args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...(ownGroup ? { detached: true } : {}),
+    ...(invocation.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
+  });
+  if (ownGroup) trackProcessGroup(child);
+  return child;
+}
+
 /** Run a tool to completion; an abort or the timeout kills it and resolves with `ok: false`. */
 export function runCommand(
   executable: string,
@@ -373,15 +398,7 @@ export function runCommand(
     return Promise.resolve({ ok: false, code: null, stderr: '', stdout: '', error: 'aborted' });
   }
   return new Promise((resolve) => {
-    const invocation = resolveCommandInvocation(executable, args);
-    const ownGroup = process.platform !== 'win32';
-    const child = childProcess.spawn(invocation.command, invocation.args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      // POSIX: own process group so killProcessTree reaches grandchildren too.
-      ...(ownGroup ? { detached: true } : {}),
-      ...(invocation.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
-    });
-    if (ownGroup) trackProcessGroup(child);
+    const child = spawnTool(executable, args);
     let stdout = '';
     let stderr = '';
     const onAbort = (): void => killProcessTree(child);

@@ -471,6 +471,59 @@ function fromShellPath(filePath: string): string {
     .replace(/\//g, '\\');
 }
 
+test('runSubsyncManual keeps the original when an external engine writes an empty file', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-empty-engine-output-'));
+  const ffsubsyncPath = path.join(tmpDir, 'ffsubsync.sh');
+  const videoPath = path.join(tmpDir, 'video.mkv');
+  const primaryPath = path.join(tmpDir, 'primary.srt');
+  const original = '1\n00:00:05,000 --> 00:00:06,000\noriginal\n';
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(primaryPath, original);
+  writeExecutableScript(
+    ffsubsyncPath,
+    `#!/bin/sh\nout=""\nprev=""\nfor arg in "$@"; do\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\n: > "$out"\nexit 0\n`,
+  );
+  const sentCommands: Array<Array<string | number>> = [];
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: (payload) => {
+        sentCommands.push(payload.command);
+      },
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return null;
+        if (name === 'track-list') {
+          return [
+            {
+              id: 1,
+              type: 'sub',
+              selected: true,
+              external: true,
+              'external-filename': primaryPath,
+            },
+          ];
+        }
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      alassPath: '/missing/alass',
+      ffsubsyncPath,
+      ffmpegPath: '/missing/ffmpeg',
+      replace: true,
+    }),
+  });
+
+  const result = await runSubsyncManual({ engine: 'ffsubsync' }, deps);
+  assert.equal(result.ok, false);
+  assert.match(result.message, /no readable subtitle cues/);
+  assert.equal(fs.readFileSync(primaryPath, 'utf8'), original);
+  assert.equal(sentCommands.length, 0);
+});
+
 test('runSubsyncManual ignores the ff-index of an external audio track', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-external-audio-'));
   const ffsubsyncLogPath = path.join(tmpDir, 'ffsubsync-args.log');
@@ -481,7 +534,7 @@ test('runSubsyncManual ignores the ff-index of an external audio track', async (
   fs.writeFileSync(primaryPath, 'sub');
   writeExecutableScript(
     ffsubsyncPath,
-    `#!/bin/sh\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nout=""\nprev=""\nfor arg in "$@"; do\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then : > "$out"; fi\nexit 0\n`,
+    `#!/bin/sh\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nout=""\nprev=""\nfor arg in "$@"; do\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then printf "1\\n00:00:01,000 --> 00:00:02,000\\nhi\\n" > "$out"; fi\nexit 0\n`,
   );
 
   const deps = makeDeps({
@@ -544,7 +597,7 @@ test('runSubsyncManual constructs ffsubsync command and returns success', async 
   writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     ffsubsyncPath,
-    `#!/bin/sh\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then : > \"$out\"; fi\nexit 0\n`,
+    `#!/bin/sh\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then printf \"1\\n00:00:01,000 --> 00:00:02,000\\nhi\\n\" > \"$out\"; fi\nexit 0\n`,
   );
 
   const sentCommands: Array<Array<string | number>> = [];
@@ -617,7 +670,7 @@ test('runSubsyncManual writes deterministic _retimed filename when replace is fa
   writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     ffsubsyncPath,
-    `#!/bin/sh\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then : > \"$out\"; fi\nexit 0\n`,
+    `#!/bin/sh\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then printf \"1\\n00:00:01,000 --> 00:00:02,000\\nhi\\n\" > \"$out\"; fi\nexit 0\n`,
   );
 
   const deps = makeDeps({
@@ -807,7 +860,7 @@ function makeAlassSelectionDeps(tmpDir: string): {
   writeExecutableScript(ffsubsyncPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     alassPath,
-    `#!/bin/sh\n: > "${toShellPath(alassLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(alassLogPath)}"; done\n: > "$3"\nexit 0\n`,
+    `#!/bin/sh\n: > "${toShellPath(alassLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(alassLogPath)}"; done\nprintf "1\\n00:00:01,000 --> 00:00:02,000\\nhi\\n" > "$3"\nexit 0\n`,
   );
 
   const trackList: Array<Record<string, unknown>> = [
@@ -895,7 +948,10 @@ test('runSubsyncManual keeps a retimed secondary track in the secondary slot', a
   fs.writeFileSync(secondaryPath, 'en');
   writeExecutableScript(ffmpegPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(ffsubsyncPath, '#!/bin/sh\nexit 0\n');
-  writeExecutableScript(alassPath, '#!/bin/sh\n: > "$3"\nexit 0\n');
+  writeExecutableScript(
+    alassPath,
+    '#!/bin/sh\nprintf "1\\n00:00:01,000 --> 00:00:02,000\\nhi\\n" > "$3"\nexit 0\n',
+  );
 
   const trackList: Array<Record<string, unknown>> = [
     { id: 1, type: 'sub', selected: true, external: true, 'external-filename': primaryPath },
@@ -971,11 +1027,11 @@ test('runSubsyncManual keeps internal alass source file alive until sync finishe
   writeExecutableScript(ffsubsyncPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     ffmpegPath,
-    '#!/bin/sh\nout=""\nfor arg in "$@"; do out="$arg"; done\nif [ -n "$out" ]; then : > "$out"; fi\nexit 0\n',
+    '#!/bin/sh\nout=""\nfor arg in "$@"; do out="$arg"; done\nif [ -n "$out" ]; then printf "1\\n00:00:01,000 --> 00:00:02,000\\nhi\\n" > "$out"; fi\nexit 0\n',
   );
   writeExecutableScript(
     alassPath,
-    '#!/bin/sh\nsleep 0.2\nif [ ! -f "$1" ]; then echo "missing reference subtitle" >&2; exit 1; fi\nif [ ! -f "$2" ]; then echo "missing input subtitle" >&2; exit 1; fi\n: > "$3"\nexit 0\n',
+    '#!/bin/sh\nsleep 0.2\nif [ ! -f "$1" ]; then echo "missing reference subtitle" >&2; exit 1; fi\nif [ ! -f "$2" ]; then echo "missing input subtitle" >&2; exit 1; fi\nprintf "1\\n00:00:01,000 --> 00:00:02,000\\nhi\\n" > "$3"\nexit 0\n',
   );
 
   const sentCommands: Array<Array<string | number>> = [];
@@ -1042,7 +1098,7 @@ test('runSubsyncManual resolves string sid values from mpv stream properties', a
   writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     ffsubsyncPath,
-    `#!/bin/sh\nmkdir -p "${toShellPath(tmpDir)}"\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nprev=""\nout=""\nfor arg in "$@"; do\n  if [ "$prev" = "--reference-stream" ]; then :; fi\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then : > "$out"; fi`,
+    `#!/bin/sh\nmkdir -p "${toShellPath(tmpDir)}"\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nprev=""\nout=""\nfor arg in "$@"; do\n  if [ "$prev" = "--reference-stream" ]; then :; fi\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then printf "1\\n00:00:01,000 --> 00:00:02,000\\nhi\\n" > "$out"; fi`,
   );
 
   const deps = makeDeps({
@@ -1086,7 +1142,7 @@ test('runSubsyncManual resolves string sid values from mpv stream properties', a
   assert.equal(typeof outputPath, 'string');
   assert.ok(outputPath!.length > 0);
   assert.equal(fs.existsSync(fromShellPath(outputPath!)), false);
-  assert.equal(fs.readFileSync(primaryPath, 'utf8'), '');
+  assert.match(fs.readFileSync(primaryPath, 'utf8'), /00:00:01,000 --> 00:00:02,000/);
 });
 
 function generateSyntheticSpans(
@@ -2479,7 +2535,7 @@ test('runSubsyncManual stages external engine output and preserves original when
   writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     ffsubsyncPath,
-    '#!/bin/sh\nout=""\nprev=""\nfor arg in "$@"; do\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then printf "overwritten" > "$out"; fi\nexit 0\n',
+    '#!/bin/sh\nout=""\nprev=""\nfor arg in "$@"; do\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then printf "1\\n00:00:01,000 --> 00:00:02,000\\noverwritten\\n" > "$out"; fi\nexit 0\n',
   );
 
   let pathCalls = 0;
