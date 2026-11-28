@@ -1,6 +1,6 @@
 import { redactUrlCredentials } from './subtitle-generation-process';
 import { buildJellyfinEmbeddedSubtitleUrl } from '../../subsync/utils';
-import { alignSubtitleFileToReferenceSpans, type AlignmentResult } from '../../subsync/alass-align';
+import type { AlignmentResult } from '../../subsync/alass-align';
 import { extractSinglePassRipMedia, getMediaFileSignature } from '../../subsync/audio-speech';
 import {
   decodeSubtitleBytesWithStatus,
@@ -45,8 +45,8 @@ import {
   getMpvClientForSubsync,
   isAlreadyInSync,
   isExecutableAvailable,
-  yieldToEventLoop,
 } from './subsync-shared';
+import { alignSubtitleOffThread } from '../../subsync/align-worker';
 
 export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void> {
   const client = getMpvClientForSubsync(deps);
@@ -179,14 +179,18 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
           c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
       );
       for (const candidate of fastAligned) {
-        await yieldToEventLoop(deps.signal);
-        const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
-          stripSigns: true,
-          allowSplits: true,
-          calibration: 'clean',
-          lengthSec,
-          confidenceThreshold: AUTO_SUBTITLE_CONFIDENCE_THRESHOLD,
-        });
+        const alignment = await alignSubtitleOffThread(
+          deps.signal,
+          parsedTarget,
+          candidate.dialogueSpans,
+          {
+            stripSigns: true,
+            allowSplits: true,
+            calibration: 'clean',
+            lengthSec,
+            confidenceThreshold: AUTO_SUBTITLE_CONFIDENCE_THRESHOLD,
+          },
+        );
         if (alignment.confident) {
           await applyAlignment(alignment, candidate.evaluated.label);
           return;
@@ -241,14 +245,18 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
 
     // 1. Best path: an audio-verified aligned dialogue subtitle reference (loaded or unloaded!).
     for (const candidate of alignedCandidates) {
-      await yieldToEventLoop(deps.signal);
-      const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
-        stripSigns: true,
-        allowSplits: true,
-        calibration: 'clean',
-        lengthSec,
-        confidenceThreshold: AUTO_SUBTITLE_CONFIDENCE_THRESHOLD,
-      });
+      const alignment = await alignSubtitleOffThread(
+        deps.signal,
+        parsedTarget,
+        candidate.dialogueSpans,
+        {
+          stripSigns: true,
+          allowSplits: true,
+          calibration: 'clean',
+          lengthSec,
+          confidenceThreshold: AUTO_SUBTITLE_CONFIDENCE_THRESHOLD,
+        },
+      );
       if (alignment.confident) {
         await applyAlignment(alignment, candidate.evaluated.label);
         return;
@@ -265,15 +273,19 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
     // 2. Fallback when no subtitle track is audio-aligned (none exist, only signs/songs, or all
     //    reference subtitles are shifted off the audio): sync directly to video audio speech!
     if (audioSpeech && audioSpeech.spans.length >= MIN_REFERENCE_DIALOGUE_LINES) {
-      await yieldToEventLoop(deps.signal);
-      const audioAlignment = alignSubtitleFileToReferenceSpans(parsedTarget, audioSpeech.spans, {
-        stripSigns: true,
-        allowSplits: true,
-        calibration: audioSpeech.calibration,
-        leadSec: AUDIO_SPEECH_LEAD_SEC,
-        lengthSec,
-        confidenceThreshold: AUTO_AUDIO_CONFIDENCE_THRESHOLD,
-      });
+      const audioAlignment = await alignSubtitleOffThread(
+        deps.signal,
+        parsedTarget,
+        audioSpeech.spans,
+        {
+          stripSigns: true,
+          allowSplits: true,
+          calibration: audioSpeech.calibration,
+          leadSec: AUDIO_SPEECH_LEAD_SEC,
+          lengthSec,
+          confidenceThreshold: AUTO_AUDIO_CONFIDENCE_THRESHOLD,
+        },
+      );
       const audioLabel = audioSpeech.source === 'silero-vad' ? 'audio (Silero VAD)' : 'video audio';
       if (audioAlignment.confident) {
         await applyAlignment(audioAlignment, audioLabel);
@@ -292,14 +304,18 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
     //    try already-loaded external dialogue tracks first with a stricter confidence bar.
     if (!audioSpeech) {
       for (const candidate of unverifiedDialogueCandidates) {
-        await yieldToEventLoop(deps.signal);
-        const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
-          stripSigns: true,
-          allowSplits: true,
-          calibration: 'clean',
-          lengthSec,
-          confidenceThreshold: AUTO_REMOTE_CONFIDENCE_THRESHOLD,
-        });
+        const alignment = await alignSubtitleOffThread(
+          deps.signal,
+          parsedTarget,
+          candidate.dialogueSpans,
+          {
+            stripSigns: true,
+            allowSplits: true,
+            calibration: 'clean',
+            lengthSec,
+            confidenceThreshold: AUTO_REMOTE_CONFIDENCE_THRESHOLD,
+          },
+        );
         if (alignment.confident) {
           await applyAlignment(alignment, candidate.evaluated.label);
           return;
@@ -331,8 +347,8 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
 
             const extractedSpans = extractSpansFromParsedSubtitle(parsed, { stripSigns: true });
             if (extractedSpans.dialogueCount < MIN_REFERENCE_DIALOGUE_LINES) return false;
-            await yieldToEventLoop(deps.signal);
-            const alignment = alignSubtitleFileToReferenceSpans(
+            const alignment = await alignSubtitleOffThread(
+              deps.signal,
               parsedTarget,
               extractedSpans.spans,
               {
@@ -473,8 +489,8 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
                 (item) => item.key === candidate.evaluated.key,
               );
               if (matchedItem && triedRemoteEmbedded.has(matchedItem.ffIndex)) continue;
-              await yieldToEventLoop(deps.signal);
-              const alignment = alignSubtitleFileToReferenceSpans(
+              const alignment = await alignSubtitleOffThread(
+                deps.signal,
                 parsedTarget,
                 candidate.dialogueSpans,
                 {

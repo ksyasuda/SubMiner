@@ -38,14 +38,6 @@ export const JELLYFIN_SUBTITLE_FETCH_TIMEOUT_MS = 15_000;
 
 const COMMAND_OUTPUT_SUMMARY_CHARS = 300;
 
-// Alignment and candidate scoring are synchronous CPU work (100ms to 1s each on long media).
-// Yield between them so mpv IPC, the overlay, and other main-process work keep flowing.
-// Also the cancellation point between those stages.
-export async function yieldToEventLoop(signal?: AbortSignal): Promise<void> {
-  await new Promise((resolve) => setImmediate(resolve));
-  signal?.throwIfAborted();
-}
-
 // Keep the tail of tool output (errors come last; alass prints progress first) and strip
 // stream tokens: ffmpeg echoes input URLs, and Jellyfin URLs carry ApiKey.
 function summarizeCommandOutput(text: string): string {

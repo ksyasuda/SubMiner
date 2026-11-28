@@ -8,7 +8,6 @@ import {
   SubsyncContext,
   SubsyncResolvedConfig,
 } from '../../subsync/utils';
-import { alignSubtitleFileToReferenceSpans } from '../../subsync/alass-align';
 import { extractAudioSpeechSpans, getMediaFileSignature } from '../../subsync/audio-speech';
 import { buildTrackReferenceLabel } from '../../subsync/reference-discovery';
 import {
@@ -63,6 +62,7 @@ import {
   isExecutableAvailable,
   summarizeCommandFailure,
 } from './subsync-shared';
+import { alignSubtitleOffThread } from '../../subsync/align-worker';
 
 async function runBuiltinSubsync(
   request: SubsyncManualRunRequest,
@@ -170,7 +170,7 @@ async function runBuiltinSubsync(
       return { ok: false, message: 'Selected reference has no usable dialogue timestamps.' };
     }
 
-    const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, referenceSpans, {
+    const alignment = await alignSubtitleOffThread(deps.signal, parsedTarget, referenceSpans, {
       stripSigns,
       allowSplits,
       calibration,

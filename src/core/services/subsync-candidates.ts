@@ -8,11 +8,7 @@ import {
   SubsyncContext,
   SubsyncResolvedConfig,
 } from '../../subsync/utils';
-import {
-  evaluateReferenceAlignmentToAudio,
-  evaluateReferenceAlignmentToSampledAudio,
-  type SampledAudioWindow,
-} from '../../subsync/alass-align';
+import { type SampledAudioWindow } from '../../subsync/alass-align';
 import {
   cacheEmbeddedSubtitleTrack,
   extractAudioSpeechSpans,
@@ -52,8 +48,11 @@ import {
   MIN_REFERENCE_DIALOGUE_LINES,
   type SubsyncCoreDeps,
   isExecutableAvailable,
-  yieldToEventLoop,
 } from './subsync-shared';
+import {
+  evaluateToAudioOffThread,
+  evaluateToSampledAudioOffThread,
+} from '../../subsync/align-worker';
 
 async function resolveAudioSpeechForContext(
   context: SubsyncContext,
@@ -139,13 +138,13 @@ export async function discoverAndEvaluateSubtitleCandidates(
     }
   }
 
-  const evaluateParsedCandidate = (
+  const evaluateParsedCandidate = async (
     meta: Omit<
       EvaluatedSubtitleReference,
       'dialogueCount' | 'signCount' | 'audioStatus' | 'audioOffsetMs' | 'audioConfidence'
     >,
     parsed: ParsedSubtitleFile | null,
-  ): CandidateWithSpans => {
+  ): Promise<CandidateWithSpans> => {
     const stripped = parsed
       ? extractSpansFromParsedSubtitle(parsed, { stripSigns: true })
       : { spans: [], dialogueCount: 0, signCount: 0 };
@@ -163,16 +162,22 @@ export async function discoverAndEvaluateSubtitleCandidates(
 
     if (!effectiveSignsOnly && stripped.spans.length >= MIN_REFERENCE_DIALOGUE_LINES) {
       if (audioSpeech && audioSpeech.spans.length > 0) {
-        const audioEval = evaluateReferenceAlignmentToAudio(stripped.spans, audioSpeech.spans, {
-          lengthSec: context.durationSec ?? audioSpeech.durationSec,
-          audioCalibration: audioSpeech.calibration,
-          audioLeadSec: AUDIO_SPEECH_LEAD_SEC,
-        });
+        const audioEval = await evaluateToAudioOffThread(
+          options.signal,
+          stripped.spans,
+          audioSpeech.spans,
+          {
+            lengthSec: context.durationSec ?? audioSpeech.durationSec,
+            audioCalibration: audioSpeech.calibration,
+            audioLeadSec: AUDIO_SPEECH_LEAD_SEC,
+          },
+        );
         audioStatus = audioEval.status;
         audioOffsetMs = audioEval.offsetMs;
         audioConfidence = audioEval.confidence;
       } else if (sampledWindows && sampledWindows.length >= 2) {
-        const sampleEval = evaluateReferenceAlignmentToSampledAudio(
+        const sampleEval = await evaluateToSampledAudioOffThread(
+          options.signal,
           stripped.spans,
           sampledWindows,
           { audioLeadSec: AUDIO_SPEECH_LEAD_SEC },
@@ -229,21 +234,20 @@ export async function discoverAndEvaluateSubtitleCandidates(
     };
 
     if (isEmbedded && skipSignsEmbedded && isSignsTrack) {
-      results.push(evaluateParsedCandidate(baseMeta, null));
+      results.push(await evaluateParsedCandidate(baseMeta, null));
       continue;
     }
 
     if (isEmbedded && preExtracted && typeof track['ff-index'] === 'number') {
       const preParsed = preExtracted.get(track['ff-index']);
       if (preParsed && preParsed.events.length > 0) {
-        await yieldToEventLoop(options.signal);
-        results.push(evaluateParsedCandidate(baseMeta, preParsed));
+        results.push(await evaluateParsedCandidate(baseMeta, preParsed));
         continue;
       }
     }
 
     if (isEmbedded && skipEmbeddedExtraction) {
-      results.push(evaluateParsedCandidate(baseMeta, null));
+      results.push(await evaluateParsedCandidate(baseMeta, null));
       continue;
     }
 
@@ -257,7 +261,7 @@ export async function discoverAndEvaluateSubtitleCandidates(
           (!isRemoteMediaPath(context.videoPath) &&
             !canFfmpegExtractSubtitleExtension(embeddedExtension)))
       ) {
-        results.push(evaluateParsedCandidate(baseMeta, null));
+        results.push(await evaluateParsedCandidate(baseMeta, null));
         continue;
       }
       const preExtractSignature =
@@ -275,7 +279,7 @@ export async function discoverAndEvaluateSubtitleCandidates(
       if (isEmbedded && !isRemoteMediaPath(context.videoPath)) {
         const postExtractSignature = getMediaFileSignature(context.videoPath);
         if (postExtractSignature !== preExtractSignature) {
-          results.push(evaluateParsedCandidate(baseMeta, null));
+          results.push(await evaluateParsedCandidate(baseMeta, null));
           continue;
         }
         if (
@@ -291,10 +295,9 @@ export async function discoverAndEvaluateSubtitleCandidates(
           );
         }
       }
-      await yieldToEventLoop(options.signal);
-      results.push(evaluateParsedCandidate(baseMeta, parsed));
+      results.push(await evaluateParsedCandidate(baseMeta, parsed));
     } catch {
-      results.push(evaluateParsedCandidate(baseMeta, null));
+      results.push(await evaluateParsedCandidate(baseMeta, null));
     } finally {
       cleanupTemporaryFile(extraction);
     }
@@ -322,8 +325,7 @@ export async function discoverAndEvaluateSubtitleCandidates(
       };
       try {
         const parsed = readAndParseSubtitleFile(sidecar.path);
-        await yieldToEventLoop(options.signal);
-        results.push(evaluateParsedCandidate(baseMeta, parsed));
+        results.push(await evaluateParsedCandidate(baseMeta, parsed));
       } catch {
         // Ignore unreadable sidecars.
       }
