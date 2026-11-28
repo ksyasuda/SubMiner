@@ -10,6 +10,8 @@ import {
   extractAudioSpeechSpans,
   extractSinglePassRipMedia,
   getCachedAudioSpeechSpans,
+  getCachedEmbeddedSubtitles,
+  getMediaFileSignature,
   parseRawSileroVadSegments,
 } from './audio-speech';
 import { parseSubtitleFileContent } from './subtitle-lines';
@@ -144,12 +146,14 @@ exit 0
   }
 });
 
-test('cacheEmbeddedSubtitleTrack populates single-pass cache and ignores zero-event parses', async () => {
+test('cacheEmbeddedSubtitleTrack populates single-pass cache, ignores empty parses, and guards file signature', async () => {
   clearAudioSpeechCache();
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-embedded-cache-'));
   try {
     const videoPath = path.join(tmpDir, 'episode.mkv');
-    fs.writeFileSync(videoPath, 'video');
+    fs.writeFileSync(videoPath, 'video-v1');
+    const sigV1 = getMediaFileSignature(videoPath);
+    assert.ok(sigV1 !== null);
 
     const validParsed = parseSubtitleFileContent(
       '1\n00:00:01,000 --> 00:00:02,500\nHello world\n',
@@ -157,8 +161,11 @@ test('cacheEmbeddedSubtitleTrack populates single-pass cache and ignores zero-ev
     );
     const emptyParsed = parseSubtitleFileContent('', 'track_3.srt');
 
-    cacheEmbeddedSubtitleTrack(videoPath, 3, validParsed);
-    cacheEmbeddedSubtitleTrack(videoPath, 3, emptyParsed);
+    cacheEmbeddedSubtitleTrack(videoPath, 3, validParsed, sigV1);
+    cacheEmbeddedSubtitleTrack(videoPath, 3, emptyParsed, sigV1);
+
+    const cachedV1 = getCachedEmbeddedSubtitles(videoPath);
+    assert.equal(cachedV1?.get(3)?.events.length, 1);
 
     const rip = await extractSinglePassRipMedia({
       ffmpegPath: '/nonexistent/ffmpeg',
@@ -170,6 +177,14 @@ test('cacheEmbeddedSubtitleTrack populates single-pass cache and ignores zero-ev
 
     assert.ok(rip !== null);
     assert.equal(rip.embeddedSubtitles.get(3)?.events.length, 1);
+
+    // Replacing the file invalidates sigV1; publishing under sigV1 must not poison v2.
+    fs.writeFileSync(videoPath, 'video-v2-remuxed');
+    const sigV2 = getMediaFileSignature(videoPath);
+    assert.notEqual(sigV2, sigV1);
+
+    cacheEmbeddedSubtitleTrack(videoPath, 4, validParsed, sigV1);
+    assert.equal(getCachedEmbeddedSubtitles(videoPath), null);
   } finally {
     clearAudioSpeechCache();
     fs.rmSync(tmpDir, { recursive: true, force: true });

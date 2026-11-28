@@ -37,6 +37,8 @@ import {
   extractSampledAudioWindows,
   extractSinglePassRipMedia,
   getCachedAudioSpeechSpans,
+  getCachedEmbeddedSubtitles,
+  getMediaFileSignature,
   type AudioSpeechResult,
   type EmbeddedTrackSpec,
 } from '../../subsync/audio-speech';
@@ -854,6 +856,10 @@ async function discoverAndEvaluateSubtitleCandidates(
         results.push(evaluateParsedCandidate(baseMeta, null));
         continue;
       }
+      const preExtractSignature =
+        isEmbedded && !isRemoteMediaPath(context.videoPath)
+          ? getMediaFileSignature(context.videoPath)
+          : null;
       extraction = await extractSubtitleTrackToFile(
         resolved.ffmpegPath,
         context.videoPath,
@@ -866,9 +872,15 @@ async function discoverAndEvaluateSubtitleCandidates(
         isEmbedded &&
         !isRemoteMediaPath(context.videoPath) &&
         typeof track['ff-index'] === 'number' &&
-        parsed.events.length > 0
+        parsed.events.length > 0 &&
+        preExtractSignature !== null
       ) {
-        cacheEmbeddedSubtitleTrack(context.videoPath, track['ff-index'], parsed);
+        cacheEmbeddedSubtitleTrack(
+          context.videoPath,
+          track['ff-index'],
+          parsed,
+          preExtractSignature,
+        );
       }
       results.push(evaluateParsedCandidate(baseMeta, parsed));
     } catch {
@@ -1561,9 +1573,13 @@ async function prepareRipCandidatesAndAudio(
         preExtractedEmbedded: rip.embeddedSubtitles,
       };
     }
-    // Single-pass failed (e.g. a broken track in container): fall back cleanly.
+    // Single-pass failed (e.g. a broken track in container): fall back cleanly while preserving cached tracks.
     const audioSpeech = await resolveAudioSpeechForContext(context, resolved, deps);
-    return { audioSpeech, sampledAudioWindows: null, preExtractedEmbedded: null };
+    return {
+      audioSpeech,
+      sampledAudioWindows: null,
+      preExtractedEmbedded: getCachedEmbeddedSubtitles(context.videoPath),
+    };
   }
 
   if (cachedFull) {

@@ -122,14 +122,31 @@ function rememberAudioSpeech(key: string | null, result: AudioSpeechResult): voi
   rememberLru(audioSpeechCache, key, result);
 }
 
+export function getMediaFileSignature(videoPath: string): string | null {
+  return buildFileSignatureKey(videoPath);
+}
+
+export function getCachedEmbeddedSubtitles(
+  videoPath: string,
+): Map<number, ParsedSubtitleFile> | null {
+  const fileKey = buildFileSignatureKey(videoPath);
+  if (!fileKey) return null;
+  const cached = embeddedSubtitlesCache.get(fileKey);
+  return cached && cached.size > 0 ? new Map(cached) : null;
+}
+
 export function cacheEmbeddedSubtitleTrack(
   videoPath: string,
   ffIndex: number,
   parsed: ParsedSubtitleFile,
+  expectedFileSignature?: string | null,
 ): void {
   if (parsed.events.length === 0) return;
   const fileKey = buildFileSignatureKey(videoPath);
   if (!fileKey) return;
+  if (expectedFileSignature !== undefined && fileKey !== expectedFileSignature) {
+    return;
+  }
   const existing = embeddedSubtitlesCache.get(fileKey);
   const updated = new Map<number, ParsedSubtitleFile>(existing);
   updated.set(ffIndex, parsed);

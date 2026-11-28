@@ -10,7 +10,7 @@ import {
   runSubsyncManual,
   triggerSubsyncFromConfig,
 } from './subsync';
-import { clearAudioSpeechCache } from '../../subsync/audio-speech';
+import { clearAudioSpeechCache, getCachedEmbeddedSubtitles } from '../../subsync/audio-speech';
 import type { SubsyncManualPayload } from '../../types';
 
 function makeDeps(
@@ -4311,6 +4311,27 @@ exit 1
       `expected 1 batch pass + 2 individual retries on run 1, got: ${callsAfterFirst.join(' | ')}`,
     );
     assert.ok(
+      callsAfterFirst[0]!.startsWith('PIPE=1') &&
+        callsAfterFirst[0]!.includes('0:2') &&
+        callsAfterFirst[0]!.includes('0:3') &&
+        callsAfterFirst[0]!.includes('0:4'),
+      `expected first call to map all 3 embedded tracks, got: ${callsAfterFirst[0]}`,
+    );
+    assert.ok(
+      callsAfterFirst[1]!.startsWith('PIPE=0') &&
+        callsAfterFirst[1]!.includes('0:3') &&
+        !callsAfterFirst[1]!.includes('0:2') &&
+        !callsAfterFirst[1]!.includes('0:4'),
+      `expected second call to retry only 0:3, got: ${callsAfterFirst[1]}`,
+    );
+    assert.ok(
+      callsAfterFirst[2]!.startsWith('PIPE=0') &&
+        callsAfterFirst[2]!.includes('0:4') &&
+        !callsAfterFirst[2]!.includes('0:2') &&
+        !callsAfterFirst[2]!.includes('0:3'),
+      `expected third call to retry only 0:4, got: ${callsAfterFirst[2]}`,
+    );
+    assert.ok(
       osd.some((line) => line.includes('English (Empty In Batch)') && line.includes('-2.3')),
       `expected first run to sync via retried zero-event track around -2.3s, got: ${osd.join(' | ')}`,
     );
@@ -4485,12 +4506,14 @@ exit 1
     assert.ok(
       callsAfterFirst[1]!.startsWith('PIPE=0') &&
         callsAfterFirst[1]!.includes('0:3') &&
-        !callsAfterFirst[1]!.includes('0:2'),
+        !callsAfterFirst[1]!.includes('0:2') &&
+        !callsAfterFirst[1]!.includes('0:4'),
     );
     assert.ok(
       callsAfterFirst[2]!.startsWith('PIPE=0') &&
         callsAfterFirst[2]!.includes('0:4') &&
-        !callsAfterFirst[2]!.includes('0:2'),
+        !callsAfterFirst[2]!.includes('0:2') &&
+        !callsAfterFirst[2]!.includes('0:3'),
     );
 
     const firstCandidates = payloads[0]!.referenceCandidates ?? [];
@@ -4518,6 +4541,288 @@ exit 1
     const secondCandidates = payloads[1]!.referenceCandidates ?? [];
     assert.equal(secondCandidates.find((c) => c.key === 'track:3')?.audioStatus, 'aligned');
     assert.equal(secondCandidates.find((c) => c.key === 'track:4')?.audioStatus, 'aligned');
+  } finally {
+    clearAudioSpeechCache();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('openSubsyncManualPicker does not cache embedded retry cues under a replaced MKV signature', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-remux-cache-guard-'));
+  clearAudioSpeechCache();
+  try {
+    const videoPath = path.join(tmpDir, 'ep01.mkv');
+    const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+    const staleEngPath = path.join(tmpDir, 'fixture-stale-eng.srt');
+    const replacementEngPath = path.join(tmpDir, 'fixture-replacement-eng.srt');
+    const pcmPath = path.join(tmpDir, 'audio.pcm');
+    const flagPath = path.join(tmpDir, 'replaced.flag');
+    const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+    const spans = generateSyntheticSpans(7n, 1442695040888963407n, 240);
+
+    fs.writeFileSync(videoPath, 'video-v1');
+    writeSrtFromSpans(targetPath, spans, 2.0);
+    writeSrtFromSpans(staleEngPath, spans, 5.0);
+    writeSrtFromSpans(replacementEngPath, spans, 0);
+    writeSpeechPcmFile(pcmPath, spans, 260);
+
+    // Run 1: batch emits empty 0:3; individual retry for 0:3 writes stale (shifted) cues AND
+    // replaces videoPath on disk mid-extraction. Run 2 (on the replaced file): batch emits
+    // replacement aligned cues for 0:3 (which must NOT be masked by a stale cache entry).
+    writeExecutableScript(
+      fakeFfmpeg,
+      `#!/bin/sh
+has_pipe=0
+prev=""
+cur_map=""
+out_for_3=""
+for arg in "$@"; do
+  if [ "$prev" = "-map" ]; then cur_map="$arg"; fi
+  if [ "$arg" = "pipe:1" ]; then has_pipe=1; fi
+  case "$arg" in
+    *.srt)
+      if [ "$cur_map" = "0:3" ]; then out_for_3="$arg"; fi
+      ;;
+  esac
+  prev="$arg"
+done
+if [ "$has_pipe" = "1" ]; then
+  if [ -f "${toShellPath(flagPath)}" ]; then
+    if [ -n "$out_for_3" ]; then cp "${toShellPath(replacementEngPath)}" "$out_for_3"; fi
+  else
+    if [ -n "$out_for_3" ]; then : > "$out_for_3"; fi
+  fi
+  cat "${toShellPath(pcmPath)}"
+  exit 0
+fi
+if [ -n "$out_for_3" ]; then
+  if [ ! -f "${toShellPath(flagPath)}" ]; then
+    printf "video-v2-remuxed-replacement" > "${toShellPath(videoPath)}"
+    : > "${toShellPath(flagPath)}"
+    cp "${toShellPath(staleEngPath)}" "$out_for_3"
+    exit 0
+  fi
+  cp "${toShellPath(replacementEngPath)}" "$out_for_3"
+  exit 0
+fi
+exit 1
+`,
+    );
+
+    const payloads: SubsyncManualPayload[] = [];
+    const deps = makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoPath;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'duration') return 260;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'eng',
+                title: 'English',
+                codec: 'subrip',
+                'ff-index': 3,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+      openManualPicker: (payload) => {
+        payloads.push(payload);
+      },
+    });
+
+    await openSubsyncManualPicker(deps);
+    assert.equal(fs.existsSync(flagPath), true);
+    assert.equal(
+      getCachedEmbeddedSubtitles(videoPath),
+      null,
+      'stale retry cues must not be cached under the replacement file signature',
+    );
+
+    await openSubsyncManualPicker(deps);
+    assert.equal(payloads.length, 2);
+    const track3AfterReplacement = (payloads[1]!.referenceCandidates ?? []).find(
+      (c) => c.key === 'track:3',
+    );
+    assert.equal(track3AfterReplacement?.audioStatus, 'aligned');
+  } finally {
+    clearAudioSpeechCache();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('prepareRipCandidatesAndAudio preserves cached embedded tracks when a broken track fails the combined pass', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-combined-fail-cache-'));
+  clearAudioSpeechCache();
+  try {
+    const videoPath = path.join(tmpDir, 'ep01.mkv');
+    const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+    const alignedEngPath = path.join(tmpDir, 'fixture-aligned-eng.srt');
+    const pcmPath = path.join(tmpDir, 'audio.pcm');
+    const ffmpegCallsLog = path.join(tmpDir, 'ffmpeg-calls.log');
+    const fakeFfmpeg = path.join(tmpDir, 'ffmpeg.sh');
+    const spans = generateSyntheticSpans(7n, 1442695040888963407n, 240);
+
+    fs.writeFileSync(videoPath, 'video');
+    writeSrtFromSpans(targetPath, spans, 2.0);
+    writeSrtFromSpans(alignedEngPath, spans, 0);
+    writeSpeechPcmFile(pcmPath, spans, 260);
+
+    // 0:2 always fails (breaking the combined pass and individual retry);
+    // 0:3 succeeds individually; audio-only pipe succeeds.
+    writeExecutableScript(
+      fakeFfmpeg,
+      `#!/bin/sh
+has_pipe=0
+has_broken=0
+maps=""
+prev=""
+cur_map=""
+out_for_3=""
+for arg in "$@"; do
+  if [ "$prev" = "-map" ]; then
+    cur_map="$arg"
+    maps="$maps $arg"
+    if [ "$arg" = "0:2" ]; then has_broken=1; fi
+  fi
+  if [ "$arg" = "pipe:1" ]; then has_pipe=1; fi
+  case "$arg" in
+    *.srt)
+      if [ "$cur_map" = "0:3" ]; then out_for_3="$arg"; fi
+      ;;
+  esac
+  prev="$arg"
+done
+echo "PIPE=$has_pipe MAPS:$maps" >> "${toShellPath(ffmpegCallsLog)}"
+if [ "$has_broken" = "1" ]; then
+  exit 1
+fi
+if [ "$has_pipe" = "1" ]; then
+  cat "${toShellPath(pcmPath)}"
+  exit 0
+fi
+if [ -n "$out_for_3" ]; then
+  cp "${toShellPath(alignedEngPath)}" "$out_for_3"
+  exit 0
+fi
+exit 1
+`,
+    );
+
+    const payloads: SubsyncManualPayload[] = [];
+    const deps = makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: 1,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return videoPath;
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'duration') return 260;
+          if (name === 'track-list') {
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'jpn',
+                'external-filename': targetPath,
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: false,
+                lang: 'eng',
+                title: 'English (Broken)',
+                codec: 'subrip',
+                'ff-index': 2,
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: false,
+                lang: 'eng',
+                title: 'English (Healthy)',
+                codec: 'subrip',
+                'ff-index': 3,
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      getResolvedConfig: () => ({
+        mode: 'auto',
+        alassPath: '/missing/alass',
+        ffsubsyncPath: '/missing/ffsubsync',
+        ffmpegPath: fakeFfmpeg,
+        replace: false,
+      }),
+      openManualPicker: (payload) => {
+        payloads.push(payload);
+      },
+    });
+
+    await openSubsyncManualPicker(deps);
+    const callsAfterFirst = fs.readFileSync(ffmpegCallsLog, 'utf8').trim().split('\n');
+    // Run 1: failed combined pass (0:2 + 0:3 + audio), fallback audio-only, individual 0:2 (fails), individual 0:3 (succeeds & caches).
+    assert.equal(
+      callsAfterFirst.length,
+      4,
+      `expected 4 calls on run 1, got: ${callsAfterFirst.join(' | ')}`,
+    );
+    assert.equal(
+      (payloads[0]!.referenceCandidates ?? []).find((c) => c.key === 'track:3')?.audioStatus,
+      'aligned',
+    );
+
+    await openSubsyncManualPicker(deps);
+    const callsAfterSecond = fs.readFileSync(ffmpegCallsLog, 'utf8').trim().split('\n');
+    const secondRunCalls = callsAfterSecond.slice(callsAfterFirst.length);
+    // Run 2: batch retries missing 0:2 (fails), audio hits cache, discovery retries 0:2 individually,
+    // and 0:3 reuses cached entry without spawning ffmpeg for 0:3 again.
+    assert.ok(
+      secondRunCalls.every((line) => !line.includes('0:3')),
+      `expected run 2 to reuse cached 0:3 without invoking ffmpeg for it, got: ${secondRunCalls.join(' | ')}`,
+    );
+    assert.ok(
+      secondRunCalls.some((line) => line.startsWith('PIPE=0') && line.includes('0:2')),
+      `expected run 2 to still retry missing 0:2 individually, got: ${secondRunCalls.join(' | ')}`,
+    );
+    assert.equal(
+      (payloads[1]!.referenceCandidates ?? []).find((c) => c.key === 'track:3')?.audioStatus,
+      'aligned',
+    );
   } finally {
     clearAudioSpeechCache();
     fs.rmSync(tmpDir, { recursive: true, force: true });
