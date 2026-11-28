@@ -4657,7 +4657,13 @@ exit 1
       },
     });
 
-    await openSubsyncManualPicker(deps);
+    const openedFirst = await openSubsyncManualPicker(deps);
+    assert.equal(openedFirst, false);
+    assert.equal(
+      payloads.length,
+      0,
+      'stale candidates from superseded media version must not be published',
+    );
     assert.equal(fs.existsSync(flagPath), true);
     assert.equal(
       getCachedEmbeddedSubtitles(videoPath),
@@ -4665,9 +4671,10 @@ exit 1
       'stale retry cues must not be cached under the replacement file signature',
     );
 
-    await openSubsyncManualPicker(deps);
-    assert.equal(payloads.length, 2);
-    const track3AfterReplacement = (payloads[1]!.referenceCandidates ?? []).find(
+    const openedSecond = await openSubsyncManualPicker(deps);
+    assert.equal(openedSecond, true);
+    assert.equal(payloads.length, 1);
+    const track3AfterReplacement = (payloads[0]!.referenceCandidates ?? []).find(
       (c) => c.key === 'track:3',
     );
     assert.equal(track3AfterReplacement?.audioStatus, 'aligned');
@@ -4811,13 +4818,16 @@ exit 1
     const secondRunCalls = callsAfterSecond.slice(callsAfterFirst.length);
     // Run 2: batch retries missing 0:2 (fails), audio hits cache, discovery retries 0:2 individually,
     // and 0:3 reuses cached entry without spawning ffmpeg for 0:3 again.
-    assert.ok(
-      secondRunCalls.every((line) => !line.includes('0:3')),
-      `expected run 2 to reuse cached 0:3 without invoking ffmpeg for it, got: ${secondRunCalls.join(' | ')}`,
+    assert.equal(
+      secondRunCalls.length,
+      2,
+      `expected 2 calls on run 2 (failed combined pass + individual retry for 0:2), got: ${secondRunCalls.join(' | ')}`,
     );
     assert.ok(
-      secondRunCalls.some((line) => line.startsWith('PIPE=0') && line.includes('0:2')),
-      `expected run 2 to still retry missing 0:2 individually, got: ${secondRunCalls.join(' | ')}`,
+      secondRunCalls.every(
+        (line) => line.startsWith('PIPE=0') && line.includes('0:2') && !line.includes('0:3'),
+      ),
+      `expected both run 2 calls to map only 0:2 without 0:3, got: ${secondRunCalls.join(' | ')}`,
     );
     assert.equal(
       (payloads[1]!.referenceCandidates ?? []).find((c) => c.key === 'track:3')?.audioStatus,

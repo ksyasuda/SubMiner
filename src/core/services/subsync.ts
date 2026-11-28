@@ -868,19 +868,24 @@ async function discoverAndEvaluateSubtitleCandidates(
         options.fetchImpl,
       );
       const parsed = readAndParseSubtitleFile(extraction.path);
-      if (
-        isEmbedded &&
-        !isRemoteMediaPath(context.videoPath) &&
-        typeof track['ff-index'] === 'number' &&
-        parsed.events.length > 0 &&
-        preExtractSignature !== null
-      ) {
-        cacheEmbeddedSubtitleTrack(
-          context.videoPath,
-          track['ff-index'],
-          parsed,
-          preExtractSignature,
-        );
+      if (isEmbedded && !isRemoteMediaPath(context.videoPath)) {
+        const postExtractSignature = getMediaFileSignature(context.videoPath);
+        if (postExtractSignature !== preExtractSignature) {
+          results.push(evaluateParsedCandidate(baseMeta, null));
+          continue;
+        }
+        if (
+          typeof track['ff-index'] === 'number' &&
+          parsed.events.length > 0 &&
+          preExtractSignature !== null
+        ) {
+          cacheEmbeddedSubtitleTrack(
+            context.videoPath,
+            track['ff-index'],
+            parsed,
+            preExtractSignature,
+          );
+        }
       }
       results.push(evaluateParsedCandidate(baseMeta, parsed));
     } catch {
@@ -1664,6 +1669,7 @@ export async function openSubsyncManualPicker(
   let audioSpeechAvailable: boolean | undefined;
 
   if (!options.skipAudioAnalysis) {
+    const initialMediaSignature = !isRemote ? getMediaFileSignature(context.videoPath) : null;
     const prepared = await prepareRipCandidatesAndAudio(
       context,
       context.primaryTrack,
@@ -1690,7 +1696,10 @@ export async function openSubsyncManualPicker(
         fetchImpl: deps.fetchImpl,
       },
     );
-    if (!(await isPlaybackSessionUnchanged(client, context, context.primaryTrack, 'primary'))) {
+    if (
+      !(await isPlaybackSessionUnchanged(client, context, context.primaryTrack, 'primary')) ||
+      (!isRemote && getMediaFileSignature(context.videoPath) !== initialMediaSignature)
+    ) {
       return false;
     }
   }
@@ -1709,6 +1718,9 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
   const context = await gatherSubsyncContext(client);
   const resolved = deps.getResolvedConfig();
   const isRemote = isRemoteMediaPath(context.videoPath);
+  const initialMediaSignature = !isRemote ? getMediaFileSignature(context.videoPath) : null;
+  const isMediaFileUnchanged = (): boolean =>
+    isRemote || getMediaFileSignature(context.videoPath) === initialMediaSignature;
 
   const targetTrack = context.primaryTrack;
   const targetSlot = resolveTargetSlot(targetTrack, context);
@@ -1725,7 +1737,10 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         deps.fetchImpl,
       );
     } catch (extractError) {
-      if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
+      if (
+        !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
+        !isMediaFileUnchanged()
+      ) {
         return;
       }
       const payload = buildManualPayload(context, resolved, deps, {
@@ -1739,7 +1754,10 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
     const targetInfo = extractSpansFromParsedSubtitle(parsedTarget, { stripSigns: true });
 
     if (parsedTarget.events.length === 0 || targetInfo.spans.length === 0) {
-      if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
+      if (
+        !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
+        !isMediaFileUnchanged()
+      ) {
         return;
       }
       const payload = buildManualPayload(context, resolved, deps, {
@@ -1783,7 +1801,10 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
       const activeDelay = alreadyInSync
         ? parseOptionalNumber(await client.requestProperty(delayProperty).catch(() => null))
         : null;
-      if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
+      if (
+        !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
+        !isMediaFileUnchanged()
+      ) {
         return;
       }
       if (alreadyInSync) {
@@ -2160,7 +2181,10 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
     }
     reasons.push('Pick a reference, browse a subtitle file, or adjust sync options below.');
 
-    if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
+    if (
+      !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
+      !isMediaFileUnchanged()
+    ) {
       return;
     }
 
