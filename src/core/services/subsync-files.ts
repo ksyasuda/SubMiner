@@ -509,10 +509,11 @@ export async function loadSyncedSubtitle(
     if (addedTrackId === null) {
       throw new Error('Synchronized subtitle did not appear in the mpv track list');
     }
-    signal?.throwIfAborted();
     // The lookup polls for a while; if the user picked another secondary track meanwhile,
     // keep their choice (and delay) rather than overriding it.
-    if ((await client.requestProperty('secondary-sid')) !== secondaryBeforeAdd) {
+    const secondaryAfterLookup = await client.requestProperty('secondary-sid');
+    signal?.throwIfAborted();
+    if (secondaryAfterLookup !== secondaryBeforeAdd) {
       throw new Error(
         `Secondary subtitle changed while loading; saved the synced file at ${pathToLoad} without selecting it.`,
       );
