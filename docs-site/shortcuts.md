@@ -70,24 +70,24 @@ Built into the overlay, not configurable:
 
 ## Overlay features
 
-| Shortcut           | Action                                                 | Config key                                 |
-| ------------------ | ------------------------------------------------------ | ------------------------------------------ |
-| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle bar: hidden, visible, hover   | `shortcuts.toggleSecondarySub`             |
-| `Ctrl/Cmd+Shift+O` | Open runtime options                                   | `shortcuts.openRuntimeOptions`             |
-| `Ctrl/Cmd+/`       | Open session help                                      | `shortcuts.openSessionHelp`                |
-| `Ctrl/Cmd+D`       | Open character dictionary manager                      | `shortcuts.openCharacterDictionaryManager` |
-| `Ctrl/Cmd+N`       | Toggle notification history                            | `shortcuts.toggleNotificationHistory`      |
-| `Ctrl/Cmd+A`       | Append the video path on the clipboard to the playlist | `shortcuts.appendClipboardVideoToQueue`    |
-| `Ctrl+Shift+J`     | Open Jimaku subtitle search                            | `shortcuts.openJimaku`                     |
-| `Ctrl+Shift+T`     | Open TsukiHime subtitle search                         | `shortcuts.openTsukihime`                  |
-| `Ctrl+Shift+G`     | Open Japanese subtitle generation                      | `shortcuts.openSubtitleGeneration`         |
-| `Ctrl+Alt+S`       | Open subtitle sync (subsync)                           | `shortcuts.triggerSubsync`                 |
-| `g` then `s`       | Pick primary and secondary subtitles (when enabled)    | `shortcuts.openSubtitleSelection`          |
-| `\`                | Toggle subtitle sidebar                                | `subtitleSidebar.toggleKey`                |
-| `` ` ``            | Toggle stats overlay                                   | `stats.toggleKey`                          |
-| `W`                | Mark video watched and play the next one in the queue  | `stats.markWatchedKey`                     |
-| `Alt+C`            | Open controller setup and remapping                    | `shortcuts.openControllerSelect`           |
-| `Alt+Shift+C`      | Open controller debug view                             | `shortcuts.openControllerDebug`            |
+| Shortcut           | Action                                                        | Config key                                 |
+| ------------------ | ------------------------------------------------------------- | ------------------------------------------ |
+| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle bar: hidden, visible, hover          | `shortcuts.toggleSecondarySub`             |
+| `Ctrl/Cmd+Shift+O` | Open runtime options                                          | `shortcuts.openRuntimeOptions`             |
+| `Ctrl/Cmd+/`       | Open session help                                             | `shortcuts.openSessionHelp`                |
+| `Ctrl/Cmd+D`       | Open character dictionary manager                             | `shortcuts.openCharacterDictionaryManager` |
+| `Ctrl/Cmd+N`       | Toggle notification history                                   | `shortcuts.toggleNotificationHistory`      |
+| `Ctrl/Cmd+A`       | Append the video path on the clipboard to the playlist        | `shortcuts.appendClipboardVideoToQueue`    |
+| `Ctrl+Shift+J`     | Open Jimaku subtitle search                                   | `shortcuts.openJimaku`                     |
+| `Ctrl+Shift+T`     | Open TsukiHime subtitle search                                | `shortcuts.openTsukihime`                  |
+| `Ctrl+Shift+G`     | Open Japanese subtitle generation                             | `shortcuts.openSubtitleGeneration`         |
+| `Ctrl+Alt+S`       | Sync active subtitle automatically (guided modal on fallback) | `shortcuts.triggerSubsync`                 |
+| `g` then `s`       | Pick primary and secondary subtitles (when enabled)           | `shortcuts.openSubtitleSelection`          |
+| `\`                | Toggle subtitle sidebar                                       | `subtitleSidebar.toggleKey`                |
+| `` ` ``            | Toggle stats overlay                                          | `stats.toggleKey`                          |
+| `W`                | Mark video watched and play the next one in the queue         | `stats.markWatchedKey`                     |
+| `Alt+C`            | Open controller setup and remapping                           | `shortcuts.openControllerSelect`           |
+| `Alt+Shift+C`      | Open controller debug view                                    | `shortcuts.openControllerDebug`            |
 
 While a video is playing, session help can also run commands: highlight a row with the arrow keys or the mouse, then press `Enter` or double-click it. Fixed overlay controls, global shortcuts, `y` chords, the multi-line copy and mine actions, Open session help, and the color legend are reference only. Help opened from the tray with no video loaded is read-only.
 

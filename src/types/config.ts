@@ -77,7 +77,10 @@ export interface MpvConfig {
   aniskipButtonKey?: string;
 }
 
+export type SubsyncMode = 'auto' | 'manual';
+
 export interface SubsyncConfig {
+  mode?: SubsyncMode;
   alass_path?: string;
   ffsubsync_path?: string;
   ffmpeg_path?: string;

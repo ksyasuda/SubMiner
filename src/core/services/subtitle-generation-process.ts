@@ -4,7 +4,7 @@ import { expandSubtitleGenerationPath } from './subtitle-generation-files';
 const OUTPUT_LIMIT = 64 * 1024;
 
 // ffmpeg echoes input URLs in its errors; streamed media carries access tokens in the query.
-function redactUrlCredentials(text: string): string {
+export function redactUrlCredentials(text: string): string {
   return text.replace(/([?&](?:api_?key|token|access_token)=)[^&#\s'"]+/gi, '$1<redacted>');
 }
 

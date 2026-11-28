@@ -2,8 +2,12 @@ import { SubsyncManualPayload, SubsyncManualRunRequest, SubsyncResult } from '..
 import { SubsyncResolvedConfig } from '../../subsync/utils';
 import { runSubsyncManualFromIpc } from './ipc-command';
 import {
+  SubsyncCancelledError,
+  SubsyncVadPaths,
   TriggerSubsyncFromConfigDeps,
+  openSubsyncManualPicker,
   runSubsyncManual,
+  runWithMediaChangeAbort,
   triggerSubsyncFromConfig,
 } from './subsync';
 
@@ -19,6 +23,8 @@ interface MpvClientLike {
 export interface SubsyncRuntimeDeps {
   getMpvClient: () => MpvClientLike | null;
   getResolvedSubsyncConfig: () => SubsyncResolvedConfig;
+  getVadPaths?: () => SubsyncVadPaths;
+  canPickReferenceFile?: () => boolean;
   isSubsyncInProgress: () => boolean;
   setSubsyncInProgress: (inProgress: boolean) => void;
   showMpvOsd: (text: string) => void;
@@ -47,6 +53,8 @@ function buildTriggerSubsyncDeps(deps: SubsyncRuntimeDeps): TriggerSubsyncFromCo
   return {
     getMpvClient: deps.getMpvClient,
     getResolvedConfig: deps.getResolvedSubsyncConfig,
+    getVadPaths: deps.getVadPaths,
+    canPickReferenceFile: deps.canPickReferenceFile,
     isSubsyncInProgress: deps.isSubsyncInProgress,
     setSubsyncInProgress: deps.setSubsyncInProgress,
     showMpvOsd: deps.showMpvOsd,
@@ -58,6 +66,35 @@ function buildTriggerSubsyncDeps(deps: SubsyncRuntimeDeps): TriggerSubsyncFromCo
 
 export async function triggerSubsyncFromConfigRuntime(deps: SubsyncRuntimeDeps): Promise<void> {
   await triggerSubsyncFromConfig(buildTriggerSubsyncDeps(deps));
+}
+
+export async function openSubsyncManualPickerRuntime(deps: SubsyncRuntimeDeps): Promise<void> {
+  const triggerDeps = buildTriggerSubsyncDeps(deps);
+  if (triggerDeps.isSubsyncInProgress()) {
+    triggerDeps.showMpvOsd('Subsync already running');
+    return;
+  }
+  triggerDeps.setSubsyncInProgress(true);
+  try {
+    const opened = await triggerDeps.runWithSubsyncSpinner(() =>
+      runWithMediaChangeAbort(triggerDeps, (runDeps) =>
+        openSubsyncManualPicker(runDeps, {
+          guidanceMessage: null,
+        }),
+      ),
+    );
+    if (opened) {
+      triggerDeps.showMpvOsd('Subsync: choose engine and subtitles');
+    }
+  } catch (error) {
+    triggerDeps.showMpvOsd(
+      error instanceof SubsyncCancelledError
+        ? error.message
+        : `Subsync failed: ${(error as Error).message}`,
+    );
+  } finally {
+    triggerDeps.setSubsyncInProgress(false);
+  }
 }
 
 export async function runSubsyncManualFromIpcRuntime(

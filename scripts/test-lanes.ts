@@ -31,6 +31,15 @@ export const testLanes: Record<string, TestLane> = {
     include: ['.test.ts'],
     exclude: ['launcher/smoke.e2e.test.ts'],
   },
+  subtitle: {
+    roots: ['src/subsync'],
+    include: ['.test.ts'],
+    extraFiles: [
+      'src/core/services/subsync.test.ts',
+      'src/core/services/subsync-files.test.ts',
+      'src/renderer/modals/subsync.test.ts',
+    ],
+  },
   scripts: {
     roots: ['scripts'],
     include: ['.test.ts'],

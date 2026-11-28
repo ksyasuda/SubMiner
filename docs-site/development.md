@@ -85,7 +85,7 @@ For smaller changes, start with the cheapest lane that covers what you touched:
 | `bun run test:stats`            | Stats dashboard UI under `stats/src/**`                                  |
 | `bun run test:runtime:compat`   | Compiled-runtime smoke against `dist/` (run `bun run build` first)       |
 | `bun run test:immersion:sqlite` | Compiles, then runs the SQLite-backed immersion tracker tests            |
-| `bun run test:subtitle`         | alass/ffsubsync subtitle sync                                            |
+| `bun run test:subtitle`         | Subtitle sync (`src/subsync/**` and the subsync service)                 |
 | `bun run test:docs:kb`          | Internal docs, `AGENTS.md`, and repo skills                              |
 
 Lane membership is defined in `scripts/test-lanes.ts` and discovered by directory, so a new test file joins its lane automatically. Do not hand-list test files in `package.json`. `scripts/run-test-lane.mjs` runs each file in its own `bun test` process, so a hanging test cannot take down the rest of the lane. Pass `--jobs N` to parallelize or `--single-process` to share one process while debugging.

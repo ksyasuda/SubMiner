@@ -142,12 +142,22 @@ export type RendererDom = {
 
   subsyncModal: HTMLDivElement;
   subsyncCloseButton: HTMLButtonElement;
+  subsyncGuidance: HTMLDivElement;
+  subsyncEngineBuiltin: HTMLInputElement;
   subsyncEngineAlass: HTMLInputElement;
   subsyncEngineFfsubsync: HTMLInputElement;
+  subsyncEngineOffset: HTMLInputElement;
   subsyncReferenceLabel: HTMLLabelElement;
   subsyncReferenceSelect: HTMLSelectElement;
+  subsyncBrowseReferenceButton: HTMLButtonElement;
   subsyncTargetLabel: HTMLLabelElement;
   subsyncTargetSelect: HTMLSelectElement;
+  subsyncOptionsGroup: HTMLDivElement;
+  subsyncStripSignsCheckbox: HTMLInputElement;
+  subsyncAllowSplitsLabel: HTMLLabelElement;
+  subsyncAllowSplitsCheckbox: HTMLInputElement;
+  subsyncOffsetLabel: HTMLLabelElement;
+  subsyncOffsetInput: HTMLInputElement;
   subsyncRunButton: HTMLButtonElement;
   subsyncStatus: HTMLDivElement;
 
@@ -172,6 +182,7 @@ export type RendererDom = {
   subtitleSidebarModal: HTMLDivElement;
   subtitleSidebarContent: HTMLDivElement;
   subtitleSidebarClose: HTMLButtonElement;
+  subtitleSidebarSync: HTMLButtonElement;
   subtitleSidebarCopy: HTMLButtonElement;
   subtitleSidebarStatus: HTMLDivElement;
   subtitleSidebarList: HTMLUListElement;
@@ -419,12 +430,22 @@ export function resolveRendererDom(): RendererDom {
 
     subsyncModal: getRequiredElement<HTMLDivElement>('subsyncModal'),
     subsyncCloseButton: getRequiredElement<HTMLButtonElement>('subsyncClose'),
+    subsyncGuidance: getRequiredElement<HTMLDivElement>('subsyncGuidance'),
+    subsyncEngineBuiltin: getRequiredElement<HTMLInputElement>('subsyncEngineBuiltin'),
     subsyncEngineAlass: getRequiredElement<HTMLInputElement>('subsyncEngineAlass'),
     subsyncEngineFfsubsync: getRequiredElement<HTMLInputElement>('subsyncEngineFfsubsync'),
+    subsyncEngineOffset: getRequiredElement<HTMLInputElement>('subsyncEngineOffset'),
     subsyncReferenceLabel: getRequiredElement<HTMLLabelElement>('subsyncReferenceLabel'),
     subsyncReferenceSelect: getRequiredElement<HTMLSelectElement>('subsyncReferenceSelect'),
+    subsyncBrowseReferenceButton: getRequiredElement<HTMLButtonElement>('subsyncBrowseReference'),
     subsyncTargetLabel: getRequiredElement<HTMLLabelElement>('subsyncTargetLabel'),
     subsyncTargetSelect: getRequiredElement<HTMLSelectElement>('subsyncTargetSelect'),
+    subsyncOptionsGroup: getRequiredElement<HTMLDivElement>('subsyncOptionsGroup'),
+    subsyncStripSignsCheckbox: getRequiredElement<HTMLInputElement>('subsyncStripSigns'),
+    subsyncAllowSplitsLabel: getRequiredElement<HTMLLabelElement>('subsyncAllowSplitsLabel'),
+    subsyncAllowSplitsCheckbox: getRequiredElement<HTMLInputElement>('subsyncAllowSplits'),
+    subsyncOffsetLabel: getRequiredElement<HTMLLabelElement>('subsyncOffsetLabel'),
+    subsyncOffsetInput: getRequiredElement<HTMLInputElement>('subsyncOffsetInput'),
     subsyncRunButton: getRequiredElement<HTMLButtonElement>('subsyncRun'),
     subsyncStatus: getRequiredElement<HTMLDivElement>('subsyncStatus'),
 
@@ -453,6 +474,7 @@ export function resolveRendererDom(): RendererDom {
     subtitleSidebarModal: getRequiredElement<HTMLDivElement>('subtitleSidebarModal'),
     subtitleSidebarContent: getRequiredElement<HTMLDivElement>('subtitleSidebarContent'),
     subtitleSidebarClose: getRequiredElement<HTMLButtonElement>('subtitleSidebarClose'),
+    subtitleSidebarSync: getRequiredElement<HTMLButtonElement>('subtitleSidebarSync'),
     subtitleSidebarCopy: getRequiredElement<HTMLButtonElement>('subtitleSidebarCopy'),
     subtitleSidebarStatus: getRequiredElement<HTMLDivElement>('subtitleSidebarStatus'),
     subtitleSidebarList: getRequiredElement<HTMLUListElement>('subtitleSidebarList'),

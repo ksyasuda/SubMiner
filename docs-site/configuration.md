@@ -521,16 +521,17 @@ Transcribes Japanese subtitles locally with whisper.cpp. Open it with `Ctrl+Shif
 
 ### Subtitle sync
 
-Retimes a subtitle track with [`alass`](https://github.com/kaegi/alass) (against another subtitle or the video) or [`ffsubsync`](https://github.com/smacke/ffsubsync) (against the video's audio). Install them yourself. Open the picker with `Ctrl+Alt+S` (`shortcuts.triggerSubsync`).
+Built-in alass-based subtitle alignment works out of the box with no extra sync binary required. Press `Ctrl+Alt+S` (`shortcuts.triggerSubsync`) or click **Sync** in the [subtitle sidebar](/subtitle-sidebar) to sync automatically: SubMiner inspects loaded, embedded, and sidecar subtitle tracks, strips signs and songs, checks reference alignment against the video's audio (falling back to built-in speech detection when no aligned reference subtitle is available), and opens the guided modal whenever it cannot finish cleanly on its own.
 
-| Key                      | Default | What it does                                                        |
-| ------------------------ | ------- | ------------------------------------------------------------------- |
-| `subsync.alass_path`     | `""`    | `alass` path. Empty uses `/usr/bin/alass`                           |
-| `subsync.ffsubsync_path` | `""`    | `ffsubsync` path. Empty uses `/usr/bin/ffsubsync`                   |
-| `subsync.ffmpeg_path`    | `""`    | `ffmpeg` path. Empty uses `/usr/bin/ffmpeg`                         |
-| `subsync.replace`        | `true`  | Overwrite the subtitle file. When off, write `<name>_retimed.<ext>` |
+Optional external [`alass`](https://github.com/kaegi/alass) and [`ffsubsync`](https://github.com/smacke/ffsubsync) binaries are also supported in the guided modal when installed.
 
-If a tool lives somewhere else, such as on macOS or Windows, set its path.
+| Key                      | Default  | What it does                                                                                                                      |
+| ------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `subsync.mode`           | `"auto"` | `"auto"` syncs immediately and opens the guided modal only when needed; `"manual"` always opens the modal                         |
+| `subsync.alass_path`     | `""`     | Optional external `alass` path. Empty auto-discovers from `PATH`                                                                  |
+| `subsync.ffsubsync_path` | `""`     | Optional external `ffsubsync` path. Empty auto-discovers from `PATH`                                                              |
+| `subsync.ffmpeg_path`    | `""`     | `ffmpeg` path used to extract embedded tracks and audio speech. Empty auto-discovers from `PATH`                                  |
+| `subsync.replace`        | `true`   | Overwrite the subtitle file, keeping the original as `<file>.orig` on the first overwrite. When off, write `<name>_retimed.<ext>` |
 
 ### AniList
 

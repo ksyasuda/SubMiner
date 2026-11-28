@@ -121,7 +121,11 @@ export { handleMpvCommandFromIpc } from './ipc-command';
 export { createFieldGroupingOverlayRuntime } from './field-grouping-overlay';
 export { createNumericShortcutRuntime } from './numeric-shortcut';
 export { runStartupBootstrapRuntime } from './startup';
-export { runSubsyncManualFromIpcRuntime, triggerSubsyncFromConfigRuntime } from './subsync-runner';
+export {
+  openSubsyncManualPickerRuntime,
+  runSubsyncManualFromIpcRuntime,
+  triggerSubsyncFromConfigRuntime,
+} from './subsync-runner';
 export { registerAnkiJimakuIpcRuntime } from './anki-jimaku';
 export { ImmersionTrackerService } from './immersion-tracker-service';
 export {

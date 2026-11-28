@@ -137,6 +137,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     },
   },
   subsync: {
+    mode: 'auto',
     alass_path: '',
     ffsubsync_path: '',
     ffmpeg_path: '',

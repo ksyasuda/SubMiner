@@ -759,6 +759,13 @@ export function createSubtitleSidebarModal(
     ctx.dom.subtitleSidebarClose.addEventListener('click', () => {
       closeSubtitleSidebarModal();
     });
+    ctx.dom.subtitleSidebarSync?.addEventListener('click', (event) => {
+      if (event.shiftKey && window.electronAPI.openSubsyncManual) {
+        void window.electronAPI.openSubsyncManual();
+        return;
+      }
+      void window.electronAPI.dispatchSessionAction('triggerSubsync');
+    });
     ctx.dom.subtitleSidebarList.addEventListener('click', (event) => {
       if (hasSubtitleSidebarSelection(ctx.dom.subtitleSidebarList)) return;
       const target = event.target;

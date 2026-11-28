@@ -3197,6 +3197,17 @@ iframe[id^='yomitan-popup'],
   display: none;
 }
 
+.subsync-guidance {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(249, 226, 175, 0.35);
+  background: rgba(249, 226, 175, 0.08);
+  color: var(--ctp-yellow);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
 .subsync-form {
   display: flex;
   flex-direction: column;
@@ -3211,16 +3222,54 @@ iframe[id^='yomitan-popup'],
   color: var(--ctp-subtext1);
 }
 
+.subsync-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
 .subsync-radio {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-right: 14px;
+  gap: 6px;
   font-size: 13px;
   color: var(--ctp-subtext1);
 }
 
-.subsync-field select {
+.subsync-reference-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.subsync-reference-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.subsync-browse-button {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+
+.subsync-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-top: 2px;
+}
+
+.subsync-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ctp-subtext1);
+}
+
+.subsync-field select,
+.subsync-field input[type='number'] {
   background: rgba(24, 25, 38, 0.9);
   border: 1px solid rgba(110, 115, 141, 0.2);
   border-radius: 6px;
@@ -3228,7 +3277,8 @@ iframe[id^='yomitan-popup'],
   padding: 8px 10px;
 }
 
-.subsync-field select:focus-visible {
+.subsync-field select:focus-visible,
+.subsync-field input[type='number']:focus-visible {
   outline: 2px solid var(--ctp-blue);
   outline-offset: 2px;
 }

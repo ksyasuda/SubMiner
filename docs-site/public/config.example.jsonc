@@ -730,6 +730,7 @@
   // Hot-reload: subsync changes apply to the next subtitle sync run.
   // ==========================================
   "subsync": {
+    "mode": "auto", // Automatic subtitle sync mode ("auto" syncs immediately and opens the guided modal only when needed; "manual" always opens the modal). Values: auto | manual
     "alass_path": "", // Optional absolute path to the alass binary used by subsync. Leave empty to auto-discover from PATH.
     "ffsubsync_path": "", // Optional absolute path to the ffsubsync binary used by subsync. Leave empty to auto-discover from PATH.
     "ffmpeg_path": "", // Optional absolute path to the ffmpeg binary used by subsync. Leave empty to auto-discover from PATH.

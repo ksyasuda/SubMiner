@@ -428,6 +428,10 @@ const electronAPI: ElectronAPI = {
   onSubsyncManualOpen: onSubsyncManualOpenEvent,
   runSubsyncManual: (request: SubsyncManualRunRequest): Promise<SubsyncResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.runSubsyncManual, request),
+  openSubsyncManual: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.openSubsyncManual),
+  pickSubsyncReferenceFile: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.pickSubsyncReferenceFile),
 
   onKikuFieldGroupingRequest: onKikuFieldGroupingRequestEvent,
   onKikuFieldGroupingCancel: onKikuFieldGroupingCancelEvent,

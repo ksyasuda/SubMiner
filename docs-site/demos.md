@@ -2,7 +2,7 @@
 
 Short recordings from real playback sessions.
 
-_Yomitan_ is the pop-up dictionary. _Jimaku_ is a community subtitle database. _alass_ and _ffsubsync_ retime subtitles against the audio. _Jellyfin_ is a self-hosted media server. A _texthooker_ is a web page that mirrors the current subtitle as selectable text.
+_Yomitan_ is the pop-up dictionary. _Jimaku_ is a community subtitle database. _alass_ is the subtitle aligner SubMiner's built-in sync is based on. _Jellyfin_ is a self-hosted media server. A _texthooker_ is a web page that mirrors the current subtitle as selectable text.
 
 <script setup>
 import { withBase } from 'vitepress';
@@ -24,7 +24,7 @@ Mine a card from Yomitan or straight from a subtitle line. SubMiner attaches the
 
 ## Subtitle download and sync
 
-Search Jimaku, download a track, then retime it with alass or ffsubsync without leaving SubMiner.
+Search Jimaku, download a track, then sync it in one click without leaving SubMiner.
 
 <!-- <video controls playsinline preload="metadata" :poster="withBase(`/assets/demos/subtitle-sync-poster.jpg?v=${v}`)">
   <source :src="withBase(`/assets/demos/subtitle-sync.webm?v=${v}`)" type="video/webm" />

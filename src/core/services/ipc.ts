@@ -102,6 +102,8 @@ export interface IpcServiceDeps {
   focusMainWindow: () => void;
   activatePlaybackWindowForOverlayInteraction?: () => boolean | Promise<boolean>;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
+  openSubsyncManual?: () => Promise<void>;
+  pickSubsyncReferenceFile?: () => Promise<string | null>;
   onYoutubePickerResolve: (
     request: YoutubePickerResolveRequest,
   ) => Promise<YoutubePickerResolveResult>;
@@ -373,6 +375,8 @@ export interface IpcDepsRuntimeOptions {
   focusMainWindow: () => void;
   activatePlaybackWindowForOverlayInteraction?: () => boolean | Promise<boolean>;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
+  openSubsyncManual?: () => Promise<void>;
+  pickSubsyncReferenceFile?: () => Promise<string | null>;
   onYoutubePickerResolve: (
     request: YoutubePickerResolveRequest,
   ) => Promise<YoutubePickerResolveResult>;
@@ -457,6 +461,8 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     activatePlaybackWindowForOverlayInteraction:
       options.activatePlaybackWindowForOverlayInteraction ?? (() => false),
     runSubsyncManual: options.runSubsyncManual,
+    openSubsyncManual: options.openSubsyncManual,
+    pickSubsyncReferenceFile: options.pickSubsyncReferenceFile,
     onYoutubePickerResolve: options.onYoutubePickerResolve,
     previewMediaTimingReview: options.previewMediaTimingReview,
     getMediaTimingReviewFrame: options.getMediaTimingReviewFrame,
@@ -817,6 +823,14 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       return { ok: false, message: 'Invalid subsync manual request payload' };
     }
     return await deps.runSubsyncManual(parsedRequest);
+  });
+
+  ipc.handle(IPC_CHANNELS.request.openSubsyncManual, async () => {
+    await deps.openSubsyncManual?.();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.pickSubsyncReferenceFile, async () => {
+    return (await deps.pickSubsyncReferenceFile?.()) ?? null;
   });
 
   ipc.handle(IPC_CHANNELS.request.getRuntimeOptions, () => {

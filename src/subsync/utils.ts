@@ -1,14 +1,21 @@
 import * as fs from 'fs';
 import * as childProcess from 'child_process';
 import * as path from 'path';
+import type { Readable } from 'stream';
 import { DEFAULT_CONFIG } from '../config';
-import { SubsyncConfig } from '../types';
+import {
+  buildWindowsShimInvocation,
+  isWindowsCommandShim,
+} from '../core/utils/windows-command-shim';
+import { SubsyncConfig, SubsyncMode } from '../types';
 
 export interface MpvTrack {
   id?: number;
   type?: string;
   selected?: boolean;
   external?: boolean;
+  forced?: boolean;
+  default?: boolean;
   lang?: string;
   title?: string;
   codec?: string;
@@ -17,6 +24,7 @@ export interface MpvTrack {
 }
 
 export interface SubsyncResolvedConfig {
+  mode?: SubsyncMode;
   alassPath: string;
   ffsubsyncPath: string;
   ffmpegPath: string;
@@ -29,8 +37,78 @@ const DEFAULT_SUBSYNC_EXECUTABLE_PATHS = {
   ffmpeg: '/usr/bin/ffmpeg',
 } as const;
 
+const COMMON_BIN_DIRS = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin'];
+const WINDOWS_RUNNABLE_EXTENSIONS = new Set(['.exe', '.com', '.cmd', '.bat', '.ps1', '.sh']);
+
+function isExecutablePath(filePath: string): boolean {
+  try {
+    if (!fs.statSync(filePath).isFile()) return false;
+    if (process.platform !== 'win32') {
+      fs.accessSync(filePath, fs.constants.X_OK);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function candidateExecutableNames(
+  name: string,
+  platform: NodeJS.Platform = process.platform,
+  pathExt: string | undefined = process.env.PATHEXT,
+): string[] {
+  if (platform !== 'win32' || path.extname(name)) return [name];
+  const extensions = (pathExt ?? '.COM;.EXE;.BAT;.CMD')
+    .split(';')
+    .map((ext) => ext.trim())
+    .filter((ext) => ext.length > 0 && WINDOWS_RUNNABLE_EXTENSIONS.has(ext.toLowerCase()));
+  const effective = extensions.length > 0 ? extensions : ['.exe', '.com', '.cmd', '.bat'];
+  return effective.map((ext) => `${name}${ext}`);
+}
+
+/**
+ * Find an executable on PATH (or common install dirs), honoring an explicit
+ * configured override first. Returns null if not found.
+ */
+export function findSubsyncExecutable(
+  configuredPath: string | undefined,
+  names: readonly string[],
+): string | null {
+  const trimmed = configuredPath?.trim() ?? '';
+  if (trimmed) {
+    if (hasPathSeparators(trimmed)) {
+      return isExecutablePath(trimmed) ? trimmed : null;
+    }
+    const foundConfigured = findSubsyncExecutable(undefined, [trimmed]);
+    return foundConfigured;
+  }
+
+  const dirs = [
+    ...(process.env.PATH ?? '')
+      .split(path.delimiter)
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+    ...(process.platform === 'win32' ? [] : COMMON_BIN_DIRS),
+  ];
+
+  const seen = new Set<string>();
+  for (const dir of dirs) {
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    for (const name of names) {
+      for (const candidateName of candidateExecutableNames(name)) {
+        const candidate = path.join(dir, candidateName);
+        if (isExecutablePath(candidate)) return candidate;
+      }
+    }
+  }
+  return null;
+}
+
 export interface SubsyncContext {
   videoPath: string;
+  workingDirectory?: string | null;
+  durationSec?: number | null;
   primaryTrack: MpvTrack;
   secondaryTrack: MpvTrack | null;
   /** Every usable subtitle track, including the primary one. */
@@ -46,11 +124,12 @@ export interface CommandResult {
   error?: string;
 }
 
-function resolveCommandInvocation(
+export function resolveCommandInvocation(
   executable: string,
   args: string[],
-): { command: string; args: string[] } {
-  if (process.platform !== 'win32') {
+  platform: NodeJS.Platform = process.platform,
+): { command: string; args: string[]; windowsVerbatimArguments?: boolean } {
+  if (platform !== 'win32') {
     return { command: executable, args };
   }
 
@@ -65,6 +144,14 @@ function resolveCommandInvocation(
     return `/mnt/${driveLetter!.toLowerCase()}/${remainder}`;
   };
   const extension = path.extname(executable).toLowerCase();
+  if (isWindowsCommandShim(executable)) {
+    const shim = buildWindowsShimInvocation(executable, args, process.env);
+    return {
+      command: shim.file,
+      args: shim.args,
+      windowsVerbatimArguments: true,
+    };
+  }
   if (extension === '.ps1') {
     return {
       command: 'powershell.exe',
@@ -83,15 +170,36 @@ function resolveCommandInvocation(
 }
 
 export function getSubsyncConfig(config: SubsyncConfig | undefined): SubsyncResolvedConfig {
-  const resolvePath = (value: string | undefined, fallback: string): string => {
+  const resolvePath = (
+    value: string | undefined,
+    names: readonly string[],
+    fallback: string,
+  ): string => {
     const trimmed = value?.trim();
-    return trimmed && trimmed.length > 0 ? trimmed : fallback;
+    if (trimmed && trimmed.length > 0) {
+      if (hasPathSeparators(trimmed)) return trimmed;
+      return findSubsyncExecutable(trimmed, [trimmed]) ?? trimmed;
+    }
+    return findSubsyncExecutable(undefined, names) ?? fallback;
   };
 
   return {
-    alassPath: resolvePath(config?.alass_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.alass),
-    ffsubsyncPath: resolvePath(config?.ffsubsync_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffsubsync),
-    ffmpegPath: resolvePath(config?.ffmpeg_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffmpeg),
+    mode: config?.mode ?? DEFAULT_CONFIG.subsync.mode,
+    alassPath: resolvePath(
+      config?.alass_path,
+      ['alass', 'alass-cli'],
+      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.alass,
+    ),
+    ffsubsyncPath: resolvePath(
+      config?.ffsubsync_path,
+      ['ffsubsync'],
+      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffsubsync,
+    ),
+    ffmpegPath: resolvePath(
+      config?.ffmpeg_path,
+      ['ffmpeg'],
+      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffmpeg,
+    ),
     replace: config?.replace ?? DEFAULT_CONFIG.subsync.replace,
   };
 }
@@ -138,21 +246,169 @@ export function codecToExtension(codec: string | undefined): string | null {
   return null;
 }
 
+/**
+ * ffmpeg has no TTML decoder, so TTML tracks can only come from servers that convert them
+ * (Jellyfin delivers them as SRT); local extraction would fail.
+ */
+export function canFfmpegExtractSubtitleExtension(extension: string): boolean {
+  return extension !== 'ttml';
+}
+
+export function extensionToFfmpegMuxer(extension: string): string {
+  if (extension === 'vtt') return 'webvtt';
+  return extension;
+}
+
+/**
+ * Derive Jellyfin's direct subtitle delivery endpoint for an embedded track on a
+ * direct-play stream URL (`.../Videos/{itemId}/stream?static=true&MediaSourceId=...&ApiKey=...`).
+ * Returns null for non-Jellyfin or transcoded URLs where stream indices may not match.
+ */
+export function buildJellyfinEmbeddedSubtitleUrl(
+  videoPath: string,
+  ffIndex: number,
+  extension: string,
+): string | null {
+  if (!Number.isInteger(ffIndex) || ffIndex < 0 || !extension) return null;
+  let url: URL;
+  try {
+    url = new URL(videoPath);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+
+  const findParam = (pattern: RegExp): string | null => {
+    for (const [key, value] of url.searchParams) {
+      if (pattern.test(key) && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return null;
+  };
+
+  if (findParam(/^static$/i)?.toLowerCase() !== 'true') return null;
+
+  const apiKey = findParam(/^api_?key$/i);
+  const mediaSourceId = findParam(/^mediasourceid$/i);
+  if (!apiKey || !mediaSourceId) return null;
+
+  const match = /^(.*)\/videos\/([^/]+)\/stream(?:\.[^/]+)?$/i.exec(url.pathname);
+  if (!match) return null;
+
+  const basePath = match[1] ?? '';
+  const rawItemId = match[2] ?? '';
+  if (!rawItemId) return null;
+
+  let itemId = rawItemId;
+  try {
+    itemId = decodeURIComponent(rawItemId);
+  } catch {
+    // Keep raw segment if it contains malformed percent escapes.
+  }
+
+  const deliveryExt = extension === 'ttml' ? 'srt' : extension;
+  const subtitleUrl = new URL(url.origin);
+  subtitleUrl.pathname = `${basePath}/Videos/${encodeURIComponent(itemId)}/${encodeURIComponent(mediaSourceId)}/Subtitles/${ffIndex}/Stream.${deliveryExt}`;
+  subtitleUrl.searchParams.set('ApiKey', apiKey);
+  return subtitleUrl.toString();
+}
+
+/**
+ * Kill a spawned tool and what it started. On Windows a `.cmd`/`.bat` shim is cmd.exe, so the
+ * tree goes via taskkill. On POSIX a child spawned with `detached: true` leads its own process
+ * group (ffsubsync is Python running ffmpeg), so the whole group is signalled.
+ */
+export function killProcessTree(child: childProcess.ChildProcess): void {
+  if (child.pid === undefined) {
+    child.kill('SIGKILL');
+    return;
+  }
+  if (process.platform === 'win32') {
+    childProcess
+      .spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      })
+      .on('error', () => child.kill())
+      // taskkill can start yet fail (e.g. access denied); fall back to killing the tool itself.
+      .on('close', (code: number | null) => {
+        if (code !== 0) child.kill();
+      });
+    return;
+  }
+  if (processGroupLeaders.has(child)) {
+    try {
+      // Negative pid = the child's own group; never ours, since the child was detached.
+      process.kill(-child.pid, 'SIGKILL');
+      return;
+    } catch {
+      // Group already gone; fall through to the direct kill.
+    }
+  }
+  child.kill('SIGKILL');
+}
+
+/** Children spawned by runCommand as leaders of their own POSIX process group. */
+const processGroupLeaders = new WeakSet<childProcess.ChildProcess>();
+/** Running detached groups: they no longer get the terminal's Ctrl+C, so exit kills them. */
+const runningProcessGroups = new Set<childProcess.ChildProcess>();
+let processGroupExitHookInstalled = false;
+
+function trackProcessGroup(child: childProcess.ChildProcess): void {
+  processGroupLeaders.add(child);
+  runningProcessGroups.add(child);
+  child.once('close', () => runningProcessGroups.delete(child));
+  child.once('error', () => runningProcessGroups.delete(child));
+  if (processGroupExitHookInstalled) return;
+  processGroupExitHookInstalled = true;
+  process.once('exit', () => {
+    for (const running of runningProcessGroups) killProcessTree(running);
+  });
+}
+
+/**
+ * Spawn a tool with piped stdout/stderr. On POSIX it leads its own process group, so
+ * `killProcessTree` also reaches anything it started (a wrapper script running ffmpeg,
+ * ffsubsync's ffmpeg); still-running groups are killed when the app exits.
+ */
+export function spawnTool(
+  executable: string,
+  args: string[],
+): childProcess.ChildProcessByStdio<null, Readable, Readable> {
+  const invocation = resolveCommandInvocation(executable, args);
+  const ownGroup = process.platform !== 'win32';
+  const child = childProcess.spawn(invocation.command, invocation.args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...(ownGroup ? { detached: true } : {}),
+    ...(invocation.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
+  });
+  if (ownGroup) trackProcessGroup(child);
+  return child;
+}
+
+/** Run a tool to completion; an abort or the timeout kills it and resolves with `ok: false`. */
 export function runCommand(
   executable: string,
   args: string[],
   timeoutMs = 120000,
+  signal?: AbortSignal,
 ): Promise<CommandResult> {
+  if (signal?.aborted) {
+    return Promise.resolve({ ok: false, code: null, stderr: '', stdout: '', error: 'aborted' });
+  }
   return new Promise((resolve) => {
-    const invocation = resolveCommandInvocation(executable, args);
-    const child = childProcess.spawn(invocation.command, invocation.args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = spawnTool(executable, args);
     let stdout = '';
     let stderr = '';
-    const timeout = setTimeout(() => {
-      child.kill('SIGKILL');
-    }, timeoutMs);
+    const onAbort = (): void => killProcessTree(child);
+    const timeout = setTimeout(onAbort, timeoutMs);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const settle = (result: CommandResult): void => {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', onAbort);
+      resolve(signal?.aborted ? { ...result, ok: false, error: 'aborted' } : result);
+    };
 
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -161,23 +417,10 @@ export function runCommand(
       stderr += chunk.toString();
     });
     child.on('error', (error: Error) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: false,
-        code: null,
-        stderr,
-        stdout,
-        error: error.message,
-      });
+      settle({ ok: false, code: null, stderr, stdout, error: error.message });
     });
     child.on('close', (code: number | null) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: code === 0,
-        code,
-        stderr,
-        stdout,
-      });
+      settle({ ok: code === 0, code, stderr, stdout });
     });
   });
 }

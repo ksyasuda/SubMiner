@@ -397,6 +397,11 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
   }
 
   if (isObject(src.subsync)) {
+    if (src.subsync.mode === 'auto' || src.subsync.mode === 'manual') {
+      resolved.subsync.mode = src.subsync.mode;
+    } else if (src.subsync.mode !== undefined) {
+      warn('subsync.mode', src.subsync.mode, resolved.subsync.mode, "Expected 'auto' or 'manual'.");
+    }
     const alass = asString(src.subsync.alass_path);
     if (alass !== undefined) resolved.subsync.alass_path = alass;
     const ffsubsync = asString(src.subsync.ffsubsync_path);

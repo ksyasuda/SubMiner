@@ -313,11 +313,34 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
   return update;
 }
 
+// A manual subtitle shift beyond an hour is a typo, not a timing fix.
+const MAX_SUBSYNC_OFFSET_MS = 60 * 60 * 1000;
+
 export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRequest | null {
   if (!isObject(value)) return null;
-  const { engine, referenceMode, referenceTrackId, targetTrackId } = value;
-  if (engine !== 'alass' && engine !== 'ffsubsync') return null;
-  if (referenceMode !== undefined && referenceMode !== 'track' && referenceMode !== 'video') {
+  const {
+    engine,
+    mediaPath,
+    referenceMode,
+    referenceTrackId,
+    referenceFilePath,
+    targetTrackId,
+    stripSigns,
+    allowSplits,
+    offsetMs,
+  } = value;
+  if (engine !== 'builtin' && engine !== 'alass' && engine !== 'ffsubsync' && engine !== 'offset') {
+    return null;
+  }
+  if (mediaPath !== undefined && mediaPath !== null && typeof mediaPath !== 'string') {
+    return null;
+  }
+  if (
+    referenceMode !== undefined &&
+    referenceMode !== 'track' &&
+    referenceMode !== 'video' &&
+    referenceMode !== 'file'
+  ) {
     return null;
   }
 
@@ -331,11 +354,35 @@ export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRe
   const parsedTargetTrackId = parseOptionalTrackId(targetTrackId);
   if (parsedReferenceTrackId === false || parsedTargetTrackId === false) return null;
 
+  if (
+    referenceFilePath !== undefined &&
+    referenceFilePath !== null &&
+    typeof referenceFilePath !== 'string'
+  ) {
+    return null;
+  }
+  if (stripSigns !== undefined && typeof stripSigns !== 'boolean') return null;
+  if (allowSplits !== undefined && typeof allowSplits !== 'boolean') return null;
+  if (
+    offsetMs !== undefined &&
+    offsetMs !== null &&
+    (typeof offsetMs !== 'number' ||
+      !Number.isFinite(offsetMs) ||
+      Math.abs(offsetMs) > MAX_SUBSYNC_OFFSET_MS)
+  ) {
+    return null;
+  }
+
   return {
     engine,
+    ...(mediaPath !== undefined ? { mediaPath } : {}),
     referenceMode,
     referenceTrackId: parsedReferenceTrackId,
+    referenceFilePath: typeof referenceFilePath === 'string' ? referenceFilePath : null,
     targetTrackId: parsedTargetTrackId,
+    stripSigns,
+    allowSplits,
+    offsetMs: typeof offsetMs === 'number' ? Math.round(offsetMs) : null,
   };
 }
 

@@ -82,6 +82,8 @@ export const IPC_CHANNELS = {
     focusMainWindow: 'focus-main-window',
     activatePlaybackWindowForOverlayInteraction: 'overlay:activate-playback-window',
     runSubsyncManual: 'subsync:run-manual',
+    openSubsyncManual: 'subsync:open-manual-request',
+    pickSubsyncReferenceFile: 'subsync:pick-reference-file',
     getRuntimeOptions: 'runtime-options:get',
     setRuntimeOption: 'runtime-options:set',
     getAnilistStatus: 'anilist:get-status',
