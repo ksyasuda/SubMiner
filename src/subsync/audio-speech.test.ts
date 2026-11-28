@@ -190,3 +190,54 @@ test('cacheEmbeddedSubtitleTrack populates single-pass cache, ignores empty pars
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('extractSinglePassRipMedia skips TTML tracks and does not cache empty tracks', async () => {
+  if (process.platform === 'win32') return;
+  clearAudioSpeechCache();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-single-pass-'));
+  try {
+    const videoPath = path.join(tmpDir, 'episode.mkv');
+    const argsLog = path.join(tmpDir, 'args.log');
+    const ffmpegScript = path.join(tmpDir, 'ffmpeg.sh');
+    fs.writeFileSync(videoPath, 'video');
+    // Fake ffmpeg: track_2 gets one cue, track_5 parses to zero cues.
+    fs.writeFileSync(
+      ffmpegScript,
+      `#!/bin/sh
+echo "$@" > "${argsLog}"
+for arg in "$@"; do
+  case "$arg" in
+    *track_2.srt) printf '1\\n00:00:01,000 --> 00:00:02,000\\nHello\\n' > "$arg" ;;
+    *track_5.srt) : > "$arg" ;;
+  esac
+done
+exit 0
+`,
+      { mode: 0o755 },
+    );
+    fs.chmodSync(ffmpegScript, 0o755);
+
+    const rip = await extractSinglePassRipMedia({
+      ffmpegPath: ffmpegScript,
+      videoPath,
+      audioStreamIndex: 1,
+      embeddedTracks: [
+        { ffIndex: 2, extension: 'srt' },
+        { ffIndex: 4, extension: 'ttml' },
+        { ffIndex: 5, extension: 'srt' },
+      ],
+      includeAudio: false,
+    });
+
+    assert.ok(rip !== null);
+    assert.ok(!fs.readFileSync(argsLog, 'utf8').includes('0:4'));
+    assert.equal(rip.embeddedSubtitles.get(2)?.events.length, 1);
+    assert.equal(rip.embeddedSubtitles.get(5)?.events.length, 0);
+    const cached = getCachedEmbeddedSubtitles(videoPath);
+    assert.equal(cached?.get(2)?.events.length, 1);
+    assert.equal(cached?.has(5), false);
+  } finally {
+    clearAudioSpeechCache();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

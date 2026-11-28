@@ -20,6 +20,10 @@ test('isSignStyleOrEffect separates signs/songs styles from dialogue styles', ()
     'Main Top',
     'DefaultItalics',
     'Edward',
+    'Ed',
+    'Op',
+    'TL',
+    'Caption',
   ]) {
     assert.equal(isSignStyleOrEffect(dialogueStyle), false, `${dialogueStyle} should be dialogue`);
   }
@@ -38,6 +42,10 @@ test('isSignStyleOrEffect separates signs/songs styles from dialogue styles', ()
     'Insert Song',
     'Lyrics',
     'Typeset',
+    'ED',
+    '看板',
+    'OP歌詞',
+    'タイトル',
   ]) {
     assert.equal(isSignStyleOrEffect(signStyle), true, `${signStyle} should be a sign/song`);
   }
@@ -50,6 +58,14 @@ test('isSignsOrSongsTrackMeta flags signs, songs, lyrics, and forced tracks', ()
   assert.equal(isSignsOrSongsTrackMeta({ 'external-filename': '/tmp/ep01.forced.ass' }), true);
   assert.equal(isSignsOrSongsTrackMeta({ title: 'English [Full Dialogue]' }), false);
   assert.equal(isSignsOrSongsTrackMeta({ title: 'Japanese' }), false);
+  for (const fullTitle of [
+    'English (Full + Songs)',
+    'Dialogue & Songs',
+    'Full Subtitles [with lyrics]',
+    '日本語 (歌詞あり)',
+  ]) {
+    assert.equal(isSignsOrSongsTrackMeta({ title: fullTitle }), false, fullTitle);
+  }
 });
 
 test('parseSubtitleFileContent classifies ASS signs, drawings, karaoke, and preserves format on rewrite', () => {
@@ -157,7 +173,14 @@ test('parseSubtitleFileContent preserves SRT/VTT cue settings and strips music-o
 test('decodeSubtitleBytesWithStatus marks lossless UTF-8 and lossy undecodable bytes accurately', () => {
   const bomBytes = new Uint8Array([0xef, 0xbb, 0xbf, ...Buffer.from('hello', 'utf8')]);
   assert.equal(decodeSubtitleBytes(bomBytes), 'hello');
-  assert.deepEqual(decodeSubtitleBytesWithStatus(bomBytes), { text: 'hello', lossless: true });
+  assert.deepEqual(decodeSubtitleBytesWithStatus(bomBytes), {
+    text: '\uFEFFhello',
+    lossless: true,
+  });
+  assert.deepEqual(decodeSubtitleBytesWithStatus(Buffer.from('hello', 'utf8')), {
+    text: 'hello',
+    lossless: true,
+  });
 
   // Bytes invalid in UTF-8, Shift_JIS, and EUC-JP trigger lossy fallback.
   const corrupt = new Uint8Array([0x80, 0xff, 0xfe, 0x80]);
@@ -171,7 +194,10 @@ test('decodeSubtitleBytesWithStatus marks lossless UTF-8 and lossy undecodable b
 
   // Unambiguous Shift_JIS bytes (0x82 0xA0 = 'あ', invalid in UTF-8 and EUC-JP) remain lossless.
   const unambiguousSjis = new Uint8Array([0x82, 0xa0]);
-  assert.deepEqual(decodeSubtitleBytesWithStatus(unambiguousSjis), { text: 'あ', lossless: true });
+  assert.deepEqual(decodeSubtitleBytesWithStatus(unambiguousSjis), {
+    text: '\uFEFFあ',
+    lossless: true,
+  });
 
   const srt = formatSpansAsSrt([
     { start: 5.5, end: 7.0 },
@@ -179,4 +205,67 @@ test('decodeSubtitleBytesWithStatus marks lossless UTF-8 and lossy undecodable b
   ]);
   assert.ok(srt.includes('00:00:01,250 --> 00:00:02,750'));
   assert.ok(srt.includes('00:00:05,500 --> 00:00:07,000'));
+});
+
+test('applyTimingToSubtitleFile writes a BOM only when the source had one or was not UTF-8', () => {
+  const srt = '1\n00:00:01,000 --> 00:00:02,000\nこんにちは\n';
+  const rewrite = (bytes: Uint8Array): string => {
+    const parsed = parseSubtitleFileContent(decodeSubtitleBytesWithStatus(bytes).text, 'a.srt');
+    return applyTimingToSubtitleFile(parsed, [0], [1], 1.0);
+  };
+
+  const plain = rewrite(Buffer.from(srt, 'utf8'));
+  assert.ok(plain.startsWith('1\n00:00:02,000 --> 00:00:03,000'));
+  assert.ok(
+    rewrite(new Uint8Array([0xef, 0xbb, 0xbf, ...Buffer.from(srt, 'utf8')])).startsWith(
+      '\uFEFF1\n',
+    ),
+  );
+  // 'あ' in Shift_JIS (invalid UTF-8) is rewritten as UTF-8 with a BOM.
+  const sjis = new Uint8Array([
+    ...Buffer.from('1\n00:00:01,000 --> 00:00:02,000\n', 'ascii'),
+    0x82,
+    0xa0,
+  ]);
+  assert.ok(rewrite(sjis).startsWith('\uFEFF1\n00:00:02,000'));
+});
+
+test('signs and songs follow the dialogue line nearest in time, not in file order', () => {
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:20.00,0:00:22.00,Default,,0,0,0,,一',
+    'Dialogue: 0,0:00:40.00,0:00:42.00,Default,,0,0,0,,二',
+    'Dialogue: 0,0:10:00.00,0:10:02.00,Default,,0,0,0,,三',
+    'Dialogue: 0,0:10:20.00,0:10:22.00,Default,,0,0,0,,四',
+    // Typesetting kept at the bottom of the file, timed near the first act.
+    'Dialogue: 0,0:00:10.00,0:00:12.00,OP Kara,,0,0,0,,{\\k20}ら',
+    'Dialogue: 0,0:01:30.00,0:01:32.00,Sign,,0,0,0,,看板',
+  ].join('\n');
+  const parsed = parseSubtitleFileContent(ass, 'ep.ass');
+  const { dialogueIndices } = extractSpansFromParsedSubtitle(parsed);
+  assert.deepEqual(dialogueIndices, [0, 1, 2, 3]);
+
+  const rewritten = applyTimingToSubtitleFile(parsed, dialogueIndices, [0, 0, 5, 5], 1.0);
+  assert.ok(rewritten.includes('0:00:10.00,0:00:12.00,OP Kara'));
+  assert.ok(rewritten.includes('0:01:30.00,0:01:32.00,Sign'));
+  assert.ok(rewritten.includes('0:10:05.00,0:10:07.00,Default'));
+});
+
+test('only lines that open with a music mark count as lyrics', () => {
+  const srt = [
+    '1',
+    '00:00:01,000 --> 00:00:02,000',
+    'ありがとう♪',
+    '',
+    '2',
+    '00:00:03,000 --> 00:00:04,000',
+    '♪ 夢の中へ ♪',
+    '',
+  ].join('\n');
+  const parsed = parseSubtitleFileContent(srt, 'a.srt');
+  assert.deepEqual(
+    parsed.events.map((event) => event.sign),
+    [false, true],
+  );
 });

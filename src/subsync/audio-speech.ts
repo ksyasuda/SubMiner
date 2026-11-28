@@ -9,7 +9,13 @@ import {
   type ParsedSubtitleFile,
   type SubtitleTimeSpan,
 } from './subtitle-lines';
-import { extensionToFfmpegMuxer, fileExists, resolveCommandInvocation, runCommand } from './utils';
+import {
+  canFfmpegExtractSubtitleExtension,
+  extensionToFfmpegMuxer,
+  fileExists,
+  resolveCommandInvocation,
+  runCommand,
+} from './utils';
 
 const PCM_VAD_SAMPLE_RATE = 8000;
 const PCM_VAD_FILTER = 'highpass=f=200,lowpass=f=3400';
@@ -133,6 +139,14 @@ export function getCachedEmbeddedSubtitles(
   if (!fileKey) return null;
   const cached = embeddedSubtitlesCache.get(fileKey);
   return cached && cached.size > 0 ? new Map(cached) : null;
+}
+
+// ffmpeg stderr only feeds error messages; a corrupt file can spam megabytes of it.
+const STDERR_TAIL_LIMIT = 64 * 1024;
+
+function appendStderrTail(current: string, chunk: Buffer): string {
+  const next = current + chunk.toString();
+  return next.length > STDERR_TAIL_LIMIT ? next.slice(-STDERR_TAIL_LIMIT) : next;
 }
 
 export function cacheEmbeddedSubtitleTrack(
@@ -378,7 +392,7 @@ function streamFfmpegPcm(
       chunks.push(chunk);
     });
     child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
+      stderr = appendStderrTail(stderr, chunk);
     });
     child.on('error', (error: Error) => {
       finishError(error);
@@ -564,7 +578,7 @@ function spawnFfmpegWithStdout(
       chunks.push(chunk);
     });
     child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
+      stderr = appendStderrTail(stderr, chunk);
     });
     child.on('error', (error: Error) => {
       finishError(error);
@@ -704,7 +718,10 @@ export async function extractSinglePassRipMedia(
     new Map<number, ParsedSubtitleFile>();
   const cachedAudio = audioKey ? (audioSpeechCache.get(audioKey) ?? null) : null;
 
-  const missingTracks = options.embeddedTracks.filter((t) => !cachedSubs.has(t.ffIndex));
+  // A track ffmpeg cannot decode (TTML) would fail every output of the shared pass.
+  const missingTracks = options.embeddedTracks.filter(
+    (t) => !cachedSubs.has(t.ffIndex) && canFfmpegExtractSubtitleExtension(t.extension),
+  );
   const needAudio = options.includeAudio && cachedAudio === null;
 
   if (missingTracks.length === 0 && !needAudio) {
@@ -793,18 +810,22 @@ export async function extractSinglePassRipMedia(
     );
 
     const updatedSubs = new Map<number, ParsedSubtitleFile>(cachedSubs);
+    let cacheChanged = false;
     for (const { ffIndex, outPath } of trackOutputs) {
       if (!fileExists(outPath)) continue;
       try {
         const bytes = fs.readFileSync(outPath);
         const parsed = parseSubtitleFileContent(decodeSubtitleBytes(bytes), outPath);
         updatedSubs.set(ffIndex, parsed);
+        // Like cacheEmbeddedSubtitleTrack: empty results are returned but never cached.
+        if (parsed.events.length > 0) cacheChanged = true;
       } catch {
         // Ignore individual unparseable track.
       }
     }
-    if (updatedSubs.size > 0) {
-      rememberLru(embeddedSubtitlesCache, fileKey, updatedSubs);
+    if (cacheChanged) {
+      const cacheable = new Map([...updatedSubs].filter(([, parsed]) => parsed.events.length > 0));
+      rememberLru(embeddedSubtitlesCache, fileKey, cacheable);
     }
 
     let audioSpeech: AudioSpeechResult | null = options.includeAudio ? cachedAudio : null;

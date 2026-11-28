@@ -29,6 +29,11 @@ export interface ParsedSubtitleFile {
   events: ParsedSubtitleLine[];
   /** False when byte decoding fell back to lossy replacement (e.g. U+FFFD). */
   lossless?: boolean;
+  /**
+   * True when the decoded text started with a U+FEFF marker: the source had a BOM or was
+   * not UTF-8. Rewrites keep a UTF-8 BOM so ANSI-codepage readers (VSFilter) do not misread.
+   */
+  bom?: boolean;
 }
 
 const SIGN_STYLE_WORDS = new Set([
@@ -51,25 +56,29 @@ const SIGN_STYLE_WORDS = new Set([
   'kara',
   'kfx',
   'fx',
-  'op',
-  'ed',
   'opening',
   'ending',
   'note',
   'notes',
-  'tl',
   'tn',
   'credit',
   'credits',
   'eyecatch',
   'next',
   'preview',
-  'caption',
   'banner',
 ]);
 
+// Only all-caps "OP"/"ED" mark song styles; "Ed" or "Op" are usually character names.
+const UPPERCASE_ONLY_SIGN_STYLE_WORDS = new Set(['OP', 'ED']);
+const JAPANESE_SIGN_STYLE_PATTERN = /看板|歌|タイトル/;
+
 const TRACK_SIGNS_OR_SONGS_PATTERN =
   /(?:^|[^\p{L}\p{N}])(?:signs?(?:\s*(?:&|and|\+|\/|-|_)\s*songs?)?|songs?|lyrics?|karaoke|forced|s[\s&+_-]*s|op|ed|opening|ending)(?=$|[^\p{L}\p{N}])|看板|歌詞/iu;
+
+// "English (Full + Songs)" or "日本語 (歌詞あり)" are full dialogue tracks that also carry lyrics.
+const TRACK_FULL_DIALOGUE_PATTERN =
+  /\b(?:full|dialogue|dialog|complete)\b|歌詞(?:あり|付き)|台詞|セリフ/i;
 
 const SRT_VTT_TIMING_LINE_PATTERN =
   /^(\s*)(\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}|\d{1,2}:\d{2}[,.]\d{1,3})(\s*-->\s*)(\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}|\d{1,2}:\d{2}[,.]\d{1,3})(.*)$/;
@@ -90,56 +99,72 @@ function tryDecode(bytes: Uint8Array, encoding: string, fatal: boolean): string 
 }
 
 export interface DecodedSubtitleBytes {
+  /**
+   * Decoded text. Starts with U+FEFF when the source had a BOM or was a non-UTF-8 encoding,
+   * so `parseSubtitleFileContent` records that a rewrite (always UTF-8) needs a BOM.
+   */
   text: string;
   lossless: boolean;
 }
 
+const BOM = '\uFEFF';
+
 export function decodeSubtitleBytesWithStatus(bytes: Uint8Array): DecodedSubtitleBytes {
+  const decoded = decodeSubtitleBytesRaw(bytes);
+  if (!decoded.lossless || !decoded.needsBom) {
+    return { text: decoded.text, lossless: decoded.lossless };
+  }
+  return { text: `${BOM}${decoded.text}`, lossless: true };
+}
+
+function decodeSubtitleBytesRaw(bytes: Uint8Array): DecodedSubtitleBytes & { needsBom: boolean } {
   if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
     const rest = bytes.subarray(3);
     const strict = tryDecode(rest, 'utf-8', true);
-    if (strict !== null) return { text: strict, lossless: true };
-    return { text: new TextDecoder('utf-8').decode(rest), lossless: false };
+    if (strict !== null) return { text: strict, lossless: true, needsBom: true };
+    return { text: new TextDecoder('utf-8').decode(rest), lossless: false, needsBom: true };
   }
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
     const strict = tryDecode(bytes, 'utf-16le', true);
-    if (strict !== null) return { text: strict, lossless: true };
+    if (strict !== null) return { text: strict, lossless: true, needsBom: true };
     return {
       text: tryDecode(bytes, 'utf-16le', false) ?? new TextDecoder('utf-8').decode(bytes),
       lossless: false,
+      needsBom: true,
     };
   }
   if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
     const strict = tryDecode(bytes, 'utf-16be', true);
-    if (strict !== null) return { text: strict, lossless: true };
+    if (strict !== null) return { text: strict, lossless: true, needsBom: true };
     return {
       text: tryDecode(bytes, 'utf-16be', false) ?? new TextDecoder('utf-8').decode(bytes),
       lossless: false,
+      needsBom: true,
     };
   }
   const strictUtf8 = tryDecode(bytes, 'utf-8', true);
   if (strictUtf8 !== null) {
-    return { text: strictUtf8, lossless: true };
+    return { text: strictUtf8, lossless: true, needsBom: false };
   }
   const shiftJis = tryDecode(bytes, 'shift_jis', true);
   const eucJp = tryDecode(bytes, 'euc-jp', true);
   if (shiftJis !== null && eucJp === null) {
-    return { text: shiftJis, lossless: true };
+    return { text: shiftJis, lossless: true, needsBom: true };
   }
   if (eucJp !== null && shiftJis === null) {
-    return { text: eucJp, lossless: true };
+    return { text: eucJp, lossless: true, needsBom: true };
   }
   if (shiftJis !== null && eucJp !== null) {
     if (shiftJis === eucJp) {
-      return { text: shiftJis, lossless: true };
+      return { text: shiftJis, lossless: true, needsBom: true };
     }
-    return { text: eucJp, lossless: false };
+    return { text: eucJp, lossless: false, needsBom: true };
   }
-  return { text: new TextDecoder('utf-8').decode(bytes), lossless: false };
+  return { text: new TextDecoder('utf-8').decode(bytes), lossless: false, needsBom: true };
 }
 
 export function decodeSubtitleBytes(bytes: Uint8Array): string {
-  return decodeSubtitleBytesWithStatus(bytes).text;
+  return decodeSubtitleBytesRaw(bytes).text;
 }
 
 /**
@@ -148,6 +173,11 @@ export function decodeSubtitleBytes(bytes: Uint8Array): string {
  * dialogue styles like "Subtitle", "Notebook", or "Edward" do not.
  */
 export function splitStyleWords(name: string): string[] {
+  return splitStyleTokens(name).map((word) => word.toLowerCase());
+}
+
+/** Same split as `splitStyleWords`, keeping the original letter case. */
+function splitStyleTokens(name: string): string[] {
   const words: string[] = [];
   let word = '';
   for (let i = 0; i < name.length; i += 1) {
@@ -178,7 +208,7 @@ export function splitStyleWords(name: string): string[] {
         word = '';
       }
     }
-    word += ch.toLowerCase();
+    word += ch;
   }
   if (word) {
     words.push(word);
@@ -188,7 +218,11 @@ export function splitStyleWords(name: string): string[] {
 
 export function isSignStyleOrEffect(value: string): boolean {
   if (!value.trim()) return false;
-  return splitStyleWords(value).some((word) => SIGN_STYLE_WORDS.has(word));
+  if (JAPANESE_SIGN_STYLE_PATTERN.test(value)) return true;
+  return splitStyleTokens(value).some(
+    (token) =>
+      SIGN_STYLE_WORDS.has(token.toLowerCase()) || UPPERCASE_ONLY_SIGN_STYLE_WORDS.has(token),
+  );
 }
 
 export function isSignsOrSongsTrackMeta(track: {
@@ -197,8 +231,11 @@ export function isSignsOrSongsTrackMeta(track: {
   'external-filename'?: string;
 }): boolean {
   if (track.forced === true) return true;
-  const combined = `${track.title ?? ''} ${track['external-filename'] ? (track['external-filename'].split(/[\\/]/).pop() ?? '') : ''}`;
-  return TRACK_SIGNS_OR_SONGS_PATTERN.test(combined);
+  const filename = track['external-filename']?.split(/[\\/]/).pop() ?? '';
+  // Judge title and filename separately so a full-dialogue hint only overrides its own field.
+  return [track.title ?? '', filename].some(
+    (field) => TRACK_SIGNS_OR_SONGS_PATTERN.test(field) && !TRACK_FULL_DIALOGUE_PATTERN.test(field),
+  );
 }
 
 export function parseSubtitleTimestamp(raw: string): number | null {
@@ -236,7 +273,8 @@ function cleanCuePlainText(raw: string): string {
 
 function isMusicOrLyricText(plainText: string, rawText: string): boolean {
   if (!plainText) return true;
-  if (/[♪♫]/u.test(plainText)) return true;
+  // Lyrics open with a music mark ("♪ 夢の中へ ♪"); a trailing one is just tone ("ありがとう♪").
+  if (/^[\s(（[【~～]*[♪♫♩♬]/u.test(plainText)) return true;
   if (MUSIC_ONLY_TEXT_PATTERN.test(plainText)) return true;
   if (ASS_KARAOKE_TAG_PATTERN.test(rawText)) return true;
   return false;
@@ -430,14 +468,16 @@ function parseSrtOrVttSubtitle(
 }
 
 export function parseSubtitleFileContent(content: string, filename?: string): ParsedSubtitleFile {
-  const cleanContent = content.startsWith('\uFEFF') ? content.slice(1) : content;
+  const bom = content.startsWith(BOM);
+  const cleanContent = bom ? content.slice(1) : content;
   const eol: '\r\n' | '\n' = cleanContent.includes('\r\n') ? '\r\n' : '\n';
   const rawLines = cleanContent.split(/\r?\n/);
   const format = detectFormat(cleanContent, filename);
-  if (format === 'ass') {
-    return parseAssSubtitle(rawLines, eol);
-  }
-  return parseSrtOrVttSubtitle(rawLines, eol, format);
+  const parsed =
+    format === 'ass'
+      ? parseAssSubtitle(rawLines, eol)
+      : parseSrtOrVttSubtitle(rawLines, eol, format);
+  return bom ? { ...parsed, bom } : parsed;
 }
 
 export function extractSpansFromParsedSubtitle(
@@ -507,28 +547,43 @@ export function formatVttTimestamp(seconds: number): string {
   return formatSrtTimestamp(seconds).replace(',', '.');
 }
 
-function findNearestDialogueMoveIndex(
-  eventIndex: number,
-  dialogueIndices: readonly number[],
+interface DialogueMoveAnchor {
+  start: number;
+  move: number;
+}
+
+/** Dialogue (start, move) pairs sorted by start time, for time-based sign/song shifting. */
+function buildDialogueMoveAnchors(
   events: readonly ParsedSubtitleLine[],
-): number {
-  if (dialogueIndices.length === 0) return 0;
+  dialogueIndices: readonly number[],
+  movesSec: readonly number[],
+): DialogueMoveAnchor[] {
+  return dialogueIndices
+    .map((eventIndex, k) => ({ start: events[eventIndex]!.start, move: movesSec[k] ?? 0 }))
+    .sort((a, b) => a.start - b.start);
+}
+
+/**
+ * Shift of the dialogue line nearest `start` in time. ASS files often keep typesetting
+ * or OP/ED karaoke at the top or bottom of the file, so file position is meaningless.
+ */
+function nearestDialogueMove(anchors: readonly DialogueMoveAnchor[], start: number): number {
+  if (anchors.length === 0) return 0;
   let lo = 0;
-  let hi = dialogueIndices.length;
+  let hi = anchors.length;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
-    if (dialogueIndices[mid]! < eventIndex) {
+    if (anchors[mid]!.start < start) {
       lo = mid + 1;
     } else {
       hi = mid;
     }
   }
-  if (lo === 0) return 0;
-  if (lo >= dialogueIndices.length) return dialogueIndices.length - 1;
-  const eventStart = events[eventIndex]!.start;
-  const prevStart = events[dialogueIndices[lo - 1]!]!.start;
-  const nextStart = events[dialogueIndices[lo]!]!.start;
-  return Math.abs(eventStart - prevStart) <= Math.abs(nextStart - eventStart) ? lo - 1 : lo;
+  if (lo === 0) return anchors[0]!.move;
+  if (lo >= anchors.length) return anchors[anchors.length - 1]!.move;
+  const prev = anchors[lo - 1]!;
+  const next = anchors[lo]!;
+  return start - prev.start <= next.start - start ? prev.move : next.move;
 }
 
 /**
@@ -543,7 +598,7 @@ export function applyTimingToSubtitleFile(
   ratio: number,
 ): string {
   if (parsed.events.length === 0 || dialogueIndices.length === 0 || movesSec.length === 0) {
-    return parsed.rawLines.join(parsed.eol);
+    return serializeSubtitleLines(parsed, parsed.rawLines);
   }
 
   const outLines = [...parsed.rawLines];
@@ -551,14 +606,12 @@ export function applyTimingToSubtitleFile(
   for (let k = 0; k < dialogueIndices.length; k += 1) {
     dialogueMoveByEventIndex.set(dialogueIndices[k]!, movesSec[k] ?? 0);
   }
+  const anchors = buildDialogueMoveAnchors(parsed.events, dialogueIndices, movesSec);
 
   for (let i = 0; i < parsed.events.length; i += 1) {
     const ev = parsed.events[i]!;
     const directMove = dialogueMoveByEventIndex.get(i);
-    const shift =
-      directMove !== undefined
-        ? directMove
-        : (movesSec[findNearestDialogueMoveIndex(i, dialogueIndices, parsed.events)] ?? 0);
+    const shift = directMove ?? nearestDialogueMove(anchors, ev.start);
 
     const newStart = Math.max(0, ev.start * ratio + shift);
     const newEnd = Math.max(newStart + 0.05, ev.end * ratio + shift);
@@ -589,7 +642,16 @@ export function applyTimingToSubtitleFile(
     }
   }
 
-  return outLines.join(parsed.eol);
+  return serializeSubtitleLines(parsed, outLines);
+}
+
+/** Join rewritten lines with the source line ending, restoring a BOM when the source needs one. */
+export function serializeSubtitleLines(
+  parsed: Pick<ParsedSubtitleFile, 'eol' | 'bom'>,
+  lines: readonly string[],
+): string {
+  const joined = lines.join(parsed.eol);
+  return parsed.bom ? `${BOM}${joined}` : joined;
 }
 
 /**

@@ -245,6 +245,14 @@ export function codecToExtension(codec: string | undefined): string | null {
   return null;
 }
 
+/**
+ * ffmpeg has no TTML decoder, so TTML tracks can only come from servers that convert them
+ * (Jellyfin delivers them as SRT); local extraction would fail.
+ */
+export function canFfmpegExtractSubtitleExtension(extension: string): boolean {
+  return extension !== 'ttml';
+}
+
 export function extensionToFfmpegMuxer(extension: string): string {
   if (extension === 'vtt') return 'webvtt';
   return extension;
