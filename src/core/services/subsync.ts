@@ -500,23 +500,63 @@ function readAndParseSubtitleFile(filePath: string): ParsedSubtitleFile {
   };
 }
 
-function writeRetimedContent(outputPath: string, content: string): void {
-  const dir = path.dirname(outputPath);
+/** Suffix for the one-time backup of a replaced subtitle; not a subtitle extension, so mpv and sidecar discovery ignore it. */
+const SUBSYNC_BACKUP_SUFFIX = '.orig';
+
+function resolveRealPathOrSelf(filePath: string): string {
+  try {
+    return fs.realpathSync(filePath);
+  } catch {
+    return filePath;
+  }
+}
+
+/**
+ * Move a staged retimed file over `outputPath`. Writes through a symlink to the real file
+ * and keeps its permissions. When `replacesSource` is set (in-place `subsync.replace`), the
+ * first replacement keeps the untouched original as `<file>.orig`; later runs leave it alone.
+ */
+function installRetimedFile(stagedPath: string, outputPath: string, replacesSource: boolean): void {
+  const targetPath = resolveRealPathOrSelf(outputPath);
+  const existing = fs.existsSync(targetPath) ? fs.statSync(targetPath) : null;
+  if (existing) {
+    if (replacesSource) {
+      const backupPath = `${targetPath}${SUBSYNC_BACKUP_SUFFIX}`;
+      if (!fs.existsSync(backupPath)) {
+        fs.copyFileSync(targetPath, backupPath, fs.constants.COPYFILE_EXCL);
+      }
+    }
+    fs.chmodSync(stagedPath, existing.mode & 0o7777);
+  }
+  try {
+    fs.renameSync(stagedPath, targetPath);
+  } catch (error) {
+    // A staged file next to a symlink can sit on another filesystem than the link target.
+    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error;
+    fs.copyFileSync(stagedPath, targetPath);
+    fs.unlinkSync(stagedPath);
+  }
+}
+
+function removeIfExists(filePath: string): void {
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch {
+    // Best-effort cleanup of a staged write artifact.
+  }
+}
+
+function writeRetimedContent(outputPath: string, content: string, replacesSource: boolean): void {
+  const dir = path.dirname(resolveRealPathOrSelf(outputPath));
   const tmpPath = path.join(
     dir,
     `.subminer-subsync-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`,
   );
   try {
     fs.writeFileSync(tmpPath, content, 'utf8');
-    fs.renameSync(tmpPath, outputPath);
+    installRetimedFile(tmpPath, outputPath, replacesSource);
   } catch (error) {
-    try {
-      if (fs.existsSync(tmpPath)) {
-        fs.unlinkSync(tmpPath);
-      }
-    } catch {
-      // Best-effort cleanup of temp write artifact.
-    }
+    removeIfExists(tmpPath);
     throw error;
   }
 }
@@ -1221,7 +1261,7 @@ async function runBuiltinSubsync(
       return { ok: false, message: 'Playback changed while syncing; discarded stale result.' };
     }
 
-    writeRetimedContent(outputPath, alignment.rewrittenContent);
+    writeRetimedContent(outputPath, alignment.rewrittenContent, replaceTarget);
     if (targetExtraction.temporary) {
       keepTempTarget = true;
     }
@@ -1272,7 +1312,7 @@ async function runManualOffsetSubsync(
     if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
       return { ok: false, message: 'Playback changed while syncing; discarded stale result.' };
     }
-    writeRetimedContent(outputPath, rewritten);
+    writeRetimedContent(outputPath, rewritten, replaceTarget);
     if (targetExtraction.temporary) {
       keepTempTarget = true;
     }
@@ -1346,20 +1386,14 @@ async function subsyncToReference(
       return { ok: false, message: 'Playback changed while syncing; discarded stale result.' };
     }
 
-    fs.renameSync(stagedOutputPath, outputPath);
+    installRetimedFile(stagedOutputPath, outputPath, replaceTarget);
     await loadSyncedSubtitle(client, outputPath, slot, targetTrack);
     return {
       ok: true,
       message: `Subtitle synchronized with ${engine}`,
     };
   } finally {
-    try {
-      if (fs.existsSync(stagedOutputPath)) {
-        fs.unlinkSync(stagedOutputPath);
-      }
-    } catch {
-      // Best-effort cleanup of staged external-engine output.
-    }
+    removeIfExists(stagedOutputPath);
     cleanupTemporaryFile(targetExtraction);
   }
 }
@@ -1900,7 +1934,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         deps.showMpvOsd(`Subsync failed: ${LOSSY_REWRITE_ERROR_MESSAGE}`);
         return;
       }
-      writeRetimedContent(outputPath, alignment.rewrittenContent);
+      writeRetimedContent(outputPath, alignment.rewrittenContent, replaceTarget);
       if (targetExtraction!.temporary) {
         keepTempTarget = true;
       }

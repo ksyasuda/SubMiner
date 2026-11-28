@@ -151,6 +151,8 @@ SubMiner includes a built-in alass-based aligner and speech-activity fallback (u
 - SubMiner pauses for guidance when confidence is low (for example, a mismatched episode), when a reference subtitle track is itself misaligned with the audio and audio-only alignment is uncertain, or when a remote stream has no usable reference track.
 - In the guided modal you can switch to another embedded/sidecar track, browse for a local reference subtitle file, switch to built-in video audio speech detection, toggle **Ignore signs & songs** or **Allow scene cuts & ad-break splits**, try external `alass`/`ffsubsync`, or apply a **Manual offset**.
 
+**A sync made the timing worse**: the first in-place sync keeps the original as `<file>.orig` next to the subtitle. Rename it back over the subtitle to restore it.
+
 **"Configured alass executable not found"** / **"Configured ffsubsync executable not found"**: only applies when selecting the optional external engines. Install them (`paru -S alass`, `cargo install alass-cli`, or `pip install ffsubsync`), set `subsync.alass_path` / `subsync.ffsubsync_path`, or use the **Built-in (alass)** engine.
 
 **"alass synchronization failed" / "ffsubsync synchronization failed"**:

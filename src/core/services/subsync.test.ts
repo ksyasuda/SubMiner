@@ -1545,6 +1545,69 @@ test('runSubsyncManual supports built-in file reference and manual offset engine
   assert.equal(offsetResult.message, 'Shifted subtitle by -1.25s');
 });
 
+test('in-place replacement keeps a one-time .orig backup, the file mode, and symlinks', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-backup-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const realTargetPath = path.join(tmpDir, 'store', 'ep01.ja.srt');
+  const linkedTargetPath = path.join(tmpDir, 'ep01.ja.srt');
+  fs.mkdirSync(path.dirname(realTargetPath));
+  fs.writeFileSync(videoPath, 'video');
+  writeSrtFromSpans(realTargetPath, generateSyntheticSpans(7n, 1442695040888963407n, 50), 0);
+  fs.chmodSync(realTargetPath, 0o640);
+  const original = fs.readFileSync(realTargetPath, 'utf8');
+  const canSymlink = (() => {
+    try {
+      fs.symlinkSync(realTargetPath, linkedTargetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+  const targetPath = canSymlink ? linkedTargetPath : realTargetPath;
+
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: () => {},
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return null;
+        if (name === 'track-list') {
+          return [
+            { id: 1, type: 'sub', selected: true, external: true, 'external-filename': targetPath },
+          ];
+        }
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      alassPath: '/missing/alass',
+      ffsubsyncPath: '/missing/ffsubsync',
+      ffmpegPath: '/missing/ffmpeg',
+      replace: true,
+    }),
+  });
+
+  assert.equal((await runSubsyncManual({ engine: 'offset', offsetMs: 1000 }, deps)).ok, true);
+  assert.equal((await runSubsyncManual({ engine: 'offset', offsetMs: 1000 }, deps)).ok, true);
+
+  const backupPath = `${realTargetPath}.orig`;
+  assert.equal(fs.readFileSync(backupPath, 'utf8'), original);
+  assert.notEqual(fs.readFileSync(realTargetPath, 'utf8'), original);
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(realTargetPath).mode & 0o777, 0o640);
+  }
+  if (canSymlink) {
+    assert.equal(fs.lstatSync(linkedTargetPath).isSymbolicLink(), true);
+  }
+  assert.deepEqual(fs.readdirSync(path.dirname(realTargetPath)).sort(), [
+    'ep01.ja.srt',
+    'ep01.ja.srt.orig',
+  ]);
+});
+
 test('runSubsyncManual rejects non-file references and keeps the track title and lang on reload', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-manual-ref-validation-'));
   const videoPath = path.join(tmpDir, 'ep01.mkv');
