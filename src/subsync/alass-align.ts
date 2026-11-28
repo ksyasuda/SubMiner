@@ -3,6 +3,7 @@ import {
   extractSpansFromParsedSubtitle,
   type ParsedSubtitleFile,
   type SubtitleTimeSpan,
+  serializeSubtitleLines,
 } from './subtitle-lines';
 
 const UNIT_MS = 10;
@@ -17,6 +18,12 @@ const PIECES_TOGETHER_Z_MIN = 6.5;
 const MAX_PIECES = 6;
 const STARTS_Z_MIN = 6.5;
 const STANDING_PARTS = 4;
+/** Minimum lines per quarter before the weakest-quarter coverage check applies. */
+const MIN_PART_LINES = 8;
+/** A quarter whose coverage z stays below this does not fit the alignment at all. */
+const PART_COVERAGE_Z_MIN = 1.5;
+/** Ceiling for partial fits: below every automatic-apply threshold, so they get confirmed. */
+const PARTIAL_FIT_SCORE_CAP = 0.6;
 
 export interface SyncCalibration {
   readonly zero: number;
@@ -43,6 +50,8 @@ export interface AlignmentStanding {
   alone: number;
   /** Line-start agreement z-score across the episode (and weakest quarter). */
   starts: number;
+  /** Coverage z-score of the weakest quarter by line count; absent when too few lines. */
+  weakestPart?: number;
 }
 
 export interface AlignmentResult {
@@ -107,8 +116,17 @@ export function coveredAt(
   shift: number,
 ): number {
   let covered = 0;
-  let j = 0;
   const refLen = joinedRef.length;
+  if (sortedLines.length === 0 || refLen === 0) return 0;
+  // Skip reference spans ending before the first shifted line (ref ends are sorted).
+  const firstStart = sortedLines[0]!.start + shift;
+  let j = 0;
+  let hi = refLen;
+  while (j < hi) {
+    const mid = (j + hi) >>> 1;
+    if (joinedRef[mid]!.end <= firstStart) j = mid + 1;
+    else hi = mid;
+  }
   for (let i = 0; i < sortedLines.length; i += 1) {
     const line = sortedLines[i]!;
     const s = line.start + shift;
@@ -125,6 +143,11 @@ export function coveredAt(
     }
   }
   return covered;
+}
+
+/** Callers pass mpv's duration, which can be missing or NaN; NaN would poison every z-score. */
+function finiteOrZero(value: number | undefined): number {
+  return value !== undefined && Number.isFinite(value) ? value : 0;
 }
 
 function medianMidpoint(spans: readonly SubtitleTimeSpan[]): number {
@@ -178,12 +201,15 @@ export function alignNoSplit(
     inEndUnits[j] = ie;
   }
 
+  // An impulse at unit u bends the slope from u to u + 1. `value` at bin k is
+  // reached by adding the slope stored at d2[k], so that impulse lands at d2[u - minUnit + 1].
   const addImpulse = (u: number, delta: number): void => {
     if (u <= minUnit) {
       initialSlope += delta;
       initialValue += delta * (minUnit - u);
-    } else if (u <= maxUnit) {
-      d2[u - minUnit] = d2[u - minUnit]! + delta;
+    } else if (u < maxUnit) {
+      const k = u - minUnit + 1;
+      d2[k] = d2[k]! + delta;
     }
   };
 
@@ -495,12 +521,17 @@ export function wrappedCoverage(
   return coveredAt(wrapped, joinedRef, 0) / total;
 }
 
-export function evaluateStanding(
+interface PlacedForStanding {
+  sorted: SubtitleTimeSpan[];
+  total: number;
+  effectiveLength: number;
+}
+
+function prepareStanding(
   placedSpans: readonly SubtitleTimeSpan[],
   joinedRef: readonly SubtitleTimeSpan[],
-  sortedRefStarts: readonly number[],
   lengthSec: number,
-): AlignmentStanding {
+): PlacedForStanding | null {
   const sorted = [...placedSpans].filter((s) => s.end > s.start).sort((a, b) => a.start - b.start);
   let total = 0;
   let maxEnd = 0;
@@ -510,47 +541,120 @@ export function evaluateStanding(
   }
   const refEnd = joinedRef.length > 0 ? joinedRef[joinedRef.length - 1]!.end : 0;
   const effectiveLength = Math.max(lengthSec, maxEnd, refEnd);
-  if (total <= 0 || effectiveLength <= 0 || joinedRef.length === 0) {
-    return { above: 0, alone: 0, starts: 0 };
-  }
+  if (total <= 0 || effectiveLength <= 0 || joinedRef.length === 0) return null;
+  return { sorted, total, effectiveLength };
+}
 
+/**
+ * Coverage z of the weakest quarter (by line count). A wrong-episode file that shares
+ * a recap with the right one fits strongly overall while whole quarters do not fit.
+ * Quarters use every other baseline shift to keep the cost near one full pass.
+ */
+function weakestPartZ(
+  placed: PlacedForStanding,
+  joinedRef: readonly SubtitleTimeSpan[],
+): number | undefined {
+  const { sorted, effectiveLength } = placed;
+  if (sorted.length < STANDING_PARTS * MIN_PART_LINES) return undefined;
+  const partSize = Math.ceil(sorted.length / STANDING_PARTS);
+  let weakest = Infinity;
+  for (let offset = 0; offset < sorted.length; offset += partSize) {
+    const part = sorted.slice(offset, offset + partSize);
+    let partTotal = 0;
+    for (const span of part) partTotal += span.end - span.start;
+    const z = coverageZ(part, partTotal, joinedRef, effectiveLength, 2).above;
+    if (z < weakest) weakest = z;
+  }
+  return weakest;
+}
+
+/**
+ * Score a placement against the reference. `parts: false` skips the weakest-quarter
+ * check, for screening many candidate placements; add it later with `withWeakestPart`.
+ */
+export function evaluateStanding(
+  placedSpans: readonly SubtitleTimeSpan[],
+  joinedRef: readonly SubtitleTimeSpan[],
+  sortedRefStarts: readonly number[],
+  lengthSec: number,
+  options: { parts?: boolean } = {},
+): AlignmentStanding {
+  const placed = prepareStanding(placedSpans, joinedRef, lengthSec);
+  if (!placed) return { above: 0, alone: 0, starts: 0 };
+
+  const { above, alone } = coverageZ(
+    placed.sorted,
+    placed.total,
+    joinedRef,
+    placed.effectiveLength,
+    1,
+  );
+  const starts = startsStanding(
+    placed.sorted.map((s) => s.start),
+    sortedRefStarts,
+    placed.effectiveLength,
+  );
+  const standing: AlignmentStanding = { above, alone, starts };
+  // Overall coverage at or below the lowest calibration zero already scores nothing.
+  if (options.parts !== false && above > CALIBRATION_NOISY.zero) {
+    standing.weakestPart = weakestPartZ(placed, joinedRef);
+  }
+  return standing;
+}
+
+function withWeakestPart(
+  standing: AlignmentStanding,
+  placedSpans: readonly SubtitleTimeSpan[],
+  joinedRef: readonly SubtitleTimeSpan[],
+  lengthSec: number,
+): AlignmentStanding {
+  if (standing.above <= CALIBRATION_NOISY.zero) return standing;
+  const placed = prepareStanding(placedSpans, joinedRef, lengthSec);
+  return placed ? { ...standing, weakestPart: weakestPartZ(placed, joinedRef) } : standing;
+}
+
+/**
+ * Z-scores of coverage at shift 0 against wrapped baselines 20s..5m away (every
+ * `stride`-th half-second step): `above` vs their mean, `alone` vs the best of them.
+ */
+function coverageZ(
+  sorted: readonly SubtitleTimeSpan[],
+  total: number,
+  joinedRef: readonly SubtitleTimeSpan[],
+  effectiveLength: number,
+  stride: number,
+): { above: number; alone: number } {
+  if (total <= 0) return { above: 0, alone: 0 };
   const here = coveredAt(sorted, joinedRef, 0) / total;
-  const others: number[] = [];
-  for (let k = 40; k <= 600; k += 1) {
-    const shift = k * 0.5;
-    others.push(wrappedCoverage(sorted, total, joinedRef, shift, effectiveLength));
-    others.push(wrappedCoverage(sorted, total, joinedRef, -shift, effectiveLength));
-  }
-
-  const n = others.length;
+  let n = 0;
   let sum = 0;
+  let sumSq = 0;
   let nextBest = 0;
-  for (let i = 0; i < n; i += 1) {
-    const v = others[i]!;
-    sum += v;
-    if (v > nextBest) nextBest = v;
+  for (let k = 40; k <= 600; k += stride) {
+    const shift = k * 0.5;
+    for (const v of [
+      wrappedCoverage(sorted, total, joinedRef, shift, effectiveLength),
+      wrappedCoverage(sorted, total, joinedRef, -shift, effectiveLength),
+    ]) {
+      n += 1;
+      sum += v;
+      sumSq += v * v;
+      if (v > nextBest) nextBest = v;
+    }
   }
   const mean = sum / n;
-  let sq = 0;
-  for (let i = 0; i < n; i += 1) {
-    const diff = others[i]! - mean;
-    sq += diff * diff;
-  }
-  const spread = Math.sqrt(sq / n);
-  const above = spread <= 1e-9 ? 0 : (here - mean) / spread;
-  const alone = spread <= 1e-9 ? 0 : (here - nextBest) / spread;
-  const starts = startsStanding(
-    sorted.map((s) => s.start),
-    sortedRefStarts,
-    effectiveLength,
-  );
-
-  return { above, alone, starts };
+  const spread = Math.sqrt(Math.max(0, sumSq / n - mean * mean));
+  if (spread <= 1e-9) return { above: 0, alone: 0 };
+  return { above: (here - mean) / spread, alone: (here - nextBest) / spread };
 }
 
 export function scoreStanding(z: AlignmentStanding, cal: SyncCalibration): number {
   const raw = Math.max(0, Math.min(1, (z.above - cal.zero) / (cal.full - cal.zero)));
-  const covered = z.alone < 0.3 ? Math.min(raw, 0.45) : raw;
+  // Capped below the 0.45 reference-vs-audio pass mark so an ambiguous peak never verifies.
+  let covered = z.alone < 0.3 ? Math.min(raw, 0.4) : raw;
+  if (z.weakestPart !== undefined && z.weakestPart < PART_COVERAGE_Z_MIN) {
+    covered = Math.min(covered, PARTIAL_FIT_SCORE_CAP);
+  }
   const started =
     z.starts >= STARTS_Z_MIN
       ? Math.max(
@@ -652,19 +756,28 @@ function piecewiseAdjustments(
   }
 
   // Refine each cut boundary to the single best line within the two neighboring blocks.
+  // Boundaries go left to right and never reach back past the previous cut, so a block
+  // with cuts on both sides keeps the lines its left boundary assigned.
+  let lastCut = 0;
   for (let b = 1; b < blocks.length; b += 1) {
     const p = shiftOf(path[b - 1]!);
     const q = shiftOf(path[b]!);
     if (Math.abs(p - q) < 0.05) continue;
-    const lo = (b - 1) * BLOCK;
+    const lo = Math.max((b - 1) * BLOCK, lastCut);
     const hi = Math.min((b + 1) * BLOCK, placedSorted.length);
-    let bestCut = b * BLOCK;
-    let bestFit = -Infinity;
-    for (let cut = lo; cut <= hi; cut += 1) {
-      let fit = 0;
-      for (let i = lo; i < hi; i += 1) {
-        fit += coveredAt([placedSorted[i]!], joinedRef, i < cut ? p : q);
-      }
+    // fit(cut) = sum of coverage at p before the cut + coverage at q from the cut on.
+    const atP = new Float64Array(hi - lo);
+    const atQ = new Float64Array(hi - lo);
+    let fit = 0;
+    for (let i = lo; i < hi; i += 1) {
+      atP[i - lo] = coveredAt([placedSorted[i]!], joinedRef, p);
+      atQ[i - lo] = coveredAt([placedSorted[i]!], joinedRef, q);
+      fit += atQ[i - lo]!;
+    }
+    let bestCut = lo;
+    let bestFit = fit;
+    for (let cut = lo + 1; cut <= hi; cut += 1) {
+      fit += atP[cut - 1 - lo]! - atQ[cut - 1 - lo]!;
       if (fit > bestFit) {
         bestFit = fit;
         bestCut = cut;
@@ -673,6 +786,7 @@ function piecewiseAdjustments(
     for (let i = lo; i < hi; i += 1) {
       extra[i] = i < bestCut ? p : q;
     }
+    lastCut = bestCut;
   }
 
   return extra;
@@ -696,6 +810,7 @@ function alignBroadcastPieces(
   joinedRef: readonly SubtitleTimeSpan[],
   sortedRefStarts: readonly number[],
   lengthSec: number,
+  centerShiftSec: number,
 ): { shifts: number[]; count: number; main: number; standing: AlignmentStanding } | null {
   if (scaledSorted.length < MIN_PIECE_LINES * 2) return null;
 
@@ -721,7 +836,9 @@ function alignBroadcastPieces(
     const first = boundaries[b]!;
     const end = boundaries[b + 1]!;
     const slice = scaledSorted.slice(first, end);
-    const coarse = alignNoSplit(joinedRef, slice, { radiusSec: MAX_SINGLE_SHIFT_RADIUS_SEC });
+    // Center each act's search on the whole-file shift: the default median-delta center
+    // compares one act against the whole reference and lands minutes off on long media.
+    const coarse = alignNoSplit(joinedRef, slice, { centerShiftSec });
     const refined = centerShiftOnStarts(starts.slice(first, end), sortedRefStarts, coarse);
     pieces.push({ first, end, shift: refined, z: null });
   }
@@ -895,13 +1012,13 @@ export function alignSubtitleFileToReferenceSpans(
       standing: { above: 0, alone: 0, starts: 0 },
       movesSec: [],
       dialogueIndices,
-      rewrittenContent: target.rawLines.join(target.eol),
+      rewrittenContent: serializeSubtitleLines(target, target.rawLines),
     };
   }
 
   const maxTargetEnd = targetSpans.reduce((acc, s) => Math.max(acc, s.end), 0);
   const lengthSec = Math.max(
-    options.lengthSec ?? 0,
+    finiteOrZero(options.lengthSec),
     maxTargetEnd,
     joinedRef[joinedRef.length - 1]!.end,
     1.0,
@@ -910,7 +1027,12 @@ export function alignSubtitleFileToReferenceSpans(
   // 1. Evaluate 1.0 and standard PAL/film framerate ratios.
   const evaluateRatio = (
     ratio: number,
-  ): { ratio: number; shift: number; standing: AlignmentStanding } => {
+  ): {
+    ratio: number;
+    shift: number;
+    moved: SubtitleTimeSpan[];
+    standing: AlignmentStanding;
+  } => {
     const scaled = targetSpans.map((s) => ({ start: s.start * ratio, end: s.end * ratio }));
     const sortedScaled = [...scaled].sort((a, b) => a.start - b.start);
     const coarseShift = alignNoSplit(joinedRef, sortedScaled);
@@ -919,16 +1041,19 @@ export function alignSubtitleFileToReferenceSpans(
       start: s.start + centeredShift,
       end: s.end + centeredShift,
     }));
-    const standing = evaluateStanding(moved, joinedRef, sortedRefStarts, lengthSec);
-    return { ratio, shift: centeredShift, standing };
+    // Ratios are screened without the weakest-quarter check; the chosen one gets it below.
+    const standing = evaluateStanding(moved, joinedRef, sortedRefStarts, lengthSec, {
+      parts: false,
+    });
+    return { ratio, shift: centeredShift, moved, standing };
   };
 
   const plain = evaluateRatio(1.0);
   const plainScore = scoreStanding(plain.standing, cal);
   let chosen = plain;
 
-  // Only test framerate conversions if plain fit isn't already near-perfect or to catch PAL speedup.
-  // Never replace the plain fit with an alternate that lowers final confidence.
+  // Every alternate framerate ratio is evaluated. One replaces the plain fit only when it
+  // clearly beats it on coverage or start agreement, and never when it lowers confidence.
   const altFits = FRAMERATE_RATIOS.slice(1)
     .map(evaluateRatio)
     .filter((alt) => scoreStanding(alt.standing, cal) >= plainScore);
@@ -957,7 +1082,7 @@ export function alignSubtitleFileToReferenceSpans(
 
   const ratio = chosen.ratio;
   const oneShift = chosen.shift;
-  const zOne = chosen.standing;
+  const zOne = withWeakestPart(chosen.standing, chosen.moved, joinedRef, lengthSec);
   const oneScore = scoreStanding(zOne, cal);
 
   // Order indices by start time for piecewise / broadcast passes.
@@ -1017,9 +1142,20 @@ export function alignSubtitleFileToReferenceSpans(
     // with 30-180s commercial breaks where one act fits a single shift but others
     // don't), attempt multi-piece broadcast alignment verified by start agreement.
     if (finalStanding.starts < STARTS_Z_MIN) {
-      const broadcast = alignBroadcastPieces(scaledSorted, joinedRef, sortedRefStarts, lengthSec);
-      if (broadcast && broadcast.standing.starts > finalStanding.starts + 2.0) {
-        const broadcastScore = scoreStanding(broadcast.standing, CALIBRATION_CLEAN);
+      const broadcast = alignBroadcastPieces(
+        scaledSorted,
+        joinedRef,
+        sortedRefStarts,
+        lengthSec,
+        oneShift,
+      );
+      const broadcastScore = broadcast ? scoreStanding(broadcast.standing, CALIBRATION_CLEAN) : 0;
+      // Never trade a more confident fit for a cut result.
+      if (
+        broadcast &&
+        broadcast.standing.starts > finalStanding.starts + 2.0 &&
+        broadcastScore >= finalScore
+      ) {
         const pieceMoves = new Array<number>(targetSpans.length);
         for (let rank = 0; rank < order.length; rank += 1) {
           pieceMoves[order[rank]!] = broadcast.shifts[rank]!;
@@ -1093,7 +1229,7 @@ export function evaluateReferenceAlignmentToAudio(
   }
 
   const lengthSec = Math.max(
-    options.lengthSec ?? 0,
+    finiteOrZero(options.lengthSec),
     sortedRef[sortedRef.length - 1]!.end,
     joinedAudio[joinedAudio.length - 1]!.end,
     1.0,

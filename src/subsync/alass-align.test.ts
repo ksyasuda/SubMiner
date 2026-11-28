@@ -15,15 +15,20 @@ import {
   type SubtitleTimeSpan,
 } from './subtitle-lines';
 
-function generateDialogueRhythm(seedInit: bigint, step: bigint): SubtitleTimeSpan[] {
+function generateDialogueRhythm(
+  seedInit: bigint,
+  step: bigint,
+  untilSec = 1300,
+  gapScale = 4.0,
+): SubtitleTimeSpan[] {
   const out: SubtitleTimeSpan[] = [];
   let seed = seedInit;
   const mask = (1n << 64n) - 1n;
   let t = 5.0;
-  while (t < 1300.0) {
+  while (t < untilSec) {
     seed = (seed * 6364136223846793005n + step) & mask;
     const len = 0.8 + (Number(seed >> 33n) / Number(1n << 31n)) * 3.0;
-    const gap = 0.4 + (Number((seed >> 13n) & 0xffffn) / 65536.0) * 4.0;
+    const gap = 0.4 + (Number((seed >> 13n) & 0xffffn) / 65536.0) * gapScale;
     out.push({ start: t, end: t + len });
     t += len + gap;
   }
@@ -57,6 +62,19 @@ test('alignNoSplit finds exact large and small offsets', () => {
   const shifted = ref.map((s) => ({ start: s.start + 42.35, end: s.end + 42.35 }));
   const delta = alignNoSplit(joinSpans(ref), shifted);
   assert.ok(Math.abs(delta + 42.35) <= 0.05, `expected ~-42.35s, got ${delta}`);
+});
+
+test('alignNoSplit lands on the exact overlap peak, not one bin early', () => {
+  const cue = [{ start: 10, end: 11 }];
+  assert.equal(alignNoSplit(cue, cue, { centerShiftSec: 0.5, radiusSec: 2 }), 0);
+  // Overlap plateau spans [-2.5s, 0s]; the sweep reports its first bin.
+  assert.equal(
+    alignNoSplit([{ start: 10, end: 10.5 }], [{ start: 10, end: 13 }], {
+      centerShiftSec: 0,
+      radiusSec: 5,
+    }),
+    -2.5,
+  );
 });
 
 test('alignSubtitleFileToReferenceSpans recovers fixed shift and ignores stacked songs in reference', () => {
@@ -105,31 +123,77 @@ test('alignSubtitleFileToReferenceSpans corrects PAL 25fps speed-up automaticall
   );
 });
 
-test('alignSubtitleFileToReferenceSpans handles TV broadcast ad breaks in pieces', () => {
-  const ref = generateDialogueRhythm(7n, 1442695040888963407n);
-  const broadcastSpans = ref.map((s) => {
-    const adOffset = s.start < 430 ? 30 : s.start < 870 ? 120 : 195;
-    return { start: s.start + adOffset, end: s.end + adOffset };
-  });
-  const parsedTarget = parseSubtitleFileContent(spansToSrtFile(broadcastSpans), 'tv.ja.srt');
+for (const lengthSec of [1300, 2700]) {
+  test(`alignSubtitleFileToReferenceSpans handles TV broadcast ad breaks in pieces (${lengthSec}s)`, () => {
+    const ref = generateDialogueRhythm(7n, 1442695040888963407n, lengthSec);
+    const broadcastSpans = ref.map((s) => {
+      const adOffset = s.start < lengthSec / 3 ? 30 : s.start < (2 * lengthSec) / 3 ? 120 : 195;
+      return { start: s.start + adOffset, end: s.end + adOffset };
+    });
+    const parsedTarget = parseSubtitleFileContent(spansToSrtFile(broadcastSpans), 'tv.ja.srt');
 
-  const result = alignSubtitleFileToReferenceSpans(parsedTarget, ref, {
-    calibration: 'clean',
-    lengthSec: 1320,
-    allowSplits: true,
-  });
+    const result = alignSubtitleFileToReferenceSpans(parsedTarget, ref, {
+      calibration: 'clean',
+      lengthSec: lengthSec + 20,
+      allowSplits: true,
+    });
 
-  assert.equal(result.cut, true);
+    assert.equal(result.cut, true);
+    assert.equal(result.segments, 3);
+    assert.equal(result.confident, true);
+
+    const retimed = parseSubtitleFileContent(result.rewrittenContent, 'tv.ja.srt');
+    for (let i = 0; i < ref.length; i += 1) {
+      assert.ok(
+        Math.abs(retimed.events[i]!.start - ref[i]!.start) < 0.25,
+        `line ${i} misaligned: got ${retimed.events[i]!.start}, expected ${ref[i]!.start}`,
+      );
+    }
+  });
+}
+
+test('alignSubtitleFileToReferenceSpans refines adjacent scene cuts without moving neighbors', () => {
+  const ref = generateDialogueRhythm(7n, 1442695040888963407n, 1300, 12);
+  // Lines 34..49 straddle two 16-line blocks, so both of their boundaries are cuts.
+  const target = ref.map((s, i) =>
+    i >= 34 && i <= 49 ? { start: s.start + 6, end: s.end + 6 } : s,
+  );
+  const result = alignSubtitleFileToReferenceSpans(
+    parseSubtitleFileContent(spansToSrtFile(target), 'cuts.ja.srt'),
+    ref,
+    { calibration: 'clean', lengthSec: 1320, allowSplits: true },
+  );
+
   assert.equal(result.segments, 3);
-  assert.equal(result.confident, true);
-
-  const retimed = parseSubtitleFileContent(result.rewrittenContent, 'tv.ja.srt');
+  const retimed = parseSubtitleFileContent(result.rewrittenContent, 'cuts.ja.srt');
   for (let i = 0; i < ref.length; i += 1) {
     assert.ok(
-      Math.abs(retimed.events[i]!.start - ref[i]!.start) < 0.25,
+      Math.abs(retimed.events[i]!.start - ref[i]!.start) < 0.15,
       `line ${i} misaligned: got ${retimed.events[i]!.start}, expected ${ref[i]!.start}`,
     );
   }
+});
+
+test('alignSubtitleFileToReferenceSpans is not confident when only a recap section matches', () => {
+  const ref = generateDialogueRhythm(7n, 1442695040888963407n);
+  const otherEpisode = generateDialogueRhythm(12345n, 0x9e3779b97f4a7c15n);
+  // First quarter shared (a recap), the rest from a different episode.
+  const target = [
+    ...ref.filter((s) => s.start < 325),
+    ...otherEpisode.filter((s) => s.start >= 330),
+  ].map((s) => ({ start: s.start + 3, end: s.end + 3 }));
+
+  const result = alignSubtitleFileToReferenceSpans(
+    parseSubtitleFileContent(spansToSrtFile(target), 'recap.ja.srt'),
+    ref,
+    { calibration: 'clean', lengthSec: 1320 },
+  );
+
+  assert.equal(result.confident, false);
+  assert.ok(
+    result.confidence < 0.65,
+    `expected sub-threshold confidence, got ${result.confidence}`,
+  );
 });
 
 test('alignSubtitleFileToReferenceSpans rejects an unrelated episode with low confidence', () => {
