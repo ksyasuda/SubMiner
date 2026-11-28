@@ -313,11 +313,30 @@ export function buildJellyfinEmbeddedSubtitleUrl(
   return subtitleUrl.toString();
 }
 
+/** Kill a spawned tool. On Windows a `.cmd`/`.bat` shim is cmd.exe, so the whole tree must go. */
+export function killProcessTree(child: childProcess.ChildProcess): void {
+  if (process.platform === 'win32' && child.pid !== undefined) {
+    childProcess
+      .spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      })
+      .on('error', () => child.kill());
+    return;
+  }
+  child.kill('SIGKILL');
+}
+
+/** Run a tool to completion; an abort or the timeout kills it and resolves with `ok: false`. */
 export function runCommand(
   executable: string,
   args: string[],
   timeoutMs = 120000,
+  signal?: AbortSignal,
 ): Promise<CommandResult> {
+  if (signal?.aborted) {
+    return Promise.resolve({ ok: false, code: null, stderr: '', stdout: '', error: 'aborted' });
+  }
   return new Promise((resolve) => {
     const invocation = resolveCommandInvocation(executable, args);
     const child = childProcess.spawn(invocation.command, invocation.args, {
@@ -326,9 +345,14 @@ export function runCommand(
     });
     let stdout = '';
     let stderr = '';
-    const timeout = setTimeout(() => {
-      child.kill('SIGKILL');
-    }, timeoutMs);
+    const onAbort = (): void => killProcessTree(child);
+    const timeout = setTimeout(onAbort, timeoutMs);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const settle = (result: CommandResult): void => {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', onAbort);
+      resolve(signal?.aborted ? { ...result, ok: false, error: 'aborted' } : result);
+    };
 
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -337,23 +361,10 @@ export function runCommand(
       stderr += chunk.toString();
     });
     child.on('error', (error: Error) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: false,
-        code: null,
-        stderr,
-        stdout,
-        error: error.message,
-      });
+      settle({ ok: false, code: null, stderr, stdout, error: error.message });
     });
     child.on('close', (code: number | null) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: code === 0,
-        code,
-        stderr,
-        stdout,
-      });
+      settle({ ok: code === 0, code, stderr, stdout });
     });
   });
 }

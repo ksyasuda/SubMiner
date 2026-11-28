@@ -2,10 +2,12 @@ import { SubsyncManualPayload, SubsyncManualRunRequest, SubsyncResult } from '..
 import { SubsyncResolvedConfig } from '../../subsync/utils';
 import { runSubsyncManualFromIpc } from './ipc-command';
 import {
+  SubsyncCancelledError,
   SubsyncVadPaths,
   TriggerSubsyncFromConfigDeps,
   openSubsyncManualPicker,
   runSubsyncManual,
+  runWithMediaChangeAbort,
   triggerSubsyncFromConfig,
 } from './subsync';
 
@@ -75,15 +77,21 @@ export async function openSubsyncManualPickerRuntime(deps: SubsyncRuntimeDeps): 
   triggerDeps.setSubsyncInProgress(true);
   try {
     const opened = await triggerDeps.runWithSubsyncSpinner(() =>
-      openSubsyncManualPicker(triggerDeps, {
-        guidanceMessage: null,
-      }),
+      runWithMediaChangeAbort(triggerDeps, (runDeps) =>
+        openSubsyncManualPicker(runDeps, {
+          guidanceMessage: null,
+        }),
+      ),
     );
     if (opened) {
       triggerDeps.showMpvOsd('Subsync: choose engine and subtitles');
     }
   } catch (error) {
-    triggerDeps.showMpvOsd(`Subsync failed: ${(error as Error).message}`);
+    triggerDeps.showMpvOsd(
+      error instanceof SubsyncCancelledError
+        ? error.message
+        : `Subsync failed: ${(error as Error).message}`,
+    );
   } finally {
     triggerDeps.setSubsyncInProgress(false);
   }

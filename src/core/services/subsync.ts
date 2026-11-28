@@ -86,8 +86,10 @@ const COMMAND_OUTPUT_SUMMARY_CHARS = 300;
 
 // Alignment and candidate scoring are synchronous CPU work (100ms to 1s each on long media).
 // Yield between them so mpv IPC, the overlay, and other main-process work keep flowing.
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
+// Also the cancellation point between those stages.
+async function yieldToEventLoop(signal?: AbortSignal): Promise<void> {
+  await new Promise((resolve) => setImmediate(resolve));
+  signal?.throwIfAborted();
 }
 
 // Keep the tail of tool output (errors come last; alass prints progress first) and strip
@@ -131,7 +133,12 @@ interface SubsyncCoreDeps {
   getVadPaths?: () => SubsyncVadPaths;
   canPickReferenceFile?: () => boolean;
   fetchImpl?: typeof fetch;
+  /** Aborts the run (media changed); kills spawned tools and stops between stages. */
+  signal?: AbortSignal;
 }
+
+/** Network and cancellation handles threaded into extraction helpers. */
+type SubsyncIo = Pick<SubsyncCoreDeps, 'fetchImpl' | 'signal'>;
 
 function parseTrackId(value: unknown): number | null {
   if (typeof value === 'number') {
@@ -335,23 +342,22 @@ async function tryFetchJellyfinSubtitleBytes(
   videoPath: string,
   ffIndex: number,
   extension: string,
-  fetchImpl: typeof fetch = globalThis.fetch,
+  io: SubsyncIo = {},
 ): Promise<Uint8Array | null> {
   const subtitleUrl = buildJellyfinEmbeddedSubtitleUrl(videoPath, ffIndex, extension);
+  const fetchImpl = io.fetchImpl ?? globalThis.fetch;
   if (!subtitleUrl || typeof fetchImpl !== 'function') return null;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), JELLYFIN_SUBTITLE_FETCH_TIMEOUT_MS);
+  const timeoutSignal = AbortSignal.timeout(JELLYFIN_SUBTITLE_FETCH_TIMEOUT_MS);
+  const signal = io.signal ? AbortSignal.any([timeoutSignal, io.signal]) : timeoutSignal;
   try {
-    const response = await fetchImpl(subtitleUrl, { signal: controller.signal });
+    const response = await fetchImpl(subtitleUrl, { signal });
     if (!response.ok) return null;
     const buffer = await response.arrayBuffer();
     if (buffer.byteLength === 0) return null;
     return new Uint8Array(buffer);
   } catch {
     return null;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
@@ -360,7 +366,7 @@ async function extractSubtitleTrackToFile(
   videoPath: string,
   track: MpvTrack,
   workingDirectory?: string | null,
-  fetchImpl?: typeof fetch,
+  io: SubsyncIo = {},
 ): Promise<FileExtractionResult> {
   if (track.external) {
     const externalPath = track['external-filename'];
@@ -384,12 +390,7 @@ async function extractSubtitleTrackToFile(
   }
 
   if (isRemoteMediaPath(videoPath)) {
-    const fetchedBytes = await tryFetchJellyfinSubtitleBytes(
-      videoPath,
-      ffIndex,
-      extension,
-      fetchImpl,
-    );
+    const fetchedBytes = await tryFetchJellyfinSubtitleBytes(videoPath, ffIndex, extension, io);
     if (fetchedBytes) {
       const decoded = decodeSubtitleBytesWithStatus(fetchedBytes);
       const parsed = parseSubtitleFileContent(decoded.text, `track_${ffIndex}.${extension}`);
@@ -416,22 +417,27 @@ async function extractSubtitleTrackToFile(
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-subsync-'));
   const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
   try {
-    const extraction = await runCommand(resolvedFfmpegPath, [
-      '-hide_banner',
-      '-nostdin',
-      '-y',
-      '-loglevel',
-      'error',
-      '-an',
-      '-vn',
-      '-i',
-      videoPath,
-      '-map',
-      `0:${ffIndex}`,
-      '-f',
-      extensionToFfmpegMuxer(extension),
-      outputPath,
-    ]);
+    const extraction = await runCommand(
+      resolvedFfmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-loglevel',
+        'error',
+        '-an',
+        '-vn',
+        '-i',
+        videoPath,
+        '-map',
+        `0:${ffIndex}`,
+        '-f',
+        extensionToFfmpegMuxer(extension),
+        outputPath,
+      ],
+      undefined,
+      io.signal,
+    );
 
     if (!extraction.ok || !fileExists(outputPath)) {
       throw new Error(
@@ -624,8 +630,9 @@ async function runAlassSync(
   referenceFile: string,
   inputSubtitlePath: string,
   outputPath: string,
+  signal?: AbortSignal,
 ): Promise<CommandResult> {
-  return runCommand(alassPath, [referenceFile, inputSubtitlePath, outputPath]);
+  return runCommand(alassPath, [referenceFile, inputSubtitlePath, outputPath], undefined, signal);
 }
 
 async function runFfsubsyncSync(
@@ -634,12 +641,13 @@ async function runFfsubsyncSync(
   inputSubtitlePath: string,
   outputPath: string,
   audioStreamIndex: number | null,
+  signal?: AbortSignal,
 ): Promise<CommandResult> {
   const args = [videoPath, '-i', inputSubtitlePath, '-o', outputPath];
   if (audioStreamIndex !== null) {
     args.push('--reference-stream', `0:${audioStreamIndex}`);
   }
-  return runCommand(ffsubsyncPath, args);
+  return runCommand(ffsubsyncPath, args, undefined, signal);
 }
 
 function delay(ms: number): Promise<void> {
@@ -775,6 +783,7 @@ async function resolveAudioSpeechForContext(
       ffmpegPath: resolved.ffmpegPath,
       videoPath: context.videoPath,
       audioStreamIndex: context.audioStreamIndex,
+      signal: deps.signal,
       vadExecutablePath: vadPaths?.vadExecutablePath ?? null,
       vadModelPath: vadPaths?.vadModelPath ?? null,
     });
@@ -826,6 +835,7 @@ async function discoverAndEvaluateSubtitleCandidates(
     skipSignsEmbeddedExtraction?: boolean;
     skipEmbeddedExtraction?: boolean;
     fetchImpl?: typeof fetch;
+    signal?: AbortSignal;
   } = {},
 ): Promise<CandidateWithSpans[]> {
   const results: CandidateWithSpans[] = [];
@@ -907,6 +917,7 @@ async function discoverAndEvaluateSubtitleCandidates(
 
   // 1. Evaluate all mpv subtitle tracks other than target.
   for (const track of context.subtitleTracks) {
+    options.signal?.throwIfAborted();
     if (typeof track.id !== 'number' || track.id === targetTrack.id) continue;
     const isSecondary = context.secondaryTrack !== null && track.id === context.secondaryTrack.id;
     const isEmbedded = !track.external;
@@ -942,7 +953,7 @@ async function discoverAndEvaluateSubtitleCandidates(
     if (isEmbedded && preExtracted && typeof track['ff-index'] === 'number') {
       const preParsed = preExtracted.get(track['ff-index']);
       if (preParsed && preParsed.events.length > 0) {
-        await yieldToEventLoop();
+        await yieldToEventLoop(options.signal);
         results.push(evaluateParsedCandidate(baseMeta, preParsed));
         continue;
       }
@@ -975,7 +986,7 @@ async function discoverAndEvaluateSubtitleCandidates(
         context.videoPath,
         track,
         context.workingDirectory,
-        options.fetchImpl,
+        options,
       );
       const parsed = readAndParseSubtitleFile(extraction.path);
       if (isEmbedded && !isRemoteMediaPath(context.videoPath)) {
@@ -997,7 +1008,7 @@ async function discoverAndEvaluateSubtitleCandidates(
           );
         }
       }
-      await yieldToEventLoop();
+      await yieldToEventLoop(options.signal);
       results.push(evaluateParsedCandidate(baseMeta, parsed));
     } catch {
       results.push(evaluateParsedCandidate(baseMeta, null));
@@ -1010,6 +1021,7 @@ async function discoverAndEvaluateSubtitleCandidates(
   if (!isRemoteMediaPath(context.videoPath) && fileExists(context.videoPath)) {
     const sidecars = discoverSidecarReferenceFiles(context.videoPath, loadedPaths);
     for (const sidecar of sidecars) {
+      options.signal?.throwIfAborted();
       const baseMeta = {
         key: `file:${sidecar.path}`,
         kind: 'sidecar' as const,
@@ -1027,7 +1039,7 @@ async function discoverAndEvaluateSubtitleCandidates(
       };
       try {
         const parsed = readAndParseSubtitleFile(sidecar.path);
-        await yieldToEventLoop();
+        await yieldToEventLoop(options.signal);
         results.push(evaluateParsedCandidate(baseMeta, parsed));
       } catch {
         // Ignore unreadable sidecars.
@@ -1161,7 +1173,7 @@ async function runBuiltinSubsync(
     context.videoPath,
     targetTrack,
     context.workingDirectory,
-    deps.fetchImpl,
+    deps,
   );
   const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
@@ -1197,6 +1209,7 @@ async function runBuiltinSubsync(
         ffmpegPath,
         videoPath: context.videoPath,
         audioStreamIndex: context.audioStreamIndex,
+        signal: deps.signal,
         vadExecutablePath: vadPaths?.vadExecutablePath ?? null,
         vadModelPath: vadPaths?.vadModelPath ?? null,
       });
@@ -1235,7 +1248,7 @@ async function runBuiltinSubsync(
         context.videoPath,
         referenceTrack,
         context.workingDirectory,
-        deps.fetchImpl,
+        deps,
       );
       const parsedRef = readAndParseSubtitleFile(refExtraction.path);
       referenceSpans = extractSpansFromParsedSubtitle(parsedRef, { stripSigns }).spans;
@@ -1258,7 +1271,7 @@ async function runBuiltinSubsync(
     });
 
     if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
-      return { ok: false, message: 'Playback changed while syncing; discarded stale result.' };
+      return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
 
     writeRetimedContent(outputPath, alignment.rewrittenContent, replaceTarget);
@@ -1285,14 +1298,14 @@ async function runManualOffsetSubsync(
   context: SubsyncContext,
   resolved: SubsyncResolvedConfig,
   client: MpvClientLike,
-  fetchImpl?: typeof fetch,
+  io: SubsyncIo = {},
 ): Promise<SubsyncResult> {
   const targetExtraction = await extractSubtitleTrackToFile(
     resolved.ffmpegPath,
     context.videoPath,
     targetTrack,
     context.workingDirectory,
-    fetchImpl,
+    io,
   );
   const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
@@ -1310,7 +1323,7 @@ async function runManualOffsetSubsync(
     const moves = new Array<number>(allIndices.length).fill(offsetMs / 1000);
     const rewritten = applyTimingToSubtitleFile(parsedTarget, allIndices, moves, 1.0);
     if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
-      return { ok: false, message: 'Playback changed while syncing; discarded stale result.' };
+      return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
     writeRetimedContent(outputPath, rewritten, replaceTarget);
     if (targetExtraction.temporary) {
@@ -1336,14 +1349,14 @@ async function subsyncToReference(
   resolved: SubsyncResolvedConfig,
   client: MpvClientLike,
   slot: SubtitleSlot,
-  fetchImpl?: typeof fetch,
+  io: SubsyncIo = {},
 ): Promise<SubsyncResult> {
   const targetExtraction = await extractSubtitleTrackToFile(
     resolved.ffmpegPath,
     context.videoPath,
     targetTrack,
     context.workingDirectory,
-    fetchImpl,
+    io,
   );
   const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
@@ -1362,6 +1375,7 @@ async function subsyncToReference(
         referenceFilePath,
         targetExtraction.path,
         stagedOutputPath,
+        io.signal,
       );
     } else {
       const ffsubsyncPath = ensureExecutablePath(resolved.ffsubsyncPath, 'ffsubsync');
@@ -1371,6 +1385,7 @@ async function subsyncToReference(
         targetExtraction.path,
         stagedOutputPath,
         context.audioStreamIndex,
+        io.signal,
       );
     }
 
@@ -1383,7 +1398,7 @@ async function subsyncToReference(
     }
 
     if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, slot))) {
-      return { ok: false, message: 'Playback changed while syncing; discarded stale result.' };
+      return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
 
     installRetimedFile(stagedOutputPath, outputPath, replaceTarget);
@@ -1445,7 +1460,28 @@ function maybeWriteCleanedReferenceSrt(
   }
 }
 
+/** Manual (modal) run, cancelled when playback moves to other media. */
 export async function runSubsyncManual(
+  request: SubsyncManualRunRequest,
+  deps: SubsyncCoreDeps,
+): Promise<SubsyncResult> {
+  try {
+    return await runWithMediaChangeAbort(deps, async (runDeps) => {
+      const result = await runSubsyncManualUnguarded(request, runDeps);
+      // Tools killed by the abort report generic failures; say what actually happened.
+      return !result.ok && runDeps.signal?.aborted
+        ? { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE }
+        : result;
+    });
+  } catch (error) {
+    if (error instanceof SubsyncCancelledError) {
+      return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
+    }
+    throw error;
+  }
+}
+
+async function runSubsyncManualUnguarded(
   request: SubsyncManualRunRequest,
   deps: SubsyncCoreDeps,
 ): Promise<SubsyncResult> {
@@ -1489,7 +1525,7 @@ export async function runSubsyncManual(
       context,
       resolved,
       client,
-      deps.fetchImpl,
+      deps,
     );
   }
 
@@ -1554,7 +1590,7 @@ export async function runSubsyncManual(
         resolved,
         client,
         targetSlot,
-        deps.fetchImpl,
+        deps,
       );
     } finally {
       cleanupTemporaryFile(cleaned);
@@ -1577,7 +1613,7 @@ export async function runSubsyncManual(
       context.videoPath,
       referenceTrack,
       context.workingDirectory,
-      deps.fetchImpl,
+      deps,
     );
     cleanedRef = maybeWriteCleanedReferenceSrt(
       referenceExtraction.path,
@@ -1591,7 +1627,7 @@ export async function runSubsyncManual(
       resolved,
       client,
       targetSlot,
-      deps.fetchImpl,
+      deps,
     );
   } finally {
     cleanupTemporaryFile(cleanedRef);
@@ -1661,6 +1697,7 @@ async function prepareRipCandidatesAndAudio(
       ffmpegPath: resolved.ffmpegPath,
       videoPath: context.videoPath,
       audioStreamIndex: context.audioStreamIndex,
+      signal: deps.signal,
       durationSec: context.durationSec,
     });
     if (sampled && sampled.length >= 2) {
@@ -1675,6 +1712,7 @@ async function prepareRipCandidatesAndAudio(
       ffmpegPath: resolved.ffmpegPath,
       videoPath: context.videoPath,
       audioStreamIndex: context.audioStreamIndex,
+      signal: deps.signal,
       vadExecutablePath: vadPaths?.vadExecutablePath ?? null,
       vadModelPath: vadPaths?.vadModelPath ?? null,
       embeddedTracks: embeddedSpecs,
@@ -1788,6 +1826,7 @@ export async function openSubsyncManualPicker(
         allowSampledAudioFastPath: true,
       },
     );
+    deps.signal?.throwIfAborted();
     audioSpeechAvailable =
       prepared.audioSpeech !== null ||
       prepared.sampledAudioWindows !== null ||
@@ -1803,6 +1842,7 @@ export async function openSubsyncManualPicker(
         // Never stream a remote video over HTTP or full-read a local MKV during sampled fast-path just to populate the picker.
         skipEmbeddedExtraction: isRemote || prepared.sampledAudioWindows !== null,
         fetchImpl: deps.fetchImpl,
+        signal: deps.signal,
       },
     );
     if (
@@ -1820,6 +1860,66 @@ export async function openSubsyncManualPicker(
   });
   deps.openManualPicker(payload);
   return true;
+}
+
+const PLAYBACK_CHANGED_RESULT_MESSAGE = 'Playback changed while syncing; discarded stale result.';
+const MEDIA_CHANGE_POLL_MS = 500;
+
+/** Thrown when a run was cancelled because playback moved to other media. */
+export class SubsyncCancelledError extends Error {
+  constructor() {
+    super(PLAYBACK_CHANGED_RESULT_MESSAGE);
+    this.name = 'SubsyncCancelledError';
+  }
+}
+
+/**
+ * Run a subsync task with `deps.signal` aborting once mpv leaves the media the run started on
+ * (polls `path`; mpv disconnecting also aborts). Aborting kills spawned ffmpeg/VAD/alass and
+ * stops at the next stage boundary, so switching episodes frees the subsync lock right away.
+ * A failure caused by the abort surfaces as `SubsyncCancelledError`.
+ */
+export async function runWithMediaChangeAbort<D extends SubsyncCoreDeps, T>(
+  deps: D,
+  task: (deps: D) => Promise<T>,
+): Promise<T> {
+  const client = deps.getMpvClient();
+  const initialPath = client?.connected
+    ? await client.requestProperty('path').catch(() => null)
+    : null;
+  const controller = new AbortController();
+  let polling = false;
+  const timer = setInterval(() => {
+    if (polling || controller.signal.aborted) return;
+    const current = deps.getMpvClient();
+    if (!current?.connected) {
+      controller.abort();
+      return;
+    }
+    polling = true;
+    current
+      .requestProperty('path')
+      .then(
+        (currentPath) => {
+          if (currentPath !== initialPath) controller.abort();
+        },
+        () => {},
+      )
+      .finally(() => {
+        polling = false;
+      });
+  }, MEDIA_CHANGE_POLL_MS);
+  const signal = deps.signal
+    ? AbortSignal.any([deps.signal, controller.signal])
+    : controller.signal;
+  try {
+    return await task({ ...deps, signal });
+  } catch (error) {
+    if (signal.aborted) throw new SubsyncCancelledError();
+    throw error;
+  } finally {
+    clearInterval(timer);
+  }
 }
 
 const STALE_AUTO_RESULT_MESSAGE = 'Subsync: playback changed while syncing; discarded result';
@@ -1845,7 +1945,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         context.videoPath,
         targetTrack,
         context.workingDirectory,
-        deps.fetchImpl,
+        deps,
       );
     } catch (extractError) {
       if (
@@ -1885,6 +1985,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
     const prepared = await prepareRipCandidatesAndAudio(context, targetTrack, resolved, deps, {
       allowSampledAudioFastPath: true,
     });
+    deps.signal?.throwIfAborted();
     let audioSpeech = prepared.audioSpeech;
     let evaluatedCandidates = await discoverAndEvaluateSubtitleCandidates(
       context,
@@ -1898,6 +1999,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
         // local sampled-audio fast path (try external/sidecar tracks before full MKV demux).
         skipEmbeddedExtraction: isRemote || prepared.sampledAudioWindows !== null,
         fetchImpl: deps.fetchImpl,
+        signal: deps.signal,
       },
     );
 
@@ -1953,7 +2055,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
           c.dialogueSpans.length >= MIN_REFERENCE_DIALOGUE_LINES,
       );
       for (const candidate of fastAligned) {
-        await yieldToEventLoop();
+        await yieldToEventLoop(deps.signal);
         const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
           stripSigns: true,
           allowSplits: true,
@@ -1973,6 +2075,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
       const escalated = await prepareRipCandidatesAndAudio(context, targetTrack, resolved, deps, {
         allowSampledAudioFastPath: false,
       });
+      deps.signal?.throwIfAborted();
       audioSpeech = escalated.audioSpeech;
       lengthSec = context.durationSec ?? audioSpeech?.durationSec ?? lengthSec;
       evaluatedCandidates = await discoverAndEvaluateSubtitleCandidates(
@@ -1985,6 +2088,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
           sampledAudioWindows: audioSpeech ? null : prepared.sampledAudioWindows,
           preExtractedEmbedded: escalated.preExtractedEmbedded,
           fetchImpl: deps.fetchImpl,
+          signal: deps.signal,
         },
       );
     }
@@ -2013,7 +2117,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
 
     // 1. Best path: an audio-verified aligned dialogue subtitle reference (loaded or unloaded!).
     for (const candidate of alignedCandidates) {
-      await yieldToEventLoop();
+      await yieldToEventLoop(deps.signal);
       const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
         stripSigns: true,
         allowSplits: true,
@@ -2037,7 +2141,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
     // 2. Fallback when no subtitle track is audio-aligned (none exist, only signs/songs, or all
     //    reference subtitles are shifted off the audio): sync directly to video audio speech!
     if (audioSpeech && audioSpeech.spans.length >= MIN_REFERENCE_DIALOGUE_LINES) {
-      await yieldToEventLoop();
+      await yieldToEventLoop(deps.signal);
       const audioAlignment = alignSubtitleFileToReferenceSpans(parsedTarget, audioSpeech.spans, {
         stripSigns: true,
         allowSplits: true,
@@ -2064,7 +2168,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
     //    try already-loaded external dialogue tracks first with a stricter confidence bar.
     if (!audioSpeech) {
       for (const candidate of unverifiedDialogueCandidates) {
-        await yieldToEventLoop();
+        await yieldToEventLoop(deps.signal);
         const alignment = alignSubtitleFileToReferenceSpans(parsedTarget, candidate.dialogueSpans, {
           stripSigns: true,
           allowSplits: true,
@@ -2103,7 +2207,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
 
             const extractedSpans = extractSpansFromParsedSubtitle(parsed, { stripSigns: true });
             if (extractedSpans.dialogueCount < MIN_REFERENCE_DIALOGUE_LINES) return false;
-            await yieldToEventLoop();
+            await yieldToEventLoop(deps.signal);
             const alignment = alignSubtitleFileToReferenceSpans(
               parsedTarget,
               extractedSpans.spans,
@@ -2139,7 +2243,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
               context.videoPath,
               item.ffIndex,
               item.extension,
-              deps.fetchImpl,
+              deps,
             );
             if (!bytes) continue;
             const decoded = decodeSubtitleBytesWithStatus(bytes);
@@ -2166,6 +2270,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
               ffmpegPath: resolved.ffmpegPath,
               videoPath: context.videoPath,
               audioStreamIndex: context.audioStreamIndex,
+              signal: deps.signal,
               embeddedTracks: remainingSpecs,
               includeAudio: false,
             });
@@ -2193,7 +2298,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
                   context.videoPath,
                   fallbackItem.track,
                   context.workingDirectory,
-                  deps.fetchImpl,
+                  deps,
                 );
                 parsed = readAndParseSubtitleFile(extraction.path);
               } catch {
@@ -2219,6 +2324,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
                 preExtractedEmbedded: remoteExtracted,
                 skipEmbeddedExtraction: true,
                 fetchImpl: deps.fetchImpl,
+                signal: deps.signal,
               },
             );
             misalignedCandidates = evaluatedCandidates.filter(
@@ -2243,7 +2349,7 @@ async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promise<void>
                 (item) => item.key === candidate.evaluated.key,
               );
               if (matchedItem && triedRemoteEmbedded.has(matchedItem.ffIndex)) continue;
-              await yieldToEventLoop();
+              await yieldToEventLoop(deps.signal);
               const alignment = alignSubtitleFileToReferenceSpans(
                 parsedTarget,
                 candidate.dialogueSpans,
@@ -2333,18 +2439,22 @@ export async function triggerSubsyncFromConfig(deps: TriggerSubsyncFromConfigDep
 
   deps.setSubsyncInProgress(true);
   try {
-    const resolved = deps.getResolvedConfig();
-    if (resolved.mode === 'manual') {
-      const opened = await openSubsyncManualPicker(deps, { skipAudioAnalysis: true });
-      if (opened) {
-        deps.showMpvOsd('Subsync: choose engine and subtitles');
+    await runWithMediaChangeAbort(deps, async (runDeps) => {
+      if (runDeps.getResolvedConfig().mode === 'manual') {
+        const opened = await openSubsyncManualPicker(runDeps, { skipAudioAnalysis: true });
+        if (opened) {
+          runDeps.showMpvOsd('Subsync: choose engine and subtitles');
+        }
+        return;
       }
-      return;
-    }
-
-    await deps.runWithSubsyncSpinner(() => runAutoSubsync(deps));
+      await runDeps.runWithSubsyncSpinner(() => runAutoSubsync(runDeps));
+    });
   } catch (error) {
-    deps.showMpvOsd(`Subsync failed: ${(error as Error).message}`);
+    deps.showMpvOsd(
+      error instanceof SubsyncCancelledError
+        ? STALE_AUTO_RESULT_MESSAGE
+        : `Subsync failed: ${(error as Error).message}`,
+    );
   } finally {
     deps.setSubsyncInProgress(false);
   }

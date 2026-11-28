@@ -1545,6 +1545,58 @@ test('runSubsyncManual supports built-in file reference and manual offset engine
   assert.equal(offsetResult.message, 'Shifted subtitle by -1.25s');
 });
 
+test('runSubsyncManual kills a running tool and reports cancellation when the media changes', async () => {
+  if (process.platform === 'win32') return;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-cancel-'));
+  const videoPath = path.join(tmpDir, 'ep01.mkv');
+  const targetPath = path.join(tmpDir, 'ep01.ja.srt');
+  const refPath = path.join(tmpDir, 'ref.srt');
+  const alassPath = path.join(tmpDir, 'alass.sh');
+  const pidPath = path.join(tmpDir, 'alass.pid');
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(targetPath, '1\n00:00:01,000 --> 00:00:02,000\nhi\n');
+  fs.writeFileSync(refPath, '1\n00:00:01,000 --> 00:00:02,000\nhi\n');
+  writeExecutableScript(alassPath, `#!/bin/sh\necho $$ > "${pidPath}"\nexec sleep 30\n`);
+
+  const startedAt = Date.now();
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: () => {},
+      requestProperty: async (name: string) => {
+        if (name === 'path') {
+          return Date.now() - startedAt < 700 ? videoPath : path.join(tmpDir, 'ep02.mkv');
+        }
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return null;
+        if (name === 'track-list') {
+          return [
+            { id: 1, type: 'sub', selected: true, external: true, 'external-filename': targetPath },
+          ];
+        }
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      alassPath,
+      ffsubsyncPath: '/missing/ffsubsync',
+      ffmpegPath: '/missing/ffmpeg',
+    }),
+  });
+
+  const result = await runSubsyncManual(
+    { engine: 'alass', referenceMode: 'file', referenceFilePath: refPath, stripSigns: false },
+    deps,
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /Playback changed/);
+  assert.ok(Date.now() - startedAt < 5000, 'run should stop well before the tool would finish');
+  const pid = Number(fs.readFileSync(pidPath, 'utf8').trim());
+  assert.throws(() => process.kill(pid, 0), 'the external tool should have been killed');
+});
+
 test('in-place replacement keeps a one-time .orig backup, the file mode, and symlinks', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-backup-'));
   const videoPath = path.join(tmpDir, 'ep01.mkv');
@@ -1937,7 +1989,8 @@ test('triggerSubsyncFromConfig discards stale result when playback switches to a
           if (name === 'path') {
             pathCalls += 1;
             // First call sees ep01, subsequent staleness check sees ep02.
-            return pathCalls === 1 ? videoA : videoB;
+            // 1: media-change watcher baseline, 2: context gather; later reads see the switch
+            return pathCalls <= 2 ? videoA : videoB;
           }
           if (name === 'sid') return 1;
           if (name === 'secondary-sid') return 2;
@@ -2283,7 +2336,8 @@ test('triggerSubsyncFromConfig skips early extraction fallback picker when playb
         requestProperty: async (name: string) => {
           if (name === 'path') {
             pathCalls += 1;
-            return pathCalls === 1 ? '/tmp/videoA.mkv' : '/tmp/videoB.mkv';
+            // 1: media-change watcher baseline, 2: context gather; later reads see the switch
+            return pathCalls <= 2 ? '/tmp/videoA.mkv' : '/tmp/videoB.mkv';
           }
           if (name === 'sid') return 1;
           if (name === 'secondary-sid') return null;
@@ -2422,7 +2476,8 @@ test('runSubsyncManual stages external engine output and preserves original when
         requestProperty: async (name: string) => {
           if (name === 'path') {
             pathCalls += 1;
-            return pathCalls === 1 ? videoA : videoB;
+            // 1: media-change watcher baseline, 2: context gather; later reads see the switch
+            return pathCalls <= 2 ? videoA : videoB;
           }
           if (name === 'sid') return 1;
           if (name === 'secondary-sid') return null;

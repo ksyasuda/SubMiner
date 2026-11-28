@@ -13,6 +13,7 @@ import {
   canFfmpegExtractSubtitleExtension,
   extensionToFfmpegMuxer,
   fileExists,
+  killProcessTree,
   resolveCommandInvocation,
   runCommand,
 } from './utils';
@@ -373,7 +374,7 @@ function streamFfmpegPcm(
     };
 
     const onAbort = (): void => {
-      child.kill('SIGKILL');
+      killProcessTree(child);
       finishError(new Error('Audio extraction aborted'));
     };
 
@@ -384,7 +385,7 @@ function streamFfmpegPcm(
     signal?.addEventListener('abort', onAbort, { once: true });
 
     const timer = setTimeout(() => {
-      child.kill('SIGKILL');
+      killProcessTree(child);
       finishError(new Error('Timed out while reading video audio with ffmpeg'));
     }, AUDIO_EXTRACT_TIMEOUT_MS);
 
@@ -447,7 +448,12 @@ async function trySileroVadSpeech(
     }
     ffmpegArgs.push('-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', wavPath);
 
-    const wavRes = await runCommand(options.ffmpegPath, ffmpegArgs, AUDIO_EXTRACT_TIMEOUT_MS);
+    const wavRes = await runCommand(
+      options.ffmpegPath,
+      ffmpegArgs,
+      AUDIO_EXTRACT_TIMEOUT_MS,
+      options.signal,
+    );
     if (!wavRes.ok || !fileExists(wavPath)) return null;
 
     const wavStats = fs.statSync(wavPath);
@@ -471,6 +477,7 @@ async function trySileroVadSpeech(
         '-np',
       ],
       AUDIO_EXTRACT_TIMEOUT_MS,
+      options.signal,
     );
     if (!vadRes.ok) return null;
 
@@ -559,7 +566,7 @@ function spawnFfmpegWithStdout(
     };
 
     const onAbort = (): void => {
-      child.kill('SIGKILL');
+      killProcessTree(child);
       finishError(new Error('ffmpeg operation aborted'));
     };
 
@@ -570,7 +577,7 @@ function spawnFfmpegWithStdout(
     signal?.addEventListener('abort', onAbort, { once: true });
 
     const timer = setTimeout(() => {
-      child.kill('SIGKILL');
+      killProcessTree(child);
       finishError(new Error('ffmpeg operation timed out'));
     }, timeoutMs);
 
@@ -851,6 +858,7 @@ export async function extractSinglePassRipMedia(
             '-np',
           ],
           AUDIO_EXTRACT_TIMEOUT_MS,
+          options.signal,
         );
         if (vadRes.ok) {
           const spans = parseRawSileroVadSegments(`${vadRes.stdout}\n${vadRes.stderr}`);
