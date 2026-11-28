@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Worker } from 'node:worker_threads';
+import { Worker } from 'node:worker_threads';
 import { createLogger } from '../logger';
 import {
   alignSubtitleFileToReferenceSpans,
@@ -84,8 +84,8 @@ class AlignWorkerRuntime {
     signal?: AbortSignal,
   ): Promise<AlignTaskResult<K>> {
     signal?.throwIfAborted();
-    const worker = await this.getWorker();
-    signal?.throwIfAborted();
+    // Synchronous startup: no await between picking the worker and posting to it.
+    const worker = this.getWorker();
     if (!worker) return runAlignTask(kind, args) as AlignTaskResult<K>;
 
     const id = this.nextId++;
@@ -105,7 +105,7 @@ class AlignWorkerRuntime {
     }
   }
 
-  private async getWorker(): Promise<Worker | null> {
+  private getWorker(): Worker | null {
     if (this.worker) return this.worker;
     if (this.workerUnavailable || process.env[DISABLE_WORKER_ENV] === '1') return null;
     const workerPath = resolveAlignWorkerPath();
@@ -114,8 +114,7 @@ class AlignWorkerRuntime {
       return null;
     }
     try {
-      const { Worker: WorkerCtor } = await import('node:worker_threads');
-      const worker = new WorkerCtor(workerPath);
+      const worker = new Worker(workerPath);
       let online = false;
       worker.unref();
       worker.once('online', () => {

@@ -95,7 +95,13 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
       );
     } catch (extractError) {
       if (
-        !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
+        !(await isPlaybackSessionUnchanged(
+          client,
+          context,
+          targetTrack,
+          targetSlot,
+          deps.signal,
+        )) ||
         !isMediaFileUnchanged()
       ) {
         deps.showMpvOsd(STALE_AUTO_RESULT_MESSAGE);
@@ -113,7 +119,13 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
 
     if (parsedTarget.events.length === 0 || targetInfo.spans.length === 0) {
       if (
-        !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
+        !(await isPlaybackSessionUnchanged(
+          client,
+          context,
+          targetTrack,
+          targetSlot,
+          deps.signal,
+        )) ||
         !isMediaFileUnchanged()
       ) {
         deps.showMpvOsd(STALE_AUTO_RESULT_MESSAGE);
@@ -163,7 +175,13 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
         ? parseOptionalNumber(await client.requestProperty(delayProperty).catch(() => null))
         : null;
       if (
-        !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
+        !(await isPlaybackSessionUnchanged(
+          client,
+          context,
+          targetTrack,
+          targetSlot,
+          deps.signal,
+        )) ||
         !isMediaFileUnchanged()
       ) {
         deps.showMpvOsd(STALE_AUTO_RESULT_MESSAGE);
@@ -186,7 +204,7 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
         replacesSource: replaceTarget,
         sourceStamp: parsedTarget.stamp,
       });
-      await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
+      await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack, deps.signal);
       deps.showMpvOsd(formatAlignmentSummary(sourceLabel, alignment));
     };
 
@@ -477,7 +495,7 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
     reasons.push('Pick a reference, browse a subtitle file, or adjust sync options below.');
 
     if (
-      !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot)) ||
+      !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot, deps.signal)) ||
       !isMediaFileUnchanged()
     ) {
       deps.showMpvOsd(STALE_AUTO_RESULT_MESSAGE);

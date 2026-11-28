@@ -178,7 +178,9 @@ async function runBuiltinSubsync(
       lengthSec,
     });
 
-    if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
+    if (
+      !(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot, deps.signal))
+    ) {
       return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
 
@@ -186,7 +188,7 @@ async function runBuiltinSubsync(
       replacesSource: replaceTarget,
       sourceStamp: parsedTarget.stamp,
     });
-    await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
+    await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack, deps.signal);
     return {
       ok: true,
       message: formatAlignmentSummary(referenceLabel, alignment),
@@ -226,14 +228,14 @@ async function runManualOffsetSubsync(
     const allIndices = parsedTarget.events.map((_, idx) => idx);
     const moves = new Array<number>(allIndices.length).fill(offsetMs / 1000);
     const rewritten = applyTimingToSubtitleFile(parsedTarget, allIndices, moves, 1.0);
-    if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
+    if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot, io.signal))) {
       return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
     writeRetimedContent(outputPath, rewritten, {
       replacesSource: replaceTarget,
       sourceStamp: parsedTarget.stamp,
     });
-    await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
+    await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack, io.signal);
     return {
       ok: true,
       message: `Shifted subtitle by ${formatOffsetSummary(offsetMs)}`,
@@ -300,7 +302,7 @@ async function subsyncToReference(
       };
     }
 
-    if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, slot))) {
+    if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, slot, io.signal))) {
       return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
 
@@ -308,7 +310,7 @@ async function subsyncToReference(
       replacesSource: replaceTarget,
       sourceStamp,
     });
-    await loadSyncedSubtitle(client, outputPath, slot, targetTrack);
+    await loadSyncedSubtitle(client, outputPath, slot, targetTrack, io.signal);
     return {
       ok: true,
       message: `Subtitle synchronized with ${engine}`,
@@ -521,7 +523,13 @@ export async function openSubsyncManualPicker(
       },
     );
     if (
-      !(await isPlaybackSessionUnchanged(client, context, context.primaryTrack, 'primary')) ||
+      !(await isPlaybackSessionUnchanged(
+        client,
+        context,
+        context.primaryTrack,
+        'primary',
+        deps.signal,
+      )) ||
       (!isRemote && getMediaFileSignature(context.videoPath) !== initialMediaSignature)
     ) {
       return false;

@@ -526,7 +526,8 @@ export async function prepareRipCandidatesAndAudio(
     });
     if (rip) {
       return {
-        audioSpeech: rip.audioSpeech,
+        // No detected speech means no usable audio reference (keeps the no-audio fallbacks).
+        audioSpeech: rip.audioSpeech && rip.audioSpeech.spans.length > 0 ? rip.audioSpeech : null,
         sampledAudioWindows: null,
         preExtractedEmbedded: rip.embeddedSubtitles,
       };

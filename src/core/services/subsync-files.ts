@@ -230,8 +230,13 @@ export function pruneRetainedSubsyncTempDirs(
   for (const name of entries) {
     if (!name.startsWith(SUBSYNC_TEMP_DIR_PREFIX)) continue;
     const dir = path.join(tmpRoot, name);
-    // mpv may still play a file from an old dir (e.g. the app restarted under a running mpv).
-    if (retainedSubsyncTempDirs.has(dir) || isReferenced(dir)) continue;
+    if (retainedSubsyncTempDirs.has(dir)) continue;
+    // mpv may still play a file from an old dir (e.g. the app restarted under a running mpv):
+    // keep it until mpv drops the file, then the regular prune removes it.
+    if (isReferenced(dir)) {
+      retainSubsyncTempDir(dir);
+      continue;
+    }
     try {
       const stat = fs.statSync(dir);
       if (stat.isDirectory() && now - stat.mtimeMs > STALE_SUBSYNC_TEMP_DIR_MS) {
@@ -348,9 +353,18 @@ export function installRetimedFile(
   try {
     fs.renameSync(stagedPath, targetPath);
   } catch (error) {
-    // A staged file next to a symlink can sit on another filesystem than the link target.
+    // A staged file next to a symlink can sit on another filesystem than the link target:
+    // copy it next to the target first so the final swap is still an atomic rename.
     if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error;
-    fs.copyFileSync(stagedPath, targetPath);
+    const localStaged = `${targetPath}.subminer-subsync-${process.pid}-${Date.now()}.tmp`;
+    try {
+      fs.copyFileSync(stagedPath, localStaged);
+      if (existing) fs.chmodSync(localStaged, existing.mode & 0o7777);
+      fs.renameSync(localStaged, targetPath);
+    } catch (copyError) {
+      removeIfExists(localStaged);
+      throw copyError;
+    }
     fs.unlinkSync(stagedPath);
   }
 }
@@ -470,6 +484,7 @@ export async function loadSyncedSubtitle(
   pathToLoad: string,
   slot: SubtitleSlot,
   sourceTrack: MpvTrack,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!client.connected) {
     throw new Error('MPV disconnected while loading subtitle');
@@ -478,16 +493,19 @@ export async function loadSyncedSubtitle(
   if (slot === 'secondary') {
     // Keep the primary track untouched: load without selecting, then point
     // secondary-sid at the freshly added track.
+    // Without a baseline an older track for the same file could pass as the new one.
     const knownTrackIds = new Set(
-      (await readSubtitleTracks(client).catch(() => [])).flatMap((track) =>
+      (await readSubtitleTracks(client)).flatMap((track) =>
         typeof track.id === 'number' ? [track.id] : [],
       ),
     );
+    signal?.throwIfAborted();
     client.send({ command: buildSubAddCommand(pathToLoad, 'auto', sourceTrack) });
     const addedTrackId = await findAddedSubtitleTrackId(client, pathToLoad, knownTrackIds);
     if (addedTrackId === null) {
       throw new Error('Synchronized subtitle did not appear in the mpv track list');
     }
+    signal?.throwIfAborted();
     client.send({ command: ['set_property', 'secondary-sid', addedTrackId] });
     // The retimed file carries the timing now; only drop the old delay once it is selected.
     client.send({ command: ['set_property', 'secondary-sub-delay', 0] });

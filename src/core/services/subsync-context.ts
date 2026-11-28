@@ -175,6 +175,18 @@ export async function isPlaybackSessionUnchanged(
   context: SubsyncContext,
   targetTrack: MpvTrack,
   slot: SubtitleSlot,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const unchanged = await isPlaybackSessionUnchangedNow(client, context, targetTrack, slot);
+  // Checked after the awaits: a run cancelled meanwhile must not commit anything.
+  return unchanged && !signal?.aborted;
+}
+
+async function isPlaybackSessionUnchangedNow(
+  client: MpvClientLike,
+  context: SubsyncContext,
+  targetTrack: MpvTrack,
+  slot: SubtitleSlot,
 ): Promise<boolean> {
   if (!client.connected) return false;
   try {
