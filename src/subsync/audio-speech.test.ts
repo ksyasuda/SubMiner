@@ -4,12 +4,15 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
+  cacheEmbeddedSubtitleTrack,
   clearAudioSpeechCache,
   detectSpeechSpansFromPcm,
   extractAudioSpeechSpans,
+  extractSinglePassRipMedia,
   getCachedAudioSpeechSpans,
   parseRawSileroVadSegments,
 } from './audio-speech';
+import { parseSubtitleFileContent } from './subtitle-lines';
 
 test('detectSpeechSpansFromPcm detects voice-band bursts separated by quiet background', () => {
   const sampleRate = 8000;
@@ -135,6 +138,38 @@ exit 0
       })?.source,
       'silero-vad',
     );
+  } finally {
+    clearAudioSpeechCache();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('cacheEmbeddedSubtitleTrack populates single-pass cache and ignores zero-event parses', async () => {
+  clearAudioSpeechCache();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-embedded-cache-'));
+  try {
+    const videoPath = path.join(tmpDir, 'episode.mkv');
+    fs.writeFileSync(videoPath, 'video');
+
+    const validParsed = parseSubtitleFileContent(
+      '1\n00:00:01,000 --> 00:00:02,500\nHello world\n',
+      'track_3.srt',
+    );
+    const emptyParsed = parseSubtitleFileContent('', 'track_3.srt');
+
+    cacheEmbeddedSubtitleTrack(videoPath, 3, validParsed);
+    cacheEmbeddedSubtitleTrack(videoPath, 3, emptyParsed);
+
+    const rip = await extractSinglePassRipMedia({
+      ffmpegPath: '/nonexistent/ffmpeg',
+      videoPath,
+      audioStreamIndex: 1,
+      embeddedTracks: [{ ffIndex: 3, extension: 'srt' }],
+      includeAudio: false,
+    });
+
+    assert.ok(rip !== null);
+    assert.equal(rip.embeddedSubtitles.get(3)?.events.length, 1);
   } finally {
     clearAudioSpeechCache();
     fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -122,6 +122,20 @@ function rememberAudioSpeech(key: string | null, result: AudioSpeechResult): voi
   rememberLru(audioSpeechCache, key, result);
 }
 
+export function cacheEmbeddedSubtitleTrack(
+  videoPath: string,
+  ffIndex: number,
+  parsed: ParsedSubtitleFile,
+): void {
+  if (parsed.events.length === 0) return;
+  const fileKey = buildFileSignatureKey(videoPath);
+  if (!fileKey) return;
+  const existing = embeddedSubtitlesCache.get(fileKey);
+  const updated = new Map<number, ParsedSubtitleFile>(existing);
+  updated.set(ffIndex, parsed);
+  rememberLru(embeddedSubtitlesCache, fileKey, updated);
+}
+
 /**
  * Pure-TypeScript voice-band speech activity detector operating on 16-bit mono
  * PCM (expected 8 kHz, voice band-passed 200 to 3400 Hz). Uses a global dynamic-range

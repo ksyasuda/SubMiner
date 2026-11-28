@@ -32,6 +32,7 @@ import {
   type SampledAudioWindow,
 } from '../../subsync/alass-align';
 import {
+  cacheEmbeddedSubtitleTrack,
   extractAudioSpeechSpans,
   extractSampledAudioWindows,
   extractSinglePassRipMedia,
@@ -861,6 +862,14 @@ async function discoverAndEvaluateSubtitleCandidates(
         options.fetchImpl,
       );
       const parsed = readAndParseSubtitleFile(extraction.path);
+      if (
+        isEmbedded &&
+        !isRemoteMediaPath(context.videoPath) &&
+        typeof track['ff-index'] === 'number' &&
+        parsed.events.length > 0
+      ) {
+        cacheEmbeddedSubtitleTrack(context.videoPath, track['ff-index'], parsed);
+      }
       results.push(evaluateParsedCandidate(baseMeta, parsed));
     } catch {
       results.push(evaluateParsedCandidate(baseMeta, null));
@@ -1661,10 +1670,7 @@ export async function openSubsyncManualPicker(
         sampledAudioWindows: prepared.sampledAudioWindows,
         preExtractedEmbedded: prepared.preExtractedEmbedded,
         // Never stream a remote video over HTTP or full-read a local MKV during sampled fast-path just to populate the picker.
-        skipEmbeddedExtraction:
-          isRemote ||
-          prepared.sampledAudioWindows !== null ||
-          prepared.preExtractedEmbedded !== null,
+        skipEmbeddedExtraction: isRemote || prepared.sampledAudioWindows !== null,
         fetchImpl: deps.fetchImpl,
       },
     );
