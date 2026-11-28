@@ -145,8 +145,8 @@ export function getCachedEmbeddedSubtitles(
 // ffmpeg stderr only feeds error messages; a corrupt file can spam megabytes of it.
 const STDERR_TAIL_LIMIT = 64 * 1024;
 
-function appendStderrTail(current: string, chunk: Buffer): string {
-  const next = current + chunk.toString();
+function appendStderrTail(current: string, chunk: string): string {
+  const next = current + chunk;
   return next.length > STDERR_TAIL_LIMIT ? next.slice(-STDERR_TAIL_LIMIT) : next;
 }
 
@@ -392,7 +392,9 @@ function streamFfmpegPcm(
     child.stdout.on('data', (chunk: Buffer) => {
       chunks.push(chunk);
     });
-    child.stderr.on('data', (chunk: Buffer) => {
+    // Decode as a stream so multi-byte characters split across chunks survive.
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => {
       stderr = appendStderrTail(stderr, chunk);
     });
     child.on('error', (error: Error) => {
@@ -584,7 +586,9 @@ function spawnFfmpegWithStdout(
     child.stdout.on('data', (chunk: Buffer) => {
       chunks.push(chunk);
     });
-    child.stderr.on('data', (chunk: Buffer) => {
+    // Decode as a stream so multi-byte characters split across chunks survive.
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => {
       stderr = appendStderrTail(stderr, chunk);
     });
     child.on('error', (error: Error) => {

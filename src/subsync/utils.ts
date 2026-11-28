@@ -313,9 +313,17 @@ export function buildJellyfinEmbeddedSubtitleUrl(
   return subtitleUrl.toString();
 }
 
-/** Kill a spawned tool. On Windows a `.cmd`/`.bat` shim is cmd.exe, so the whole tree must go. */
+/**
+ * Kill a spawned tool and what it started. On Windows a `.cmd`/`.bat` shim is cmd.exe, so the
+ * tree goes via taskkill. On POSIX a child spawned with `detached: true` leads its own process
+ * group (ffsubsync is Python running ffmpeg), so the whole group is signalled.
+ */
 export function killProcessTree(child: childProcess.ChildProcess): void {
-  if (process.platform === 'win32' && child.pid !== undefined) {
+  if (child.pid === undefined) {
+    child.kill('SIGKILL');
+    return;
+  }
+  if (process.platform === 'win32') {
     childProcess
       .spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
         stdio: 'ignore',
@@ -324,7 +332,34 @@ export function killProcessTree(child: childProcess.ChildProcess): void {
       .on('error', () => child.kill());
     return;
   }
+  if (processGroupLeaders.has(child)) {
+    try {
+      // Negative pid = the child's own group; never ours, since the child was detached.
+      process.kill(-child.pid, 'SIGKILL');
+      return;
+    } catch {
+      // Group already gone; fall through to the direct kill.
+    }
+  }
   child.kill('SIGKILL');
+}
+
+/** Children spawned by runCommand as leaders of their own POSIX process group. */
+const processGroupLeaders = new WeakSet<childProcess.ChildProcess>();
+/** Running detached groups: they no longer get the terminal's Ctrl+C, so exit kills them. */
+const runningProcessGroups = new Set<childProcess.ChildProcess>();
+let processGroupExitHookInstalled = false;
+
+function trackProcessGroup(child: childProcess.ChildProcess): void {
+  processGroupLeaders.add(child);
+  runningProcessGroups.add(child);
+  child.once('close', () => runningProcessGroups.delete(child));
+  child.once('error', () => runningProcessGroups.delete(child));
+  if (processGroupExitHookInstalled) return;
+  processGroupExitHookInstalled = true;
+  process.once('exit', () => {
+    for (const running of runningProcessGroups) killProcessTree(running);
+  });
 }
 
 /** Run a tool to completion; an abort or the timeout kills it and resolves with `ok: false`. */
@@ -339,10 +374,14 @@ export function runCommand(
   }
   return new Promise((resolve) => {
     const invocation = resolveCommandInvocation(executable, args);
+    const ownGroup = process.platform !== 'win32';
     const child = childProcess.spawn(invocation.command, invocation.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      // POSIX: own process group so killProcessTree reaches grandchildren too.
+      ...(ownGroup ? { detached: true } : {}),
       ...(invocation.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {}),
     });
+    if (ownGroup) trackProcessGroup(child);
     let stdout = '';
     let stderr = '';
     const onAbort = (): void => killProcessTree(child);

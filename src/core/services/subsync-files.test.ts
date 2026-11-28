@@ -7,8 +7,6 @@ import { cleanupTemporaryFile, pruneRetainedSubsyncTempDirs } from './subsync-fi
 
 test('synced embedded-track temp dirs keep only the loaded file and go away once mpv drops it', () => {
   const isolatedTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-files-test-'));
-  const previousTmpDir = process.env.TMPDIR;
-  process.env.TMPDIR = isolatedTmp;
   try {
     // Left behind by a crashed session two days ago.
     const staleDir = fs.mkdtempSync(path.join(isolatedTmp, 'subminer-subsync-'));
@@ -25,15 +23,20 @@ test('synced embedded-track temp dirs keep only the loaded file and go away once
     cleanupTemporaryFile({ path: extractedPath, temporary: true });
     assert.deepEqual(fs.readdirSync(runDir), ['track_2_retimed.ass']);
 
-    pruneRetainedSubsyncTempDirs([retimedPath]);
+    // An old dir whose file mpv still plays survives the sweep.
+    const playingDir = fs.mkdtempSync(path.join(isolatedTmp, 'subminer-subsync-'));
+    const playingPath = path.join(playingDir, 'track_4_retimed.srt');
+    fs.writeFileSync(playingPath, 'still loaded');
+    fs.utimesSync(playingDir, twoDaysAgo, twoDaysAgo);
+
+    pruneRetainedSubsyncTempDirs([retimedPath, playingPath], { tmpRoot: isolatedTmp });
     assert.equal(fs.existsSync(runDir), true, 'mpv still lists the retimed file');
     assert.equal(fs.existsSync(staleDir), false, 'stale dirs from old sessions are swept');
+    assert.equal(fs.existsSync(playingDir), true, 'stale but referenced dirs are kept');
 
-    pruneRetainedSubsyncTempDirs(['/media/ep02.ja.srt']);
+    pruneRetainedSubsyncTempDirs(['/media/ep02.ja.srt'], { tmpRoot: isolatedTmp });
     assert.equal(fs.existsSync(runDir), false, 'dropped once mpv no longer lists it');
   } finally {
-    if (previousTmpDir === undefined) delete process.env.TMPDIR;
-    else process.env.TMPDIR = previousTmpDir;
     fs.rmSync(isolatedTmp, { recursive: true, force: true });
   }
 });

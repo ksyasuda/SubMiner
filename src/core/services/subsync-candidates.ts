@@ -541,7 +541,13 @@ export async function prepareRipCandidatesAndAudio(
   }
 
   if (cachedFull) {
-    return { audioSpeech: cachedFull, sampledAudioWindows: null, preExtractedEmbedded: null };
+    // An empty cached result stays cached (no re-decode) but means "no usable audio" here,
+    // matching resolveAudioSpeechForContext.
+    return {
+      audioSpeech: cachedFull.spans.length > 0 ? cachedFull : null,
+      sampledAudioWindows: null,
+      preExtractedEmbedded: null,
+    };
   }
 
   const audioSpeech = await resolveAudioSpeechForContext(context, resolved, deps);

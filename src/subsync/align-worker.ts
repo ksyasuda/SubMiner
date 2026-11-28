@@ -64,7 +64,12 @@ function resolveAlignWorkerPath(): string | null {
   return fs.existsSync(workerPath) ? workerPath : null;
 }
 
-type Pending = { resolve: (value: unknown) => void; reject: (reason: Error) => void };
+type Pending = {
+  kind: AlignTaskKind;
+  args: unknown[];
+  resolve: (value: unknown) => void;
+  reject: (reason: Error) => void;
+};
 
 class AlignWorkerRuntime {
   private worker: Worker | null = null;
@@ -80,12 +85,13 @@ class AlignWorkerRuntime {
   ): Promise<AlignTaskResult<K>> {
     signal?.throwIfAborted();
     const worker = await this.getWorker();
+    signal?.throwIfAborted();
     if (!worker) return runAlignTask(kind, args) as AlignTaskResult<K>;
 
     const id = this.nextId++;
     this.clearIdleTimer();
     const result = new Promise<unknown>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, { kind, args, resolve, reject });
     });
     const onAbort = (): void => this.reset(signal?.reason ?? new Error('aborted'));
     signal?.addEventListener('abort', onAbort, { once: true });
@@ -110,10 +116,20 @@ class AlignWorkerRuntime {
     try {
       const { Worker: WorkerCtor } = await import('node:worker_threads');
       const worker = new WorkerCtor(workerPath);
+      let online = false;
       worker.unref();
+      worker.once('online', () => {
+        online = true;
+      });
       worker.on('message', (message: AlignWorkerResponse) => this.handleMessage(message));
       worker.on('error', (error: Error) => {
-        this.markUnavailable(error);
+        // Failing to start (e.g. the module cannot load) is not the task's fault: finish the
+        // queued calls on this thread and stop using the worker.
+        if (!online) {
+          this.markUnavailable(error);
+          this.runPendingInThread();
+          return;
+        }
         this.reset(error);
       });
       worker.on('exit', (code) => {
@@ -137,6 +153,21 @@ class AlignWorkerRuntime {
     this.pending.delete(message.id);
     if (message.ok) pending.resolve(message.result);
     else pending.reject(new Error(message.error));
+  }
+
+  private runPendingInThread(): void {
+    const worker = this.worker;
+    this.worker = null;
+    if (worker) void worker.terminate().catch(() => undefined);
+    const queued = [...this.pending.values()];
+    this.pending.clear();
+    for (const pending of queued) {
+      try {
+        pending.resolve(runAlignTask(pending.kind, pending.args));
+      } catch (error) {
+        pending.reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
   }
 
   /** Stop the worker (and any computation in it) and fail every in-flight call. */

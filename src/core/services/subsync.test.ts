@@ -941,8 +941,9 @@ test('runSubsyncManual keeps a retimed secondary track in the secondary slot', a
 
   assert.equal(result.ok, true);
   assert.deepEqual(sentCommands[0], ['sub-add', retimedPath, 'auto']);
-  assert.deepEqual(sentCommands[1], ['set_property', 'secondary-sub-delay', 0]);
-  assert.deepEqual(sentCommands[2], ['set_property', 'secondary-sid', 3]);
+  // The old delay is only dropped once the retimed track is selected.
+  assert.deepEqual(sentCommands[1], ['set_property', 'secondary-sid', 3]);
+  assert.deepEqual(sentCommands[2], ['set_property', 'secondary-sub-delay', 0]);
   assert.equal(
     sentCommands.some((command) => command[1] === 'sub-delay'),
     false,
@@ -1556,9 +1557,14 @@ test('runSubsyncManual kills a running tool and reports cancellation when the me
   fs.writeFileSync(videoPath, 'video');
   fs.writeFileSync(targetPath, '1\n00:00:01,000 --> 00:00:02,000\nhi\n');
   fs.writeFileSync(refPath, '1\n00:00:01,000 --> 00:00:02,000\nhi\n');
-  writeExecutableScript(alassPath, `#!/bin/sh\necho $$ > "${pidPath}"\nexec sleep 30\n`);
+  const childPidPath = path.join(tmpDir, 'alass-child.pid');
+  // Like ffsubsync (Python running ffmpeg): the tool itself starts a long-running child.
+  writeExecutableScript(
+    alassPath,
+    `#!/bin/sh\nsleep 30 &\necho $! > "${childPidPath}"\necho $$ > "${pidPath}"\nwait\n`,
+  );
 
-  const startedAt = Date.now();
+  let switchedAt: number | null = null;
   const deps = makeDeps({
     getMpvClient: () => ({
       connected: true,
@@ -1566,7 +1572,9 @@ test('runSubsyncManual kills a running tool and reports cancellation when the me
       send: () => {},
       requestProperty: async (name: string) => {
         if (name === 'path') {
-          return Date.now() - startedAt < 700 ? videoPath : path.join(tmpDir, 'ep02.mkv');
+          // Switch episodes only once the tool is running, however slow the machine is.
+          if (switchedAt === null && fs.existsSync(pidPath)) switchedAt = Date.now();
+          return switchedAt === null ? videoPath : path.join(tmpDir, 'ep02.mkv');
         }
         if (name === 'sid') return 1;
         if (name === 'secondary-sid') return null;
@@ -1592,9 +1600,21 @@ test('runSubsyncManual kills a running tool and reports cancellation when the me
 
   assert.equal(result.ok, false);
   assert.match(result.message, /Playback changed/);
-  assert.ok(Date.now() - startedAt < 5000, 'run should stop well before the tool would finish');
-  const pid = Number(fs.readFileSync(pidPath, 'utf8').trim());
-  assert.throws(() => process.kill(pid, 0), 'the external tool should have been killed');
+  assert.ok(switchedAt !== null && Date.now() - switchedAt < 5000, 'stops soon after the switch');
+  const isAlive = (pidFile: string): boolean => {
+    try {
+      process.kill(Number(fs.readFileSync(pidFile, 'utf8').trim()), 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  assert.equal(isAlive(pidPath), false, 'the external tool should have been killed');
+  // The orphaned child is reaped asynchronously by init; give it a moment.
+  for (let attempt = 0; attempt < 20 && isAlive(childPidPath); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.equal(isAlive(childPidPath), false, "the tool's own child should have been killed");
 });
 
 test('in-place replacement keeps a one-time .orig backup, the file mode, and symlinks', async () => {

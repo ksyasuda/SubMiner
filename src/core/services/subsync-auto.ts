@@ -182,7 +182,10 @@ export async function runAutoSubsync(deps: TriggerSubsyncFromConfigDeps): Promis
         deps.showMpvOsd(`Subsync failed: ${LOSSY_REWRITE_ERROR_MESSAGE}`);
         return;
       }
-      writeRetimedContent(outputPath, alignment.rewrittenContent, replaceTarget);
+      writeRetimedContent(outputPath, alignment.rewrittenContent, {
+        replacesSource: replaceTarget,
+        sourceStamp: parsedTarget.stamp,
+      });
       await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
       deps.showMpvOsd(formatAlignmentSummary(sourceLabel, alignment));
     };

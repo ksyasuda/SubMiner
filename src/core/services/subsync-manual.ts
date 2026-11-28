@@ -44,6 +44,7 @@ import {
   runFfsubsyncSync,
   validateFfsubsyncReference,
   writeRetimedContent,
+  readSubtitleFileStamp,
 } from './subsync-files';
 import {
   AUDIO_SPEECH_LEAD_SEC,
@@ -181,7 +182,10 @@ async function runBuiltinSubsync(
       return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
 
-    writeRetimedContent(outputPath, alignment.rewrittenContent, replaceTarget);
+    writeRetimedContent(outputPath, alignment.rewrittenContent, {
+      replacesSource: replaceTarget,
+      sourceStamp: parsedTarget.stamp,
+    });
     await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
     return {
       ok: true,
@@ -225,7 +229,10 @@ async function runManualOffsetSubsync(
     if (!(await isPlaybackSessionUnchanged(client, context, targetTrack, targetSlot))) {
       return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
-    writeRetimedContent(outputPath, rewritten, replaceTarget);
+    writeRetimedContent(outputPath, rewritten, {
+      replacesSource: replaceTarget,
+      sourceStamp: parsedTarget.stamp,
+    });
     await loadSyncedSubtitle(client, outputPath, targetSlot, targetTrack);
     return {
       ok: true,
@@ -255,6 +262,7 @@ async function subsyncToReference(
   );
   const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
   const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
+  const sourceStamp = readSubtitleFileStamp(targetExtraction.path);
   const parsedOutput = path.parse(outputPath);
   const stagedOutputPath = path.join(
     parsedOutput.dir,
@@ -296,7 +304,10 @@ async function subsyncToReference(
       return { ok: false, message: PLAYBACK_CHANGED_RESULT_MESSAGE };
     }
 
-    installRetimedFile(stagedOutputPath, outputPath, replaceTarget);
+    installRetimedFile(stagedOutputPath, outputPath, {
+      replacesSource: replaceTarget,
+      sourceStamp,
+    });
     await loadSyncedSubtitle(client, outputPath, slot, targetTrack);
     return {
       ok: true,
@@ -377,6 +388,7 @@ export async function runSubsyncManualUnguarded(
       resolved,
       client,
       targetSlot,
+      deps,
     );
   }
 
@@ -396,6 +408,7 @@ export async function runSubsyncManualUnguarded(
       resolved,
       client,
       targetSlot,
+      deps,
     );
   }
 
@@ -520,6 +533,8 @@ export async function openSubsyncManualPicker(
     audioSpeechAvailable,
     guidanceMessage: options.guidanceMessage ?? null,
   });
+  // A cancelled run (media changed) must not open a picker for the old media.
+  if (deps.signal?.aborted) return false;
   deps.openManualPicker(payload);
   return true;
 }

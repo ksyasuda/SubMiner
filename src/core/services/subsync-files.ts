@@ -205,17 +205,22 @@ export function cleanupTemporaryFile(extraction: FileExtractionResult | null): v
  */
 export function pruneRetainedSubsyncTempDirs(
   referencedPaths: readonly string[],
-  now: number = Date.now(),
+  options: { now?: number; tmpRoot?: string } = {},
 ): void {
-  for (const dir of retainedSubsyncTempDirs) {
+  const isReferenced = (dir: string): boolean => {
     const prefix = `${dir}${path.sep}`;
-    if (referencedPaths.some((filePath) => filePath.startsWith(prefix))) continue;
+    return referencedPaths.some((filePath) => filePath.startsWith(prefix));
+  };
+  for (const dir of retainedSubsyncTempDirs) {
+    if (isReferenced(dir)) continue;
     removeDirQuietly(dir);
-    retainedSubsyncTempDirs.delete(dir);
+    // Keep failed removals registered so the next prune or exit cleanup retries them.
+    if (!fs.existsSync(dir)) retainedSubsyncTempDirs.delete(dir);
   }
   if (staleSweepDone) return;
   staleSweepDone = true;
-  const tmpRoot = os.tmpdir();
+  const tmpRoot = options.tmpRoot ?? os.tmpdir();
+  const now = options.now ?? Date.now();
   let entries: string[] = [];
   try {
     entries = fs.readdirSync(tmpRoot);
@@ -225,7 +230,8 @@ export function pruneRetainedSubsyncTempDirs(
   for (const name of entries) {
     if (!name.startsWith(SUBSYNC_TEMP_DIR_PREFIX)) continue;
     const dir = path.join(tmpRoot, name);
-    if (retainedSubsyncTempDirs.has(dir)) continue;
+    // mpv may still play a file from an old dir (e.g. the app restarted under a running mpv).
+    if (retainedSubsyncTempDirs.has(dir) || isReferenced(dir)) continue;
     try {
       const stat = fs.statSync(dir);
       if (stat.isDirectory() && now - stat.mtimeMs > STALE_SUBSYNC_TEMP_DIR_MS) {
@@ -264,14 +270,41 @@ export function buildRetimedPath(subPath: string, replace: boolean): string {
 export const LOSSY_REWRITE_ERROR_MESSAGE =
   'Cannot safely rewrite subtitle file because its text encoding could not be decoded unambiguously and losslessly. Convert the file to UTF-8 and retry.';
 
-export function readAndParseSubtitleFile(filePath: string): ParsedSubtitleFile {
+/** Size + mtime of a subtitle file, compared before an in-place rewrite to catch edits made mid-sync. */
+export function readSubtitleFileStamp(filePath: string): string | null {
+  try {
+    const stat = fs.statSync(filePath);
+    return `${stat.size}\0${stat.mtimeMs}`;
+  } catch {
+    return null;
+  }
+}
+
+export type ReadSubtitleFile = ParsedSubtitleFile & {
+  /** `readSubtitleFileStamp` taken before reading, for `RetimedWrite.sourceStamp`. */
+  stamp: string | null;
+};
+
+export function readAndParseSubtitleFile(filePath: string): ReadSubtitleFile {
+  const stamp = readSubtitleFileStamp(filePath);
   const bytes = fs.readFileSync(filePath);
   const decoded = decodeSubtitleBytesWithStatus(bytes);
   return {
     ...parseSubtitleFileContent(decoded.text, filePath),
     lossless: decoded.lossless,
+    stamp,
   };
 }
+
+export interface RetimedWrite {
+  /** In-place `subsync.replace` rewrite of the user's subtitle (backup + source-change check). */
+  replacesSource: boolean;
+  /** Stamp of the source when it was read; a different stamp now means it was edited mid-sync. */
+  sourceStamp?: string | null;
+}
+
+const SOURCE_CHANGED_MESSAGE =
+  'The subtitle file changed on disk while syncing; discarded the result. Run subsync again.';
 
 /** Suffix for the one-time backup of a replaced subtitle; not a subtitle extension, so mpv and sidecar discovery ignore it. */
 const SUBSYNC_BACKUP_SUFFIX = '.orig';
@@ -292,9 +325,16 @@ function resolveRealPathOrSelf(filePath: string): string {
 export function installRetimedFile(
   stagedPath: string,
   outputPath: string,
-  replacesSource: boolean,
+  { replacesSource, sourceStamp }: RetimedWrite,
 ): void {
   const targetPath = resolveRealPathOrSelf(outputPath);
+  if (
+    replacesSource &&
+    sourceStamp !== undefined &&
+    readSubtitleFileStamp(targetPath) !== sourceStamp
+  ) {
+    throw new Error(SOURCE_CHANGED_MESSAGE);
+  }
   const existing = fs.existsSync(targetPath) ? fs.statSync(targetPath) : null;
   if (existing) {
     if (replacesSource) {
@@ -326,7 +366,7 @@ export function removeIfExists(filePath: string): void {
 export function writeRetimedContent(
   outputPath: string,
   content: string,
-  replacesSource: boolean,
+  write: RetimedWrite,
 ): void {
   const dir = path.dirname(resolveRealPathOrSelf(outputPath));
   const tmpPath = path.join(
@@ -335,7 +375,7 @@ export function writeRetimedContent(
   );
   try {
     fs.writeFileSync(tmpPath, content, 'utf8');
-    installRetimedFile(tmpPath, outputPath, replacesSource);
+    installRetimedFile(tmpPath, outputPath, write);
   } catch (error) {
     removeIfExists(tmpPath);
     throw error;
@@ -367,30 +407,43 @@ export async function runFfsubsyncSync(
   return runCommand(ffsubsyncPath, args, undefined, signal);
 }
 
+async function readSubtitleTracks(client: MpvClientLike): Promise<MpvTrack[]> {
+  const trackListRaw = await client.requestProperty('track-list');
+  return Array.isArray(trackListRaw)
+    ? normalizeTrackIds(trackListRaw as MpvTrack[]).filter((track) => track.type === 'sub')
+    : [];
+}
+
+/**
+ * Find the track `sub-add` created for `pathToLoad`. Only ids missing from `knownTrackIds`
+ * (the list before the add) count, so an older track for the same file is never picked.
+ */
 async function findAddedSubtitleTrackId(
   client: MpvClientLike,
   pathToLoad: string,
+  knownTrackIds: ReadonlySet<number>,
 ): Promise<number | null> {
   const wanted = normalizeSubtitlePathForCompare(pathToLoad);
   // sub-add is queued, so the track may not appear in the first track-list reply.
   for (let attempt = 0; attempt < SYNCED_TRACK_LOOKUP_ATTEMPTS; attempt += 1) {
     let tracks: MpvTrack[] = [];
     try {
-      const trackListRaw = await client.requestProperty('track-list');
-      tracks = Array.isArray(trackListRaw) ? normalizeTrackIds(trackListRaw as MpvTrack[]) : [];
+      tracks = await readSubtitleTracks(client);
     } catch {
       return null;
     }
-    // Re-adding a file mpv already knows appends a duplicate entry; the newest
-    // one holds the retimed content, so prefer the last match.
-    const matches = tracks.filter((track) => {
-      if (track.type !== 'sub') return false;
+    const added = tracks.filter((track) => {
       const filename = track['external-filename'];
-      return typeof filename === 'string' && normalizeSubtitlePathForCompare(filename) === wanted;
+      return (
+        typeof track.id === 'number' &&
+        !knownTrackIds.has(track.id) &&
+        typeof filename === 'string' &&
+        normalizeSubtitlePathForCompare(filename) === wanted
+      );
     });
-    const added = matches[matches.length - 1];
-    if (added && typeof added.id === 'number') {
-      return added.id;
+    const newest = added[added.length - 1];
+    if (newest && typeof newest.id === 'number') {
+      return newest.id;
     }
     if (attempt < SYNCED_TRACK_LOOKUP_ATTEMPTS - 1) {
       await delay(SYNCED_TRACK_LOOKUP_RETRY_MS);
@@ -425,13 +478,19 @@ export async function loadSyncedSubtitle(
   if (slot === 'secondary') {
     // Keep the primary track untouched: load without selecting, then point
     // secondary-sid at the freshly added track.
+    const knownTrackIds = new Set(
+      (await readSubtitleTracks(client).catch(() => [])).flatMap((track) =>
+        typeof track.id === 'number' ? [track.id] : [],
+      ),
+    );
     client.send({ command: buildSubAddCommand(pathToLoad, 'auto', sourceTrack) });
-    client.send({ command: ['set_property', 'secondary-sub-delay', 0] });
-    const addedTrackId = await findAddedSubtitleTrackId(client, pathToLoad);
+    const addedTrackId = await findAddedSubtitleTrackId(client, pathToLoad, knownTrackIds);
     if (addedTrackId === null) {
       throw new Error('Synchronized subtitle did not appear in the mpv track list');
     }
     client.send({ command: ['set_property', 'secondary-sid', addedTrackId] });
+    // The retimed file carries the timing now; only drop the old delay once it is selected.
+    client.send({ command: ['set_property', 'secondary-sub-delay', 0] });
     return;
   }
 
@@ -460,7 +519,12 @@ export function maybeWriteCleanedReferenceSrt(
     }
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-subsync-cleanref-'));
     const cleanPath = path.join(tempDir, 'clean_ref.srt');
-    fs.writeFileSync(cleanPath, formatSpansAsSrt(extracted.spans), 'utf8');
+    try {
+      fs.writeFileSync(cleanPath, formatSpansAsSrt(extracted.spans), 'utf8');
+    } catch (error) {
+      removeDirQuietly(tempDir);
+      throw error;
+    }
     return { path: cleanPath, temporary: true };
   } catch {
     return null;

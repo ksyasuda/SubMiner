@@ -59,7 +59,7 @@
     "test:immersion:sqlite": "bun run tsc && bun run test:immersion:sqlite:dist",
     "test:src": "bun run build:yomitan && bun scripts/run-test-lane.mjs bun-src-full",
     "test:coverage:src": "bun run build:yomitan && bun run scripts/run-coverage-lane.ts bun-src-full --coverage-dir coverage/test-src",
-    "test:coverage:subtitle:src": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir coverage/test-subtitle src/core/services/subsync.test.ts src/subsync/utils.test.ts",
+    "test:coverage:subtitle:src": "bun run scripts/run-coverage-lane.ts subtitle --coverage-dir coverage/test-subtitle",
     "test:launcher:unit:src": "bun scripts/run-test-lane.mjs bun-launcher-unit",
     "test:scripts": "bun scripts/run-test-lane.mjs scripts",
     "test:stats": "bun scripts/run-test-lane.mjs stats",

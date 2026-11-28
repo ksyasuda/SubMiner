@@ -46,7 +46,7 @@ function getSourceTrackIdentity(track: MpvTrack): string {
     typeof track['external-filename'] === 'string' &&
     track['external-filename'].length > 0
   ) {
-    return `external:${track['external-filename'].toLowerCase()}`;
+    return `external:${normalizeSubtitlePathForCompare(track['external-filename'])}`;
   }
   if (typeof track.id === 'number') {
     return `id:${track.id}`;

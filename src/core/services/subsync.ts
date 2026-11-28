@@ -73,9 +73,10 @@ export async function runWithMediaChangeAbort<D extends SubsyncCoreDeps, T>(
   task: (deps: D) => Promise<T>,
 ): Promise<T> {
   const client = deps.getMpvClient();
-  const initialPath = client?.connected
-    ? await client.requestProperty('path').catch(() => null)
-    : null;
+  // `undefined` = baseline not read yet (failed request); the first successful poll sets it.
+  let baselinePath: unknown = client?.connected
+    ? await client.requestProperty('path').catch(() => undefined)
+    : undefined;
   const controller = new AbortController();
   let polling = false;
   const timer = setInterval(() => {
@@ -90,7 +91,8 @@ export async function runWithMediaChangeAbort<D extends SubsyncCoreDeps, T>(
       .requestProperty('path')
       .then(
         (currentPath) => {
-          if (currentPath !== initialPath) controller.abort();
+          if (baselinePath === undefined) baselinePath = currentPath;
+          else if (currentPath !== baselinePath) controller.abort();
         },
         () => {},
       )
